@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, InteractionManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
@@ -9,20 +9,44 @@ export const ReviewScreen = ({ route }) => {
   const { go, back } = useNav();
   const lastRecordingUri = useAppState((state) => state.lastRecordingUri);
   const videoUri = route?.params?.videoUri || lastRecordingUri;
+  const [isReady, setIsReady] = useState(false);
 
   console.log('📺 ReviewScreen rendered with videoUri:', videoUri);
 
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => {
+        setIsReady(true);
+        console.log('✅ ReviewScreen ready for interactions');
+      }, 300);
+    });
+
+    return () => task.cancel();
+  }, []);
+
   const handleDone = () => {
+    if (!isReady) {
+      console.log('⏸️ Done button ignored - screen not ready');
+      return;
+    }
     console.log('✅ Done button pressed - going Home');
     go('Home');
   };
 
   const handleRecordAgain = () => {
+    if (!isReady) {
+      console.log('⏸️ Record Again ignored - screen not ready');
+      return;
+    }
     console.log('🔄 Record Again pressed');
     go('Record');
   };
 
   const handleAddMusic = () => {
+    if (!isReady) {
+      console.log('⏸️ Add Music ignored - screen not ready');
+      return;
+    }
     console.log('🎵 Add Music pressed');
     go('MusicSelection', { videoUri });
   };

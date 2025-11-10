@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, InteractionManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
@@ -12,8 +12,20 @@ export const MusicSelectionScreen = ({ route }) => {
   const setSelectedMusic = useAppState((state) => state.setSelectedMusic);
   const selectedMusic = useAppState((state) => state.selectedMusic);
   const [currentSelection, setCurrentSelection] = useState(selectedMusic || null);
+  const [isReady, setIsReady] = useState(false);
 
   console.log('🎵 MusicSelectionScreen rendered');
+
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => {
+        setIsReady(true);
+        console.log('✅ MusicSelectionScreen ready for interactions');
+      }, 300);
+    });
+
+    return () => task.cancel();
+  }, []);
 
   const musicOptions = [
     { id: 'upbeat', name: 'Upbeat', description: 'Energetic and positive' },
@@ -24,6 +36,10 @@ export const MusicSelectionScreen = ({ route }) => {
   ];
 
   const handleSave = () => {
+    if (!isReady) {
+      console.log('⏸️ Save ignored - screen not ready');
+      return;
+    }
     console.log('💾 Save music selection:', currentSelection);
     if (currentSelection) {
       setSelectedMusic(currentSelection);
