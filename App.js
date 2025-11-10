@@ -1,6 +1,7 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { 
   HomeScreen, 
   RecordScreen, 
@@ -59,15 +60,17 @@ export default function App() {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="auto" backgroundColor="#FFEFF3" />
-      {renderScreen()}
-      
-      <SideMenu 
-        isOpen={isSideMenuOpen}
-        onClose={() => setSideMenuOpen(false)}
-      />
-    </View>
+    <SafeAreaProvider>
+      <View style={styles.container}>
+        <StatusBar style="auto" backgroundColor="#FFEFF4" />
+        {renderScreen()}
+        
+        <SideMenu 
+          isOpen={isSideMenuOpen}
+          onClose={() => setSideMenuOpen(false)}
+        />
+      </View>
+    </SafeAreaProvider>
   );
 }
 

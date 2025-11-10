@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { Card } from '../ui/Card';
@@ -48,13 +48,13 @@ export const HelpScreen = () => {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.header}>
+      <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Help & FAQ</Text>
         <View style={styles.placeholder} />
-      </SafeAreaView>
+      </View>
 
       <ScrollView style={styles.content}>
         <Card style={styles.welcomeCard}>

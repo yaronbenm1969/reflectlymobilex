@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNav } from '../hooks/useNav';
@@ -11,13 +11,13 @@ export const AboutScreen = () => {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.header}>
+      <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>About</Text>
         <View style={styles.placeholder} />
-      </SafeAreaView>
+      </View>
 
       <ScrollView style={styles.content}>
         <Card style={styles.heroCard}>

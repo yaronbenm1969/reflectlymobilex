@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
@@ -9,8 +9,11 @@ import theme from '../theme/theme';
 
 export const MusicSelectionScreen = ({ route }) => {
   const { go, back } = useNav();
-  const { setSelectedMusic, selectedMusic } = useAppState();
+  const setSelectedMusic = useAppState((state) => state.setSelectedMusic);
+  const selectedMusic = useAppState((state) => state.selectedMusic);
   const [currentSelection, setCurrentSelection] = useState(selectedMusic || null);
+
+  console.log('🎵 MusicSelectionScreen rendered');
 
   const musicOptions = [
     { id: 'upbeat', name: 'Upbeat', description: 'Energetic and positive' },
@@ -21,6 +24,7 @@ export const MusicSelectionScreen = ({ route }) => {
   ];
 
   const handleSave = () => {
+    console.log('💾 Save music selection:', currentSelection);
     if (currentSelection) {
       setSelectedMusic(currentSelection);
     }
@@ -29,13 +33,13 @@ export const MusicSelectionScreen = ({ route }) => {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.header}>
+      <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Select Music</Text>
         <View style={styles.placeholder} />
-      </SafeAreaView>
+      </View>
 
       <ScrollView style={styles.content}>
         <Text style={styles.description}>
@@ -102,7 +106,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing[4],
-    paddingVertical: theme.spacing[3],
+    paddingTop: 50,
+    paddingBottom: theme.spacing[3],
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },

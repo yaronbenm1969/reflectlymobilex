@@ -106,7 +106,7 @@ export const SideMenu = ({ isOpen, onClose }) => {
             end={{ x: 1, y: 1 }}
             style={styles.header}
           >
-            <SafeAreaView>
+            <View>
               <View style={styles.headerContent}>
                 <Text style={styles.headerTitle}>Reflectly</Text>
                 <TouchableOpacity
@@ -116,7 +116,7 @@ export const SideMenu = ({ isOpen, onClose }) => {
                   <Ionicons name="close" size={24} color="white" />
                 </TouchableOpacity>
               </View>
-            </SafeAreaView>
+            </View>
           </LinearGradient>
 
           <ScrollView style={styles.menuContent}>

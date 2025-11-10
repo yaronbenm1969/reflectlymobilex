@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
-  SafeAreaView,
   Dimensions,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -212,7 +211,7 @@ export const RecordScreen = () => {
         mode="video"
       >
         {/* Header */}
-        <SafeAreaView style={styles.header}>
+        <View style={styles.header}>
           <TouchableOpacity 
             style={styles.headerButton}
             onPress={back}
@@ -233,7 +232,7 @@ export const RecordScreen = () => {
           >
             <Ionicons name="camera-reverse" size={24} color="white" />
           </TouchableOpacity>
-        </SafeAreaView>
+        </View>
 
         {/* Countdown overlay */}
         {isCountingDown && countdown > 0 && (
@@ -320,7 +319,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing[4],
-    paddingTop: theme.spacing[2],
+    paddingTop: 50,
   },
   headerButton: {
     width: 44,
