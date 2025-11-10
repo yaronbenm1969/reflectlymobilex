@@ -7,8 +7,10 @@ import theme from '../theme/theme';
 
 export const ReviewScreen = ({ route }) => {
   const { go, back } = useNav();
-  const { lastRecordingUri } = useAppState();
+  const lastRecordingUri = useAppState((state) => state.lastRecordingUri);
   const videoUri = route?.params?.videoUri || lastRecordingUri;
+
+  console.log('📺 ReviewScreen rendered with videoUri:', videoUri);
 
   return (
     <View style={styles.container}>
@@ -50,7 +52,10 @@ export const ReviewScreen = ({ route }) => {
 
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => go('Home')}
+            onPress={() => {
+              console.log('✅ Done button pressed - going Home');
+              go('Home');
+            }}
           >
             <Ionicons name="checkmark" size={20} color={theme.colors.success} />
             <Text style={styles.actionText}>Done</Text>

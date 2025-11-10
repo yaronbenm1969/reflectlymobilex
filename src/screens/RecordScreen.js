@@ -122,13 +122,15 @@ export const RecordScreen = () => {
       
       if (video && video.uri) {
         console.log('✅ Recording completed:', video.uri);
-        console.log('🎬 Navigating to Review screen...');
         setRecordedVideo(video.uri);
         setLastRecording(video.uri);
         
-        // Navigate to review screen
-        go('Review', { videoUri: video.uri });
-        console.log('🎬 Navigation called!');
+        // Navigate to review screen after a small delay to avoid state update conflicts
+        console.log('🎬 Navigating to Review screen...');
+        setTimeout(() => {
+          go('Review', { videoUri: video.uri });
+          console.log('🎬 Navigation called!');
+        }, 100);
       } else {
         console.warn('⚠️ No video URI received');
         Alert.alert('Recording Issue', 'Video was recorded but no URI was returned.');
