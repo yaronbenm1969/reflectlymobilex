@@ -9,6 +9,8 @@ export const useAppState = create((set, get) => ({
   isCountdownEnabled: true,
   recordingDuration: 0,
   selectedMusic: null,
+  videoFormat: null,
+  backgroundStyle: null,
   isSideMenuOpen: false,
   
   // Navigation actions
@@ -43,6 +45,10 @@ export const useAppState = create((set, get) => ({
   
   // Music actions
   setSelectedMusic: (music) => set({ selectedMusic: music }),
+  
+  // Format & Style actions
+  setVideoFormat: (format) => set({ videoFormat: format }),
+  setBackgroundStyle: (style) => set({ backgroundStyle: style }),
   
   // UI actions
   setSideMenuOpen: (open) => set({ isSideMenuOpen: open }),

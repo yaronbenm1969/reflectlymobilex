@@ -28,6 +28,7 @@ export const MusicSelectionScreen = ({ route }) => {
   }, []);
 
   const musicOptions = [
+    { id: 'ai-custom', name: '🎼 יצירה מקורית AI', description: 'מוזיקה מותאמת אישית דרך ElevenLabs', featured: true },
     { id: 'upbeat', name: 'Upbeat', description: 'Energetic and positive' },
     { id: 'calm', name: 'Calm', description: 'Peaceful and relaxing' },
     { id: 'dramatic', name: 'Dramatic', description: 'Emotional and intense' },
@@ -44,7 +45,7 @@ export const MusicSelectionScreen = ({ route }) => {
     if (currentSelection) {
       setSelectedMusic(currentSelection);
     }
-    go('Home');
+    go('FormatSelection', { videoUri: route?.params?.videoUri });
   };
 
   return (
@@ -68,7 +69,8 @@ export const MusicSelectionScreen = ({ route }) => {
               key={option.id}
               style={[
                 styles.musicOption,
-                currentSelection === option.id && styles.musicOptionSelected
+                currentSelection === option.id && styles.musicOptionSelected,
+                option.featured && styles.musicOptionFeatured
               ]}
               onPress={() => setCurrentSelection(option.id)}
             >
@@ -76,7 +78,8 @@ export const MusicSelectionScreen = ({ route }) => {
                 <View style={styles.optionInfo}>
                   <Text style={[
                     styles.optionName,
-                    currentSelection === option.id && styles.optionNameSelected
+                    currentSelection === option.id && styles.optionNameSelected,
+                    option.featured && styles.optionNameFeatured
                   ]}>
                     {option.name}
                   </Text>
@@ -88,10 +91,16 @@ export const MusicSelectionScreen = ({ route }) => {
                   <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
                 )}
               </View>
-              {option.id !== 'none' && (
+              {option.id !== 'none' && option.id !== 'ai-custom' && (
                 <TouchableOpacity style={styles.playButton}>
                   <Ionicons name="play" size={16} color={theme.colors.primary} />
                 </TouchableOpacity>
+              )}
+              {option.featured && (
+                <View style={styles.featuredBadge}>
+                  <Ionicons name="sparkles" size={12} color="white" />
+                  <Text style={styles.featuredText}>AI</Text>
+                </View>
               )}
             </TouchableOpacity>
           ))}
@@ -186,6 +195,31 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.subtext,
     marginTop: theme.spacing[1],
+  },
+  musicOptionFeatured: {
+    borderColor: theme.colors.primary,
+    backgroundColor: `${theme.colors.primary}08`,
+  },
+  optionNameFeatured: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  featuredBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  featuredText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '700',
   },
   playButton: {
     width: 32,

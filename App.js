@@ -9,6 +9,7 @@ import {
   MyStoriesScreen, 
   SettingsScreen,
   MusicSelectionScreen,
+  FormatSelectionScreen,
   CameraSettingsScreen,
   AboutScreen,
   HelpScreen,
@@ -39,6 +40,12 @@ export default function App() {
       case 'MusicSelection':
         return (
           <MusicSelectionScreen 
+            route={{ params: navigationParams || {} }} 
+          />
+        );
+      case 'FormatSelection':
+        return (
+          <FormatSelectionScreen 
             route={{ params: navigationParams || {} }} 
           />
         );

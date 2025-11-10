@@ -5,6 +5,7 @@ export { ReviewScreen } from './ReviewScreen';
 export { MyStoriesScreen } from './MyStoriesScreen';
 export { SettingsScreen } from './SettingsScreen';
 export { MusicSelectionScreen } from './MusicSelectionScreen';
+export { FormatSelectionScreen } from './FormatSelectionScreen';
 export { CameraSettingsScreen } from './CameraSettingsScreen';
 export { AboutScreen } from './AboutScreen';
 export { HelpScreen } from './HelpScreen';
