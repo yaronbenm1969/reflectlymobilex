@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
@@ -12,15 +12,30 @@ export const ReviewScreen = ({ route }) => {
 
   console.log('📺 ReviewScreen rendered with videoUri:', videoUri);
 
+  const handleDone = () => {
+    console.log('✅ Done button pressed - going Home');
+    go('Home');
+  };
+
+  const handleRecordAgain = () => {
+    console.log('🔄 Record Again pressed');
+    go('Record');
+  };
+
+  const handleAddMusic = () => {
+    console.log('🎵 Add Music pressed');
+    go('MusicSelection', { videoUri });
+  };
+
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.header}>
+      <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Review Recording</Text>
         <View style={styles.placeholder} />
-      </SafeAreaView>
+      </View>
 
       <View style={styles.content}>
         <View style={styles.videoContainer}>
@@ -36,7 +51,7 @@ export const ReviewScreen = ({ route }) => {
         <View style={styles.actions}>
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => go('Record')}
+            onPress={handleRecordAgain}
           >
             <Ionicons name="refresh" size={20} color={theme.colors.primary} />
             <Text style={styles.actionText}>Record Again</Text>
@@ -44,7 +59,7 @@ export const ReviewScreen = ({ route }) => {
 
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => go('MusicSelection', { videoUri })}
+            onPress={handleAddMusic}
           >
             <Ionicons name="musical-notes" size={20} color={theme.colors.primary} />
             <Text style={styles.actionText}>Add Music</Text>
@@ -52,10 +67,7 @@ export const ReviewScreen = ({ route }) => {
 
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => {
-              console.log('✅ Done button pressed - going Home');
-              go('Home');
-            }}
+            onPress={handleDone}
           >
             <Ionicons name="checkmark" size={20} color={theme.colors.success} />
             <Text style={styles.actionText}>Done</Text>
@@ -76,7 +88,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing[4],
-    paddingVertical: theme.spacing[3],
+    paddingTop: 50,
+    paddingBottom: theme.spacing[3],
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
