@@ -16,13 +16,11 @@ export const useAppState = create((set, get) => ({
   // Navigation actions
   navigateTo: (screen, params) => {
     const { currentScreen, screenHistory } = get();
-    console.log(`📍 appState.navigateTo: ${currentScreen} → ${screen}`, params);
     set({
       currentScreen: screen,
       navigationParams: params || null,
       screenHistory: [...screenHistory, currentScreen],
     });
-    console.log(`📍 Navigation state updated to: ${screen}`);
   },
   
   goBack: () => {

@@ -175,27 +175,6 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.primary,
     backgroundColor: `${theme.colors.primary}05`,
   },
-  optionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing[2],
-  },
-  optionInfo: {
-    flex: 1,
-  },
-  optionName: {
-    ...theme.typography.h3,
-    color: theme.colors.text,
-    fontSize: 16,
-  },
-  optionNameSelected: {
-    color: theme.colors.primary,
-  },
-  optionDescription: {
-    ...theme.typography.caption,
-    color: theme.colors.subtext,
-    marginTop: theme.spacing[1],
-  },
   musicOptionFeatured: {
     borderColor: theme.colors.primary,
     backgroundColor: `${theme.colors.primary}08`,
@@ -220,6 +199,27 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 10,
     fontWeight: '700',
+  },
+  optionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing[2],
+  },
+  optionInfo: {
+    flex: 1,
+  },
+  optionName: {
+    ...theme.typography.h3,
+    color: theme.colors.text,
+    fontSize: 16,
+  },
+  optionNameSelected: {
+    color: theme.colors.primary,
+  },
+  optionDescription: {
+    ...theme.typography.caption,
+    color: theme.colors.subtext,
+    marginTop: theme.spacing[1],
   },
   playButton: {
     width: 32,

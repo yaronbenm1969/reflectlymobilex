@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  SafeAreaView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,7 +34,7 @@ export const HomeScreen = () => {
         end={{ x: 1, y: 0 }}
         style={styles.header}
       >
-        <View style={styles.safeArea}>
+        <SafeAreaView style={styles.safeArea}>
           <View style={styles.headerContent}>
             <TouchableOpacity 
               style={styles.menuButton}
@@ -55,7 +56,7 @@ export const HomeScreen = () => {
           <Text style={styles.subtitle}>
             Share your story, invite reflections
           </Text>
-        </View>
+        </SafeAreaView>
       </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -118,7 +119,6 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     backgroundColor: 'transparent',
-    paddingTop: 50,
   },
   headerContent: {
     flexDirection: 'row',

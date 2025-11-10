@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  SafeAreaView,
   Dimensions,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -112,31 +113,20 @@ export const RecordScreen = () => {
         });
       }, 1000);
       
-      console.log('📹 Calling recordAsync...');
       const video = await cameraRef.current.recordAsync({
         maxDuration: MAX_RECORDING_TIME,
       });
-      
-      console.log('📹 recordAsync returned:', video);
       
       if (video && video.uri) {
         console.log('✅ Recording completed:', video.uri);
         setRecordedVideo(video.uri);
         setLastRecording(video.uri);
         
-        // Navigate to review screen after a small delay to avoid state update conflicts
-        console.log('🎬 Navigating to Review screen...');
-        setTimeout(() => {
-          go('Review', { videoUri: video.uri });
-          console.log('🎬 Navigation called!');
-        }, 100);
-      } else {
-        console.warn('⚠️ No video URI received');
-        Alert.alert('Recording Issue', 'Video was recorded but no URI was returned.');
+        // Navigate to review screen
+        go('Review', { videoUri: video.uri });
       }
     } catch (error) {
       console.error('❌ Recording error:', error);
-      console.error('❌ Error details:', JSON.stringify(error));
       Alert.alert('Recording Error', 'Failed to start recording. Please try again.');
     }
   };
@@ -153,9 +143,7 @@ export const RecordScreen = () => {
         recordingTimerRef.current = null;
       }
       
-      console.log('⏹️ Calling stopRecording on camera...');
       await cameraRef.current.stopRecording();
-      console.log('⏹️ stopRecording completed');
       setIsRecording(false);
       
       try {
@@ -163,7 +151,6 @@ export const RecordScreen = () => {
       } catch (e) {}
     } catch (error) {
       console.error('❌ Stop recording error:', error);
-      console.error('❌ Stop error details:', JSON.stringify(error));
     }
   };
 
@@ -319,7 +306,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing[4],
-    paddingTop: 50,
+    paddingTop: theme.spacing[2],
   },
   headerButton: {
     width: 44,
