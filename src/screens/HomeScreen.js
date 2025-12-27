@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,24 +19,31 @@ import theme from '../theme/theme';
 
 export const HomeScreen = () => {
   const { go } = useNav();
-  const [connectionStatus, setConnectionStatus] = useState('Demo Mode - No Backend');
+  const storyName = useAppState((state) => state.storyName);
+  const setStoryName = useAppState((state) => state.setStoryName);
+  const [localStoryName, setLocalStoryName] = useState(storyName || '');
   
   const navigateToRecord = () => {
-    console.log('🎬 Navigate to Record pressed');
+    if (!localStoryName.trim()) {
+      return;
+    }
+    setStoryName(localStoryName.trim());
+    console.log('🎬 Starting story:', localStoryName);
     go('Record');
   };
 
-  const buildTimestamp = new Date().toLocaleString();
-
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <LinearGradient
         colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.header}
       >
-        <SafeAreaView style={styles.safeArea}>
+        <View style={styles.safeArea}>
           <View style={styles.headerContent}>
             <TouchableOpacity 
               style={styles.menuButton}
@@ -54,30 +63,41 @@ export const HomeScreen = () => {
           </View>
           
           <Text style={styles.subtitle}>
-            Share your story, invite reflections
+            שתף את הסיפור שלך, קבל שיקופים מחברים
           </Text>
-        </SafeAreaView>
+        </View>
       </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.buttonContainer}>
           <Card style={styles.actionCard}>
-            <Text style={styles.cardTitle}>Start Your Journey</Text>
+            <Text style={styles.cardTitle}>מה שם הסיפור שלך?</Text>
+            
+            <TextInput
+              style={styles.storyNameInput}
+              placeholder="הכנס שם לסיפור..."
+              placeholderTextColor={theme.colors.subtext}
+              value={localStoryName}
+              onChangeText={setLocalStoryName}
+              textAlign="right"
+            />
+            
             <Text style={styles.cardDescription}>
-              Record a personal story and invite friends to share their reflections
+              הקלט סיפור אישי והזמן חברים לשתף את השיקופים שלהם
             </Text>
             
             <AppButton
-              title="Start a New Story"
+              title="התחל סיפור חדש"
               onPress={navigateToRecord}
               variant="primary"
               size="lg"
               fullWidth
               style={styles.primaryButton}
+              disabled={!localStoryName.trim()}
             />
             
             <AppButton
-              title="My Stories"
+              title="הסיפורים שלי"
               onPress={() => go('MyStories')}
               variant="secondary"
               size="lg"
@@ -89,23 +109,19 @@ export const HomeScreen = () => {
           <Card style={styles.infoCard}>
             <View style={styles.infoHeader}>
               <Ionicons name="information-circle" size={24} color={theme.colors.primary} />
-              <Text style={styles.infoTitle}>How it works</Text>
+              <Text style={styles.infoTitle}>איך זה עובד</Text>
             </View>
             <Text style={styles.infoText}>
-              1. Record your story in segments{'\n'}
-              2. Invite friends via WhatsApp{'\n'}
-              3. They record their reflections{'\n'}
-              4. Get an AI-edited final video
+              1. הקלט את הסיפור שלך{'\n'}
+              2. בחר פורמט הקרנה ומוזיקה{'\n'}
+              3. הזמן חברים דרך WhatsApp{'\n'}
+              4. הם מקליטים שיקופים{'\n'}
+              5. קבל סרטון מעורך עם AI
             </Text>
           </Card>
         </View>
-
-        <View style={styles.footer}>
-          <Text style={styles.buildInfo}>Expo Snack Build: {buildTimestamp}</Text>
-          <Text style={styles.connectionInfo}>{connectionStatus}</Text>
-        </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -116,6 +132,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingBottom: theme.spacing[6],
+    paddingTop: 50,
   },
   safeArea: {
     backgroundColor: 'transparent',
@@ -163,7 +180,18 @@ const styles = StyleSheet.create({
     ...theme.typography.h2,
     color: theme.colors.text,
     textAlign: 'center',
-    marginBottom: theme.spacing[3],
+    marginBottom: theme.spacing[4],
+  },
+  storyNameInput: {
+    width: '100%',
+    backgroundColor: theme.colors.white,
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+    borderRadius: theme.radii.lg,
+    padding: theme.spacing[4],
+    fontSize: 18,
+    color: theme.colors.text,
+    marginBottom: theme.spacing[4],
   },
   cardDescription: {
     ...theme.typography.body,
@@ -195,20 +223,6 @@ const styles = StyleSheet.create({
     ...theme.typography.body,
     color: theme.colors.subtext,
     lineHeight: 24,
-  },
-  footer: {
-    alignItems: 'center',
-    paddingVertical: theme.spacing[6],
-  },
-  buildInfo: {
-    ...theme.typography.caption,
-    color: theme.colors.subtext,
-    fontFamily: 'monospace',
-  },
-  connectionInfo: {
-    fontSize: 12,
-    color: theme.colors.subtext,
-    textAlign: 'center',
-    marginTop: 4,
+    textAlign: 'right',
   },
 });

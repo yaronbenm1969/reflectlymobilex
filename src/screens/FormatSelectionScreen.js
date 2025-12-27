@@ -100,7 +100,7 @@ export const FormatSelectionScreen = ({ route }) => {
       setBackgroundStyle(selectedBackground);
     }
     
-    go('Home');
+    go('MusicSelection');
   };
 
   const renderOption = (option, isSelected, onPress) => (

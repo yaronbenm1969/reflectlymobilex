@@ -48,7 +48,7 @@ export const ReviewScreen = ({ route }) => {
       return;
     }
     console.log('🎵 Add Music pressed');
-    go('MusicSelection', { videoUri });
+    go('FormatSelection', { videoUri });
   };
 
   return (

@@ -3,13 +3,19 @@ import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { 
+  SplashScreen,
   HomeScreen, 
   RecordScreen, 
   ReviewScreen, 
-  MyStoriesScreen, 
-  SettingsScreen,
   MusicSelectionScreen,
   FormatSelectionScreen,
+  InstructionsScreen,
+  WhatsAppShareScreen,
+  ProcessingScreen,
+  EditRoomScreen,
+  FinalVideoScreen,
+  MyStoriesScreen, 
+  SettingsScreen,
   CameraSettingsScreen,
   AboutScreen,
   HelpScreen,
@@ -29,6 +35,8 @@ export default function App() {
 
   const renderScreen = () => {
     switch (currentScreen) {
+      case 'Splash':
+        return <SplashScreen />;
       case 'Record':
         return <RecordScreen />;
       case 'Review':
@@ -49,6 +57,16 @@ export default function App() {
             route={{ params: navigationParams || {} }} 
           />
         );
+      case 'Instructions':
+        return <InstructionsScreen />;
+      case 'WhatsAppShare':
+        return <WhatsAppShareScreen />;
+      case 'Processing':
+        return <ProcessingScreen />;
+      case 'EditRoom':
+        return <EditRoomScreen />;
+      case 'FinalVideo':
+        return <FinalVideoScreen />;
       case 'MyStories':
         return <MyStoriesScreen />;
       case 'Settings':

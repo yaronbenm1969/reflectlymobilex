@@ -45,7 +45,7 @@ export const MusicSelectionScreen = ({ route }) => {
     if (currentSelection) {
       setSelectedMusic(currentSelection);
     }
-    go('FormatSelection', { videoUri: route?.params?.videoUri });
+    go('Instructions');
   };
 
   return (
