@@ -162,17 +162,22 @@ Access on mobile via:
 - **Navigation**: Fixed touch bleed-through issues
 
 ### API Keys & Secrets Status
-**User has API keys in another Replit project: "רפלקטלי פלייבק 2"**
+**User has API keys in another Replit project: "ReflectlyPlayback-2"**
 
 Required Secrets to copy from that project:
-- ✅ `OPENAI_API_KEY` - For AI video processing and transcription
-- ⏳ `ELEVENLABS_API_KEY` - For AI-generated custom music
-- ⏳ `TWILIO_ACCOUNT_SID` - For WhatsApp messaging
-- ⏳ `TWILIO_AUTH_TOKEN` - For WhatsApp messaging
-- ⏳ `TWILIO_PHONE_NUMBER` - For WhatsApp messaging
-- ⏳ `REPLICATE_API_KEY` - Optional, for AI video processing
+- ⏳ `OPENAI_API_KEY` - For AI video processing and transcription
+- ⏳ `REPLICATE_API_TOKEN` - For AI video processing
+- ⏳ `Music123` - Unknown purpose (music related?)
 
-**User is currently copying these secrets manually from the other project.**
+**NOT needed:**
+- ❌ Twilio keys - WhatsApp sharing will use native device sharing (expo-sharing + Linking API) - FREE!
+- ❌ PostgreSQL keys - This is a mobile app, database is in backend project
+- ❌ Object Storage keys - Will be handled by backend
+
+**WhatsApp Sharing Solution:**
+- Use `expo-sharing` or `Linking.openURL('whatsapp://send?text=...')` to open WhatsApp directly
+- Use `expo-contacts` to select contacts from device
+- No paid API required!
 
 ### Known Considerations
 - **Backend**: No backend yet - all features are UI/UX only
