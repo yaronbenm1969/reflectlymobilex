@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   },
   videoPreview: {
     height: 220,
-    backgroundColor: '#333',
+    backgroundColor: theme.colors.gradient.end,
     alignItems: 'center',
     justifyContent: 'center',
   },

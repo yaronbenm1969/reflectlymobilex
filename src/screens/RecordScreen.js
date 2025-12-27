@@ -33,11 +33,8 @@ const MAX_RECORDING_TIME = 180; // 3 minutes in seconds
 
 export const RecordScreen = () => {
   const { go, back } = useNav();
-  const { 
-    setLastRecording, 
-    isCountdownEnabled, 
-    setRecordingDuration 
-  } = useAppState();
+  const setLastRecording = useAppState((state) => state.setLastRecording);
+  const isCountdownEnabled = useAppState((state) => state.isCountdownEnabled);
   
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState('front');
@@ -99,18 +96,15 @@ export const RecordScreen = () => {
       setRecordingTimer(0);
       
       // Start recording timer
+      let timerValue = 0;
       recordingTimerRef.current = setInterval(() => {
-        setRecordingTimer((prev) => {
-          const newTime = prev + 1;
-          setRecordingDuration(newTime);
-          
-          // Auto-stop at max time
-          if (newTime >= MAX_RECORDING_TIME) {
-            stopRecording();
-          }
-          
-          return newTime;
-        });
+        timerValue += 1;
+        setRecordingTimer(timerValue);
+        
+        // Auto-stop at max time
+        if (timerValue >= MAX_RECORDING_TIME) {
+          stopRecording();
+        }
       }, 1000);
       
       const video = await cameraRef.current.recordAsync({

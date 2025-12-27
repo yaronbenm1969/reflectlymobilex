@@ -93,8 +93,8 @@ export const ReviewScreen = ({ route }) => {
             style={styles.actionButton}
             onPress={handleDone}
           >
-            <Ionicons name="checkmark" size={20} color={theme.colors.success} />
-            <Text style={styles.actionText}>Done</Text>
+            <Ionicons name="home" size={20} color={theme.colors.primary} />
+            <Text style={styles.actionText}>סיום</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -38,21 +38,11 @@ ${storyLink}
       const encodedMessage = encodeURIComponent(messageTemplate);
       const whatsappUrl = `whatsapp://send?text=${encodedMessage}`;
       
-      const canOpen = await Linking.canOpenURL(whatsappUrl);
-      
-      if (canOpen) {
-        await Linking.openURL(whatsappUrl);
-        setSharedCount(prev => prev + 1);
-      } else {
-        Alert.alert(
-          'WhatsApp לא מותקן',
-          'נראה ש-WhatsApp לא מותקן במכשיר. נסה לשתף בדרך אחרת.',
-          [{ text: 'אישור' }]
-        );
-      }
+      await Linking.openURL(whatsappUrl);
+      setSharedCount(prev => prev + 1);
     } catch (error) {
       console.error('Error sharing to WhatsApp:', error);
-      Alert.alert('שגיאה', 'לא הצלחנו לפתוח את WhatsApp');
+      handleNativeShare();
     }
   };
 
