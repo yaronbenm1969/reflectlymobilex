@@ -14,6 +14,8 @@ import {
   ProcessingScreen,
   EditRoomScreen,
   FinalVideoScreen,
+  PlayerViewScreen,
+  PlayerRecordScreen,
   MyStoriesScreen, 
   SettingsScreen,
   CameraSettingsScreen,
@@ -67,6 +69,10 @@ export default function App() {
         return <EditRoomScreen />;
       case 'FinalVideo':
         return <FinalVideoScreen />;
+      case 'PlayerView':
+        return <PlayerViewScreen />;
+      case 'PlayerRecord':
+        return <PlayerRecordScreen />;
       case 'MyStories':
         return <MyStoriesScreen />;
       case 'Settings':

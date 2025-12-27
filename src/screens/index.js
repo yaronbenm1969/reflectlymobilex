@@ -10,6 +10,8 @@ export { WhatsAppShareScreen } from './WhatsAppShareScreen';
 export { ProcessingScreen } from './ProcessingScreen';
 export { EditRoomScreen } from './EditRoomScreen';
 export { FinalVideoScreen } from './FinalVideoScreen';
+export { PlayerViewScreen } from './PlayerViewScreen';
+export { PlayerRecordScreen } from './PlayerRecordScreen';
 export { MyStoriesScreen } from './MyStoriesScreen';
 export { SettingsScreen } from './SettingsScreen';
 export { CameraSettingsScreen } from './CameraSettingsScreen';
