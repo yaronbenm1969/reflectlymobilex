@@ -164,10 +164,10 @@ Access on mobile via:
 ### API Keys & Secrets Status
 **User has API keys in another Replit project: "ReflectlyPlayback-2"**
 
-Required Secrets to copy from that project:
-- ⏳ `OPENAI_API_KEY` - For AI video processing and transcription
-- ⏳ `REPLICATE_API_TOKEN` - For AI video processing
-- ⏳ `Music123` - Unknown purpose (music related?)
+Required Secrets (ADDED ✅):
+- ✅ `OPENAI_API_KEY` - For AI video processing and transcription
+- ✅ `REPLICATE_API_TOKEN` - For AI video processing
+- ✅ `Music123` - Music related key
 
 **NOT needed:**
 - ❌ Twilio keys - WhatsApp sharing will use native device sharing (expo-sharing + Linking API) - FREE!
