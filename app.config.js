@@ -6,7 +6,6 @@ export default {
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
-    newArchEnabled: true,
     extra: {
       eas: {
         projectId: "your-project-id"
