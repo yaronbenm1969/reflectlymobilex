@@ -1,5 +1,10 @@
 import { db, storage, firebase, firebaseInitialized } from '../config/firebase';
-import { v4 as uuidv4 } from 'uuid';
+
+const generateId = () => {
+  return 'xxxx-xxxx-xxxx-xxxx'.replace(/x/g, () => 
+    Math.floor(Math.random() * 16).toString(16)
+  ) + '-' + Date.now().toString(36);
+};
 
 const COLLECTIONS = {
   STORIES: 'stories',
@@ -18,7 +23,7 @@ export const firebaseService = {
   },
 
   async createStory(storyData) {
-    const storyId = uuidv4();
+    const storyId = generateId();
     const storyRecord = {
       id: storyId,
       name: storyData.name,
@@ -87,7 +92,7 @@ export const firebaseService = {
 
   async uploadVideo(uri, storyId, videoType, onProgress) {
     if (!firebaseInitialized) {
-      const videoId = uuidv4();
+      const videoId = generateId();
       const demoUrl = `demo://video/${storyId}/${videoId}`;
       demoVideos.set(videoId, { id: videoId, storyId, type: videoType, url: uri });
       if (onProgress) onProgress(100);
@@ -98,7 +103,7 @@ export const firebaseService = {
     const response = await fetch(uri);
     const blob = await response.blob();
     
-    const videoId = uuidv4();
+    const videoId = generateId();
     const fileName = `videos/${storyId}/${videoType}_${videoId}.mp4`;
     const storageRef = storage.ref(fileName);
     
@@ -132,7 +137,7 @@ export const firebaseService = {
   },
 
   async createInvitation(storyId, phoneNumber, participantName) {
-    const inviteId = uuidv4();
+    const inviteId = generateId();
     const inviteRecord = {
       id: inviteId,
       storyId,
@@ -185,7 +190,7 @@ export const firebaseService = {
   },
 
   async addParticipantVideo(storyId, inviteId, videoNumber, videoUrl) {
-    const participantVideoId = uuidv4();
+    const participantVideoId = generateId();
 
     if (!firebaseInitialized) {
       console.log('Demo mode: Participant video added locally', participantVideoId);
