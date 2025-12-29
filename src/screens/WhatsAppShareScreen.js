@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Linking,
   Alert,
   Share,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
@@ -15,26 +16,50 @@ import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
+import { firebaseService } from '../services/firebaseService';
 
 export const WhatsAppShareScreen = () => {
   const { go, back } = useNav();
   const storyName = useAppState((state) => state.storyName);
+  const currentStoryId = useAppState((state) => state.currentStoryId);
+  const sendInvitation = useAppState((state) => state.sendInvitation);
+  const participants = useAppState((state) => state.participants);
   const [sharedCount, setSharedCount] = useState(0);
+  const [isCreatingInvite, setIsCreatingInvite] = useState(false);
+  const [currentInviteLink, setCurrentInviteLink] = useState(null);
 
-  const storyLink = `https://reflectly.app/story/${Date.now()}`;
-  
-  const messageTemplate = `היי! 🎬
+  const generateInviteLink = async () => {
+    if (!currentStoryId) {
+      return `https://reflectly.app/story/demo-${Date.now()}`;
+    }
+    
+    try {
+      setIsCreatingInvite(true);
+      const result = await sendInvitation('', 'חבר/ה');
+      setCurrentInviteLink(result.inviteLink);
+      return result.inviteLink;
+    } catch (error) {
+      console.error('Error creating invite:', error);
+      return `https://reflectly.app/story/${currentStoryId}`;
+    } finally {
+      setIsCreatingInvite(false);
+    }
+  };
+
+  const getMessageTemplate = (link) => `היי! 🎬
 
 זה הסיפור שלי: "${storyName}"
 
 אשמח אם תצפה ותשתף את השיקוף שלך!
 לחץ על הקישור לצפייה ותגובה:
-${storyLink}
+${link}
 
 תודה! ❤️`;
 
   const handleShareWhatsApp = async () => {
     try {
+      const inviteLink = await generateInviteLink();
+      const messageTemplate = getMessageTemplate(inviteLink);
       const encodedMessage = encodeURIComponent(messageTemplate);
       const whatsappUrl = `whatsapp://send?text=${encodedMessage}`;
       
@@ -48,6 +73,9 @@ ${storyLink}
 
   const handleNativeShare = async () => {
     try {
+      const inviteLink = currentInviteLink || await generateInviteLink();
+      const messageTemplate = getMessageTemplate(inviteLink);
+      
       const result = await Share.share({
         message: messageTemplate,
         title: `הסיפור שלי: ${storyName}`,

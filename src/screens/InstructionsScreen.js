@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   TextInput,
   Switch,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
@@ -22,14 +24,21 @@ export const InstructionsScreen = () => {
   const setPlayerInstructions = useAppState((state) => state.setPlayerInstructions);
   const privacySettings = useAppState((state) => state.privacySettings);
   const setPrivacySettings = useAppState((state) => state.setPrivacySettings);
+  const createStoryInFirebase = useAppState((state) => state.createStoryInFirebase);
+  const uploadKeyStoryVideo = useAppState((state) => state.uploadKeyStoryVideo);
+  const keyStoryUri = useAppState((state) => state.keyStoryUri);
+  const lastRecordingUri = useAppState((state) => state.lastRecordingUri);
+  const currentStoryId = useAppState((state) => state.currentStoryId);
 
   const [genericInstructions, setGenericInstructions] = useState(playerInstructions.generic || '');
   const [video1Time, setVideo1Time] = useState(playerInstructions.video1Time || 30);
   const [video2Time, setVideo2Time] = useState(playerInstructions.video2Time || 30);
   const [video3Time, setVideo3Time] = useState(playerInstructions.video3Time || 30);
   const [allowSocialMedia, setAllowSocialMedia] = useState(privacySettings.allowSocialMedia);
+  const [isCreating, setIsCreating] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     setPlayerInstructions({
       generic: genericInstructions,
       video1Time,
@@ -40,7 +49,31 @@ export const InstructionsScreen = () => {
       allowSocialMedia,
       privateOnly: !allowSocialMedia,
     });
-    go('WhatsAppShare');
+
+    if (!currentStoryId) {
+      try {
+        setIsCreating(true);
+        
+        const storyId = await createStoryInFirebase();
+        console.log('Story created in Firebase:', storyId);
+        
+        const videoUri = lastRecordingUri || keyStoryUri;
+        if (videoUri) {
+          console.log('Uploading key story video...');
+          await uploadKeyStoryVideo(videoUri);
+          console.log('Video uploaded successfully');
+        }
+        
+        setIsCreating(false);
+        go('WhatsAppShare');
+      } catch (error) {
+        console.error('Error creating story:', error);
+        setIsCreating(false);
+        Alert.alert('שגיאה', 'לא הצלחנו ליצור את הסטורי. נסה שוב.');
+      }
+    } else {
+      go('WhatsAppShare');
+    }
   };
 
   const timeOptions = [15, 30, 45, 60, 90, 120];
@@ -147,13 +180,20 @@ export const InstructionsScreen = () => {
         </Card>
 
         <View style={styles.actions}>
-          <AppButton
-            title="המשך לשליחת הזמנות"
-            onPress={handleContinue}
-            variant="primary"
-            size="lg"
-            fullWidth
-          />
+          {isCreating ? (
+            <View style={styles.creatingContainer}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text style={styles.creatingText}>יוצר את הסטורי ומעלה סרטון...</Text>
+            </View>
+          ) : (
+            <AppButton
+              title="המשך לשליחת הזמנות"
+              onPress={handleContinue}
+              variant="primary"
+              size="lg"
+              fullWidth
+            />
+          )}
         </View>
       </ScrollView>
     </View>
@@ -278,5 +318,15 @@ const styles = StyleSheet.create({
   },
   actions: {
     paddingVertical: theme.spacing[4],
+  },
+  creatingContainer: {
+    alignItems: 'center',
+    padding: theme.spacing[6],
+  },
+  creatingText: {
+    ...theme.typography.body,
+    color: theme.colors.primary,
+    marginTop: theme.spacing[3],
+    fontWeight: 'bold',
   },
 });
