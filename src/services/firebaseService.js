@@ -1,4 +1,4 @@
-import { db, storage, firebase } from '../config/firebase';
+import { db, storage, firebase, firebaseInitialized } from '../config/firebase';
 import { v4 as uuidv4 } from 'uuid';
 
 const COLLECTIONS = {
@@ -8,11 +8,18 @@ const COLLECTIONS = {
   VIDEOS: 'videos',
 };
 
+const demoStories = new Map();
+const demoInvitations = new Map();
+const demoVideos = new Map();
+
 export const firebaseService = {
+  isInitialized() {
+    return firebaseInitialized;
+  },
+
   async createStory(storyData) {
     const storyId = uuidv4();
-    
-    await db.collection(COLLECTIONS.STORIES).doc(storyId).set({
+    const storyRecord = {
       id: storyId,
       name: storyData.name,
       creatorId: storyData.creatorId || 'anonymous',
@@ -31,6 +38,18 @@ export const firebaseService = {
         privateOnly: true,
       },
       status: 'draft',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    if (!firebaseInitialized) {
+      demoStories.set(storyId, storyRecord);
+      console.log('Demo mode: Story created locally', storyId);
+      return storyId;
+    }
+    
+    await db.collection(COLLECTIONS.STORIES).doc(storyId).set({
+      ...storyRecord,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
@@ -39,6 +58,10 @@ export const firebaseService = {
   },
 
   async getStory(storyId) {
+    if (!firebaseInitialized) {
+      return demoStories.get(storyId) || null;
+    }
+
     const doc = await db.collection(COLLECTIONS.STORIES).doc(storyId).get();
     
     if (doc.exists) {
@@ -48,6 +71,14 @@ export const firebaseService = {
   },
 
   async updateStory(storyId, updates) {
+    if (!firebaseInitialized) {
+      const story = demoStories.get(storyId);
+      if (story) {
+        demoStories.set(storyId, { ...story, ...updates, updatedAt: new Date() });
+      }
+      return;
+    }
+
     await db.collection(COLLECTIONS.STORIES).doc(storyId).update({
       ...updates,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -55,6 +86,15 @@ export const firebaseService = {
   },
 
   async uploadVideo(uri, storyId, videoType, onProgress) {
+    if (!firebaseInitialized) {
+      const videoId = uuidv4();
+      const demoUrl = `demo://video/${storyId}/${videoId}`;
+      demoVideos.set(videoId, { id: videoId, storyId, type: videoType, url: uri });
+      if (onProgress) onProgress(100);
+      console.log('Demo mode: Video saved locally', videoId);
+      return { videoId, url: uri };
+    }
+
     const response = await fetch(uri);
     const blob = await response.blob();
     
@@ -93,13 +133,23 @@ export const firebaseService = {
 
   async createInvitation(storyId, phoneNumber, participantName) {
     const inviteId = uuidv4();
-    
-    await db.collection(COLLECTIONS.INVITATIONS).doc(inviteId).set({
+    const inviteRecord = {
       id: inviteId,
       storyId,
       phoneNumber,
       participantName,
       status: 'pending',
+      createdAt: new Date(),
+    };
+
+    if (!firebaseInitialized) {
+      demoInvitations.set(inviteId, inviteRecord);
+      console.log('Demo mode: Invitation created locally', inviteId);
+      return inviteId;
+    }
+    
+    await db.collection(COLLECTIONS.INVITATIONS).doc(inviteId).set({
+      ...inviteRecord,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     
@@ -107,6 +157,10 @@ export const firebaseService = {
   },
 
   async getInvitation(inviteId) {
+    if (!firebaseInitialized) {
+      return demoInvitations.get(inviteId) || null;
+    }
+
     const doc = await db.collection(COLLECTIONS.INVITATIONS).doc(inviteId).get();
     
     if (doc.exists) {
@@ -116,6 +170,14 @@ export const firebaseService = {
   },
 
   async updateInvitationStatus(inviteId, status) {
+    if (!firebaseInitialized) {
+      const invite = demoInvitations.get(inviteId);
+      if (invite) {
+        demoInvitations.set(inviteId, { ...invite, status, updatedAt: new Date() });
+      }
+      return;
+    }
+
     await db.collection(COLLECTIONS.INVITATIONS).doc(inviteId).update({ 
       status,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -124,6 +186,11 @@ export const firebaseService = {
 
   async addParticipantVideo(storyId, inviteId, videoNumber, videoUrl) {
     const participantVideoId = uuidv4();
+
+    if (!firebaseInitialized) {
+      console.log('Demo mode: Participant video added locally', participantVideoId);
+      return participantVideoId;
+    }
     
     await db.collection(COLLECTIONS.PARTICIPANTS).doc(participantVideoId).set({
       id: participantVideoId,
@@ -143,6 +210,10 @@ export const firebaseService = {
   },
 
   async getParticipantVideos(storyId) {
+    if (!firebaseInitialized) {
+      return [];
+    }
+
     const snapshot = await db.collection(COLLECTIONS.PARTICIPANTS)
       .where('storyId', '==', storyId)
       .orderBy('uploadedAt', 'asc')
@@ -152,6 +223,10 @@ export const firebaseService = {
   },
 
   async getStoryInvitations(storyId) {
+    if (!firebaseInitialized) {
+      return Array.from(demoInvitations.values()).filter(inv => inv.storyId === storyId);
+    }
+
     const snapshot = await db.collection(COLLECTIONS.INVITATIONS)
       .where('storyId', '==', storyId)
       .orderBy('createdAt', 'asc')
@@ -161,6 +236,12 @@ export const firebaseService = {
   },
 
   subscribeToStory(storyId, callback) {
+    if (!firebaseInitialized) {
+      const story = demoStories.get(storyId);
+      if (story) callback(story);
+      return () => {};
+    }
+
     return db.collection(COLLECTIONS.STORIES).doc(storyId).onSnapshot((doc) => {
       if (doc.exists) {
         callback({ id: doc.id, ...doc.data() });
@@ -169,6 +250,11 @@ export const firebaseService = {
   },
 
   subscribeToParticipantVideos(storyId, callback) {
+    if (!firebaseInitialized) {
+      callback([]);
+      return () => {};
+    }
+
     return db.collection(COLLECTIONS.PARTICIPANTS)
       .where('storyId', '==', storyId)
       .orderBy('uploadedAt', 'asc')
@@ -179,6 +265,11 @@ export const firebaseService = {
   },
 
   subscribeToInvitations(storyId, callback) {
+    if (!firebaseInitialized) {
+      callback(Array.from(demoInvitations.values()).filter(inv => inv.storyId === storyId));
+      return () => {};
+    }
+
     return db.collection(COLLECTIONS.INVITATIONS)
       .where('storyId', '==', storyId)
       .orderBy('createdAt', 'asc')
@@ -189,6 +280,10 @@ export const firebaseService = {
   },
 
   async getUserStories(userId) {
+    if (!firebaseInitialized) {
+      return Array.from(demoStories.values()).filter(s => s.creatorId === userId);
+    }
+
     const snapshot = await db.collection(COLLECTIONS.STORIES)
       .where('creatorId', '==', userId)
       .orderBy('createdAt', 'desc')
