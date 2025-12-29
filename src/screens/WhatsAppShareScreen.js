@@ -16,7 +16,6 @@ import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
-import { firebaseService } from '../services/firebaseService';
 
 export const WhatsAppShareScreen = () => {
   const { go, back } = useNav();

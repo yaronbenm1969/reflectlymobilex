@@ -1,5 +1,24 @@
 import { create } from 'zustand';
-import { firebaseService } from '../services/firebaseService';
+
+let firebaseService = null;
+const getFirebaseService = () => {
+  if (!firebaseService) {
+    try {
+      firebaseService = require('../services/firebaseService').firebaseService;
+    } catch (e) {
+      console.warn('Firebase service not available:', e.message);
+      firebaseService = {
+        isInitialized: () => false,
+        createStory: async () => 'demo-' + Date.now(),
+        updateStory: async () => {},
+        uploadVideo: async (uri) => ({ videoId: 'demo', url: uri }),
+        generateInviteLink: (id) => `https://reflectly.app/invite/${id}`,
+        generateWhatsAppMessage: (name, link) => encodeURIComponent(`הזמנה ל-${name}: ${link}`),
+      };
+    }
+  }
+  return firebaseService;
+};
 
 export const useAppState = create((set, get) => ({
   // Initial state
@@ -157,7 +176,7 @@ export const useAppState = create((set, get) => ({
     const state = get();
     try {
       set({ firebaseError: null });
-      const storyId = await firebaseService.createStory({
+      const storyId = await getFirebaseService().createStory({
         name: state.storyName,
         videoFormat: state.videoFormat,
         backgroundStyle: state.backgroundStyle,
@@ -183,14 +202,14 @@ export const useAppState = create((set, get) => ({
     try {
       set({ isUploading: true, uploadProgress: 0, firebaseError: null });
       
-      const result = await firebaseService.uploadVideo(
+      const result = await getFirebaseService().uploadVideo(
         uri,
         state.currentStoryId,
         'key_story',
         (progress) => set({ uploadProgress: progress })
       );
       
-      await firebaseService.updateStory(state.currentStoryId, {
+      await getFirebaseService().updateStory(state.currentStoryId, {
         keyStoryUrl: result.url,
         status: 'ready_for_invites',
       });
@@ -212,14 +231,14 @@ export const useAppState = create((set, get) => ({
     
     try {
       set({ firebaseError: null });
-      const inviteId = await firebaseService.createInvitation(
+      const inviteId = await getFirebaseService().createInvitation(
         state.currentStoryId,
         phoneNumber,
         participantName
       );
       
-      const inviteLink = firebaseService.generateInviteLink(inviteId);
-      const whatsappMessage = firebaseService.generateWhatsAppMessage(
+      const inviteLink = getFirebaseService().generateInviteLink(inviteId);
+      const whatsappMessage = getFirebaseService().generateWhatsAppMessage(
         state.storyName,
         inviteLink
       );
@@ -244,7 +263,7 @@ export const useAppState = create((set, get) => ({
   loadStory: async (storyId) => {
     try {
       set({ firebaseError: null });
-      const story = await firebaseService.getStory(storyId);
+      const story = await getFirebaseService().getStory(storyId);
       if (story) {
         set({
           currentStoryId: story.id,
@@ -266,7 +285,7 @@ export const useAppState = create((set, get) => ({
   },
   
   subscribeToStoryUpdates: (storyId) => {
-    return firebaseService.subscribeToParticipantVideos(storyId, (videos) => {
+    return getFirebaseService().subscribeToParticipantVideos(storyId, (videos) => {
       set({ receivedVideos: videos });
     });
   },
