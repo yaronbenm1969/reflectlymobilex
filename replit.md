@@ -3,17 +3,7 @@
 ## Overview
 Reflectly is a React Native/Expo mobile journaling app that allows users to record personal stories and invite friends to share reflections. The app features video recording, story management, and social sharing capabilities.
 
-## Recent Changes (December 29, 2025)
-- **Firebase Integration Added**: Real-time database and storage connected
-  - Firebase Firestore for stories, invitations, participants, videos
-  - Firebase Storage for video uploads
-  - Using firebase/compat API for React Native compatibility
-- **New Firebase Services Layer**: `src/services/firebaseService.js` with full CRUD operations
-- **Real-time Subscriptions**: EditRoomScreen now subscribes to Firebase for live video updates
-- **Story Creation Flow**: InstructionsScreen creates story in Firebase before WhatsApp sharing
-- **WhatsApp with Real Links**: Generates Firebase-backed invite links
-
-## Previous Changes (November 10, 2025)
+## Recent Changes (November 10, 2025)
 - **Upgraded to Expo SDK 54** with React 19.1.0 and React Native 0.81.5
 - **Fixed critical bug**: Removed deprecated SafeAreaView, added react-native-safe-area-context
 - **Fixed Touch Bleed-Through**: Added 300ms interaction guard to ReviewScreen and MusicSelectionScreen
@@ -29,7 +19,6 @@ Reflectly is a React Native/Expo mobile journaling app that allows users to reco
 
 ### Tech Stack
 - **Framework**: Expo SDK 54 / React Native 0.81.5 / React 19.1.0
-- **Backend**: Firebase (Firestore + Storage)
 - **State Management**: Zustand
 - **Data Fetching**: TanStack React Query
 - **UI**: Custom components with Linear Gradients
@@ -52,27 +41,20 @@ Reflectly is a React Native/Expo mobile journaling app that allows users to reco
 └── src/
     ├── components/     # Reusable UI components
     │   └── SideMenu.js
-    ├── config/         # Firebase and app configuration
-    │   └── firebase.js # Firebase initialization (compat API)
-    ├── services/       # Backend services
-    │   └── firebaseService.js  # Firestore & Storage CRUD
     ├── screens/        # App screens
     │   ├── HomeScreen.js
     │   ├── RecordScreen.js
     │   ├── ReviewScreen.js
-    │   ├── InstructionsScreen.js  # Creates story in Firebase
-    │   ├── WhatsAppShareScreen.js # Generates invite links
-    │   ├── EditRoomScreen.js      # Real-time video updates
     │   ├── MyStoriesScreen.js
     │   ├── SettingsScreen.js
     │   ├── MusicSelectionScreen.js
-    │   ├── FormatSelectionScreen.js
+    │   ├── FormatSelectionScreen.js  # NEW: Video format & AI styling
     │   ├── CameraSettingsScreen.js
     │   ├── AboutScreen.js
     │   ├── HelpScreen.js
     │   └── TermsScreen.js
     ├── state/          # Zustand state management
-    │   └── appState.js # Includes Firebase actions
+    │   └── appState.js
     ├── hooks/          # Custom React hooks
     │   └── useNav.js
     ├── theme/          # Theme configuration

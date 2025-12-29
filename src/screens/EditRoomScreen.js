@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
@@ -20,42 +19,14 @@ export const EditRoomScreen = () => {
   const selectedMusic = useAppState((state) => state.selectedMusic);
   const videoFormat = useAppState((state) => state.videoFormat);
   const receivedVideos = useAppState((state) => state.receivedVideos);
-  const participants = useAppState((state) => state.participants);
-  const currentStoryId = useAppState((state) => state.currentStoryId);
-  const subscribeToStoryUpdates = useAppState((state) => state.subscribeToStoryUpdates);
   
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    let unsubscribe = null;
-    
-    if (currentStoryId) {
-      unsubscribe = subscribeToStoryUpdates(currentStoryId);
-    }
-    
-    const timer = setTimeout(() => setIsLoading(false), 1000);
-    
-    return () => {
-      if (unsubscribe) unsubscribe();
-      clearTimeout(timer);
-    };
-  }, [currentStoryId]);
-
-  const displayVideos = receivedVideos.length > 0 
-    ? receivedVideos.map((v, i) => ({
-        id: v.id,
-        name: v.participantName || `משתתף ${i + 1}`,
-        duration: '0:30',
-        status: 'received',
-        url: v.videoUrl,
-      }))
-    : participants.map((p, i) => ({
-        id: p.id,
-        name: p.name || `משתתף ${i + 1}`,
-        duration: '--:--',
-        status: p.status === 'completed' ? 'received' : 'pending',
-      }));
+  const mockReceivedVideos = [
+    { id: 1, name: 'דני', duration: '0:32', status: 'received' },
+    { id: 2, name: 'מיכל', duration: '0:28', status: 'received' },
+    { id: 3, name: 'יוסי', duration: '0:45', status: 'pending' },
+  ];
 
   const handleExport = () => {
     go('FinalVideo');
@@ -111,36 +82,23 @@ export const EditRoomScreen = () => {
         <Card style={styles.videosCard}>
           <Text style={styles.sectionTitle}>סרטונים שהתקבלו</Text>
           
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-              <Text style={styles.loadingText}>טוען סרטונים...</Text>
-            </View>
-          ) : displayVideos.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="videocam-outline" size={48} color={theme.colors.subtext} />
-              <Text style={styles.emptyText}>עדיין לא התקבלו סרטונים</Text>
-              <Text style={styles.emptySubtext}>שתף את ההזמנה עם חברים</Text>
-            </View>
-          ) : (
-            displayVideos.map((video) => (
-              <View key={video.id} style={styles.videoRow}>
-                <View style={styles.videoInfo}>
-                  <View style={[
-                    styles.statusDot,
-                    video.status === 'received' ? styles.statusReceived : styles.statusPending
-                  ]} />
-                  <Text style={styles.videoName}>{video.name}</Text>
-                </View>
-                <Text style={styles.videoDuration}>{video.duration}</Text>
-                {video.status === 'received' && (
-                  <TouchableOpacity style={styles.playSmallButton}>
-                    <Ionicons name="play-circle" size={28} color={theme.colors.primary} />
-                  </TouchableOpacity>
-                )}
+          {mockReceivedVideos.map((video) => (
+            <View key={video.id} style={styles.videoRow}>
+              <View style={styles.videoInfo}>
+                <View style={[
+                  styles.statusDot,
+                  video.status === 'received' ? styles.statusReceived : styles.statusPending
+                ]} />
+                <Text style={styles.videoName}>{video.name}</Text>
               </View>
-            ))
-          )}
+              <Text style={styles.videoDuration}>{video.duration}</Text>
+              {video.status === 'received' && (
+                <TouchableOpacity style={styles.playSmallButton}>
+                  <Ionicons name="play-circle" size={28} color={theme.colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
         </Card>
 
         <Card style={styles.actionsCard}>
@@ -307,30 +265,6 @@ const styles = StyleSheet.create({
   },
   playSmallButton: {
     padding: theme.spacing[1],
-  },
-  loadingContainer: {
-    padding: theme.spacing[6],
-    alignItems: 'center',
-  },
-  loadingText: {
-    ...theme.typography.body,
-    color: theme.colors.subtext,
-    marginTop: theme.spacing[2],
-  },
-  emptyContainer: {
-    padding: theme.spacing[6],
-    alignItems: 'center',
-  },
-  emptyText: {
-    ...theme.typography.body,
-    color: theme.colors.text,
-    marginTop: theme.spacing[3],
-    fontWeight: 'bold',
-  },
-  emptySubtext: {
-    ...theme.typography.caption,
-    color: theme.colors.subtext,
-    marginTop: theme.spacing[1],
   },
   actionsCard: {
     padding: theme.spacing[4],
