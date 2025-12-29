@@ -1,24 +1,4 @@
-import { db, storage } from '../config/firebase';
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  getDocs, 
-  updateDoc, 
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot,
-  serverTimestamp,
-  addDoc
-} from 'firebase/firestore';
-import { 
-  ref, 
-  uploadBytes, 
-  getDownloadURL, 
-  uploadBytesResumable 
-} from 'firebase/storage';
+import { db, storage, firebase } from '../config/firebase';
 import { v4 as uuidv4 } from 'uuid';
 
 const COLLECTIONS = {
@@ -31,9 +11,8 @@ const COLLECTIONS = {
 export const firebaseService = {
   async createStory(storyData) {
     const storyId = uuidv4();
-    const storyRef = doc(db, COLLECTIONS.STORIES, storyId);
     
-    await setDoc(storyRef, {
+    await db.collection(COLLECTIONS.STORIES).doc(storyId).set({
       id: storyId,
       name: storyData.name,
       creatorId: storyData.creatorId || 'anonymous',
@@ -52,28 +31,26 @@ export const firebaseService = {
         privateOnly: true,
       },
       status: 'draft',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     
     return storyId;
   },
 
   async getStory(storyId) {
-    const storyRef = doc(db, COLLECTIONS.STORIES, storyId);
-    const storySnap = await getDoc(storyRef);
+    const doc = await db.collection(COLLECTIONS.STORIES).doc(storyId).get();
     
-    if (storySnap.exists()) {
-      return { id: storySnap.id, ...storySnap.data() };
+    if (doc.exists) {
+      return { id: doc.id, ...doc.data() };
     }
     return null;
   },
 
   async updateStory(storyId, updates) {
-    const storyRef = doc(db, COLLECTIONS.STORIES, storyId);
-    await updateDoc(storyRef, {
+    await db.collection(COLLECTIONS.STORIES).doc(storyId).update({
       ...updates,
-      updatedAt: serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
   },
 
@@ -82,11 +59,11 @@ export const firebaseService = {
     const blob = await response.blob();
     
     const videoId = uuidv4();
-    const fileName = `${storyId}/${videoType}_${videoId}.mp4`;
-    const storageRef = ref(storage, `videos/${fileName}`);
+    const fileName = `videos/${storyId}/${videoType}_${videoId}.mp4`;
+    const storageRef = storage.ref(fileName);
     
     return new Promise((resolve, reject) => {
-      const uploadTask = uploadBytesResumable(storageRef, blob);
+      const uploadTask = storageRef.put(blob);
       
       uploadTask.on('state_changed',
         (snapshot) => {
@@ -98,15 +75,14 @@ export const firebaseService = {
           reject(error);
         },
         async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
           
-          const videoRef = doc(db, COLLECTIONS.VIDEOS, videoId);
-          await setDoc(videoRef, {
+          await db.collection(COLLECTIONS.VIDEOS).doc(videoId).set({
             id: videoId,
             storyId,
             type: videoType,
             url: downloadURL,
-            uploadedAt: serverTimestamp(),
+            uploadedAt: firebase.firestore.FieldValue.serverTimestamp(),
           });
           
           resolve({ videoId, url: downloadURL });
@@ -117,125 +93,107 @@ export const firebaseService = {
 
   async createInvitation(storyId, phoneNumber, participantName) {
     const inviteId = uuidv4();
-    const inviteRef = doc(db, COLLECTIONS.INVITATIONS, inviteId);
     
-    await setDoc(inviteRef, {
+    await db.collection(COLLECTIONS.INVITATIONS).doc(inviteId).set({
       id: inviteId,
       storyId,
       phoneNumber,
       participantName,
       status: 'pending',
-      createdAt: serverTimestamp(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     
     return inviteId;
   },
 
   async getInvitation(inviteId) {
-    const inviteRef = doc(db, COLLECTIONS.INVITATIONS, inviteId);
-    const inviteSnap = await getDoc(inviteRef);
+    const doc = await db.collection(COLLECTIONS.INVITATIONS).doc(inviteId).get();
     
-    if (inviteSnap.exists()) {
-      return { id: inviteSnap.id, ...inviteSnap.data() };
+    if (doc.exists) {
+      return { id: doc.id, ...doc.data() };
     }
     return null;
   },
 
   async updateInvitationStatus(inviteId, status) {
-    const inviteRef = doc(db, COLLECTIONS.INVITATIONS, inviteId);
-    await updateDoc(inviteRef, { 
+    await db.collection(COLLECTIONS.INVITATIONS).doc(inviteId).update({ 
       status,
-      updatedAt: serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
   },
 
   async addParticipantVideo(storyId, inviteId, videoNumber, videoUrl) {
     const participantVideoId = uuidv4();
-    const participantRef = doc(db, COLLECTIONS.PARTICIPANTS, participantVideoId);
     
-    await setDoc(participantRef, {
+    await db.collection(COLLECTIONS.PARTICIPANTS).doc(participantVideoId).set({
       id: participantVideoId,
       storyId,
       inviteId,
       videoNumber,
       videoUrl,
-      uploadedAt: serverTimestamp(),
+      uploadedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     
-    const inviteRef = doc(db, COLLECTIONS.INVITATIONS, inviteId);
-    await updateDoc(inviteRef, { 
+    await db.collection(COLLECTIONS.INVITATIONS).doc(inviteId).update({ 
       status: videoNumber === 3 ? 'completed' : 'in_progress',
-      updatedAt: serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     
     return participantVideoId;
   },
 
   async getParticipantVideos(storyId) {
-    const q = query(
-      collection(db, COLLECTIONS.PARTICIPANTS),
-      where('storyId', '==', storyId),
-      orderBy('uploadedAt', 'asc')
-    );
+    const snapshot = await db.collection(COLLECTIONS.PARTICIPANTS)
+      .where('storyId', '==', storyId)
+      .orderBy('uploadedAt', 'asc')
+      .get();
     
-    const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
 
   async getStoryInvitations(storyId) {
-    const q = query(
-      collection(db, COLLECTIONS.INVITATIONS),
-      where('storyId', '==', storyId),
-      orderBy('createdAt', 'asc')
-    );
+    const snapshot = await db.collection(COLLECTIONS.INVITATIONS)
+      .where('storyId', '==', storyId)
+      .orderBy('createdAt', 'asc')
+      .get();
     
-    const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
 
   subscribeToStory(storyId, callback) {
-    const storyRef = doc(db, COLLECTIONS.STORIES, storyId);
-    return onSnapshot(storyRef, (doc) => {
-      if (doc.exists()) {
+    return db.collection(COLLECTIONS.STORIES).doc(storyId).onSnapshot((doc) => {
+      if (doc.exists) {
         callback({ id: doc.id, ...doc.data() });
       }
     });
   },
 
   subscribeToParticipantVideos(storyId, callback) {
-    const q = query(
-      collection(db, COLLECTIONS.PARTICIPANTS),
-      where('storyId', '==', storyId),
-      orderBy('uploadedAt', 'asc')
-    );
-    
-    return onSnapshot(q, (snapshot) => {
-      const videos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      callback(videos);
-    });
+    return db.collection(COLLECTIONS.PARTICIPANTS)
+      .where('storyId', '==', storyId)
+      .orderBy('uploadedAt', 'asc')
+      .onSnapshot((snapshot) => {
+        const videos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(videos);
+      });
   },
 
   subscribeToInvitations(storyId, callback) {
-    const q = query(
-      collection(db, COLLECTIONS.INVITATIONS),
-      where('storyId', '==', storyId),
-      orderBy('createdAt', 'asc')
-    );
-    
-    return onSnapshot(q, (snapshot) => {
-      const invitations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      callback(invitations);
-    });
+    return db.collection(COLLECTIONS.INVITATIONS)
+      .where('storyId', '==', storyId)
+      .orderBy('createdAt', 'asc')
+      .onSnapshot((snapshot) => {
+        const invitations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(invitations);
+      });
   },
 
   async getUserStories(userId) {
-    const q = query(
-      collection(db, COLLECTIONS.STORIES),
-      where('creatorId', '==', userId),
-      orderBy('createdAt', 'desc')
-    );
+    const snapshot = await db.collection(COLLECTIONS.STORIES)
+      .where('creatorId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .get();
     
-    const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
 
