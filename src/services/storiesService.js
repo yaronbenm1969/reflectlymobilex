@@ -1,0 +1,120 @@
+import { 
+  collection,
+  doc,
+  addDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  serverTimestamp
+} from 'firebase/firestore';
+import { db } from './firebase';
+
+const STORIES_COLLECTION = 'stories';
+const INVITATIONS_COLLECTION = 'invitations';
+
+export const storiesService = {
+  createStory: async (userId, storyData) => {
+    try {
+      const docRef = await addDoc(collection(db, STORIES_COLLECTION), {
+        userId,
+        name: storyData.name,
+        videoUri: storyData.videoUri || null,
+        format: storyData.format || 'standard',
+        music: storyData.music || 'none',
+        instructions: storyData.instructions || '',
+        videoTimings: storyData.videoTimings || { video1: 30, video2: 30, video3: 30 },
+        privacySettings: storyData.privacySettings || { allowSocialMedia: false },
+        status: 'draft',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      console.log('✅ Story created:', docRef.id);
+      return { success: true, storyId: docRef.id };
+    } catch (error) {
+      console.error('❌ Create story error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
+  getStory: async (storyId) => {
+    try {
+      const docRef = doc(db, STORIES_COLLECTION, storyId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { success: true, story: { id: docSnap.id, ...docSnap.data() } };
+      }
+      return { success: false, error: 'Story not found' };
+    } catch (error) {
+      console.error('❌ Get story error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
+  getUserStories: async (userId) => {
+    try {
+      const q = query(
+        collection(db, STORIES_COLLECTION),
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      const stories = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      return { success: true, stories };
+    } catch (error) {
+      console.error('❌ Get user stories error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
+  updateStory: async (storyId, updates) => {
+    try {
+      const docRef = doc(db, STORIES_COLLECTION, storyId);
+      await updateDoc(docRef, {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+      console.log('✅ Story updated:', storyId);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Update story error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
+  deleteStory: async (storyId) => {
+    try {
+      await deleteDoc(doc(db, STORIES_COLLECTION, storyId));
+      console.log('✅ Story deleted:', storyId);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Delete story error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
+  createInvitation: async (storyId, invitedPhone, creatorName) => {
+    try {
+      const docRef = await addDoc(collection(db, INVITATIONS_COLLECTION), {
+        storyId,
+        invitedPhone,
+        creatorName,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+      console.log('✅ Invitation created:', docRef.id);
+      return { success: true, invitationId: docRef.id };
+    } catch (error) {
+      console.error('❌ Create invitation error:', error.message);
+      return { success: false, error: error.message };
+    }
+  }
+};
+
+export default storiesService;
