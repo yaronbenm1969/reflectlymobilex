@@ -48,6 +48,10 @@ export const useAppState = create((set, get) => ({
   processingProgress: 0,
   finalVideoUri: null,
   
+  // Player mode (when accessed via shared link)
+  isPlayerMode: false,
+  playerStoryId: null,
+  
   // UI state
   isSideMenuOpen: false,
   
@@ -131,6 +135,18 @@ export const useAppState = create((set, get) => ({
   
   // Story ID for Firestore
   setCurrentStoryId: (id) => set({ currentStoryId: id }),
+  
+  // Player mode actions
+  enterPlayerMode: (storyId) => set({ 
+    isPlayerMode: true, 
+    playerStoryId: storyId,
+    currentScreen: 'PlayerView',
+    screenHistory: [],
+  }),
+  exitPlayerMode: () => set({ 
+    isPlayerMode: false, 
+    playerStoryId: null 
+  }),
   
   // UI actions
   setSideMenuOpen: (open) => set({ isSideMenuOpen: open }),

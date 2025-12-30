@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   Share,
 } from 'react-native';
+import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
@@ -24,7 +25,20 @@ export const WhatsAppShareScreen = () => {
   const currentStoryId = useAppState((state) => state.currentStoryId);
   const user = useAppState((state) => state.user);
   
-  const storyLink = `https://reflectly.app/play/${currentStoryId || Date.now()}`;
+  // Generate deep link that works with the app
+  // For Expo Go: exp://HOST/--/play/STORY_ID
+  const storyLink = useMemo(() => {
+    const storyId = currentStoryId || `story_${Date.now()}`;
+    // Get the manifest URL and convert to deep link format
+    const expoUrl = Constants.expoConfig?.hostUri || Constants.manifest?.hostUri;
+    if (expoUrl) {
+      const link = `exp://${expoUrl}/--/play/${storyId}`;
+      console.log('📎 Generated story link:', link);
+      return link;
+    }
+    // Fallback for production
+    return `reflectly://play/${storyId}`;
+  }, [currentStoryId]);
   
   const messageTemplate = `היי! 🎬
 

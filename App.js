@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Linking } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { 
   AuthScreen,
@@ -39,8 +39,51 @@ export default function App() {
   const setSideMenuOpen = useAppState((state) => state.setSideMenuOpen);
   const setUser = useAppState((state) => state.setUser);
   const navigateTo = useAppState((state) => state.navigateTo);
+  const enterPlayerMode = useAppState((state) => state.enterPlayerMode);
+
+  // Handle deep links for player mode
+  const handleDeepLink = (url) => {
+    if (!url) return;
+    console.log('🔗 Deep link received:', url);
+    
+    // Parse the URL to extract storyId
+    // Expected formats: 
+    // - reflectly://play/STORY_ID
+    // - https://reflectly.app/play/STORY_ID
+    // - exp://...--play/STORY_ID
+    try {
+      // Extract storyId from various URL formats
+      let storyId = null;
+      
+      // Check for /play/STORY_ID pattern
+      const playMatch = url.match(/\/play\/([^/?]+)/);
+      if (playMatch) {
+        storyId = playMatch[1];
+      }
+      
+      // Check for --play/STORY_ID pattern (Expo URL)
+      const expoMatch = url.match(/--play\/([^/?]+)/);
+      if (!storyId && expoMatch) {
+        storyId = expoMatch[1];
+      }
+      
+      // Check for storyId query param
+      const queryMatch = url.match(/[?&]storyId=([^&]+)/);
+      if (!storyId && queryMatch) {
+        storyId = queryMatch[1];
+      }
+      
+      if (storyId) {
+        console.log('🎬 Entering player mode for story:', storyId);
+        enterPlayerMode(storyId);
+      }
+    } catch (error) {
+      console.error('Error parsing deep link:', error);
+    }
+  };
 
   useEffect(() => {
+    // Auth state listener
     const unsubscribe = authService.onAuthChange((user) => {
       if (user) {
         console.log('🔐 User restored:', user.email);
@@ -51,7 +94,20 @@ export default function App() {
       }
     });
 
-    return () => unsubscribe();
+    // Check for initial deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink(url);
+    });
+
+    // Listen for deep links while app is open
+    const linkingSubscription = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url);
+    });
+
+    return () => {
+      unsubscribe();
+      linkingSubscription?.remove();
+    };
   }, []);
 
   const renderScreen = () => {
