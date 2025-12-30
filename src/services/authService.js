@@ -1,6 +1,7 @@
 import { 
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInAnonymously,
   signOut,
   onAuthStateChanged,
   updateProfile
@@ -40,6 +41,17 @@ export const authService = {
       return { success: true };
     } catch (error) {
       console.error('❌ Sign out error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
+  signInAsGuest: async () => {
+    try {
+      const userCredential = await signInAnonymously(auth);
+      console.log('✅ Guest signed in:', userCredential.user.uid);
+      return { success: true, user: userCredential.user };
+    } catch (error) {
+      console.error('❌ Guest sign in error:', error.message);
       return { success: false, error: error.message };
     }
   },

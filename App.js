@@ -84,13 +84,20 @@ export default function App() {
 
   useEffect(() => {
     // Auth state listener
-    const unsubscribe = authService.onAuthChange((user) => {
+    const unsubscribe = authService.onAuthChange(async (user) => {
       if (user) {
-        console.log('🔐 User restored:', user.email);
+        console.log('🔐 User restored:', user.email || 'Anonymous');
         setUser(user);
       } else {
-        console.log('🔐 No user session');
-        setUser(null);
+        console.log('🔐 No user session - signing in as guest...');
+        const result = await authService.signInAsGuest();
+        if (result.success) {
+          console.log('✅ Signed in as guest:', result.user.uid);
+          setUser(result.user);
+        } else {
+          console.log('❌ Guest sign in failed:', result.error);
+          setUser(null);
+        }
       }
     });
 
