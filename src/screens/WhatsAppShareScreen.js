@@ -132,6 +132,21 @@ ${storyLink}
           </Card>
         )}
 
+        <Card style={styles.testCard}>
+          <Ionicons name="phone-portrait-outline" size={24} color={theme.colors.primary} />
+          <Text style={styles.testTitle}>בדיקה עם טלפון אחד?</Text>
+          <Text style={styles.testDescription}>
+            לחץ כאן כדי לראות איך זה נראה לחברים שמקבלים את הלינק
+          </Text>
+          <TouchableOpacity
+            style={styles.testButton}
+            onPress={() => go('PlayerView')}
+          >
+            <Ionicons name="eye-outline" size={20} color="white" />
+            <Text style={styles.testButtonText}>נסה כשחקן</Text>
+          </TouchableOpacity>
+        </Card>
+
         <View style={styles.actions}>
           <AppButton
             title="המשך לעיבוד"
