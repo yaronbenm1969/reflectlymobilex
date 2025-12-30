@@ -22,7 +22,8 @@ import {
   CameraSettingsScreen,
   AboutScreen,
   HelpScreen,
-  TermsScreen 
+  TermsScreen,
+  ThankYouScreen 
 } from './src/screens';
 import { SideMenu } from './src/components/SideMenu';
 import { useAppState } from './src/state/appState';
@@ -105,6 +106,8 @@ export default function App() {
         return <HelpScreen />;
       case 'Terms':
         return <TermsScreen />;
+      case 'ThankYou':
+        return <ThankYouScreen />;
       default:
         return <HomeScreen />;
     }

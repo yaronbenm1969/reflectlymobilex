@@ -19,3 +19,4 @@ export { CameraSettingsScreen } from './CameraSettingsScreen';
 export { AboutScreen } from './AboutScreen';
 export { HelpScreen } from './HelpScreen';
 export { TermsScreen } from './TermsScreen';
+export { ThankYouScreen } from './ThankYouScreen';

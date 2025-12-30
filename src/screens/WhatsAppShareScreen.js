@@ -21,7 +21,10 @@ export const WhatsAppShareScreen = () => {
   const storyName = useAppState((state) => state.storyName);
   const [sharedCount, setSharedCount] = useState(0);
 
-  const storyLink = `https://reflectly.app/story/${Date.now()}`;
+  const currentStoryId = useAppState((state) => state.currentStoryId);
+  const user = useAppState((state) => state.user);
+  
+  const storyLink = `https://reflectly.app/play/${currentStoryId || Date.now()}`;
   
   const messageTemplate = `היי! 🎬
 

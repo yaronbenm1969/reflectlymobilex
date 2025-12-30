@@ -63,11 +63,11 @@ export const PlayerRecordScreen = () => {
       return;
     }
 
-    Alert.alert(
-      'מעולה!',
-      `הקלטת ${recordedCount} סרטונים. השיקופים שלך נשלחו בהצלחה!`,
-      [{ text: 'סגור', onPress: () => go('Home') }]
-    );
+    go('ThankYou', {
+      recordedCount,
+      creatorName: navigationParams?.creatorName,
+      storyName: navigationParams?.storyName,
+    });
   };
 
   const renderRecordButton = (videoId, label, maxTime) => {

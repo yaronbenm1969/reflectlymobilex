@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
@@ -19,8 +20,11 @@ export const EditRoomScreen = () => {
   const selectedMusic = useAppState((state) => state.selectedMusic);
   const videoFormat = useAppState((state) => state.videoFormat);
   const receivedVideos = useAppState((state) => state.receivedVideos);
+  const privacySettings = useAppState((state) => state.privacySettings);
   
   const [isPlaying, setIsPlaying] = useState(false);
+  const [editConfirmStep, setEditConfirmStep] = useState(0);
+  const [publishConfirmStep, setPublishConfirmStep] = useState(0);
 
   const mockReceivedVideos = [
     { id: 1, name: 'דני', duration: '0:32', status: 'received' },
@@ -28,8 +32,33 @@ export const EditRoomScreen = () => {
     { id: 3, name: 'יוסי', duration: '0:45', status: 'pending' },
   ];
 
+  const receivedCount = mockReceivedVideos.filter(v => v.status === 'received').length;
+  const totalCount = mockReceivedVideos.length;
+
+  const handleEditNow = () => {
+    if (editConfirmStep === 0) {
+      setEditConfirmStep(1);
+      setTimeout(() => {
+        if (editConfirmStep === 1) setEditConfirmStep(0);
+      }, 3000);
+    } else {
+      go('Processing');
+    }
+  };
+
   const handleExport = () => {
-    go('FinalVideo');
+    if (privacySettings.allowSocialMedia) {
+      if (publishConfirmStep === 0) {
+        setPublishConfirmStep(1);
+        setTimeout(() => {
+          if (publishConfirmStep === 1) setPublishConfirmStep(0);
+        }, 3000);
+      } else {
+        go('FinalVideo');
+      }
+    } else {
+      go('FinalVideo');
+    }
   };
 
   return (
@@ -59,6 +88,26 @@ export const EditRoomScreen = () => {
           <Text style={styles.previewTitle}>{storyName}</Text>
         </Card>
 
+        <Card style={styles.statusCard}>
+          <View style={styles.statusHeader}>
+            <Ionicons name="people" size={24} color={theme.colors.primary} />
+            <Text style={styles.statusTitle}>סטטוס שיקופים</Text>
+          </View>
+          <View style={styles.statusProgress}>
+            <Text style={styles.statusCount}>
+              {receivedCount} מתוך {totalCount} התקבלו
+            </Text>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill, 
+                  { width: `${(receivedCount / totalCount) * 100}%` }
+                ]} 
+              />
+            </View>
+          </View>
+        </Card>
+
         <Card style={styles.settingsCard}>
           <Text style={styles.sectionTitle}>הגדרות נוכחיות</Text>
           
@@ -76,6 +125,16 @@ export const EditRoomScreen = () => {
               <Text style={styles.settingLabel}>פורמט</Text>
             </View>
             <Text style={styles.settingValue}>{videoFormat || 'סטנדרטי'}</Text>
+          </View>
+
+          <View style={styles.settingRow}>
+            <View style={styles.settingInfo}>
+              <Ionicons name="lock-closed" size={20} color={theme.colors.primary} />
+              <Text style={styles.settingLabel}>פרטיות</Text>
+            </View>
+            <Text style={styles.settingValue}>
+              {privacySettings.allowSocialMedia ? 'לפרסום' : 'פרטי'}
+            </Text>
           </View>
         </Card>
 
@@ -104,19 +163,19 @@ export const EditRoomScreen = () => {
         <Card style={styles.actionsCard}>
           <Text style={styles.sectionTitle}>פעולות</Text>
           
-          <TouchableOpacity style={styles.actionRow}>
-            <Ionicons name="color-wand" size={24} color={theme.colors.primary} />
-            <Text style={styles.actionText}>ערוך מחדש עם AI</Text>
-            <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionRow}>
+          <TouchableOpacity 
+            style={styles.actionRow}
+            onPress={() => go('MusicSelection')}
+          >
             <Ionicons name="musical-notes" size={24} color={theme.colors.primary} />
             <Text style={styles.actionText}>שנה מוזיקה</Text>
             <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionRow}>
+          <TouchableOpacity 
+            style={styles.actionRow}
+            onPress={() => go('FormatSelection')}
+          >
             <Ionicons name="cube" size={24} color={theme.colors.primary} />
             <Text style={styles.actionText}>שנה פורמט הקרנה</Text>
             <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
@@ -124,13 +183,66 @@ export const EditRoomScreen = () => {
         </Card>
 
         <View style={styles.exportActions}>
-          <AppButton
-            title="ייצא סרטון סופי"
-            onPress={handleExport}
-            variant="primary"
-            size="lg"
-            fullWidth
-          />
+          <TouchableOpacity
+            style={[
+              styles.editNowButton,
+              editConfirmStep === 1 && styles.editNowButtonConfirm,
+            ]}
+            onPress={handleEditNow}
+          >
+            <View style={styles.editNowContent}>
+              <Ionicons 
+                name={editConfirmStep === 1 ? "checkmark-circle" : "color-wand"} 
+                size={24} 
+                color="white" 
+              />
+              <Text style={styles.editNowText}>
+                {editConfirmStep === 1 
+                  ? 'לחץ שוב לאישור עריכה' 
+                  : `ערוך עכשיו (${receivedCount}/${totalCount})`}
+              </Text>
+            </View>
+            {editConfirmStep === 0 && receivedCount < totalCount && (
+              <Text style={styles.editNowHint}>
+                ניתן לערוך גם ללא כל הסרטונים
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>או</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {privacySettings.allowSocialMedia ? (
+            <TouchableOpacity
+              style={[
+                styles.publishButton,
+                publishConfirmStep === 1 && styles.publishButtonConfirm,
+              ]}
+              onPress={handleExport}
+            >
+              <Ionicons 
+                name={publishConfirmStep === 1 ? "checkmark-circle" : "share-social"} 
+                size={24} 
+                color="white" 
+              />
+              <Text style={styles.publishButtonText}>
+                {publishConfirmStep === 1 
+                  ? 'לחץ שוב לאישור פרסום' 
+                  : 'ייצא ופרסם'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <AppButton
+              title="ייצא סרטון סופי"
+              onPress={handleExport}
+              variant="primary"
+              size="lg"
+              fullWidth
+            />
+          )}
         </View>
       </ScrollView>
     </View>
@@ -193,6 +305,38 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     padding: theme.spacing[4],
     textAlign: 'center',
+  },
+  statusCard: {
+    padding: theme.spacing[4],
+    marginBottom: theme.spacing[4],
+  },
+  statusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    marginBottom: theme.spacing[3],
+  },
+  statusTitle: {
+    ...theme.typography.h3,
+    color: theme.colors.text,
+  },
+  statusProgress: {},
+  statusCount: {
+    ...theme.typography.body,
+    color: theme.colors.text,
+    marginBottom: theme.spacing[2],
+    textAlign: 'center',
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: theme.colors.success,
+    borderRadius: 4,
   },
   settingsCard: {
     padding: theme.spacing[4],
@@ -285,5 +429,61 @@ const styles = StyleSheet.create({
   },
   exportActions: {
     paddingVertical: theme.spacing[4],
+  },
+  editNowButton: {
+    backgroundColor: '#FF9800',
+    borderRadius: theme.radii.lg,
+    padding: theme.spacing[4],
+    alignItems: 'center',
+  },
+  editNowButtonConfirm: {
+    backgroundColor: '#4CAF50',
+  },
+  editNowContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
+  editNowText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  editNowHint: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 12,
+    marginTop: theme.spacing[1],
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: theme.spacing[4],
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#ddd',
+  },
+  dividerText: {
+    paddingHorizontal: theme.spacing[3],
+    color: theme.colors.subtext,
+    fontSize: 14,
+  },
+  publishButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radii.lg,
+    padding: theme.spacing[4],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+  },
+  publishButtonConfirm: {
+    backgroundColor: '#4CAF50',
+  },
+  publishButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
