@@ -131,6 +131,24 @@ export const HomeScreen = () => {
             />
           </Card>
 
+          <Card style={styles.playerCard}>
+            <View style={styles.playerHeader}>
+              <Ionicons name="people" size={24} color={theme.colors.primary} />
+              <Text style={styles.playerTitle}>קיבלת הזמנה מחבר?</Text>
+            </View>
+            <Text style={styles.playerDescription}>
+              אם קיבלת לינק ב-WhatsApp, לחץ כאן לצפות ולהקליט שיקופים
+            </Text>
+            <AppButton
+              title="הצטרף כשחקן"
+              onPress={() => go('PlayerView')}
+              variant="secondary"
+              size="lg"
+              fullWidth
+              icon="play-circle-outline"
+            />
+          </Card>
+
           <Card style={styles.infoCard}>
             <View style={styles.infoHeader}>
               <Ionicons name="information-circle" size={24} color={theme.colors.primary} />
@@ -230,6 +248,28 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     marginTop: theme.spacing[2],
+  },
+  playerCard: {
+    padding: theme.spacing[5],
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+    borderStyle: 'dashed',
+  },
+  playerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing[2],
+  },
+  playerTitle: {
+    ...theme.typography.h3,
+    color: theme.colors.text,
+    marginLeft: theme.spacing[2],
+  },
+  playerDescription: {
+    ...theme.typography.body,
+    color: theme.colors.subtext,
+    textAlign: 'right',
+    marginBottom: theme.spacing[4],
   },
   infoCard: {
     padding: theme.spacing[5],
