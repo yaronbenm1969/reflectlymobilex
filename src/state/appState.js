@@ -6,8 +6,13 @@ export const useAppState = create((set, get) => ({
   navigationParams: null,
   screenHistory: [],
   
+  // User state (Firebase Auth)
+  user: null,
+  isAuthenticated: false,
+  
   // Story state
   storyName: '',
+  currentStoryId: null,
   lastRecordingUri: null,
   keyStoryUri: null,
   
@@ -112,6 +117,20 @@ export const useAppState = create((set, get) => ({
   setProcessingStatus: (status) => set({ processingStatus: status }),
   setProcessingProgress: (progress) => set({ processingProgress: progress }),
   setFinalVideoUri: (uri) => set({ finalVideoUri: uri }),
+  
+  // User actions
+  setUser: (user) => set({ 
+    user, 
+    isAuthenticated: !!user 
+  }),
+  
+  logout: () => set({ 
+    user: null, 
+    isAuthenticated: false 
+  }),
+  
+  // Story ID for Firestore
+  setCurrentStoryId: (id) => set({ currentStoryId: id }),
   
   // UI actions
   setSideMenuOpen: (open) => set({ isSideMenuOpen: open }),

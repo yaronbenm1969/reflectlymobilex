@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { 
+  AuthScreen,
   SplashScreen,
   HomeScreen, 
   RecordScreen, 
@@ -25,6 +26,7 @@ import {
 } from './src/screens';
 import { SideMenu } from './src/components/SideMenu';
 import { useAppState } from './src/state/appState';
+import { authService } from './src/services/authService';
 
 export default function App() {
   console.log('🚀 Reflectly Mobile App Starting...');
@@ -34,11 +36,29 @@ export default function App() {
   const navigationParams = useAppState((state) => state.navigationParams);
   const isSideMenuOpen = useAppState((state) => state.isSideMenuOpen);
   const setSideMenuOpen = useAppState((state) => state.setSideMenuOpen);
+  const setUser = useAppState((state) => state.setUser);
+  const navigateTo = useAppState((state) => state.navigateTo);
+
+  useEffect(() => {
+    const unsubscribe = authService.onAuthChange((user) => {
+      if (user) {
+        console.log('🔐 User restored:', user.email);
+        setUser(user);
+      } else {
+        console.log('🔐 No user session');
+        setUser(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const renderScreen = () => {
     switch (currentScreen) {
       case 'Splash':
         return <SplashScreen />;
+      case 'Auth':
+        return <AuthScreen />;
       case 'Record':
         return <RecordScreen />;
       case 'Review':

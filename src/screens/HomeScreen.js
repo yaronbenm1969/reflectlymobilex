@@ -8,6 +8,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,20 +16,44 @@ import { AppButton } from '../ui/AppButton';
 import { Card } from '../ui/Card';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
+import { storiesService } from '../services/storiesService';
 import theme from '../theme/theme';
 
 export const HomeScreen = () => {
   const { go } = useNav();
   const storyName = useAppState((state) => state.storyName);
   const setStoryName = useAppState((state) => state.setStoryName);
+  const setCurrentStoryId = useAppState((state) => state.setCurrentStoryId);
+  const user = useAppState((state) => state.user);
   const [localStoryName, setLocalStoryName] = useState(storyName || '');
+  const [isCreating, setIsCreating] = useState(false);
   
-  const navigateToRecord = () => {
+  const navigateToRecord = async () => {
     if (!localStoryName.trim()) {
       return;
     }
+    
+    setIsCreating(true);
     setStoryName(localStoryName.trim());
-    console.log('🎬 Starting story:', localStoryName);
+    
+    if (user) {
+      const result = await storiesService.createStory(user.uid, {
+        name: localStoryName.trim(),
+      });
+      
+      if (result.success) {
+        setCurrentStoryId(result.storyId);
+        console.log('🎬 Story created in Firebase:', result.storyId);
+      } else {
+        Alert.alert('שגיאה', 'לא הצלחנו ליצור את הסיפור');
+        setIsCreating(false);
+        return;
+      }
+    } else {
+      console.log('🎬 Starting story locally:', localStoryName);
+    }
+    
+    setIsCreating(false);
     go('Record');
   };
 
@@ -87,13 +112,13 @@ export const HomeScreen = () => {
             </Text>
             
             <AppButton
-              title="התחל סיפור חדש"
+              title={isCreating ? "יוצר סיפור..." : "התחל סיפור חדש"}
               onPress={navigateToRecord}
               variant="primary"
               size="lg"
               fullWidth
               style={styles.primaryButton}
-              disabled={!localStoryName.trim()}
+              disabled={!localStoryName.trim() || isCreating}
             />
             
             <AppButton

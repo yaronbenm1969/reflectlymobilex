@@ -1,17 +1,18 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
+import { useAppState } from '../state/appState';
 import theme from '../theme/theme';
 
 export const SplashScreen = () => {
   const { go } = useNav();
-  const fadeAnim = new Animated.Value(0);
-  const scaleAnim = new Animated.Value(0.8);
+  const isAuthenticated = useAppState((state) => state.isAuthenticated);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
-    // Fade in and scale animation
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -26,13 +27,17 @@ export const SplashScreen = () => {
       }),
     ]).start();
 
-    // Navigate to Home after 3 seconds
     const timer = setTimeout(() => {
-      go('Home');
+      if (isAuthenticated) {
+        console.log('👤 User already logged in, going to Home');
+        go('Home');
+      } else {
+        go('Auth');
+      }
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [isAuthenticated]);
 
   return (
     <LinearGradient
