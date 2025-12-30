@@ -52,6 +52,7 @@ export const useAppState = create((set, get) => ({
   // Player mode (when accessed via shared link)
   isPlayerMode: false,
   playerStoryId: null,
+  playerStoryData: null,
   
   // UI state
   isSideMenuOpen: false,
@@ -139,15 +140,17 @@ export const useAppState = create((set, get) => ({
   setCurrentInviteCode: (code) => set({ currentInviteCode: code }),
   
   // Player mode actions
-  enterPlayerMode: (storyId) => set({ 
+  enterPlayerMode: (storyId, storyData = null) => set({ 
     isPlayerMode: true, 
     playerStoryId: storyId,
+    playerStoryData: storyData,
     currentScreen: 'PlayerView',
     screenHistory: [],
   }),
   exitPlayerMode: () => set({ 
     isPlayerMode: false, 
-    playerStoryId: null 
+    playerStoryId: null,
+    playerStoryData: null
   }),
   
   // UI actions

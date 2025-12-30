@@ -15,14 +15,17 @@ import theme from '../theme/theme';
 export const PlayerViewScreen = () => {
   const { go } = useNav();
   const navigationParams = useAppState((state) => state.navigationParams);
+  const playerStoryData = useAppState((state) => state.playerStoryData);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasWatched, setHasWatched] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const storyName = navigationParams?.storyName || 'הסיפור';
-  const creatorName = navigationParams?.creatorName || 'חבר';
-  const instructions = navigationParams?.instructions || 'שתף את החוויה שלך';
+  const storyData = playerStoryData || navigationParams || {};
+  const storyName = storyData.name || storyData.storyName || 'הסיפור';
+  const creatorName = storyData.creatorName || 'חבר';
+  const instructions = storyData.instructions || 'שתף את החוויה שלך';
+  const videoUri = storyData.videoUri || storyData.videoUrl || null;
 
   useEffect(() => {
     if (isPlaying) {

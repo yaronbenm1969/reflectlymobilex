@@ -26,13 +26,18 @@ export const WhatsAppShareScreen = () => {
   const currentInviteCode = useAppState((state) => state.currentInviteCode);
   const user = useAppState((state) => state.user);
   
-  const inviteCode = currentInviteCode || 'DEMO123';
+  const inviteCode = currentInviteCode || '';
   
   const webPlayerUrl = useMemo(() => {
-    return `https://your-app.replit.app/?code=${inviteCode}`;
+    if (!inviteCode) return '';
+    return `https://your-reflectly-web.replit.app/?code=${inviteCode}`;
   }, [inviteCode]);
   
-  const messageTemplate = `היי! 🎬
+  const messageTemplate = useMemo(() => {
+    if (!inviteCode) {
+      return `היי! 🎬\n\nזה הסיפור שלי: "${storyName}"\n\nאשמח אם תצפה ותשתף את השיקוף שלך!\n\nהורד את אפליקציית Reflectly כדי לצפות ולהגיב.\n\nתודה! ❤️`;
+    }
+    return `היי! 🎬
 
 זה הסיפור שלי: "${storyName}"
 
@@ -44,6 +49,7 @@ export const WhatsAppShareScreen = () => {
 ${webPlayerUrl}
 
 תודה! ❤️`;
+  }, [storyName, inviteCode, webPlayerUrl]);
 
   const handleShareWhatsApp = async () => {
     try {

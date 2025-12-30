@@ -4,6 +4,9 @@
 Reflectly is a React Native/Expo mobile journaling app that allows users to record personal stories and invite friends to share reflections. The app features video recording, story management, and social sharing capabilities.
 
 ## Recent Changes (December 30, 2025)
+- **NEW: Invite Code System** - Each story gets a unique 6-character code (e.g., ABC123)
+- **NEW: Web Player** - `/web-player/` folder with HTML/CSS/JS for browser-based viewing and recording
+- **NEW: Join with Code** - HomeScreen now has input field for entering invite codes
 - **Upgraded to Expo SDK 54** with React 19.1.0 and React Native 0.81.5
 - **Fixed critical bug**: Removed deprecated SafeAreaView, added react-native-safe-area-context
 - **Fixed Touch Bleed-Through**: Added 300ms interaction guard to ReviewScreen and MusicSelectionScreen
@@ -18,6 +21,25 @@ Reflectly is a React Native/Expo mobile journaling app that allows users to reco
 - **ThankYouScreen**: New screen for players with app download links
 - App running on tunnel via Expo Go with comprehensive logging
 - **Copied all screens** from original app in attached_assets/expo-mobile-standalone/
+
+## Invite Code & Web Player System
+### How it works:
+1. Creator records story → System generates invite code (e.g., `XK7M2P`)
+2. Creator shares via WhatsApp: "Join my story! Code: XK7M2P" + web link
+3. Friend clicks link → Web player opens → Watches video → Records reflection
+4. OR: Friend opens app → Enters code in HomeScreen → Views story
+
+### Files:
+- `web-player/index.html` - Main HTML page
+- `web-player/styles.css` - Pink-purple themed styles
+- `web-player/app.js` - Firebase integration + recording logic
+- `web-player/config.js` - Firebase config (needs real values for production)
+- `web-player/server.js` - Simple Node.js server for local testing
+
+### For Production:
+1. Update `web-player/config.js` with real Firebase credentials
+2. Deploy to Firebase Hosting or Vercel
+3. Update `WhatsAppShareScreen.js` with production URL
 
 ## Project Architecture
 

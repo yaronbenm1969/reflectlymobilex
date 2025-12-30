@@ -76,7 +76,7 @@ export const HomeScreen = () => {
     
     if (result.success) {
       console.log('🎬 Found story:', result.story.name);
-      enterPlayerMode(result.story.id);
+      enterPlayerMode(result.story.id, result.story);
     } else {
       Alert.alert('שגיאה', 'קוד לא נמצא. בדוק ונסה שוב.');
     }
