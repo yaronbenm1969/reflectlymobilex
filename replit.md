@@ -14,6 +14,8 @@ Reflectly is a React Native/Expo mobile journaling app that allows users to reco
 - **Configured Expo tunnel**: Using ngrok for mobile device testing from Replit cloud
 - **Firebase fully integrated**: Auth, Firestore, Storage with session persistence
 - **Auth state listener**: Restores user session on app restart (App.js useEffect)
+- **EditRoomScreen**: Double-tap confirmation for editing/publishing at any stage
+- **ThankYouScreen**: New screen for players with app download links
 - App running on tunnel via Expo Go with comprehensive logging
 - **Copied all screens** from original app in attached_assets/expo-mobile-standalone/
 
