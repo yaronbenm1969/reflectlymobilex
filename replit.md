@@ -3,7 +3,7 @@
 ## Overview
 Reflectly is a React Native/Expo mobile journaling app that allows users to record personal stories and invite friends to share reflections. The app features video recording, story management, and social sharing capabilities.
 
-## Recent Changes (November 10, 2025)
+## Recent Changes (December 30, 2025)
 - **Upgraded to Expo SDK 54** with React 19.1.0 and React Native 0.81.5
 - **Fixed critical bug**: Removed deprecated SafeAreaView, added react-native-safe-area-context
 - **Fixed Touch Bleed-Through**: Added 300ms interaction guard to ReviewScreen and MusicSelectionScreen
@@ -12,6 +12,8 @@ Reflectly is a React Native/Expo mobile journaling app that allows users to reco
 - **Added ElevenLabs integration**: AI-generated custom music option in MusicSelectionScreen
 - **Updated color theme**: Pink-purple gradient (#FF6B9D → #C06FBB) matching Reflectly aesthetic
 - **Configured Expo tunnel**: Using ngrok for mobile device testing from Replit cloud
+- **Firebase fully integrated**: Auth, Firestore, Storage with session persistence
+- **Auth state listener**: Restores user session on app restart (App.js useEffect)
 - App running on tunnel via Expo Go with comprehensive logging
 - **Copied all screens** from original app in attached_assets/expo-mobile-standalone/
 
