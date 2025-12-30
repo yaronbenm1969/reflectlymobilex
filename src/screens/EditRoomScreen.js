@@ -39,9 +39,10 @@ export const EditRoomScreen = () => {
     if (editConfirmStep === 0) {
       setEditConfirmStep(1);
       setTimeout(() => {
-        if (editConfirmStep === 1) setEditConfirmStep(0);
+        setEditConfirmStep((prev) => (prev === 1 ? 0 : prev));
       }, 3000);
-    } else {
+    } else if (editConfirmStep === 1) {
+      setEditConfirmStep(0);
       go('Processing');
     }
   };
@@ -51,9 +52,10 @@ export const EditRoomScreen = () => {
       if (publishConfirmStep === 0) {
         setPublishConfirmStep(1);
         setTimeout(() => {
-          if (publishConfirmStep === 1) setPublishConfirmStep(0);
+          setPublishConfirmStep((prev) => (prev === 1 ? 0 : prev));
         }, 3000);
-      } else {
+      } else if (publishConfirmStep === 1) {
+        setPublishConfirmStep(0);
         go('FinalVideo');
       }
     } else {
