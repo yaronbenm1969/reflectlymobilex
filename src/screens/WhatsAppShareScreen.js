@@ -25,15 +25,19 @@ export const WhatsAppShareScreen = () => {
   const currentStoryId = useAppState((state) => state.currentStoryId);
   const user = useAppState((state) => state.user);
   
-  // Generate deep link that works with the app
-  // For Expo Go: exp://HOST/--/play/STORY_ID
+  // Generate deep link that works from WhatsApp
+  // Using expo.dev redirect format that opens in Expo Go
   const storyLink = useMemo(() => {
     const storyId = currentStoryId || `story_${Date.now()}`;
-    // Get the manifest URL and convert to deep link format
+    // Use the tunnel URL for Expo Go
+    // Format: https://expo.dev/go?link=exp://HOST/--/play/STORY_ID
     const expoUrl = Constants.expoConfig?.hostUri || Constants.manifest?.hostUri;
     if (expoUrl) {
-      const link = `exp://${expoUrl}/--/play/${storyId}`;
+      const expLink = `exp://${expoUrl}/--/play/${storyId}`;
+      // Wrap in expo.dev redirect for WhatsApp compatibility
+      const link = `https://expo.dev/go?link=${encodeURIComponent(expLink)}`;
       console.log('📎 Generated story link:', link);
+      console.log('📎 Original exp link:', expLink);
       return link;
     }
     // Fallback for production
@@ -131,21 +135,6 @@ ${storyLink}
             </Text>
           </Card>
         )}
-
-        <Card style={styles.testCard}>
-          <Ionicons name="phone-portrait-outline" size={24} color={theme.colors.primary} />
-          <Text style={styles.testTitle}>בדיקה עם טלפון אחד?</Text>
-          <Text style={styles.testDescription}>
-            לחץ כאן כדי לראות איך זה נראה לחברים שמקבלים את הלינק
-          </Text>
-          <TouchableOpacity
-            style={styles.testButton}
-            onPress={() => go('PlayerView')}
-          >
-            <Ionicons name="eye-outline" size={20} color="white" />
-            <Text style={styles.testButtonText}>נסה כשחקן</Text>
-          </TouchableOpacity>
-        </Card>
 
         <View style={styles.actions}>
           <AppButton
