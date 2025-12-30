@@ -23,34 +23,25 @@ export const WhatsAppShareScreen = () => {
   const [sharedCount, setSharedCount] = useState(0);
 
   const currentStoryId = useAppState((state) => state.currentStoryId);
+  const currentInviteCode = useAppState((state) => state.currentInviteCode);
   const user = useAppState((state) => state.user);
   
-  // Generate deep link that works from WhatsApp
-  // Using expo.dev redirect format that opens in Expo Go
-  const storyLink = useMemo(() => {
-    const storyId = currentStoryId || `story_${Date.now()}`;
-    // Use the tunnel URL for Expo Go
-    // Format: https://expo.dev/go?link=exp://HOST/--/play/STORY_ID
-    const expoUrl = Constants.expoConfig?.hostUri || Constants.manifest?.hostUri;
-    if (expoUrl) {
-      const expLink = `exp://${expoUrl}/--/play/${storyId}`;
-      // Wrap in expo.dev redirect for WhatsApp compatibility
-      const link = `https://expo.dev/go?link=${encodeURIComponent(expLink)}`;
-      console.log('📎 Generated story link:', link);
-      console.log('📎 Original exp link:', expLink);
-      return link;
-    }
-    // Fallback for production
-    return `reflectly://play/${storyId}`;
-  }, [currentStoryId]);
+  const inviteCode = currentInviteCode || 'DEMO123';
+  
+  const webPlayerUrl = useMemo(() => {
+    return `https://your-app.replit.app/?code=${inviteCode}`;
+  }, [inviteCode]);
   
   const messageTemplate = `היי! 🎬
 
 זה הסיפור שלי: "${storyName}"
 
 אשמח אם תצפה ותשתף את השיקוף שלך!
-לחץ על הקישור לצפייה ותגובה:
-${storyLink}
+
+📱 קוד הזמנה: ${inviteCode}
+
+🔗 לחץ כאן לצפייה:
+${webPlayerUrl}
 
 תודה! ❤️`;
 

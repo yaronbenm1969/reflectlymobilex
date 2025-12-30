@@ -13,6 +13,7 @@ export const useAppState = create((set, get) => ({
   // Story state
   storyName: '',
   currentStoryId: null,
+  currentInviteCode: null,
   lastRecordingUri: null,
   keyStoryUri: null,
   
@@ -135,6 +136,7 @@ export const useAppState = create((set, get) => ({
   
   // Story ID for Firestore
   setCurrentStoryId: (id) => set({ currentStoryId: id }),
+  setCurrentInviteCode: (code) => set({ currentInviteCode: code }),
   
   // Player mode actions
   enterPlayerMode: (storyId) => set({ 

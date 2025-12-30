@@ -16,12 +16,23 @@ import { db } from './firebase';
 const STORIES_COLLECTION = 'stories';
 const INVITATIONS_COLLECTION = 'invitations';
 
+const generateInviteCode = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
 export const storiesService = {
   createStory: async (userId, storyData) => {
     try {
+      const inviteCode = generateInviteCode();
       const docRef = await addDoc(collection(db, STORIES_COLLECTION), {
         userId,
         name: storyData.name,
+        inviteCode,
         videoUri: storyData.videoUri || null,
         format: storyData.format || 'standard',
         music: storyData.music || 'none',
@@ -32,10 +43,28 @@ export const storiesService = {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      console.log('✅ Story created:', docRef.id);
-      return { success: true, storyId: docRef.id };
+      console.log('✅ Story created:', docRef.id, 'Invite code:', inviteCode);
+      return { success: true, storyId: docRef.id, inviteCode };
     } catch (error) {
       console.error('❌ Create story error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
+  getStoryByInviteCode: async (inviteCode) => {
+    try {
+      const q = query(
+        collection(db, STORIES_COLLECTION),
+        where('inviteCode', '==', inviteCode.toUpperCase())
+      );
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        return { success: true, story: { id: doc.id, ...doc.data() } };
+      }
+      return { success: false, error: 'Story not found' };
+    } catch (error) {
+      console.error('❌ Get story by code error:', error.message);
       return { success: false, error: error.message };
     }
   },

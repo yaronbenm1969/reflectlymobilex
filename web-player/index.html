@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Reflectly - צפה והקלט שיקוף</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+</head>
+<body>
+    <div class="container">
+        <div id="loading-screen" class="screen active">
+            <div class="logo-container">
+                <div class="logo">🎬</div>
+                <h1>Reflectly</h1>
+            </div>
+            <div class="spinner"></div>
+            <p>טוען...</p>
+        </div>
+
+        <div id="code-screen" class="screen">
+            <div class="header">
+                <div class="logo-small">🎬</div>
+                <h1>Reflectly</h1>
+            </div>
+            <div class="card">
+                <h2>הכנס קוד הזמנה</h2>
+                <p class="subtitle">קיבלת קוד מחבר? הכנס אותו כאן</p>
+                <input type="text" id="invite-code-input" placeholder="ABC123" maxlength="8" autocomplete="off">
+                <button id="join-btn" class="btn-primary" disabled>הצטרף לסיפור</button>
+                <p class="error-text" id="code-error"></p>
+            </div>
+            <div class="info-box">
+                <p>💡 הקוד נשלח אליך ב-WhatsApp על ידי חבר שרוצה לשתף איתך סיפור</p>
+            </div>
+        </div>
+
+        <div id="watch-screen" class="screen">
+            <div class="header">
+                <button class="btn-back" id="back-to-code">←</button>
+                <h1 id="story-title">הסיפור</h1>
+            </div>
+            <div class="video-container">
+                <video id="story-video" controls playsinline></video>
+                <div class="video-placeholder" id="video-placeholder">
+                    <div class="placeholder-icon">🎬</div>
+                    <p>הסרטון בטעינה...</p>
+                </div>
+            </div>
+            <div class="card">
+                <h3>הוראות מהיוצר</h3>
+                <p id="creator-instructions" class="instructions-text">צפה בסרטון והקלט את השיקוף שלך</p>
+            </div>
+            <button id="start-record-btn" class="btn-primary btn-large">
+                <span class="btn-icon">🎥</span>
+                הקלט שיקוף
+            </button>
+        </div>
+
+        <div id="record-screen" class="screen">
+            <div class="header dark">
+                <button class="btn-back light" id="back-to-watch">←</button>
+                <h1>הקלט שיקוף</h1>
+            </div>
+            <div class="camera-container">
+                <video id="camera-preview" autoplay playsinline muted></video>
+                <div class="camera-placeholder" id="camera-placeholder">
+                    <div class="placeholder-icon">📷</div>
+                    <p>מפעיל מצלמה...</p>
+                </div>
+                <div class="recording-indicator" id="recording-indicator">
+                    <div class="rec-dot"></div>
+                    <span id="rec-timer">00:00</span>
+                </div>
+            </div>
+            <div class="timing-info">
+                <p>זמן מומלץ: <span id="recommended-time">30</span> שניות</p>
+            </div>
+            <div class="record-controls">
+                <button id="record-btn" class="btn-record">
+                    <div class="record-icon"></div>
+                </button>
+                <p id="record-status">לחץ להקלטה</p>
+            </div>
+        </div>
+
+        <div id="review-screen" class="screen">
+            <div class="header">
+                <button class="btn-back" id="back-to-record">←</button>
+                <h1>סקירת ההקלטה</h1>
+            </div>
+            <div class="video-container">
+                <video id="review-video" controls playsinline></video>
+            </div>
+            <div class="review-actions">
+                <button id="retake-btn" class="btn-secondary">הקלט מחדש</button>
+                <button id="submit-btn" class="btn-primary">שלח שיקוף</button>
+            </div>
+            <div class="privacy-notice">
+                <input type="checkbox" id="privacy-consent">
+                <label for="privacy-consent">אני מאשר/ת שיתוף הסרטון עם יוצר הסיפור</label>
+            </div>
+        </div>
+
+        <div id="success-screen" class="screen">
+            <div class="success-content">
+                <div class="success-icon">✅</div>
+                <h1>תודה רבה!</h1>
+                <p>השיקוף שלך נשלח בהצלחה</p>
+                <div class="card">
+                    <p>היוצר יקבל את הסרטון שלך ויוסיף אותו לפרויקט</p>
+                </div>
+                <div class="app-promo">
+                    <h3>רוצה ליצור סיפורים משלך?</h3>
+                    <p>הורד את האפליקציה</p>
+                    <div class="store-buttons">
+                        <a href="#" class="store-btn" id="ios-btn">
+                            <span>📱</span> App Store
+                        </a>
+                        <a href="#" class="store-btn" id="android-btn">
+                            <span>📱</span> Google Play
+                        </a>
+                    </div>
+                </div>
+                <button id="record-another-btn" class="btn-secondary">הקלט שיקוף נוסף</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

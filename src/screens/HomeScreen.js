@@ -24,9 +24,13 @@ export const HomeScreen = () => {
   const storyName = useAppState((state) => state.storyName);
   const setStoryName = useAppState((state) => state.setStoryName);
   const setCurrentStoryId = useAppState((state) => state.setCurrentStoryId);
+  const setCurrentInviteCode = useAppState((state) => state.setCurrentInviteCode);
+  const enterPlayerMode = useAppState((state) => state.enterPlayerMode);
   const user = useAppState((state) => state.user);
   const [localStoryName, setLocalStoryName] = useState(storyName || '');
+  const [inviteCodeInput, setInviteCodeInput] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
   
   const navigateToRecord = async () => {
     if (!localStoryName.trim()) {
@@ -43,7 +47,9 @@ export const HomeScreen = () => {
       
       if (result.success) {
         setCurrentStoryId(result.storyId);
+        setCurrentInviteCode(result.inviteCode);
         console.log('🎬 Story created in Firebase:', result.storyId);
+        console.log('📎 Invite code:', result.inviteCode);
       } else {
         Alert.alert('שגיאה', 'לא הצלחנו ליצור את הסיפור');
         setIsCreating(false);
@@ -55,6 +61,27 @@ export const HomeScreen = () => {
     
     setIsCreating(false);
     go('Record');
+  };
+
+  const handleJoinWithCode = async () => {
+    const code = inviteCodeInput.trim().toUpperCase();
+    if (code.length < 4) {
+      Alert.alert('שגיאה', 'הקוד קצר מדי');
+      return;
+    }
+    
+    setIsJoining(true);
+    
+    const result = await storiesService.getStoryByInviteCode(code);
+    
+    if (result.success) {
+      console.log('🎬 Found story:', result.story.name);
+      enterPlayerMode(result.story.id);
+    } else {
+      Alert.alert('שגיאה', 'קוד לא נמצא. בדוק ונסה שוב.');
+    }
+    
+    setIsJoining(false);
   };
 
   return (
@@ -137,15 +164,25 @@ export const HomeScreen = () => {
               <Text style={styles.playerTitle}>קיבלת הזמנה מחבר?</Text>
             </View>
             <Text style={styles.playerDescription}>
-              אם קיבלת לינק ב-WhatsApp, לחץ כאן לצפות ולהקליט שיקופים
+              הכנס את הקוד שקיבלת ב-WhatsApp
             </Text>
+            <TextInput
+              style={styles.inviteCodeInput}
+              placeholder="הכנס קוד..."
+              placeholderTextColor={theme.colors.subtext}
+              value={inviteCodeInput}
+              onChangeText={(text) => setInviteCodeInput(text.toUpperCase())}
+              maxLength={8}
+              autoCapitalize="characters"
+            />
             <AppButton
-              title="הצטרף כשחקן"
-              onPress={() => go('PlayerView')}
+              title={isJoining ? "מחפש..." : "הצטרף לסיפור"}
+              onPress={handleJoinWithCode}
               variant="secondary"
               size="lg"
               fullWidth
               icon="play-circle-outline"
+              disabled={inviteCodeInput.length < 4 || isJoining}
             />
           </Card>
 
@@ -269,7 +306,21 @@ const styles = StyleSheet.create({
     ...theme.typography.body,
     color: theme.colors.subtext,
     textAlign: 'right',
-    marginBottom: theme.spacing[4],
+    marginBottom: theme.spacing[3],
+  },
+  inviteCodeInput: {
+    width: '100%',
+    backgroundColor: theme.colors.white,
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+    borderRadius: theme.radii.lg,
+    padding: theme.spacing[3],
+    fontSize: 20,
+    color: theme.colors.text,
+    marginBottom: theme.spacing[3],
+    textAlign: 'center',
+    letterSpacing: 4,
+    fontWeight: '600',
   },
   infoCard: {
     padding: theme.spacing[5],
