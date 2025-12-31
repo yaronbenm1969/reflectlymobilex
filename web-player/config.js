@@ -1,8 +1,8 @@
 export const firebaseConfig = {
-    apiKey: "REPLACE_WITH_YOUR_API_KEY",
-    authDomain: "REPLACE_WITH_YOUR_AUTH_DOMAIN",
-    projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
-    storageBucket: "REPLACE_WITH_YOUR_STORAGE_BUCKET",
-    messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
-    appId: "REPLACE_WITH_YOUR_APP_ID"
+    apiKey: "AIzaSyA5AdFlPj28sMWkgd9lzVYJ9tQsPJ04J1Y",
+    authDomain: "reflectly-playback.firebaseapp.com",
+    projectId: "reflectly-playback",
+    storageBucket: "reflectly-playback.firebasestorage.app",
+    messagingSenderId: "967435809376",
+    appId: "1:967435809376:web:188e43b7ccbb08a2c78905"
 };
