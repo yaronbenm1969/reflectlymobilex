@@ -16,19 +16,31 @@ import { db } from './firebase';
 const STORIES_COLLECTION = 'stories';
 const INVITATIONS_COLLECTION = 'invitations';
 
-const generateInviteCode = () => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+const generateUniqueInviteCode = async (storyName) => {
+  const baseName = storyName.trim();
+  let code = baseName;
+  let counter = 1;
+  
+  while (true) {
+    const q = query(
+      collection(db, STORIES_COLLECTION),
+      where('inviteCode', '==', code)
+    );
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) {
+      return code;
+    }
+    
+    counter++;
+    code = `${baseName} ${counter}`;
   }
-  return code;
 };
 
 export const storiesService = {
   createStory: async (userId, storyData) => {
     try {
-      const inviteCode = generateInviteCode();
+      const inviteCode = await generateUniqueInviteCode(storyData.name);
       const docRef = await addDoc(collection(db, STORIES_COLLECTION), {
         userId,
         name: storyData.name,
@@ -55,7 +67,7 @@ export const storiesService = {
     try {
       const q = query(
         collection(db, STORIES_COLLECTION),
-        where('inviteCode', '==', inviteCode.toUpperCase())
+        where('inviteCode', '==', inviteCode.trim())
       );
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {

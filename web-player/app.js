@@ -42,7 +42,7 @@ async function initFirebase() {
 function getInviteCodeFromURL() {
     const params = new URLSearchParams(window.location.search);
     const codeFromQuery = params.get('code') || params.get('c');
-    if (codeFromQuery) return codeFromQuery.toUpperCase();
+    if (codeFromQuery) return decodeURIComponent(codeFromQuery).trim();
     
     const pathParts = window.location.pathname.split('/').filter(Boolean);
     if (pathParts.length > 0) {
@@ -64,7 +64,7 @@ async function findStoryByCode(code) {
             return { id: storySnap.id, ...storySnap.data() };
         }
         
-        const q = query(collection(db, 'stories'), where('inviteCode', '==', code));
+        const q = query(collection(db, 'stories'), where('inviteCode', '==', code.trim()));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
