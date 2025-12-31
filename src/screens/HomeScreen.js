@@ -37,26 +37,28 @@ export const HomeScreen = () => {
       return;
     }
     
+    if (!user) {
+      Alert.alert('התחברות נדרשת', 'כדי ליצור סיפור ולשתף עם חברים, יש להתחבר קודם.');
+      go('Auth');
+      return;
+    }
+    
     setIsCreating(true);
     setStoryName(localStoryName.trim());
     
-    if (user) {
-      const result = await storiesService.createStory(user.uid, {
-        name: localStoryName.trim(),
-      });
-      
-      if (result.success) {
-        setCurrentStoryId(result.storyId);
-        setCurrentInviteCode(result.inviteCode);
-        console.log('🎬 Story created in Firebase:', result.storyId);
-        console.log('📎 Invite code:', result.inviteCode);
-      } else {
-        Alert.alert('שגיאה', 'לא הצלחנו ליצור את הסיפור');
-        setIsCreating(false);
-        return;
-      }
+    const result = await storiesService.createStory(user.uid, {
+      name: localStoryName.trim(),
+    });
+    
+    if (result.success) {
+      setCurrentStoryId(result.storyId);
+      setCurrentInviteCode(result.inviteCode);
+      console.log('🎬 Story created in Firebase:', result.storyId);
+      console.log('📎 Invite code:', result.inviteCode);
     } else {
-      console.log('🎬 Starting story locally:', localStoryName);
+      Alert.alert('שגיאה', 'לא הצלחנו ליצור את הסיפור');
+      setIsCreating(false);
+      return;
     }
     
     setIsCreating(false);
