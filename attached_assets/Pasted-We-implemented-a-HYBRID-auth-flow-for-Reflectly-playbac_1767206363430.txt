@@ -1,0 +1,113 @@
+We implemented a HYBRID auth flow for Reflectly-playback using Firebase Auth + Firestore Rules.
+
+GOAL (hybrid):
+- Story creator (mobile app) MUST be logged in to create/manage a story.
+- Players (web player) can open an invite link and submit reflections WITHOUT login.
+- Creator (logged in) can read all reflections.
+
+WHAT WE DID IN FIREBASE:
+1) Enabled Firebase Auth providers:
+   - Email/Password enabled
+   - Google enabled (optional but enabled)
+2) Created/confirmed Firestore database (default).
+3) Applied these Firestore Security Rules (already pasted & should be published):
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /stories/{storyId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+    }
+
+    match /invitations/{invitationId} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null;
+      allow update, delete: if false;
+    }
+
+    match /reflections/{reflectionId} {
+      allow create: if true;
+      allow read: if request.auth != null;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+FINAL PRODUCT FLOW (end-to-end):
+A) Creator (Mobile App)
+1) App starts: user can browse basic info without login.
+2) When user clicks "Create Story" (or before saving a story) -> require login:
+   - If not logged in: show login modal/screen (Email/Password + Google).
+3) After login: user records story, sets title, generates inviteCode.
+4) Save story to Firestore:
+   Collection: stories
+   Required fields:
+     - userId = auth.currentUser.uid (MUST exist; rules require it)
+     - inviteCode = random code (string)
+     - title, createdAt, mediaUrl, etc.
+5) Create invitation documents (optional):
+   Collection: invitations
+   Fields:
+     - storyId, inviteCode, createdByUserId, createdAt, recipients metadata (optional)
+6) Share invite link via WhatsApp:
+   Example: https://<your-domain>/web-player?code=<inviteCode>
+
+B) Player (Web Player) - NO LOGIN
+1) Player opens invite link with code param.
+2) Web queries Firestore for the story by inviteCode:
+   - query stories where inviteCode == code
+   - allow read is open => works without auth.
+3) Web displays story video + UI to record 1-3 reflection clips.
+4) On submit: web uploads reflection video to Storage (if used) and writes reflection doc:
+   Collection: reflections
+   Required fields recommended:
+     - storyId
+     - inviteCode
+     - createdAt
+     - playerName (optional)
+     - clips / videoUrl
+   Rules allow create without auth => works.
+
+C) Creator (Mobile App) - logged in
+1) Creator opens "My Stories" -> query stories where userId == auth.uid.
+2) Creator can open story details and read reflections:
+   - query reflections where storyId == storyId (or inviteCode == inviteCode)
+   - rules allow read only with auth => creator sees them.
+3) Creator can update/delete own story.
+
+CODE / INTEGRATION TASKS FOR YOU (Agent):
+1) Ensure Auth gating:
+   - Only require login when user tries to CREATE a story or access "My Stories" or edit/delete.
+   - Players web flow must remain unauthenticated.
+2) Ensure story creation always writes userId = auth.currentUser.uid.
+3) Implement these Firestore calls:
+   - Mobile:
+     - createStory() -> addDoc(stories, {..., userId: auth.uid, inviteCode})
+     - getMyStories() -> query stories where userId == auth.uid
+     - updateStory/deleteStory -> only for owner
+     - (optional) createInvitation() -> addDoc(invitations, {..., storyId, inviteCode, createdByUserId: auth.uid})
+   - Web:
+     - loadStoryByInviteCode(code) -> query stories where inviteCode == code
+     - submitReflection(storyId, inviteCode, payload) -> addDoc(reflections, {...})
+4) Storage note:
+   - If reflection videos are uploaded to Firebase Storage, ensure Storage rules align
+     (e.g., write allowed for unauth players only if you accept that; otherwise use a server endpoint / Cloud Function later).
+   - For now focus on Firestore logic + URLs saved in reflections.
+
+VALIDATION CHECKLIST:
+- Logged out mobile user cannot create story (UI blocks + rules block).
+- Logged in mobile user can create story; story doc contains userId == auth.uid.
+- Web player with invite link can read story and create reflection (no login).
+- Logged in creator can read reflections; logged out cannot read reflections.
+- No other collections are readable/writable.
+
+Proceed to implement these changes in the codebase (storiesService.js + web-player/app.js) and wire the UI accordingly.
