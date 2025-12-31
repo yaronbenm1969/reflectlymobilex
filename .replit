@@ -62,5 +62,6 @@ channel = "stable-25_05"
 WEB_PLAYER_URL = "https://your-reflectly-web.replit.app"
 
 [deployment]
-deploymentTarget = "autoscale"
+deploymentTarget = "static"
 run = ["node", "web-player/server.js"]
+publicDir = "web-player"
