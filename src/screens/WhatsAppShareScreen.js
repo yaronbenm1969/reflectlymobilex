@@ -30,7 +30,9 @@ export const WhatsAppShareScreen = () => {
   
   const webPlayerUrl = useMemo(() => {
     if (!inviteCode) return '';
-    return `https://your-reflectly-web.replit.app/?code=${inviteCode}`;
+    const domain = Constants.expoConfig?.extra?.webPlayerDomain || 
+                   'reflectly-web-player.replit.app';
+    return `https://${domain}/?code=${inviteCode}`;
   }, [inviteCode]);
   
   const messageTemplate = useMemo(() => {

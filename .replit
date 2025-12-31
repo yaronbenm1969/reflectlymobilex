@@ -14,6 +14,10 @@ author = "agent"
 task = "workflow.run"
 args = "expo-app"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "web-player"
+
 [[workflows.workflow]]
 name = "expo-app"
 author = "agent"
@@ -24,6 +28,18 @@ outputType = "console"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npx expo start --tunnel"
+
+[[workflows.workflow]]
+name = "web-player"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node web-player/server.js"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [[ports]]
 localPort = 5000
@@ -44,3 +60,7 @@ channel = "stable-25_05"
 
 [userenv.shared]
 WEB_PLAYER_URL = "https://your-reflectly-web.replit.app"
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["node", "web-player/server.js"]
