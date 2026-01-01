@@ -7,7 +7,9 @@ export const storageService = {
       const response = await fetch(uri);
       const blob = await response.blob();
       
-      const filename = `stories/${storyId}/${videoType}_${Date.now()}.mp4`;
+      // Detect file extension from URI (.mov for iPhone, .mp4 for Android)
+      const extension = uri.toLowerCase().includes('.mov') ? 'mov' : 'mp4';
+      const filename = `stories/${storyId}/${videoType}_${Date.now()}.${extension}`;
       const storageRef = ref(storage, filename);
       
       return new Promise((resolve, reject) => {

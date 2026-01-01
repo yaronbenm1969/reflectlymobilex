@@ -99,15 +99,33 @@ async function loadStory(code) {
     const videoEl = document.getElementById('story-video');
     const placeholder = document.getElementById('video-placeholder');
     
-    if (story.videoUri || story.videoUrl) {
-        videoEl.src = story.videoUri || story.videoUrl;
-        videoEl.onloadeddata = () => {
+    const videoUrl = story.videoUri || story.videoUrl;
+    console.log('📹 Video URL:', videoUrl);
+    
+    if (videoUrl) {
+        videoEl.src = videoUrl;
+        videoEl.load();
+        
+        videoEl.onloadedmetadata = () => {
+            console.log('✅ Video metadata loaded, duration:', videoEl.duration);
             placeholder.classList.add('hidden');
         };
-        videoEl.onerror = () => {
-            placeholder.innerHTML = '<div class="placeholder-icon">⚠️</div><p>שגיאה בטעינת הסרטון</p>';
+        
+        videoEl.oncanplay = () => {
+            console.log('✅ Video can play');
+            placeholder.classList.add('hidden');
+        };
+        
+        videoEl.onerror = (e) => {
+            console.error('❌ Video error:', videoEl.error?.message || 'Unknown error');
+            placeholder.innerHTML = '<div class="placeholder-icon">⚠️</div><p>שגיאה בטעינת הסרטון<br><small>נסה לפתוח בדפדפן אחר</small></p>';
+        };
+        
+        videoEl.onstalled = () => {
+            console.log('⚠️ Video stalled');
         };
     } else {
+        console.log('❌ No video URL found in story');
         placeholder.innerHTML = '<div class="placeholder-icon">📹</div><p>אין סרטון זמין</p>';
     }
     
