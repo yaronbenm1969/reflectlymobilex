@@ -31,7 +31,7 @@ export const WhatsAppShareScreen = () => {
   const webPlayerUrl = useMemo(() => {
     if (!inviteCode) return '';
     const domain = Constants.expoConfig?.extra?.webPlayerDomain || 
-                   'reflectly-web-player.replit.app';
+                   'ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev';
     return `https://${domain}/?code=${inviteCode}`;
   }, [inviteCode]);
   
