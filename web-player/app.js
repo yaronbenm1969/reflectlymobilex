@@ -118,7 +118,24 @@ async function loadStory(code) {
         
         videoEl.onerror = (e) => {
             console.error('❌ Video error:', videoEl.error?.message || 'Unknown error');
-            placeholder.innerHTML = '<div class="placeholder-icon">⚠️</div><p>שגיאה בטעינת הסרטון<br><small>נסה לפתוח בדפדפן אחר</small></p>';
+            // Provide fallback options for incompatible video formats
+            placeholder.innerHTML = `
+                <div class="placeholder-icon">📹</div>
+                <p>הסרטון בפורמט שלא נתמך בדפדפן זה</p>
+                <a href="${videoUrl}" target="_blank" class="download-link" style="
+                    display: inline-block;
+                    margin-top: 15px;
+                    padding: 12px 24px;
+                    background: linear-gradient(135deg, #FF6B9D, #C06FBB);
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 25px;
+                    font-weight: 600;
+                ">📥 הורד והפעל</a>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    או פתח ב-Safari לצפייה ישירה
+                </p>
+            `;
         };
         
         videoEl.onstalled = () => {
