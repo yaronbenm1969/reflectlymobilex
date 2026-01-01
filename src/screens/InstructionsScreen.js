@@ -7,12 +7,16 @@ import {
   TouchableOpacity,
   TextInput,
   Switch,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
+import { storageService } from '../services/storageService';
+import { storiesService } from '../services/storiesService';
 import theme from '../theme/theme';
 
 export const InstructionsScreen = () => {
@@ -22,14 +26,18 @@ export const InstructionsScreen = () => {
   const setPlayerInstructions = useAppState((state) => state.setPlayerInstructions);
   const privacySettings = useAppState((state) => state.privacySettings);
   const setPrivacySettings = useAppState((state) => state.setPrivacySettings);
+  const lastRecordingUri = useAppState((state) => state.lastRecordingUri);
+  const currentStoryId = useAppState((state) => state.currentStoryId);
 
   const [genericInstructions, setGenericInstructions] = useState(playerInstructions.generic || '');
   const [video1Time, setVideo1Time] = useState(playerInstructions.video1Time || 30);
   const [video2Time, setVideo2Time] = useState(playerInstructions.video2Time || 30);
   const [video3Time, setVideo3Time] = useState(playerInstructions.video3Time || 30);
   const [allowSocialMedia, setAllowSocialMedia] = useState(privacySettings.allowSocialMedia);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     setPlayerInstructions({
       generic: genericInstructions,
       video1Time,
@@ -40,6 +48,42 @@ export const InstructionsScreen = () => {
       allowSocialMedia,
       privateOnly: !allowSocialMedia,
     });
+    
+    if (lastRecordingUri && currentStoryId) {
+      setIsUploading(true);
+      console.log('📤 Uploading video to Firebase Storage...');
+      
+      try {
+        const uploadResult = await storageService.uploadVideo(lastRecordingUri, currentStoryId, 'key');
+        
+        if (uploadResult.success) {
+          console.log('✅ Video uploaded, URL:', uploadResult.url);
+          
+          const updateResult = await storiesService.updateStory(currentStoryId, {
+            videoUri: uploadResult.url,
+            instructions: genericInstructions,
+            videoTimings: { video1: video1Time, video2: video2Time, video3: video3Time },
+            privacySettings: { allowSocialMedia, privateOnly: !allowSocialMedia },
+          });
+          
+          if (updateResult.success) {
+            console.log('✅ Story updated with video URL');
+          }
+        } else {
+          Alert.alert('שגיאה', 'לא הצלחנו להעלות את הסרטון. נסה שוב.');
+          setIsUploading(false);
+          return;
+        }
+      } catch (error) {
+        console.error('❌ Upload error:', error);
+        Alert.alert('שגיאה', 'אירעה שגיאה בהעלאת הסרטון.');
+        setIsUploading(false);
+        return;
+      }
+      
+      setIsUploading(false);
+    }
+    
     go('WhatsAppShare');
   };
 
@@ -146,13 +190,22 @@ export const InstructionsScreen = () => {
           </Text>
         </Card>
 
+        {isUploading && (
+          <Card style={styles.uploadingCard}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={styles.uploadingText}>מעלה את הסרטון...</Text>
+            <Text style={styles.uploadingSubtext}>זה עלול לקחת כמה שניות</Text>
+          </Card>
+        )}
+
         <View style={styles.actions}>
           <AppButton
-            title="המשך לשליחת הזמנות"
+            title={isUploading ? "מעלה..." : "המשך לשליחת הזמנות"}
             onPress={handleContinue}
             variant="primary"
             size="lg"
             fullWidth
+            disabled={isUploading}
           />
         </View>
       </ScrollView>
@@ -278,5 +331,22 @@ const styles = StyleSheet.create({
   },
   actions: {
     paddingVertical: theme.spacing[4],
+  },
+  uploadingCard: {
+    padding: theme.spacing[4],
+    marginBottom: theme.spacing[4],
+    alignItems: 'center',
+  },
+  uploadingText: {
+    ...theme.typography.h3,
+    color: theme.colors.text,
+    marginTop: theme.spacing[3],
+    textAlign: 'center',
+  },
+  uploadingSubtext: {
+    ...theme.typography.caption,
+    color: theme.colors.subtext,
+    marginTop: theme.spacing[1],
+    textAlign: 'center',
   },
 });
