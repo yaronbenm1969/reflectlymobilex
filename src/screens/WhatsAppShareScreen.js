@@ -45,11 +45,14 @@ export const WhatsAppShareScreen = () => {
 
 אשמח אם תצפה ותשתף את השיקוף שלך!
 
-📱 פתח את Reflectly והכנס קוד:
+🔗 לחץ כאן לצפייה:
+${webPlayerUrl}
+
+📱 או פתח את Reflectly והכנס קוד:
 ${inviteCode}
 
 תודה! ❤️`;
-  }, [storyName, inviteCode]);
+  }, [storyName, inviteCode, webPlayerUrl]);
 
   const handleShareWhatsApp = async () => {
     try {
