@@ -109,6 +109,7 @@ export const RecordScreen = () => {
       
       const video = await cameraRef.current.recordAsync({
         maxDuration: MAX_RECORDING_TIME,
+        codec: 'avc1', // H.264 codec for web browser compatibility
       });
       
       if (video && video.uri) {
