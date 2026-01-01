@@ -46,9 +46,9 @@ function getInviteCodeFromURL() {
     
     const pathParts = window.location.pathname.split('/').filter(Boolean);
     if (pathParts.length > 0) {
-        const lastPart = pathParts[pathParts.length - 1];
-        if (lastPart.length >= 4 && lastPart.length <= 8) {
-            return lastPart.toUpperCase();
+        const lastPart = decodeURIComponent(pathParts[pathParts.length - 1]);
+        if (lastPart.length >= 2 && lastPart.length <= 20) {
+            return lastPart.trim();
         }
     }
     
@@ -232,8 +232,9 @@ function setupEventListeners() {
     const joinBtn = document.getElementById('join-btn');
     
     codeInput.addEventListener('input', (e) => {
-        e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        joinBtn.disabled = e.target.value.length < 4;
+        // Allow Hebrew, English, and numbers
+        e.target.value = e.target.value.replace(/[^\u0590-\u05FFa-zA-Z0-9 ]/g, '').trim();
+        joinBtn.disabled = e.target.value.length < 2;
         document.getElementById('code-error').textContent = '';
     });
     
