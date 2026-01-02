@@ -133,13 +133,8 @@ async function loadStory(code) {
                     console.log('✅ Conversion result:', result);
                     if (result.url) {
                         console.log('🎥 Setting video source to:', result.url);
-                        // Use direct Firebase URL (works in real browsers)
                         videoEl.src = result.url;
-                        
-                        // Hide placeholder immediately and show video
-                        placeholder.classList.add('hidden');
-                        videoEl.style.display = 'block';
-                        videoEl.style.visibility = 'visible';
+                        placeholder.innerHTML = '<div class="placeholder-icon">⏳</div><p>טוען סרטון...</p>';
                     } else {
                         videoEl.src = videoUrl;
                     }
@@ -425,8 +420,8 @@ function setupEventListeners() {
     const joinBtn = document.getElementById('join-btn');
     
     codeInput.addEventListener('input', (e) => {
-        // Allow Hebrew, English, and numbers
-        e.target.value = e.target.value.replace(/[^\u0590-\u05FFa-zA-Z0-9 ]/g, '').trim();
+        // Allow Hebrew, English, numbers and spaces
+        e.target.value = e.target.value.replace(/[^\u0590-\u05FFa-zA-Z0-9 ]/g, '');
         joinBtn.disabled = e.target.value.length < 2;
         document.getElementById('code-error').textContent = '';
     });
