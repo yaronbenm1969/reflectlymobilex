@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 5000;
+const CONVERTER_PORT = 3001;
 
 const MIME_TYPES = {
     '.html': 'text/html',
@@ -17,7 +18,40 @@ const MIME_TYPES = {
 
 const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    
+    if (req.method === 'OPTIONS') {
+        res.writeHead(200);
+        res.end();
+        return;
+    }
+    
+    if (req.url.startsWith('/api/')) {
+        const proxyReq = http.request({
+            hostname: 'localhost',
+            port: CONVERTER_PORT,
+            path: req.url,
+            method: req.method,
+            headers: {
+                ...req.headers,
+                host: `localhost:${CONVERTER_PORT}`
+            }
+        }, (proxyRes) => {
+            res.writeHead(proxyRes.statusCode, proxyRes.headers);
+            proxyRes.pipe(res);
+        });
+        
+        proxyReq.on('error', (err) => {
+            console.error('Proxy error:', err.message);
+            res.writeHead(502);
+            res.end(JSON.stringify({ error: 'Converter service unavailable' }));
+        });
+        
+        req.pipe(proxyReq);
+        return;
+    }
     
     let filePath = req.url.split('?')[0];
     
@@ -54,5 +88,6 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Web Player running at http://0.0.0.0:${PORT}`);
+    console.log(`Proxying /api/* to converter at port ${CONVERTER_PORT}`);
     console.log('Ready for WhatsApp links!');
 });

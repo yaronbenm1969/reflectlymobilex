@@ -103,7 +103,37 @@ async function loadStory(code) {
     console.log('📹 Video URL:', videoUrl);
     
     if (videoUrl) {
-        videoEl.src = videoUrl;
+        const needsConversion = videoUrl.toLowerCase().includes('.mov') || 
+                                videoUrl.toLowerCase().includes('.hevc') ||
+                                videoUrl.toLowerCase().includes('.m4v');
+        
+        if (needsConversion) {
+            console.log('🔄 Video needs conversion, requesting from server...');
+            placeholder.innerHTML = '<div class="placeholder-icon">🔄</div><p>ממיר סרטון לפורמט תואם...</p>';
+            
+            try {
+                const convertResponse = await fetch('/api/convert-from-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ videoUrl, storyId: story.id })
+                });
+                
+                if (convertResponse.ok) {
+                    const result = await convertResponse.json();
+                    console.log('✅ Conversion result:', result);
+                    videoEl.src = result.url;
+                } else {
+                    console.log('⚠️ Conversion failed, using original URL');
+                    videoEl.src = videoUrl;
+                }
+            } catch (error) {
+                console.error('Conversion request error:', error);
+                videoEl.src = videoUrl;
+            }
+        } else {
+            videoEl.src = videoUrl;
+        }
+        
         videoEl.load();
         
         videoEl.onloadedmetadata = () => {
@@ -118,7 +148,6 @@ async function loadStory(code) {
         
         videoEl.onerror = (e) => {
             console.error('❌ Video error:', videoEl.error?.message || 'Unknown error');
-            // Provide fallback options for incompatible video formats
             placeholder.innerHTML = `
                 <div class="placeholder-icon">📹</div>
                 <p>הסרטון בפורמט שלא נתמך בדפדפן זה</p>

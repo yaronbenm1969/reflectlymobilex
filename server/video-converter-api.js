@@ -226,6 +226,62 @@ app.post('/api/check-format', upload.single('video'), (req, res) => {
   });
 });
 
+app.post('/api/convert-from-url', async (req, res) => {
+  const { videoUrl, storyId } = req.body;
+  
+  if (!videoUrl) {
+    return res.status(400).json({ error: 'videoUrl is required' });
+  }
+  
+  const lowerUrl = videoUrl.toLowerCase();
+  const needsConvert = lowerUrl.includes('.mov') || lowerUrl.includes('.hevc') || lowerUrl.includes('.m4v');
+  
+  if (!needsConvert) {
+    return res.json({ success: true, url: videoUrl, converted: false });
+  }
+  
+  console.log('Converting video from URL:', videoUrl);
+  
+  try {
+    const response = await fetch(videoUrl);
+    if (!response.ok) {
+      throw new Error('Failed to download video');
+    }
+    
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const inputPath = path.join(tempDir, `download_${Date.now()}.mov`);
+    const outputPath = path.join(convertedDir, `converted_${storyId || Date.now()}.mp4`);
+    
+    fs.writeFileSync(inputPath, buffer);
+    console.log(`Downloaded video: ${buffer.length} bytes`);
+    
+    await convertVideo(inputPath, outputPath);
+    
+    fs.unlinkSync(inputPath);
+    
+    if (bucket) {
+      const storagePath = `converted/${storyId || Date.now()}.mp4`;
+      const publicUrl = await uploadToFirebase(outputPath, storagePath);
+      fs.unlinkSync(outputPath);
+      
+      console.log('Converted and uploaded:', publicUrl);
+      res.json({ success: true, url: publicUrl, converted: true });
+    } else {
+      const publicUrl = `/converted/${path.basename(outputPath)}`;
+      console.log('Converted locally:', publicUrl);
+      res.json({ success: true, url: publicUrl, converted: true });
+    }
+    
+  } catch (error) {
+    console.error('Conversion from URL error:', error);
+    res.status(500).json({ 
+      error: 'Conversion failed', 
+      details: error.message,
+      originalUrl: videoUrl
+    });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Video Converter API running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
