@@ -39,16 +39,23 @@ async function initFirebase() {
     }
 }
 
-function getInviteCodeFromURL() {
+function getStoryParamsFromURL() {
     const params = new URLSearchParams(window.location.search);
-    const codeFromQuery = params.get('code') || params.get('c');
-    if (codeFromQuery) return decodeURIComponent(codeFromQuery).trim();
     
+    // Check for storyId first (direct document ID - best option)
+    const storyId = params.get('storyId') || params.get('story') || params.get('s');
+    if (storyId) return { type: 'storyId', value: storyId.trim() };
+    
+    // Check for invite code
+    const codeFromQuery = params.get('code') || params.get('c');
+    if (codeFromQuery) return { type: 'code', value: decodeURIComponent(codeFromQuery).trim() };
+    
+    // Check path for code
     const pathParts = window.location.pathname.split('/').filter(Boolean);
     if (pathParts.length > 0) {
         const lastPart = decodeURIComponent(pathParts[pathParts.length - 1]);
-        if (lastPart.length >= 2 && lastPart.length <= 20) {
-            return lastPart.trim();
+        if (lastPart.length >= 2 && lastPart.length <= 30) {
+            return { type: 'code', value: lastPart.trim() };
         }
     }
     
@@ -487,12 +494,13 @@ async function init() {
     setupEventListeners();
     setupVideoControls();
     
-    const codeFromUrl = getInviteCodeFromURL();
+    const urlParams = getStoryParamsFromURL();
     
-    if (codeFromUrl) {
-        const success = await loadStory(codeFromUrl);
+    if (urlParams) {
+        console.log('📱 URL params found:', urlParams);
+        const success = await loadStory(urlParams.value);
         if (!success) {
-            document.getElementById('invite-code-input').value = codeFromUrl;
+            document.getElementById('invite-code-input').value = urlParams.value;
             showScreen('code');
         }
     } else {
