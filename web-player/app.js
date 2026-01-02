@@ -41,24 +41,36 @@ async function initFirebase() {
 
 function getStoryParamsFromURL() {
     const params = new URLSearchParams(window.location.search);
+    console.log('🔍 URL search:', window.location.search);
+    console.log('🔍 All params:', Array.from(params.entries()));
     
     // Check for storyId first (direct document ID - best option)
     const storyId = params.get('storyId') || params.get('story') || params.get('s');
-    if (storyId) return { type: 'storyId', value: storyId.trim() };
+    console.log('🔍 storyId param:', storyId);
+    if (storyId) {
+        console.log('✅ Found storyId:', storyId);
+        return { type: 'storyId', value: storyId.trim() };
+    }
     
     // Check for invite code
     const codeFromQuery = params.get('code') || params.get('c');
-    if (codeFromQuery) return { type: 'code', value: decodeURIComponent(codeFromQuery).trim() };
+    if (codeFromQuery) {
+        console.log('✅ Found code:', codeFromQuery);
+        return { type: 'code', value: decodeURIComponent(codeFromQuery).trim() };
+    }
     
-    // Check path for code
+    // Check path for code (but not if it looks like a query string)
     const pathParts = window.location.pathname.split('/').filter(Boolean);
     if (pathParts.length > 0) {
         const lastPart = decodeURIComponent(pathParts[pathParts.length - 1]);
-        if (lastPart.length >= 2 && lastPart.length <= 30) {
+        // Skip if it contains query params
+        if (!lastPart.includes('?') && !lastPart.includes('=') && lastPart.length >= 2 && lastPart.length <= 30) {
+            console.log('✅ Found path code:', lastPart);
             return { type: 'code', value: lastPart.trim() };
         }
     }
     
+    console.log('❌ No params found');
     return null;
 }
 
