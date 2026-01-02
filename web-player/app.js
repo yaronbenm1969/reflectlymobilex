@@ -313,6 +313,113 @@ async function submitRecording() {
     }
 }
 
+// Video player controls
+function setupVideoControls() {
+    const video = document.getElementById('story-video');
+    const videoWrapper = document.getElementById('video-wrapper');
+    const playPauseBtn = document.getElementById('play-pause-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    const progressBar = document.getElementById('progress-bar');
+    const progressFill = document.getElementById('progress-fill');
+    const timeDisplay = document.getElementById('time-display');
+    const controls = document.getElementById('video-controls');
+    
+    let isFullscreen = false;
+    
+    function formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    
+    function updateProgress() {
+        if (video.duration) {
+            const percent = (video.currentTime / video.duration) * 100;
+            progressFill.style.width = percent + '%';
+            timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+        }
+    }
+    
+    // Play/Pause
+    playPauseBtn.addEventListener('click', () => {
+        if (video.paused) {
+            video.play();
+            playPauseBtn.textContent = '⏸️';
+        } else {
+            video.pause();
+            playPauseBtn.textContent = '▶️';
+        }
+    });
+    
+    // Click on video to play/pause
+    video.addEventListener('click', () => {
+        if (video.paused) {
+            video.play();
+            playPauseBtn.textContent = '⏸️';
+        } else {
+            video.pause();
+            playPauseBtn.textContent = '▶️';
+        }
+    });
+    
+    // Stop
+    stopBtn.addEventListener('click', () => {
+        video.pause();
+        video.currentTime = 0;
+        playPauseBtn.textContent = '▶️';
+    });
+    
+    // Fullscreen
+    fullscreenBtn.addEventListener('click', () => {
+        if (!isFullscreen) {
+            videoWrapper.classList.add('fullscreen');
+            fullscreenBtn.textContent = '✕';
+            isFullscreen = true;
+            controls.classList.add('visible');
+        } else {
+            videoWrapper.classList.remove('fullscreen');
+            fullscreenBtn.textContent = '⛶';
+            isFullscreen = false;
+        }
+    });
+    
+    // ESC to exit fullscreen
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isFullscreen) {
+            videoWrapper.classList.remove('fullscreen');
+            fullscreenBtn.textContent = '⛶';
+            isFullscreen = false;
+        }
+    });
+    
+    // Progress bar click
+    progressBar.addEventListener('click', (e) => {
+        const rect = progressBar.getBoundingClientRect();
+        const percent = (e.clientX - rect.left) / rect.width;
+        video.currentTime = percent * video.duration;
+    });
+    
+    // Update progress
+    video.addEventListener('timeupdate', updateProgress);
+    video.addEventListener('loadedmetadata', updateProgress);
+    
+    // Update button on video end
+    video.addEventListener('ended', () => {
+        playPauseBtn.textContent = '▶️';
+    });
+    
+    // Update button on play/pause events
+    video.addEventListener('play', () => {
+        playPauseBtn.textContent = '⏸️';
+    });
+    video.addEventListener('pause', () => {
+        playPauseBtn.textContent = '▶️';
+    });
+    
+    console.log('✅ Video controls initialized');
+}
+
 function setupEventListeners() {
     const codeInput = document.getElementById('invite-code-input');
     const joinBtn = document.getElementById('join-btn');
@@ -384,6 +491,7 @@ function setupEventListeners() {
 async function init() {
     await initFirebase();
     setupEventListeners();
+    setupVideoControls();
     
     const codeFromUrl = getInviteCodeFromURL();
     
