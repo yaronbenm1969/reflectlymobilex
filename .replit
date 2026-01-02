@@ -18,6 +18,10 @@ args = "expo-app"
 task = "workflow.run"
 args = "web-player"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "video-converter"
+
 [[workflows.workflow]]
 name = "expo-app"
 author = "agent"
@@ -41,6 +45,18 @@ waitForPort = 5000
 [workflows.workflow.metadata]
 outputType = "webview"
 
+[[workflows.workflow]]
+name = "video-converter"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node server/video-converter-api.js"
+waitForPort = 3001
+
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[ports]]
 localPort = 5000
 externalPort = 5000
@@ -53,8 +69,13 @@ externalPort = 80
 localPort = 8082
 externalPort = 3000
 
+[[ports]]
+localPort = 3001
+externalPort = 3001
+
 [nix]
 channel = "stable-25_05"
+packages = ["ffmpeg"]
 
 [userenv]
 

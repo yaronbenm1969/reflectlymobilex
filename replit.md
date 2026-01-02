@@ -3,6 +3,16 @@
 ## Overview
 Reflectly is a React Native/Expo mobile journaling app that allows users to record personal stories and invite friends to share reflections. The app features video recording, story management, and social sharing capabilities.
 
+## Recent Changes (January 2, 2026)
+- **NEW: Video Converter API** - Server-side ffmpeg conversion for iPhone HEVC→H.264 compatibility
+- **NEW: server/ folder** - Backend services for video processing
+  - `video-converter-api.js` - Express server with ffmpeg for format conversion
+  - `video-editor.ts` - Full video editing capabilities (from ReflectlyPlayback-2)
+  - `format-manager.ts` - Video format detection and conversion planning
+  - `video-storage-service.ts` - Firebase Storage integration
+  - `firebase-admin.ts` - Firebase Admin SDK setup
+- **Updated storageService.js** - Auto-detects iPhone videos and routes through converter
+
 ## Recent Changes (December 30, 2025)
 - **NEW: Invite Code System** - Each story gets a unique 6-character code (e.g., ABC123)
 - **NEW: Web Player** - `/web-player/` folder with HTML/CSS/JS for browser-based viewing and recording
