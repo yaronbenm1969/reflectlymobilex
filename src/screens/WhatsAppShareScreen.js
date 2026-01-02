@@ -29,14 +29,15 @@ export const WhatsAppShareScreen = () => {
   const inviteCode = currentInviteCode || '';
   
   const webPlayerUrl = useMemo(() => {
-    if (!inviteCode) return '';
+    if (!currentStoryId) return '';
     const domain = Constants.expoConfig?.extra?.webPlayerDomain || 
                    'ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev';
-    return `https://${domain}/?code=${inviteCode}`;
-  }, [inviteCode]);
+    // Use storyId (Firebase document ID) for reliable linking - works with Hebrew names
+    return `https://${domain}/?storyId=${currentStoryId}`;
+  }, [currentStoryId]);
   
   const messageTemplate = useMemo(() => {
-    if (!inviteCode) {
+    if (!webPlayerUrl) {
       return `היי! 🎬\n\nזה הסיפור שלי: "${storyName}"\n\nאשמח אם תצפה ותשתף את השיקוף שלך!\n\nהורד את אפליקציית Reflectly כדי לצפות ולהגיב.\n\nתודה! ❤️`;
     }
     return `היי! 🎬
@@ -48,11 +49,8 @@ export const WhatsAppShareScreen = () => {
 🔗 לחץ כאן לצפייה:
 ${webPlayerUrl}
 
-📱 או פתח את Reflectly והכנס קוד:
-${inviteCode}
-
 תודה! ❤️`;
-  }, [storyName, inviteCode, webPlayerUrl]);
+  }, [storyName, webPlayerUrl]);
 
   const handleShareWhatsApp = async () => {
     try {
