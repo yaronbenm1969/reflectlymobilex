@@ -103,9 +103,13 @@ async function loadStory(code) {
     console.log('📹 Video URL:', videoUrl);
     
     if (videoUrl) {
-        const needsConversion = videoUrl.toLowerCase().includes('.mov') || 
-                                videoUrl.toLowerCase().includes('.hevc') ||
-                                videoUrl.toLowerCase().includes('.m4v');
+        const lowerUrl = videoUrl.toLowerCase();
+        const needsConversion = lowerUrl.includes('.mov') || 
+                                lowerUrl.includes('.hevc') ||
+                                lowerUrl.includes('.m4v') ||
+                                lowerUrl.includes('%2f') && (lowerUrl.includes('.mov') || lowerUrl.match(/\.mov[?&]/));
+        
+        console.log('🎬 Video URL analysis:', { url: videoUrl.substring(0, 100), needsConversion });
         
         if (needsConversion) {
             console.log('🔄 Video needs conversion, requesting from server...');
