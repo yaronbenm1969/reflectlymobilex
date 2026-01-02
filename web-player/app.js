@@ -135,9 +135,9 @@ async function loadStory(code) {
                         console.log('🎥 Setting video source to:', result.url);
                         // Use direct Firebase URL (works in real browsers)
                         videoEl.src = result.url;
-                        placeholder.innerHTML = '<div class="placeholder-icon">✅</div><p>הסרטון מוכן!</p>';
                         
-                        // Force show video element
+                        // Hide placeholder immediately and show video
+                        placeholder.classList.add('hidden');
                         videoEl.style.display = 'block';
                         videoEl.style.visibility = 'visible';
                     } else {
