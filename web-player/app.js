@@ -420,9 +420,8 @@ function setupEventListeners() {
     const joinBtn = document.getElementById('join-btn');
     
     codeInput.addEventListener('input', (e) => {
-        // Allow Hebrew, English, numbers and spaces
-        e.target.value = e.target.value.replace(/[^\u0590-\u05FFa-zA-Z0-9 ]/g, '');
-        joinBtn.disabled = e.target.value.length < 2;
+        // Enable button if there's text
+        joinBtn.disabled = e.target.value.trim().length < 1;
         document.getElementById('code-error').textContent = '';
     });
     
