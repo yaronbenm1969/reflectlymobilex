@@ -148,13 +148,12 @@ body {
 input[type="text"] {
     width: 100%;
     padding: 16px;
-    font-size: 24px;
+    font-size: 18px;
     text-align: center;
     border: 2px solid #E0E0E0;
+    direction: rtl;
     border-radius: var(--radius-sm);
     font-family: 'Heebo', sans-serif;
-    letter-spacing: 4px;
-    text-transform: uppercase;
     margin-bottom: 16px;
     transition: border-color 0.3s;
 }
