@@ -16,11 +16,7 @@ export const storageService = {
   uploadVideo: async (uri, storyId, videoType = 'key', onProgress = null) => {
     try {
       console.log('Starting video upload for:', storyId);
-      
-      if (needsConversion(uri)) {
-        console.log('Video needs conversion (iPhone HEVC/MOV format detected)');
-        return await storageService.uploadWithConversion(uri, storyId, videoType, onProgress);
-      }
+      console.log('Uploading directly to Firebase Storage...');
       
       const response = await fetch(uri);
       const blob = await response.blob();
