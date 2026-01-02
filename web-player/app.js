@@ -133,10 +133,8 @@ async function loadStory(code) {
                     console.log('✅ Conversion result:', result);
                     if (result.url) {
                         console.log('🎥 Setting video source to:', result.url);
-                        // Use proxy to avoid CORS issues
-                        const proxyUrl = '/proxy-video?url=' + encodeURIComponent(result.url);
-                        console.log('🔗 Using proxy URL:', proxyUrl);
-                        videoEl.src = proxyUrl;
+                        // Use direct Firebase URL (works in real browsers)
+                        videoEl.src = result.url;
                         placeholder.innerHTML = '<div class="placeholder-icon">✅</div><p>הסרטון מוכן!</p>';
                         
                         // Force show video element
