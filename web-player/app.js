@@ -113,25 +113,45 @@ async function loadStory(code) {
         
         if (needsConversion) {
             console.log('🔄 Video needs conversion, requesting from server...');
-            placeholder.innerHTML = '<div class="placeholder-icon">🔄</div><p>ממיר סרטון לפורמט תואם...</p>';
+            placeholder.innerHTML = '<div class="placeholder-icon">🔄</div><p>ממיר סרטון לפורמט תואם... (עד 30 שניות)</p>';
             
             try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 120000);
+                
                 const convertResponse = await fetch('/api/convert-from-url', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ videoUrl, storyId: story.id })
+                    body: JSON.stringify({ videoUrl, storyId: story.id }),
+                    signal: controller.signal
                 });
+                
+                clearTimeout(timeoutId);
                 
                 if (convertResponse.ok) {
                     const result = await convertResponse.json();
                     console.log('✅ Conversion result:', result);
-                    videoEl.src = result.url;
+                    if (result.url) {
+                        console.log('🎥 Setting video source to:', result.url);
+                        // Use proxy to avoid CORS issues
+                        const proxyUrl = '/proxy-video?url=' + encodeURIComponent(result.url);
+                        console.log('🔗 Using proxy URL:', proxyUrl);
+                        videoEl.src = proxyUrl;
+                        placeholder.innerHTML = '<div class="placeholder-icon">✅</div><p>הסרטון מוכן!</p>';
+                        
+                        // Force show video element
+                        videoEl.style.display = 'block';
+                        videoEl.style.visibility = 'visible';
+                    } else {
+                        videoEl.src = videoUrl;
+                    }
                 } else {
                     console.log('⚠️ Conversion failed, using original URL');
                     videoEl.src = videoUrl;
                 }
             } catch (error) {
                 console.error('Conversion request error:', error);
+                placeholder.innerHTML = '<div class="placeholder-icon">⚠️</div><p>ההמרה נכשלה</p>';
                 videoEl.src = videoUrl;
             }
         } else {

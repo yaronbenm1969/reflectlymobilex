@@ -112,17 +112,26 @@ async function uploadToFirebase(filePath, storagePath) {
   await file.save(fs.readFileSync(filePath), {
     metadata: {
       contentType: 'video/mp4',
+      cacheControl: 'public, max-age=31536000',
       metadata: {
         uploadedAt: new Date().toISOString(),
-        converted: 'true'
+        converted: 'true',
+        firebaseStorageDownloadTokens: require('crypto').randomUUID()
       }
-    }
+    },
+    public: true
   });
 
-  await file.makePublic();
-
   const bucketName = bucket.name;
-  const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(storagePath)}?alt=media`;
+  const token = require('crypto').randomUUID();
+  
+  await file.setMetadata({
+    metadata: {
+      firebaseStorageDownloadTokens: token
+    }
+  });
+  
+  const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(storagePath)}?alt=media&token=${token}`;
   
   return publicUrl;
 }
@@ -226,11 +235,19 @@ app.post('/api/check-format', upload.single('video'), (req, res) => {
   });
 });
 
+const convertedCache = new Map();
+
 app.post('/api/convert-from-url', async (req, res) => {
   const { videoUrl, storyId } = req.body;
   
   if (!videoUrl) {
     return res.status(400).json({ error: 'videoUrl is required' });
+  }
+  
+  const cacheKey = storyId || videoUrl;
+  if (convertedCache.has(cacheKey)) {
+    console.log('Returning cached conversion for:', cacheKey);
+    return res.json({ success: true, url: convertedCache.get(cacheKey), converted: true, cached: true });
   }
   
   const lowerUrl = videoUrl.toLowerCase();
@@ -264,10 +281,12 @@ app.post('/api/convert-from-url', async (req, res) => {
       const publicUrl = await uploadToFirebase(outputPath, storagePath);
       fs.unlinkSync(outputPath);
       
+      convertedCache.set(cacheKey, publicUrl);
       console.log('Converted and uploaded:', publicUrl);
       res.json({ success: true, url: publicUrl, converted: true });
     } else {
       const publicUrl = `/converted/${path.basename(outputPath)}`;
+      convertedCache.set(cacheKey, publicUrl);
       console.log('Converted locally:', publicUrl);
       res.json({ success: true, url: publicUrl, converted: true });
     }

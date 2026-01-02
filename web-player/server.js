@@ -1,4 +1,5 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
@@ -25,6 +26,46 @@ const server = http.createServer((req, res) => {
     if (req.method === 'OPTIONS') {
         res.writeHead(200);
         res.end();
+        return;
+    }
+    
+    // Video proxy endpoint to avoid CORS issues
+    if (req.url.startsWith('/proxy-video')) {
+        const urlParam = new URL('http://localhost' + req.url).searchParams.get('url');
+        if (!urlParam) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Missing url parameter' }));
+            return;
+        }
+        
+        console.log('Proxying video:', urlParam.substring(0, 100));
+        
+        const videoUrl = new URL(urlParam);
+        const protocol = videoUrl.protocol === 'https:' ? https : http;
+        
+        const proxyReq = protocol.request(videoUrl, {
+            method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0'
+            }
+        }, (proxyRes) => {
+            res.writeHead(proxyRes.statusCode, {
+                'Content-Type': proxyRes.headers['content-type'] || 'video/mp4',
+                'Content-Length': proxyRes.headers['content-length'],
+                'Accept-Ranges': 'bytes',
+                'Access-Control-Allow-Origin': '*',
+                'Cache-Control': 'public, max-age=3600'
+            });
+            proxyRes.pipe(res);
+        });
+        
+        proxyReq.on('error', (err) => {
+            console.error('Video proxy error:', err.message);
+            res.writeHead(502);
+            res.end(JSON.stringify({ error: 'Failed to fetch video' }));
+        });
+        
+        proxyReq.end();
         return;
     }
     
