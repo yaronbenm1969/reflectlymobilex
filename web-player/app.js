@@ -370,11 +370,19 @@ function setupVideoControls() {
         }
     }
     
+    // Hide placeholder when playing starts
+    const placeholder = document.getElementById('video-placeholder');
+    video.addEventListener('playing', () => {
+        console.log('🎬 Video playing - hiding placeholder');
+        placeholder.classList.add('hidden');
+    });
+    
     // Play/Pause
     playPauseBtn.addEventListener('click', () => {
         if (video.paused) {
             video.play();
             playPauseBtn.textContent = '⏸️';
+            placeholder.classList.add('hidden');
         } else {
             video.pause();
             playPauseBtn.textContent = '▶️';
@@ -386,6 +394,7 @@ function setupVideoControls() {
         if (video.paused) {
             video.play();
             playPauseBtn.textContent = '⏸️';
+            placeholder.classList.add('hidden');
         } else {
             video.pause();
             playPauseBtn.textContent = '▶️';
