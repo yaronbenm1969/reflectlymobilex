@@ -96,7 +96,8 @@ const server = http.createServer((req, res) => {
     
     let filePath = req.url.split('?')[0];
     
-    if (filePath === '/' || !filePath.includes('.')) {
+    // Serve index.html for root, /s/*, or any path without extension
+    if (filePath === '/' || filePath.startsWith('/s/') || !filePath.includes('.')) {
         filePath = '/index.html';
     }
     

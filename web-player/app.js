@@ -41,10 +41,19 @@ async function initFirebase() {
 
 function getStoryParamsFromURL() {
     console.log('🔍 Full URL:', window.location.href);
+    console.log('🔍 Path:', window.location.pathname);
     console.log('🔍 Hash:', window.location.hash);
     console.log('🔍 Search:', window.location.search);
     
-    // Priority 1: Check hash for storyId (works with Replit proxy)
+    // Priority 1: Check path for /s/storyId format (WhatsApp-friendly)
+    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    if (pathParts.length >= 2 && pathParts[0] === 's') {
+        const pathStoryId = decodeURIComponent(pathParts[1]);
+        console.log('✅ Found storyId in path /s/:', pathStoryId);
+        return { type: 'storyId', value: pathStoryId.trim() };
+    }
+    
+    // Priority 2: Check hash for storyId
     const hash = window.location.hash.substring(1); // Remove #
     if (hash) {
         const hashParams = new URLSearchParams(hash);
@@ -60,7 +69,7 @@ function getStoryParamsFromURL() {
         }
     }
     
-    // Priority 2: Check query params (fallback)
+    // Priority 3: Check query params (fallback)
     const params = new URLSearchParams(window.location.search);
     const storyId = params.get('storyId') || params.get('story') || params.get('s');
     if (storyId) {
@@ -75,8 +84,7 @@ function getStoryParamsFromURL() {
         return { type: 'code', value: decodeURIComponent(codeFromQuery).trim() };
     }
     
-    // Priority 3: Check path for code
-    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    // Priority 4: Check path for code (last segment)
     if (pathParts.length > 0) {
         const lastPart = decodeURIComponent(pathParts[pathParts.length - 1]);
         if (!lastPart.includes('?') && !lastPart.includes('=') && lastPart.length >= 2 && lastPart.length <= 30) {
