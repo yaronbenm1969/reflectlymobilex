@@ -46,7 +46,7 @@ export const WhatsAppShareScreen = () => {
 
 אשמח אם תצפה ותשתף את השיקוף שלך!
 
-🔗 לחץ כאן לצפייה:
+📱 לחץ ארוך על הלינק ובחר "פתח ב-Safari":
 ${webPlayerUrl}
 
 תודה! ❤️`;
