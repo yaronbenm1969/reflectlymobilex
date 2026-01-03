@@ -12,26 +12,15 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "expo-app"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "web-player"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "video-converter"
 
-[[workflows.workflow]]
-name = "expo-app"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
 [[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npx expo start --tunnel"
+task = "workflow.run"
+args = "expo-app"
 
 [[workflows.workflow]]
 name = "web-player"
@@ -56,6 +45,17 @@ waitForPort = 3001
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow]]
+name = "expo-app"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npx expo start --tunnel"
 
 [[ports]]
 localPort = 3001
