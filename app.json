@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "reflectly",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -17,6 +18,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.reflectly.app",
+      "associatedDomains": [
+        "applinks:reflectly.app",
+        "applinks:*.reflectly.app"
+      ],
       "infoPlist": {
         "LSApplicationQueriesSchemes": ["whatsapp"]
       }
@@ -32,6 +37,34 @@
         "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "reflectly.app",
+              "pathPrefix": "/"
+            },
+            {
+              "scheme": "https",
+              "host": "*.reflectly.app",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "reflectly"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
       ]
     },
     "web": {

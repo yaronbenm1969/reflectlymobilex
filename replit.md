@@ -3,6 +3,15 @@
 ## Overview
 Reflectly is a React Native/Expo mobile journaling app that allows users to record personal stories and invite friends to share reflections. The app features video recording, story management, and social sharing capabilities.
 
+## Recent Changes (January 3, 2026)
+- **NEW: Deep Links & Universal Links** - App opens directly from WhatsApp links when installed
+  - iOS: Associated Domains configured for `reflectly.app`
+  - Android: Intent Filters with autoVerify for direct app opening
+  - Custom URL scheme: `reflectly://`
+- **NEW: Smart App Banner** - iOS Safari shows "Open in App" banner
+- **NEW: Open Graph tags** - Beautiful WhatsApp link previews
+- **Improved URL parsing** - Better storyId detection in web player
+
 ## Recent Changes (January 2, 2026)
 - **NEW: Video Converter API** - Server-side ffmpeg conversion for iPhone HEVC→H.264 compatibility
 - **NEW: server/ folder** - Backend services for video processing
