@@ -3,6 +3,66 @@ import { getFirestore, doc, getDoc, collection, addDoc, query, where, getDocs, s
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-storage.js';
 import { firebaseConfig } from './config.js';
 
+// Check if running in WhatsApp WebView or other in-app browsers
+function isInAppBrowser() {
+    const ua = navigator.userAgent || navigator.vendor || window.opera;
+    // WhatsApp WebView indicators
+    if (/WhatsApp/i.test(ua)) return true;
+    // Facebook WebView
+    if (/FBAN|FBAV|FB_IAB/i.test(ua)) return true;
+    // Instagram WebView
+    if (/Instagram/i.test(ua)) return true;
+    // Generic WebView indicators
+    if (/wv|WebView/i.test(ua)) return true;
+    // iOS WebView that's not Safari
+    if (/iPhone|iPad|iPod/i.test(ua) && !/Safari/i.test(ua)) return true;
+    return false;
+}
+
+function showWebViewRedirect() {
+    const loadingScreen = document.getElementById('loading-screen');
+    const redirectScreen = document.getElementById('webview-redirect-screen');
+    
+    if (loadingScreen) loadingScreen.classList.remove('active');
+    if (redirectScreen) {
+        redirectScreen.style.display = 'flex';
+        redirectScreen.classList.add('active');
+    }
+    
+    // Open in browser button
+    const openBtn = document.getElementById('open-in-browser-btn');
+    if (openBtn) {
+        openBtn.addEventListener('click', () => {
+            // Try to open in external browser
+            const currentUrl = window.location.href;
+            // On iOS, this opens Safari
+            window.location.href = currentUrl;
+        });
+    }
+    
+    // Copy link button
+    const copyBtn = document.getElementById('copy-link-btn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(window.location.href);
+                copyBtn.textContent = '✅ הלינק הועתק!';
+                setTimeout(() => { copyBtn.textContent = '📋 העתק לינק'; }, 2000);
+            } catch (e) {
+                // Fallback for older browsers
+                const input = document.createElement('input');
+                input.value = window.location.href;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                copyBtn.textContent = '✅ הלינק הועתק!';
+                setTimeout(() => { copyBtn.textContent = '📋 העתק לינק'; }, 2000);
+            }
+        });
+    }
+}
+
 let app, db, storage;
 let currentStory = null;
 let mediaRecorder = null;
@@ -18,7 +78,8 @@ const screens = {
     watch: document.getElementById('watch-screen'),
     record: document.getElementById('record-screen'),
     review: document.getElementById('review-screen'),
-    success: document.getElementById('success-screen')
+    success: document.getElementById('success-screen'),
+    webviewRedirect: document.getElementById('webview-redirect-screen')
 };
 
 function showScreen(screenName) {
@@ -534,6 +595,16 @@ function setupEventListeners() {
 }
 
 async function init() {
+    console.log('🌐 User Agent:', navigator.userAgent);
+    console.log('📱 Is in-app browser:', isInAppBrowser());
+    
+    // Check if we're in a WebView (WhatsApp, Facebook, etc.)
+    if (isInAppBrowser()) {
+        console.log('⚠️ Detected in-app browser, showing redirect screen');
+        showWebViewRedirect();
+        return; // Don't continue - user needs to open in real browser
+    }
+    
     await initFirebase();
     setupEventListeners();
     setupVideoControls();
