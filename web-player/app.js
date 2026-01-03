@@ -40,30 +40,45 @@ async function initFirebase() {
 }
 
 function getStoryParamsFromURL() {
-    const params = new URLSearchParams(window.location.search);
-    console.log('🔍 URL search:', window.location.search);
-    console.log('🔍 All params:', Array.from(params.entries()));
+    console.log('🔍 Full URL:', window.location.href);
+    console.log('🔍 Hash:', window.location.hash);
+    console.log('🔍 Search:', window.location.search);
     
-    // Check for storyId first (direct document ID - best option)
+    // Priority 1: Check hash for storyId (works with Replit proxy)
+    const hash = window.location.hash.substring(1); // Remove #
+    if (hash) {
+        const hashParams = new URLSearchParams(hash);
+        const hashStoryId = hashParams.get('storyId') || hashParams.get('story') || hashParams.get('s');
+        if (hashStoryId) {
+            console.log('✅ Found storyId in hash:', hashStoryId);
+            return { type: 'storyId', value: hashStoryId.trim() };
+        }
+        // If hash is just the ID without key=value format
+        if (hash.length >= 10 && !hash.includes('=')) {
+            console.log('✅ Found raw storyId in hash:', hash);
+            return { type: 'storyId', value: hash.trim() };
+        }
+    }
+    
+    // Priority 2: Check query params (fallback)
+    const params = new URLSearchParams(window.location.search);
     const storyId = params.get('storyId') || params.get('story') || params.get('s');
-    console.log('🔍 storyId param:', storyId);
     if (storyId) {
-        console.log('✅ Found storyId:', storyId);
+        console.log('✅ Found storyId in query:', storyId);
         return { type: 'storyId', value: storyId.trim() };
     }
     
-    // Check for invite code
+    // Check for invite code in query
     const codeFromQuery = params.get('code') || params.get('c');
     if (codeFromQuery) {
-        console.log('✅ Found code:', codeFromQuery);
+        console.log('✅ Found code in query:', codeFromQuery);
         return { type: 'code', value: decodeURIComponent(codeFromQuery).trim() };
     }
     
-    // Check path for code (but not if it looks like a query string)
+    // Priority 3: Check path for code
     const pathParts = window.location.pathname.split('/').filter(Boolean);
     if (pathParts.length > 0) {
         const lastPart = decodeURIComponent(pathParts[pathParts.length - 1]);
-        // Skip if it contains query params
         if (!lastPart.includes('?') && !lastPart.includes('=') && lastPart.length >= 2 && lastPart.length <= 30) {
             console.log('✅ Found path code:', lastPart);
             return { type: 'code', value: lastPart.trim() };

@@ -32,8 +32,8 @@ export const WhatsAppShareScreen = () => {
     if (!currentStoryId) return '';
     const domain = Constants.expoConfig?.extra?.webPlayerDomain || 
                    'ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev';
-    // Use storyId (Firebase document ID) for reliable linking - works with Hebrew names
-    return `https://${domain}/?storyId=${currentStoryId}`;
+    // Use hash (#) instead of query string (?) - Replit proxy strips query strings
+    return `https://${domain}/#storyId=${currentStoryId}`;
   }, [currentStoryId]);
   
   const messageTemplate = useMemo(() => {
