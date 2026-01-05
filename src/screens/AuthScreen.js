@@ -9,12 +9,15 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authService } from '../services/authService';
 import { useAppState } from '../state/appState';
+
+const logoImage = require('../../assets/logo.png');
 
 export default function AuthScreen() {
   const insets = useSafeAreaInsets();
@@ -89,9 +92,11 @@ export default function AuthScreen() {
       >
         <View style={styles.content}>
           <View style={styles.logoContainer}>
-            <View style={styles.logoCircle}>
-              <Ionicons name="heart" size={50} color="#FF6B9D" />
-            </View>
+            <Image 
+              source={logoImage} 
+              style={styles.logo}
+              resizeMode="contain"
+            />
             <Text style={styles.title}>Reflectly</Text>
             <Text style={styles.subtitle}>שתפו רגעים, צרו זכרונות</Text>
           </View>
@@ -201,19 +206,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
-  logoCircle: {
+  logo: {
     width: 100,
     height: 100,
-    borderRadius: 50,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 25,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
   },
   title: {
     fontSize: 36,
