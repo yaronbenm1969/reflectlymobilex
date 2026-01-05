@@ -301,7 +301,79 @@ app.post('/api/convert-from-url', async (req, res) => {
   }
 });
 
+const aiService = require('./ai-service');
+
+app.post('/api/transcribe', upload.single('video'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No video file provided' });
+  }
+
+  try {
+    const result = await aiService.transcribeVideo(req.file.path);
+    fs.unlinkSync(req.file.path);
+    res.json(result);
+  } catch (error) {
+    console.error('Transcription error:', error);
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: 'Transcription failed', details: error.message });
+  }
+});
+
+app.post('/api/analyze-story', async (req, res) => {
+  const { transcriptions } = req.body;
+  
+  if (!transcriptions || !Array.isArray(transcriptions)) {
+    return res.status(400).json({ error: 'transcriptions array is required' });
+  }
+
+  try {
+    const result = await aiService.analyzeStoryThemes(transcriptions);
+    res.json(result);
+  } catch (error) {
+    console.error('Analysis error:', error);
+    res.status(500).json({ error: 'Analysis failed', details: error.message });
+  }
+});
+
+app.post('/api/editing-suggestions', async (req, res) => {
+  const { storyTranscript, reflectionTranscripts } = req.body;
+  
+  if (!storyTranscript) {
+    return res.status(400).json({ error: 'storyTranscript is required' });
+  }
+
+  try {
+    const result = await aiService.generateEditingSuggestions(
+      storyTranscript, 
+      reflectionTranscripts || []
+    );
+    res.json(result);
+  } catch (error) {
+    console.error('Suggestions error:', error);
+    res.status(500).json({ error: 'Failed to generate suggestions', details: error.message });
+  }
+});
+
+app.post('/api/generate-title', async (req, res) => {
+  const { transcriptions } = req.body;
+  
+  if (!transcriptions || !Array.isArray(transcriptions)) {
+    return res.status(400).json({ error: 'transcriptions array is required' });
+  }
+
+  try {
+    const title = await aiService.generateVideoTitle(transcriptions);
+    res.json({ success: true, title });
+  } catch (error) {
+    console.error('Title generation error:', error);
+    res.status(500).json({ error: 'Failed to generate title', details: error.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Video Converter API running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log('AI endpoints: /api/transcribe, /api/analyze-story, /api/editing-suggestions, /api/generate-title');
 });
