@@ -1,10 +1,11 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import theme from '../theme/theme';
+
+const LOGO_URL = 'https://05df2956-abb9-44fd-98d4-44985fae89d3-00-18cswl8l3vp1n.worf.replit.dev/api/logo';
 
 export const SplashScreen = () => {
   const { go } = useNav();
@@ -53,7 +54,11 @@ export const SplashScreen = () => {
           },
         ]}
       >
-        <Ionicons name="videocam" size={80} color="white" />
+        <Image 
+          source={{ uri: LOGO_URL }} 
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={styles.appName}>Reflectly</Text>
         <Text style={styles.tagline}>סיפורים שמחברים</Text>
       </Animated.View>
@@ -69,6 +74,11 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    borderRadius: 30,
   },
   appName: {
     fontSize: 48,

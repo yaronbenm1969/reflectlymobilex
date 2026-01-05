@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,8 @@ import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { storiesService } from '../services/storiesService';
 import theme from '../theme/theme';
+
+const LOGO_URL = 'https://05df2956-abb9-44fd-98d4-44985fae89d3-00-18cswl8l3vp1n.worf.replit.dev/api/logo';
 
 export const HomeScreen = () => {
   const { go } = useNav();
@@ -106,7 +109,14 @@ export const HomeScreen = () => {
             >
               <Ionicons name="menu" size={24} color="white" />
             </TouchableOpacity>
-            <Text style={styles.title}>Reflectly</Text>
+            <View style={styles.logoTitleContainer}>
+              <Image 
+                source={{ uri: LOGO_URL }} 
+                style={styles.headerLogo}
+                resizeMode="contain"
+              />
+              <Text style={styles.title}>Reflectly</Text>
+            </View>
             <TouchableOpacity 
               style={styles.menuButton}
               onPress={() => useAppState.getState().navigateTo('Settings')}
@@ -225,6 +235,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing[4],
     paddingVertical: theme.spacing[3],
+  },
+  logoTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerLogo: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
   },
   title: {
     ...theme.typography.h1,
