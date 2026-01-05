@@ -20,7 +20,7 @@ import { useAppState } from '../state/appState';
 import { storiesService } from '../services/storiesService';
 import theme from '../theme/theme';
 
-const LOGO_URL = 'https://05df2956-abb9-44fd-98d4-44985fae89d3-00-18cswl8l3vp1n.worf.replit.dev/api/logo';
+const logoImage = require('../../assets/logo.png');
 
 export const HomeScreen = () => {
   const { go } = useNav();
@@ -111,7 +111,7 @@ export const HomeScreen = () => {
             </TouchableOpacity>
             <View style={styles.logoTitleContainer}>
               <Image 
-                source={{ uri: LOGO_URL }} 
+                source={logoImage} 
                 style={styles.headerLogo}
                 resizeMode="contain"
               />
