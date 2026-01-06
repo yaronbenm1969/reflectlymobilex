@@ -3,6 +3,24 @@
 ## Overview
 Reflectly is a React Native/Expo mobile journaling app that allows users to record personal stories and invite friends to share reflections. The app features video recording, story management, and social sharing capabilities.
 
+## Recent Changes (January 6, 2026)
+- **NEW: 12 Video Display Formats** - Full carousel animation library with live previews
+  - 3D Cube, 3D Carousel, Flip Pages, Standard
+  - Stack Cards, Tinder Swipe, Paper Fold, Circular
+  - Flow, Parallax, Blur Rotate, Scale Fade
+- **NEW: VideoCarousel Component** - `src/components/VideoCarousel.js`
+  - Uses react-native-reanimated-carousel (free, MIT license)
+  - Smooth 60 FPS animations on iOS/Android
+  - Demo previews with "דגימה" button for each format
+- **Updated FormatSelectionScreen** - Interactive format selection with live demos
+- **Added GestureHandlerRootView** - Required for touch gestures in carousels
+- **Updated babel.config.js** - Added reanimated plugin for animations
+- **NEW: AI Service** - `server/ai-service.js`
+  - OpenAI Whisper transcription
+  - GPT-4o story analysis
+  - Automatic editing suggestions
+  - AI-generated video titles
+
 ## Recent Changes (January 3, 2026)
 - **NEW: Deep Links & Universal Links** - App opens directly from WhatsApp links when installed
   - iOS: Associated Domains configured for `reflectly.app`
