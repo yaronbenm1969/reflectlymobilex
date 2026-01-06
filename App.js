@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, Linking } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { 
   AuthScreen,
   SplashScreen,
@@ -170,17 +171,19 @@ export default function App() {
   };
 
   return (
-    <SafeAreaProvider>
-      <View style={styles.container}>
-        <StatusBar style="auto" backgroundColor="#FFEFF4" />
-        {renderScreen()}
-        
-        <SideMenu 
-          isOpen={isSideMenuOpen}
-          onClose={() => setSideMenuOpen(false)}
-        />
-      </View>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <View style={styles.container}>
+          <StatusBar style="auto" backgroundColor="#FFEFF4" />
+          {renderScreen()}
+          
+          <SideMenu 
+            isOpen={isSideMenuOpen}
+            onClose={() => setSideMenuOpen(false)}
+          />
+        </View>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
