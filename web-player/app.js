@@ -113,7 +113,11 @@ function getStoryParamsFromURL() {
     
     const pathParts = window.location.pathname.split('/').filter(Boolean);
     if (pathParts.length >= 2 && pathParts[0] === 's') {
-        const pathStoryId = decodeURIComponent(pathParts[1]);
+        let pathStoryId = decodeURIComponent(pathParts[1]);
+        // Handle case where ? was URL-encoded as %3F and included in path
+        if (pathStoryId.includes('?')) {
+            pathStoryId = pathStoryId.split('?')[0];
+        }
         console.log('✅ Found storyId in path /s/:', pathStoryId);
         return { type: 'storyId', value: pathStoryId.trim() };
     }
@@ -234,6 +238,7 @@ async function loadStory(code) {
             placeholder.innerHTML = '<div class="placeholder-icon">🔄</div><p>ממיר סרטון לפורמט תואם...</p>';
             
             try {
+                console.log('📤 Calling conversion API...');
                 const convertResponse = await fetch('/api/convert-from-url', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -241,35 +246,44 @@ async function loadStory(code) {
                     signal: AbortSignal.timeout(120000)
                 });
                 
+                console.log('📥 Conversion API response status:', convertResponse.status);
+                
                 if (convertResponse.ok) {
                     const result = await convertResponse.json();
+                    console.log('✅ Conversion result:', result);
                     if (result.url) {
-                        videoEl.src = result.url;
+                        console.log('🎬 Setting video src to converted URL:', result.url);
+                        // Use proxy to avoid CORS issues
+                        videoEl.src = '/proxy-video?url=' + encodeURIComponent(result.url);
                     } else {
-                        videoEl.src = videoUrl;
+                        console.log('⚠️ No URL in result, using original');
+                        videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
                     }
                 } else {
-                    videoEl.src = videoUrl;
+                    console.log('❌ Conversion API error, using original URL');
+                    videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
                 }
             } catch (error) {
-                console.error('Conversion error:', error);
+                console.error('❌ Conversion error:', error);
                 videoEl.src = videoUrl;
             }
         } else {
             videoEl.src = videoUrl;
         }
         
-        videoEl.load();
+        const finalVideoUrl = videoEl.src;
         
         videoEl.oncanplay = () => {
+            console.log('✅ Video can play!');
             placeholder.classList.add('hidden');
         };
         
-        videoEl.onerror = () => {
+        videoEl.onerror = (e) => {
+            console.error('❌ Video load error:', e);
             placeholder.innerHTML = `
                 <div class="placeholder-icon">📹</div>
                 <p>הסרטון בפורמט שלא נתמך</p>
-                <a href="${videoUrl}" target="_blank" class="download-link" style="
+                <a href="${finalVideoUrl}" target="_blank" class="download-link" style="
                     display: inline-block;
                     margin-top: 15px;
                     padding: 12px 24px;
@@ -280,6 +294,8 @@ async function loadStory(code) {
                 ">📥 הורד והפעל</a>
             `;
         };
+        
+        videoEl.load();
     } else {
         placeholder.innerHTML = '<div class="placeholder-icon">📹</div><p>אין סרטון זמין</p>';
     }
