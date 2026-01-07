@@ -152,25 +152,31 @@ function getStoryParamsFromURL() {
 }
 
 async function findStoryByCode(code) {
+    console.log('🔍 findStoryByCode called with:', code);
     try {
+        console.log('📂 Trying direct document lookup...');
         const storyRef = doc(db, 'stories', code);
         const storySnap = await getDoc(storyRef);
         
         if (storySnap.exists()) {
+            console.log('✅ Found story by document ID');
             return { id: storySnap.id, ...storySnap.data() };
         }
+        console.log('❌ Not found by document ID, trying inviteCode query...');
         
         const q = query(collection(db, 'stories'), where('inviteCode', '==', code.trim()));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
             const docSnap = querySnapshot.docs[0];
+            console.log('✅ Found story by inviteCode');
             return { id: docSnap.id, ...docSnap.data() };
         }
         
+        console.log('❌ Story not found with code:', code);
         return null;
     } catch (error) {
-        console.error('Error finding story:', error);
+        console.error('❌ Error finding story:', error);
         return null;
     }
 }
@@ -617,6 +623,10 @@ function setupEventListeners() {
 async function init() {
     console.log('🌐 User Agent:', navigator.userAgent);
     console.log('📱 Is in-app browser:', isInAppBrowser());
+    console.log('📍 Full URL:', window.location.href);
+    console.log('📍 Pathname:', window.location.pathname);
+    console.log('📍 Search:', window.location.search);
+    console.log('📍 Hash:', window.location.hash);
     
     if (isInAppBrowser()) {
         console.log('⚠️ Detected in-app browser, showing redirect screen');
@@ -624,20 +634,26 @@ async function init() {
         return;
     }
     
-    await initFirebase();
+    const fbInit = await initFirebase();
+    console.log('🔥 Firebase init result:', fbInit);
+    
     setupEventListeners();
     setupVideoControls();
     
     const urlParams = getStoryParamsFromURL();
+    console.log('🔍 URL params result:', urlParams);
     
     if (urlParams) {
         console.log('📱 URL params found:', urlParams);
+        console.log('🔎 Searching for story with value:', urlParams.value);
         const success = await loadStory(urlParams.value);
+        console.log('📖 loadStory result:', success);
         if (!success) {
             document.getElementById('invite-code-input').value = urlParams.value;
             showScreen('code');
         }
     } else {
+        console.log('⚠️ No URL params found, showing code screen');
         showScreen('code');
     }
 }
