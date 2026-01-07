@@ -51,6 +51,9 @@ export const HomeScreen = () => {
     
     const result = await storiesService.createStory(user.uid, {
       name: localStoryName.trim(),
+    }, {
+      displayName: user.displayName || '',
+      email: user.email || '',
     });
     
     if (result.success) {
