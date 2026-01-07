@@ -25,7 +25,7 @@ export const FinalVideoScreen = () => {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `צפה בסרטון שלי: "${storyName}" 🎬\nhttps://reflectly.app/video/${Date.now()}`,
+        message: `צפה בסרטון שלי: "${storyName}" 🎬\nhttps://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev/`,
         title: storyName,
       });
     } catch (error) {

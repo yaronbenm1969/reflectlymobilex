@@ -67,9 +67,9 @@ export const TermsScreen = () => {
           <Text style={styles.sectionContent}>
             For questions about these terms or privacy practices:
             {'\n\n'}
-            Email: demo@reflectly.app
+            Email: demo@example.com
             {'\n'}
-            Website: reflectly.app
+            Website: Reflectly App
             {'\n\n'}
             This is placeholder contact information for demo purposes.
           </Text>
