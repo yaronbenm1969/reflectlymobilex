@@ -253,15 +253,14 @@ async function loadStory(code) {
                     console.log('✅ Conversion result:', result);
                     if (result.url) {
                         console.log('🎬 Setting video src to converted URL:', result.url);
-                        // Use proxy to avoid CORS issues
-                        videoEl.src = '/proxy-video?url=' + encodeURIComponent(result.url);
+                        videoEl.src = result.url;
                     } else {
                         console.log('⚠️ No URL in result, using original');
-                        videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
+                        videoEl.src = videoUrl;
                     }
                 } else {
                     console.log('❌ Conversion API error, using original URL');
-                    videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
+                    videoEl.src = videoUrl;
                 }
             } catch (error) {
                 console.error('❌ Conversion error:', error);
