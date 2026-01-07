@@ -185,10 +185,18 @@ async function loadStory(code) {
     
     currentStory = story;
     console.log('📖 Story loaded:', story);
+    console.log('📖 Story details - name:', story.name, 'instructions:', story.instructions, 'creatorName:', story.creatorName);
     
-    document.getElementById('story-title').textContent = story.name || 'הסיפור';
+    document.getElementById('story-title').textContent = story.name || story.inviteCode || 'הסיפור';
+    
+    const creatorNameEl = document.getElementById('creator-name');
+    if (creatorNameEl) {
+        creatorNameEl.textContent = `מאת: ${story.creatorName || story.creatorEmail || 'חבר'}`;
+    }
+    
+    const instructionsText = story.instructions || story.genericInstructions || '';
     document.getElementById('creator-instructions').textContent = 
-        story.instructions || 'צפה בסרטון והקלט את השיקוף שלך';
+        instructionsText || 'צפה בסרטון והקלט את השיקוף שלך';
     
     const videoTimings = story.videoTimings || {};
     clipTimes[1] = videoTimings.video1 || 30;

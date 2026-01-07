@@ -38,11 +38,13 @@ const generateUniqueInviteCode = async (storyName) => {
 };
 
 export const storiesService = {
-  createStory: async (userId, storyData) => {
+  createStory: async (userId, storyData, userInfo = {}) => {
     try {
       const inviteCode = await generateUniqueInviteCode(storyData.name);
       const docRef = await addDoc(collection(db, STORIES_COLLECTION), {
         userId,
+        creatorName: userInfo.displayName || userInfo.name || '',
+        creatorEmail: userInfo.email || '',
         name: storyData.name,
         inviteCode,
         videoUri: storyData.videoUri || null,

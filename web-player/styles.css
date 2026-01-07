@@ -358,6 +358,13 @@ input[type="text"]:focus {
     white-space: pre-wrap;
 }
 
+.creator-name {
+    text-align: center;
+    color: var(--subtext);
+    font-size: 14px;
+    margin-bottom: 16px;
+}
+
 .camera-container {
     position: relative;
     background: #000;
