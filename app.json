@@ -19,8 +19,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.reflectly.app",
       "associatedDomains": [
-        "applinks:reflectly.app",
-        "applinks:*.reflectly.app"
+        "applinks:ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev"
       ],
       "infoPlist": {
         "LSApplicationQueriesSchemes": ["whatsapp"]
@@ -45,13 +44,8 @@
           "data": [
             {
               "scheme": "https",
-              "host": "reflectly.app",
-              "pathPrefix": "/"
-            },
-            {
-              "scheme": "https",
-              "host": "*.reflectly.app",
-              "pathPrefix": "/"
+              "host": "ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev",
+              "pathPrefix": "/s/"
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
