@@ -87,7 +87,7 @@ export const InstructionsScreen = () => {
     go('WhatsAppShare');
   };
 
-  const timeOptions = [15, 30, 45, 60, 90, 120];
+  const timeOptions = [5, 15, 30, 45, 60, 90, 120];
 
   const TimeSelector = ({ label, value, onChange }) => (
     <View style={styles.timeSelectorContainer}>

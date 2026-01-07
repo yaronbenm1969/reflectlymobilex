@@ -549,6 +549,209 @@ input[type="text"]:focus {
     opacity: 0.8;
 }
 
+/* 3 Clips Screen Styles */
+.instructions-banner {
+    background: linear-gradient(135deg, rgba(255, 107, 157, 0.1), rgba(192, 111, 187, 0.1));
+    border: 1px solid rgba(255, 107, 157, 0.3);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.instructions-banner .instructions-icon {
+    font-size: 24px;
+}
+
+.instructions-banner p {
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    flex: 1;
+}
+
+.clips-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.clip-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    transition: all 0.3s;
+}
+
+.clip-card.recorded {
+    background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+    border: 2px solid var(--success);
+}
+
+.clip-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.clip-number {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: var(--white);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.clip-title {
+    flex: 1;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.clip-time {
+    background: rgba(255, 107, 157, 0.1);
+    color: var(--primary);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.clip-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    color: var(--subtext);
+    font-size: 14px;
+}
+
+.clip-status .status-icon {
+    font-size: 16px;
+}
+
+.clip-record-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: var(--white);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    font-weight: 600;
+    font-family: 'Heebo', sans-serif;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: transform 0.2s;
+}
+
+.clip-record-btn:hover {
+    transform: scale(1.02);
+}
+
+.clip-record-btn .record-icon {
+    width: 16px;
+    height: 16px;
+    background: var(--white);
+    border-radius: 50%;
+}
+
+.clip-card.recorded .clip-record-btn {
+    background: var(--white);
+    color: var(--success);
+    border: 2px solid var(--success);
+}
+
+.clips-progress {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.clips-progress p {
+    color: var(--subtext);
+    margin-bottom: 12px;
+}
+
+.progress-dots {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+}
+
+.progress-dots .dot {
+    width: 16px;
+    height: 16px;
+    background: #E0E0E0;
+    border-radius: 50%;
+    transition: all 0.3s;
+}
+
+.progress-dots .dot.filled {
+    background: var(--success);
+}
+
+#submit-all-btn.complete {
+    animation: pulse-success 1s infinite;
+}
+
+@keyframes pulse-success {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
+    50% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+}
+
+/* Single Recording Screen */
+.countdown-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.countdown-overlay.active {
+    display: flex;
+}
+
+.countdown-overlay #countdown-number {
+    font-size: 120px;
+    color: var(--white);
+    font-weight: bold;
+    animation: countdown-pulse 1s ease-in-out infinite;
+}
+
+@keyframes countdown-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.8; }
+}
+
+.timing-info .timing-note {
+    font-size: 12px;
+    color: var(--primary);
+    margin-top: 4px;
+}
+
+#single-record-status {
+    color: var(--subtext);
+}
+
 @media (max-width: 380px) {
     .card {
         padding: 16px;
@@ -562,5 +765,14 @@ input[type="text"]:focus {
     input[type="text"] {
         font-size: 20px;
         padding: 14px;
+    }
+    
+    .clip-card {
+        padding: 16px;
+    }
+    
+    .clip-record-btn {
+        padding: 12px;
+        font-size: 14px;
     }
 }

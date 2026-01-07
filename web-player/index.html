@@ -5,14 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Reflectly - צפה והקלט שיקוף</title>
     
-    <!-- Smart App Banner for iOS - shows "Open in App" banner -->
-    <!-- Replace YOUR_APP_ID with actual App Store ID after publishing -->
     <meta name="apple-itunes-app" content="app-id=YOUR_APP_ID, app-argument=reflectly://story">
-    
-    <!-- Android App Links - for "Open in App" on Android -->
     <link rel="alternate" href="android-app://com.reflectly.app/https/reflectly.app">
     
-    <!-- Open Graph for WhatsApp preview -->
     <meta property="og:title" content="Reflectly - צפה והקלט שיקוף">
     <meta property="og:description" content="חבר שלך מזמין אותך לצפות ולשתף שיקוף בסיפור שלו">
     <meta property="og:type" content="website">
@@ -26,7 +21,6 @@
 </head>
 <body>
     <div class="container">
-        <!-- WhatsApp WebView redirect screen -->
         <div id="webview-redirect-screen" class="screen" style="display: none;">
             <div class="logo-container">
                 <div class="logo">🎬</div>
@@ -100,19 +94,94 @@
                 </div>
             </div>
             <div class="card">
-                <h3>הוראות מהיוצר</h3>
+                <h3>📋 הוראות מהיוצר</h3>
                 <p id="creator-instructions" class="instructions-text">צפה בסרטון והקלט את השיקוף שלך</p>
             </div>
             <button id="start-record-btn" class="btn-primary btn-large">
                 <span class="btn-icon">🎥</span>
-                הקלט שיקוף
+                המשך להקלטת 3 שיקופים
             </button>
         </div>
 
-        <div id="record-screen" class="screen">
+        <div id="record-3clips-screen" class="screen">
             <div class="header dark">
-                <button class="btn-back light" id="back-to-watch">←</button>
-                <h1>הקלט שיקוף</h1>
+                <button class="btn-back light" id="back-to-watch-from-3clips">←</button>
+                <h1>הקלט 3 שיקופים</h1>
+            </div>
+            
+            <div class="instructions-banner" id="instructions-banner">
+                <div class="instructions-icon">📋</div>
+                <p id="instructions-text-display">הוראות מהיוצר יופיעו כאן</p>
+            </div>
+
+            <div class="clips-container">
+                <div class="clip-card" id="clip1-card">
+                    <div class="clip-header">
+                        <span class="clip-number">1</span>
+                        <span class="clip-title">שיקוף ראשון</span>
+                        <span class="clip-time" id="clip1-time">30 שניות</span>
+                    </div>
+                    <div class="clip-status" id="clip1-status">
+                        <span class="status-icon">⏺️</span>
+                        <span class="status-text">לא הוקלט</span>
+                    </div>
+                    <button class="clip-record-btn" id="clip1-btn" data-clip="1">
+                        <span class="record-icon"></span>
+                        <span>התחל הקלטה</span>
+                    </button>
+                </div>
+
+                <div class="clip-card" id="clip2-card">
+                    <div class="clip-header">
+                        <span class="clip-number">2</span>
+                        <span class="clip-title">שיקוף שני</span>
+                        <span class="clip-time" id="clip2-time">30 שניות</span>
+                    </div>
+                    <div class="clip-status" id="clip2-status">
+                        <span class="status-icon">⏺️</span>
+                        <span class="status-text">לא הוקלט</span>
+                    </div>
+                    <button class="clip-record-btn" id="clip2-btn" data-clip="2">
+                        <span class="record-icon"></span>
+                        <span>התחל הקלטה</span>
+                    </button>
+                </div>
+
+                <div class="clip-card" id="clip3-card">
+                    <div class="clip-header">
+                        <span class="clip-number">3</span>
+                        <span class="clip-title">שיקוף שלישי</span>
+                        <span class="clip-time" id="clip3-time">30 שניות</span>
+                    </div>
+                    <div class="clip-status" id="clip3-status">
+                        <span class="status-icon">⏺️</span>
+                        <span class="status-text">לא הוקלט</span>
+                    </div>
+                    <button class="clip-record-btn" id="clip3-btn" data-clip="3">
+                        <span class="record-icon"></span>
+                        <span>התחל הקלטה</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="clips-progress">
+                <p id="clips-progress-text">הקלטת 0 מתוך 3 שיקופים</p>
+                <div class="progress-dots">
+                    <span class="dot" id="dot1"></span>
+                    <span class="dot" id="dot2"></span>
+                    <span class="dot" id="dot3"></span>
+                </div>
+            </div>
+
+            <button id="submit-all-btn" class="btn-primary btn-large" disabled>
+                שלח את כל השיקופים
+            </button>
+        </div>
+
+        <div id="record-single-screen" class="screen">
+            <div class="header dark">
+                <button class="btn-back light" id="back-to-3clips">←</button>
+                <h1 id="single-record-title">הקלטת שיקוף</h1>
             </div>
             <div class="camera-container">
                 <video id="camera-preview" autoplay playsinline muted></video>
@@ -124,33 +193,33 @@
                     <div class="rec-dot"></div>
                     <span id="rec-timer">00:00</span>
                 </div>
+                <div class="countdown-overlay" id="countdown-overlay">
+                    <span id="countdown-number">3</span>
+                </div>
             </div>
             <div class="timing-info">
-                <p>זמן מומלץ: <span id="recommended-time">30</span> שניות</p>
+                <p>⏱️ זמן מקסימלי: <span id="max-time-display">30</span> שניות</p>
+                <p class="timing-note">ההקלטה תיעצר אוטומטית בסוף הזמן</p>
             </div>
             <div class="record-controls">
-                <button id="record-btn" class="btn-record">
+                <button id="single-record-btn" class="btn-record">
                     <div class="record-icon"></div>
                 </button>
-                <p id="record-status">לחץ להקלטה</p>
+                <p id="single-record-status">לחץ להקלטה</p>
             </div>
         </div>
 
-        <div id="review-screen" class="screen">
+        <div id="review-single-screen" class="screen">
             <div class="header">
-                <button class="btn-back" id="back-to-record">←</button>
-                <h1>סקירת ההקלטה</h1>
+                <button class="btn-back" id="back-to-single-record">←</button>
+                <h1>סקירת הקלטה</h1>
             </div>
             <div class="video-container">
-                <video id="review-video" controls playsinline></video>
+                <video id="review-single-video" controls playsinline></video>
             </div>
             <div class="review-actions">
-                <button id="retake-btn" class="btn-secondary">הקלט מחדש</button>
-                <button id="submit-btn" class="btn-primary">שלח שיקוף</button>
-            </div>
-            <div class="privacy-notice">
-                <input type="checkbox" id="privacy-consent">
-                <label for="privacy-consent">אני מאשר/ת שיתוף הסרטון עם יוצר הסיפור</label>
+                <button id="retake-single-btn" class="btn-secondary">הקלט מחדש</button>
+                <button id="save-single-btn" class="btn-primary">שמור והמשך</button>
             </div>
         </div>
 
@@ -158,9 +227,9 @@
             <div class="success-content">
                 <div class="success-icon">✅</div>
                 <h1>תודה רבה!</h1>
-                <p>השיקוף שלך נשלח בהצלחה</p>
+                <p>כל השיקופים נשלחו בהצלחה!</p>
                 <div class="card">
-                    <p>היוצר יקבל את הסרטון שלך ויוסיף אותו לפרויקט</p>
+                    <p>היוצר יקבל את הסרטונים שלך ויוסיף אותם לפרויקט</p>
                 </div>
                 <div class="app-promo">
                     <h3>רוצה ליצור סיפורים משלך?</h3>
@@ -174,7 +243,6 @@
                         </a>
                     </div>
                 </div>
-                <button id="record-another-btn" class="btn-secondary">הקלט שיקוף נוסף</button>
             </div>
         </div>
     </div>

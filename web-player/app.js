@@ -3,18 +3,12 @@ import { getFirestore, doc, getDoc, collection, addDoc, query, where, getDocs, s
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-storage.js';
 import { firebaseConfig } from './config.js';
 
-// Check if running in WhatsApp WebView or other in-app browsers
 function isInAppBrowser() {
     const ua = navigator.userAgent || navigator.vendor || window.opera;
-    // WhatsApp WebView indicators
     if (/WhatsApp/i.test(ua)) return true;
-    // Facebook WebView
     if (/FBAN|FBAV|FB_IAB/i.test(ua)) return true;
-    // Instagram WebView
     if (/Instagram/i.test(ua)) return true;
-    // Generic WebView indicators
     if (/wv|WebView/i.test(ua)) return true;
-    // iOS WebView that's not Safari
     if (/iPhone|iPad|iPod/i.test(ua) && !/Safari/i.test(ua)) return true;
     return false;
 }
@@ -29,18 +23,13 @@ function showWebViewRedirect() {
         redirectScreen.classList.add('active');
     }
     
-    // Open in browser button
     const openBtn = document.getElementById('open-in-browser-btn');
     if (openBtn) {
         openBtn.addEventListener('click', () => {
-            // Try to open in external browser
-            const currentUrl = window.location.href;
-            // On iOS, this opens Safari
-            window.location.href = currentUrl;
+            window.location.href = window.location.href;
         });
     }
     
-    // Copy link button
     const copyBtn = document.getElementById('copy-link-btn');
     if (copyBtn) {
         copyBtn.addEventListener('click', async () => {
@@ -49,7 +38,6 @@ function showWebViewRedirect() {
                 copyBtn.textContent = '✅ הלינק הועתק!';
                 setTimeout(() => { copyBtn.textContent = '📋 העתק לינק'; }, 2000);
             } catch (e) {
-                // Fallback for older browsers
                 const input = document.createElement('input');
                 input.value = window.location.href;
                 document.body.appendChild(input);
@@ -71,20 +59,40 @@ let recordedBlob = null;
 let cameraStream = null;
 let recordingStartTime = null;
 let timerInterval = null;
+let currentRecordingClip = null;
+let maxRecordTime = 30;
+let autoStopTimeout = null;
+
+const clipRecordings = {
+    1: null,
+    2: null,
+    3: null
+};
+
+const clipTimes = {
+    1: 30,
+    2: 30,
+    3: 30
+};
 
 const screens = {
     loading: document.getElementById('loading-screen'),
     code: document.getElementById('code-screen'),
     watch: document.getElementById('watch-screen'),
-    record: document.getElementById('record-screen'),
-    review: document.getElementById('review-screen'),
+    record3clips: document.getElementById('record-3clips-screen'),
+    recordSingle: document.getElementById('record-single-screen'),
+    reviewSingle: document.getElementById('review-single-screen'),
     success: document.getElementById('success-screen'),
     webviewRedirect: document.getElementById('webview-redirect-screen')
 };
 
 function showScreen(screenName) {
-    Object.values(screens).forEach(s => s.classList.remove('active'));
-    screens[screenName].classList.add('active');
+    Object.values(screens).forEach(s => {
+        if (s) s.classList.remove('active');
+    });
+    if (screens[screenName]) {
+        screens[screenName].classList.add('active');
+    }
 }
 
 async function initFirebase() {
@@ -102,11 +110,7 @@ async function initFirebase() {
 
 function getStoryParamsFromURL() {
     console.log('🔍 Full URL:', window.location.href);
-    console.log('🔍 Path:', window.location.pathname);
-    console.log('🔍 Hash:', window.location.hash);
-    console.log('🔍 Search:', window.location.search);
     
-    // Priority 1: Check path for /s/storyId format (WhatsApp-friendly)
     const pathParts = window.location.pathname.split('/').filter(Boolean);
     if (pathParts.length >= 2 && pathParts[0] === 's') {
         const pathStoryId = decodeURIComponent(pathParts[1]);
@@ -114,47 +118,36 @@ function getStoryParamsFromURL() {
         return { type: 'storyId', value: pathStoryId.trim() };
     }
     
-    // Priority 2: Check hash for storyId
-    const hash = window.location.hash.substring(1); // Remove #
+    const hash = window.location.hash.substring(1);
     if (hash) {
         const hashParams = new URLSearchParams(hash);
         const hashStoryId = hashParams.get('storyId') || hashParams.get('story') || hashParams.get('s');
         if (hashStoryId) {
-            console.log('✅ Found storyId in hash:', hashStoryId);
             return { type: 'storyId', value: hashStoryId.trim() };
         }
-        // If hash is just the ID without key=value format
         if (hash.length >= 10 && !hash.includes('=')) {
-            console.log('✅ Found raw storyId in hash:', hash);
             return { type: 'storyId', value: hash.trim() };
         }
     }
     
-    // Priority 3: Check query params (fallback)
     const params = new URLSearchParams(window.location.search);
     const storyId = params.get('storyId') || params.get('story') || params.get('s');
     if (storyId) {
-        console.log('✅ Found storyId in query:', storyId);
         return { type: 'storyId', value: storyId.trim() };
     }
     
-    // Check for invite code in query
     const codeFromQuery = params.get('code') || params.get('c');
     if (codeFromQuery) {
-        console.log('✅ Found code in query:', codeFromQuery);
         return { type: 'code', value: decodeURIComponent(codeFromQuery).trim() };
     }
     
-    // Priority 4: Check path for code (last segment)
     if (pathParts.length > 0) {
         const lastPart = decodeURIComponent(pathParts[pathParts.length - 1]);
         if (!lastPart.includes('?') && !lastPart.includes('=') && lastPart.length >= 2 && lastPart.length <= 30) {
-            console.log('✅ Found path code:', lastPart);
             return { type: 'code', value: lastPart.trim() };
         }
     }
     
-    console.log('❌ No params found');
     return null;
 }
 
@@ -171,8 +164,8 @@ async function findStoryByCode(code) {
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
-            const doc = querySnapshot.docs[0];
-            return { id: doc.id, ...doc.data() };
+            const docSnap = querySnapshot.docs[0];
+            return { id: docSnap.id, ...docSnap.data() };
         }
         
         return null;
@@ -191,13 +184,24 @@ async function loadStory(code) {
     }
     
     currentStory = story;
+    console.log('📖 Story loaded:', story);
     
     document.getElementById('story-title').textContent = story.name || 'הסיפור';
     document.getElementById('creator-instructions').textContent = 
         story.instructions || 'צפה בסרטון והקלט את השיקוף שלך';
     
     const videoTimings = story.videoTimings || {};
-    document.getElementById('recommended-time').textContent = videoTimings.video1 || 30;
+    clipTimes[1] = videoTimings.video1 || 30;
+    clipTimes[2] = videoTimings.video2 || 30;
+    clipTimes[3] = videoTimings.video3 || 30;
+    
+    document.getElementById('clip1-time').textContent = `${clipTimes[1]} שניות`;
+    document.getElementById('clip2-time').textContent = `${clipTimes[2]} שניות`;
+    document.getElementById('clip3-time').textContent = `${clipTimes[3]} שניות`;
+    
+    if (story.instructions) {
+        document.getElementById('instructions-text-display').textContent = story.instructions;
+    }
     
     const videoEl = document.getElementById('story-video');
     const placeholder = document.getElementById('video-placeholder');
@@ -209,45 +213,32 @@ async function loadStory(code) {
         const lowerUrl = videoUrl.toLowerCase();
         const needsConversion = lowerUrl.includes('.mov') || 
                                 lowerUrl.includes('.hevc') ||
-                                lowerUrl.includes('.m4v') ||
-                                lowerUrl.includes('%2f') && (lowerUrl.includes('.mov') || lowerUrl.match(/\.mov[?&]/));
-        
-        console.log('🎬 Video URL analysis:', { url: videoUrl.substring(0, 100), needsConversion });
+                                lowerUrl.includes('.m4v');
         
         if (needsConversion) {
-            console.log('🔄 Video needs conversion, requesting from server...');
-            placeholder.innerHTML = '<div class="placeholder-icon">🔄</div><p>ממיר סרטון לפורמט תואם... (עד 30 שניות)</p>';
+            console.log('🔄 Video needs conversion...');
+            placeholder.innerHTML = '<div class="placeholder-icon">🔄</div><p>ממיר סרטון לפורמט תואם...</p>';
             
             try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 120000);
-                
                 const convertResponse = await fetch('/api/convert-from-url', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ videoUrl, storyId: story.id }),
-                    signal: controller.signal
+                    signal: AbortSignal.timeout(120000)
                 });
-                
-                clearTimeout(timeoutId);
                 
                 if (convertResponse.ok) {
                     const result = await convertResponse.json();
-                    console.log('✅ Conversion result:', result);
                     if (result.url) {
-                        console.log('🎥 Setting video source to:', result.url);
                         videoEl.src = result.url;
-                        placeholder.innerHTML = '<div class="placeholder-icon">⏳</div><p>טוען סרטון...</p>';
                     } else {
                         videoEl.src = videoUrl;
                     }
                 } else {
-                    console.log('⚠️ Conversion failed, using original URL');
                     videoEl.src = videoUrl;
                 }
             } catch (error) {
-                console.error('Conversion request error:', error);
-                placeholder.innerHTML = '<div class="placeholder-icon">⚠️</div><p>ההמרה נכשלה</p>';
+                console.error('Conversion error:', error);
                 videoEl.src = videoUrl;
             }
         } else {
@@ -256,21 +247,14 @@ async function loadStory(code) {
         
         videoEl.load();
         
-        videoEl.onloadedmetadata = () => {
-            console.log('✅ Video metadata loaded, duration:', videoEl.duration);
-            placeholder.classList.add('hidden');
-        };
-        
         videoEl.oncanplay = () => {
-            console.log('✅ Video can play');
             placeholder.classList.add('hidden');
         };
         
-        videoEl.onerror = (e) => {
-            console.error('❌ Video error:', videoEl.error?.message || 'Unknown error');
+        videoEl.onerror = () => {
             placeholder.innerHTML = `
                 <div class="placeholder-icon">📹</div>
-                <p>הסרטון בפורמט שלא נתמך בדפדפן זה</p>
+                <p>הסרטון בפורמט שלא נתמך</p>
                 <a href="${videoUrl}" target="_blank" class="download-link" style="
                     display: inline-block;
                     margin-top: 15px;
@@ -279,19 +263,10 @@ async function loadStory(code) {
                     color: white;
                     text-decoration: none;
                     border-radius: 25px;
-                    font-weight: 600;
                 ">📥 הורד והפעל</a>
-                <p style="margin-top: 10px; font-size: 12px; color: #666;">
-                    או פתח ב-Safari לצפייה ישירה
-                </p>
             `;
         };
-        
-        videoEl.onstalled = () => {
-            console.log('⚠️ Video stalled');
-        };
     } else {
-        console.log('❌ No video URL found in story');
         placeholder.innerHTML = '<div class="placeholder-icon">📹</div><p>אין סרטון זמין</p>';
     }
     
@@ -326,8 +301,13 @@ function stopCamera() {
     }
 }
 
-function startRecording() {
+function startRecordingClip(clipNumber) {
+    currentRecordingClip = clipNumber;
+    maxRecordTime = clipTimes[clipNumber];
     recordedChunks = [];
+    
+    document.getElementById('max-time-display').textContent = maxRecordTime;
+    document.getElementById('single-record-title').textContent = `הקלטת שיקוף ${clipNumber}`;
     
     const options = { mimeType: 'video/webm;codecs=vp9,opus' };
     if (!MediaRecorder.isTypeSupported(options.mimeType)) {
@@ -348,27 +328,37 @@ function startRecording() {
     mediaRecorder.onstop = () => {
         recordedBlob = new Blob(recordedChunks, { type: 'video/webm' });
         const videoUrl = URL.createObjectURL(recordedBlob);
-        document.getElementById('review-video').src = videoUrl;
-        showScreen('review');
+        document.getElementById('review-single-video').src = videoUrl;
+        showScreen('reviewSingle');
     };
     
     mediaRecorder.start(1000);
     recordingStartTime = Date.now();
     
     document.getElementById('recording-indicator').classList.add('active');
-    document.getElementById('record-btn').classList.add('recording');
-    document.getElementById('record-status').textContent = 'לחץ לעצירה';
+    document.getElementById('single-record-btn').classList.add('recording');
+    document.getElementById('single-record-status').textContent = 'לחץ לעצירה';
     
     timerInterval = setInterval(updateTimer, 1000);
+    
+    autoStopTimeout = setTimeout(() => {
+        console.log('⏱️ Auto-stopping recording after', maxRecordTime, 'seconds');
+        stopRecordingClip();
+    }, maxRecordTime * 1000);
 }
 
-function stopRecording() {
+function stopRecordingClip() {
+    if (autoStopTimeout) {
+        clearTimeout(autoStopTimeout);
+        autoStopTimeout = null;
+    }
+    
     if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
         clearInterval(timerInterval);
         document.getElementById('recording-indicator').classList.remove('active');
-        document.getElementById('record-btn').classList.remove('recording');
-        document.getElementById('record-status').textContent = 'לחץ להקלטה';
+        document.getElementById('single-record-btn').classList.remove('recording');
+        document.getElementById('single-record-status').textContent = 'לחץ להקלטה';
     }
 }
 
@@ -377,41 +367,82 @@ function updateTimer() {
     const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
     const seconds = (elapsed % 60).toString().padStart(2, '0');
     document.getElementById('rec-timer').textContent = `${minutes}:${seconds}`;
+    
+    if (elapsed >= maxRecordTime) {
+        document.getElementById('rec-timer').style.color = '#F44336';
+    }
 }
 
-async function submitRecording() {
-    if (!recordedBlob || !currentStory) return;
+function saveCurrentClip() {
+    if (!recordedBlob || !currentRecordingClip) return;
     
-    const submitBtn = document.getElementById('submit-btn');
+    clipRecordings[currentRecordingClip] = recordedBlob;
+    
+    const card = document.getElementById(`clip${currentRecordingClip}-card`);
+    const status = document.getElementById(`clip${currentRecordingClip}-status`);
+    const btn = document.getElementById(`clip${currentRecordingClip}-btn`);
+    const dot = document.getElementById(`dot${currentRecordingClip}`);
+    
+    card.classList.add('recorded');
+    status.innerHTML = '<span class="status-icon">✅</span><span class="status-text">הוקלט בהצלחה</span>';
+    btn.innerHTML = '<span>🔄</span><span>הקלט מחדש</span>';
+    dot.classList.add('filled');
+    
+    updateClipsProgress();
+    
+    stopCamera();
+    showScreen('record3clips');
+}
+
+function updateClipsProgress() {
+    const recordedCount = Object.values(clipRecordings).filter(r => r !== null).length;
+    document.getElementById('clips-progress-text').textContent = `הקלטת ${recordedCount} מתוך 3 שיקופים`;
+    
+    const submitBtn = document.getElementById('submit-all-btn');
+    submitBtn.disabled = recordedCount === 0;
+    
+    if (recordedCount === 3) {
+        submitBtn.textContent = '🎉 שלח את כל השיקופים';
+        submitBtn.classList.add('complete');
+    }
+}
+
+async function submitAllClips() {
+    const submitBtn = document.getElementById('submit-all-btn');
     submitBtn.disabled = true;
     submitBtn.textContent = 'שולח...';
     
     try {
-        const fileName = `reflections/${currentStory.id}/${Date.now()}.webm`;
-        const storageRef = ref(storage, fileName);
+        for (let i = 1; i <= 3; i++) {
+            if (clipRecordings[i]) {
+                const fileName = `reflections/${currentStory.id}/${Date.now()}_clip${i}.webm`;
+                const storageRef = ref(storage, fileName);
+                
+                await uploadBytes(storageRef, clipRecordings[i]);
+                const downloadUrl = await getDownloadURL(storageRef);
+                
+                await addDoc(collection(db, 'reflections'), {
+                    storyId: currentStory.id,
+                    clipNumber: i,
+                    videoUrl: downloadUrl,
+                    createdAt: serverTimestamp(),
+                    status: 'pending'
+                });
+                
+                console.log(`✅ Clip ${i} uploaded`);
+            }
+        }
         
-        await uploadBytes(storageRef, recordedBlob);
-        const downloadUrl = await getDownloadURL(storageRef);
-        
-        await addDoc(collection(db, 'reflections'), {
-            storyId: currentStory.id,
-            videoUrl: downloadUrl,
-            createdAt: serverTimestamp(),
-            status: 'pending'
-        });
-        
-        stopCamera();
         showScreen('success');
         
     } catch (error) {
         console.error('Upload error:', error);
         alert('שגיאה בשליחה. נסה שוב.');
         submitBtn.disabled = false;
-        submitBtn.textContent = 'שלח שיקוף';
+        submitBtn.textContent = 'שלח את כל השיקופים';
     }
 }
 
-// Video player controls
 function setupVideoControls() {
     const video = document.getElementById('story-video');
     const videoWrapper = document.getElementById('video-wrapper');
@@ -421,7 +452,6 @@ function setupVideoControls() {
     const progressBar = document.getElementById('progress-bar');
     const progressFill = document.getElementById('progress-fill');
     const timeDisplay = document.getElementById('time-display');
-    const controls = document.getElementById('video-controls');
     
     let isFullscreen = false;
     
@@ -439,51 +469,42 @@ function setupVideoControls() {
         }
     }
     
-    // Hide placeholder when playing starts
     const placeholder = document.getElementById('video-placeholder');
     video.addEventListener('playing', () => {
-        console.log('🎬 Video playing - hiding placeholder');
         placeholder.classList.add('hidden');
     });
     
-    // Play/Pause
     playPauseBtn.addEventListener('click', () => {
         if (video.paused) {
             video.play();
             playPauseBtn.textContent = '⏸️';
-            placeholder.classList.add('hidden');
         } else {
             video.pause();
             playPauseBtn.textContent = '▶️';
         }
     });
     
-    // Click on video to play/pause
     video.addEventListener('click', () => {
         if (video.paused) {
             video.play();
             playPauseBtn.textContent = '⏸️';
-            placeholder.classList.add('hidden');
         } else {
             video.pause();
             playPauseBtn.textContent = '▶️';
         }
     });
     
-    // Stop
     stopBtn.addEventListener('click', () => {
         video.pause();
         video.currentTime = 0;
         playPauseBtn.textContent = '▶️';
     });
     
-    // Fullscreen
     fullscreenBtn.addEventListener('click', () => {
         if (!isFullscreen) {
             videoWrapper.classList.add('fullscreen');
             fullscreenBtn.textContent = '✕';
             isFullscreen = true;
-            controls.classList.add('visible');
         } else {
             videoWrapper.classList.remove('fullscreen');
             fullscreenBtn.textContent = '⛶';
@@ -491,40 +512,16 @@ function setupVideoControls() {
         }
     });
     
-    // ESC to exit fullscreen
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && isFullscreen) {
-            videoWrapper.classList.remove('fullscreen');
-            fullscreenBtn.textContent = '⛶';
-            isFullscreen = false;
-        }
-    });
-    
-    // Progress bar click
     progressBar.addEventListener('click', (e) => {
         const rect = progressBar.getBoundingClientRect();
         const percent = (e.clientX - rect.left) / rect.width;
         video.currentTime = percent * video.duration;
     });
     
-    // Update progress
     video.addEventListener('timeupdate', updateProgress);
-    video.addEventListener('loadedmetadata', updateProgress);
-    
-    // Update button on video end
-    video.addEventListener('ended', () => {
-        playPauseBtn.textContent = '▶️';
-    });
-    
-    // Update button on play/pause events
-    video.addEventListener('play', () => {
-        playPauseBtn.textContent = '⏸️';
-    });
-    video.addEventListener('pause', () => {
-        playPauseBtn.textContent = '▶️';
-    });
-    
-    console.log('✅ Video controls initialized');
+    video.addEventListener('ended', () => { playPauseBtn.textContent = '▶️'; });
+    video.addEventListener('play', () => { playPauseBtn.textContent = '⏸️'; });
+    video.addEventListener('pause', () => { playPauseBtn.textContent = '▶️'; });
 }
 
 function setupEventListeners() {
@@ -532,7 +529,6 @@ function setupEventListeners() {
     const joinBtn = document.getElementById('join-btn');
     
     codeInput.addEventListener('input', (e) => {
-        // Enable button if there's text
         joinBtn.disabled = e.target.value.trim().length < 1;
         document.getElementById('code-error').textContent = '';
     });
@@ -551,46 +547,62 @@ function setupEventListeners() {
         showScreen('code');
     });
     
-    document.getElementById('start-record-btn').addEventListener('click', async () => {
-        showScreen('record');
-        await startCamera();
+    document.getElementById('start-record-btn').addEventListener('click', () => {
+        showScreen('record3clips');
     });
     
-    document.getElementById('back-to-watch').addEventListener('click', () => {
-        stopCamera();
+    document.getElementById('back-to-watch-from-3clips').addEventListener('click', () => {
         showScreen('watch');
     });
     
-    const recordBtn = document.getElementById('record-btn');
-    recordBtn.addEventListener('click', () => {
+    for (let i = 1; i <= 3; i++) {
+        document.getElementById(`clip${i}-btn`).addEventListener('click', async () => {
+            currentRecordingClip = i;
+            maxRecordTime = clipTimes[i];
+            document.getElementById('max-time-display').textContent = maxRecordTime;
+            document.getElementById('single-record-title').textContent = `הקלטת שיקוף ${i}`;
+            document.getElementById('rec-timer').textContent = '00:00';
+            document.getElementById('rec-timer').style.color = 'white';
+            
+            showScreen('recordSingle');
+            await startCamera();
+        });
+    }
+    
+    document.getElementById('back-to-3clips').addEventListener('click', () => {
+        stopCamera();
+        if (autoStopTimeout) {
+            clearTimeout(autoStopTimeout);
+            autoStopTimeout = null;
+        }
+        showScreen('record3clips');
+    });
+    
+    const singleRecordBtn = document.getElementById('single-record-btn');
+    singleRecordBtn.addEventListener('click', () => {
         if (mediaRecorder && mediaRecorder.state === 'recording') {
-            stopRecording();
+            stopRecordingClip();
         } else {
-            startRecording();
+            startRecordingClip(currentRecordingClip);
         }
     });
     
-    document.getElementById('back-to-record').addEventListener('click', () => {
-        showScreen('record');
-    });
-    
-    document.getElementById('retake-btn').addEventListener('click', async () => {
-        showScreen('record');
+    document.getElementById('back-to-single-record').addEventListener('click', async () => {
+        showScreen('recordSingle');
         await startCamera();
     });
     
-    document.getElementById('submit-btn').addEventListener('click', async () => {
-        const consent = document.getElementById('privacy-consent');
-        if (!consent.checked) {
-            alert('יש לאשר את שיתוף הסרטון');
-            return;
-        }
-        await submitRecording();
+    document.getElementById('retake-single-btn').addEventListener('click', async () => {
+        showScreen('recordSingle');
+        await startCamera();
     });
     
-    document.getElementById('record-another-btn').addEventListener('click', async () => {
-        showScreen('record');
-        await startCamera();
+    document.getElementById('save-single-btn').addEventListener('click', () => {
+        saveCurrentClip();
+    });
+    
+    document.getElementById('submit-all-btn').addEventListener('click', async () => {
+        await submitAllClips();
     });
 }
 
@@ -598,11 +610,10 @@ async function init() {
     console.log('🌐 User Agent:', navigator.userAgent);
     console.log('📱 Is in-app browser:', isInAppBrowser());
     
-    // Check if we're in a WebView (WhatsApp, Facebook, etc.)
     if (isInAppBrowser()) {
         console.log('⚠️ Detected in-app browser, showing redirect screen');
         showWebViewRedirect();
-        return; // Don't continue - user needs to open in real browser
+        return;
     }
     
     await initFirebase();
@@ -623,4 +634,4 @@ async function init() {
     }
 }
 
-init();
+document.addEventListener('DOMContentLoaded', init);
