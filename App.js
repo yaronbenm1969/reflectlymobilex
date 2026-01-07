@@ -49,34 +49,65 @@ export default function App() {
     
     // Parse the URL to extract storyId
     // Expected formats: 
+    // - reflectly://story/STORY_ID
+    // - reflectly://s/STORY_ID
     // - reflectly://play/STORY_ID
-    // - https://reflectly.app/play/STORY_ID
-    // - exp://...--play/STORY_ID
+    // - https://reflectly.app/s/STORY_ID
+    // - https://reflectly.app/story/STORY_ID
+    // - exp://...--s/STORY_ID
     try {
       // Extract storyId from various URL formats
       let storyId = null;
       
-      // Check for /play/STORY_ID pattern
-      const playMatch = url.match(/\/play\/([^/?]+)/);
-      if (playMatch) {
-        storyId = playMatch[1];
+      // Check for /s/STORY_ID pattern (primary format from WhatsApp)
+      const sMatch = url.match(/\/s\/([^/?#]+)/);
+      if (sMatch) {
+        storyId = decodeURIComponent(sMatch[1]);
       }
       
-      // Check for --play/STORY_ID pattern (Expo URL)
-      const expoMatch = url.match(/--play\/([^/?]+)/);
+      // Check for /story/STORY_ID pattern
+      const storyMatch = url.match(/\/story\/([^/?#]+)/);
+      if (!storyId && storyMatch) {
+        storyId = decodeURIComponent(storyMatch[1]);
+      }
+      
+      // Check for /play/STORY_ID pattern (legacy)
+      const playMatch = url.match(/\/play\/([^/?#]+)/);
+      if (!storyId && playMatch) {
+        storyId = decodeURIComponent(playMatch[1]);
+      }
+      
+      // Check for --s/STORY_ID pattern (Expo URL)
+      const expoSMatch = url.match(/--s\/([^/?#]+)/);
+      if (!storyId && expoSMatch) {
+        storyId = decodeURIComponent(expoSMatch[1]);
+      }
+      
+      // Check for --play/STORY_ID pattern (Expo URL legacy)
+      const expoMatch = url.match(/--play\/([^/?#]+)/);
       if (!storyId && expoMatch) {
-        storyId = expoMatch[1];
+        storyId = decodeURIComponent(expoMatch[1]);
       }
       
       // Check for storyId query param
-      const queryMatch = url.match(/[?&]storyId=([^&]+)/);
+      const queryMatch = url.match(/[?&]storyId=([^&#]+)/);
       if (!storyId && queryMatch) {
-        storyId = queryMatch[1];
+        storyId = decodeURIComponent(queryMatch[1]);
+      }
+      
+      // Check for reflectly://STORY_ID (direct scheme)
+      if (!storyId && url.startsWith('reflectly://')) {
+        const schemeMatch = url.match(/reflectly:\/\/([^/?#]+)/);
+        if (schemeMatch && !['s', 'story', 'play', 'home'].includes(schemeMatch[1])) {
+          storyId = decodeURIComponent(schemeMatch[1]);
+        }
       }
       
       if (storyId) {
         console.log('🎬 Entering player mode for story:', storyId);
         enterPlayerMode(storyId);
+      } else {
+        console.log('⚠️ No storyId found in URL');
       }
     } catch (error) {
       console.error('Error parsing deep link:', error);
