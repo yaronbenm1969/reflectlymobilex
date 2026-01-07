@@ -32,8 +32,8 @@ export const WhatsAppShareScreen = () => {
     if (!currentStoryId) return '';
     const domain = Constants.expoConfig?.extra?.webPlayerDomain || 
                    'ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev';
-    // Use path /s/storyId - works reliably with WhatsApp (hash/query get stripped)
-    return `https://${domain}/s/${currentStoryId}`;
+    // Use path /s/storyId AND query ?storyId= for redundancy (WhatsApp sometimes strips path)
+    return `https://${domain}/s/${currentStoryId}?storyId=${currentStoryId}`;
   }, [currentStoryId]);
   
   const messageTemplate = useMemo(() => {

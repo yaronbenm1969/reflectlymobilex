@@ -628,11 +628,7 @@ async function init() {
     console.log('📍 Search:', window.location.search);
     console.log('📍 Hash:', window.location.hash);
     
-    if (isInAppBrowser()) {
-        console.log('⚠️ Detected in-app browser, showing redirect screen');
-        showWebViewRedirect();
-        return;
-    }
+    const inAppBrowser = isInAppBrowser();
     
     const fbInit = await initFirebase();
     console.log('🔥 Firebase init result:', fbInit);
@@ -648,14 +644,47 @@ async function init() {
         console.log('🔎 Searching for story with value:', urlParams.value);
         const success = await loadStory(urlParams.value);
         console.log('📖 loadStory result:', success);
-        if (!success) {
+        if (success) {
+            if (inAppBrowser) {
+                console.log('📱 In-app browser detected, adding banner for recording');
+                addInAppBrowserBanner();
+            }
+        } else {
+            if (inAppBrowser) {
+                showWebViewRedirect();
+                return;
+            }
             document.getElementById('invite-code-input').value = urlParams.value;
             showScreen('code');
         }
     } else {
-        console.log('⚠️ No URL params found, showing code screen');
+        console.log('⚠️ No URL params found');
+        if (inAppBrowser) {
+            console.log('⚠️ In-app browser with no story params, showing redirect');
+            showWebViewRedirect();
+            return;
+        }
         showScreen('code');
     }
+}
+
+function addInAppBrowserBanner() {
+    const watchScreen = document.getElementById('watch-screen');
+    if (!watchScreen) return;
+    
+    const existingBanner = document.getElementById('inapp-browser-banner');
+    if (existingBanner) return;
+    
+    const banner = document.createElement('div');
+    banner.id = 'inapp-browser-banner';
+    banner.style.cssText = 'background: linear-gradient(135deg, #FF6B9D, #C06FBB); color: white; padding: 12px 16px; text-align: center; font-size: 14px; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.2);';
+    banner.innerHTML = `
+        <div style="margin-bottom: 8px;">📱 להקלטת הפידבק, פתח בדפדפן:</div>
+        <button onclick="window.open(window.location.href, '_system')" style="background: white; color: #C06FBB; border: none; padding: 8px 20px; border-radius: 20px; font-weight: bold; cursor: pointer;">
+            🔗 פתח ב-Safari/Chrome
+        </button>
+    `;
+    watchScreen.insertBefore(banner, watchScreen.firstChild);
 }
 
 document.addEventListener('DOMContentLoaded', init);
