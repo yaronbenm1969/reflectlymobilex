@@ -5,8 +5,23 @@ import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
-import { VideoCarouselDemo, ANIMATION_TYPES } from '../components/VideoCarousel';
+import { SimpleFormatPreview } from '../components/SimpleFormatPreview';
 import theme from '../theme/theme';
+
+const ANIMATION_TYPES = {
+  'cube-3d': { name: 'קוביה תלת מימד', description: 'סיבוב דינמי על קוביה' },
+  'carousel-3d': { name: 'קרוסלה תלת מימד', description: 'מעבר חלק בין קטעים' },
+  'flip-pages': { name: 'דפים מתהפכים', description: 'כמו אלבום תמונות' },
+  'standard': { name: 'רגיל', description: 'וידאו ליניארי קלאסי' },
+  'stack-cards': { name: 'כרטיסים נערמים', description: 'ערימת כרטיסים' },
+  'tinder': { name: 'החלקת טינדר', description: 'החלק ימינה או שמאלה' },
+  'fold': { name: 'קיפול נייר', description: 'קיפול כמו נייר' },
+  'circular': { name: 'מעגלי', description: 'סיבוב במעגל' },
+  'flow': { name: 'זרימה', description: 'זרימה חלקה' },
+  'parallax': { name: 'עומק פרלקס', description: 'אפקט עומק תלת מימדי' },
+  'blur-rotate': { name: 'טשטוש וסיבוב', description: 'סיבוב עם טשטוש' },
+  'scale-fade': { name: 'הגדלה ועמעום', description: 'הגדלה והעלמות חלקה' },
+};
 
 export const FormatSelectionScreen = ({ route }) => {
   const { go, back } = useNav();
@@ -98,7 +113,7 @@ export const FormatSelectionScreen = ({ route }) => {
         
         <View style={styles.formatRight}>
           <View style={styles.demoWrapper}>
-            <VideoCarouselDemo type={option.id} size={50} autoPlay={true} />
+            <SimpleFormatPreview type={option.id} size={50} />
           </View>
           <TouchableOpacity 
             style={styles.previewButton}
@@ -226,10 +241,9 @@ export const FormatSelectionScreen = ({ route }) => {
             
             <View style={styles.previewContainer}>
               {previewFormat && (
-                <VideoCarouselDemo 
+                <SimpleFormatPreview 
                   type={previewFormat} 
-                  size={250} 
-                  autoPlay={true} 
+                  size={200} 
                 />
               )}
             </View>
