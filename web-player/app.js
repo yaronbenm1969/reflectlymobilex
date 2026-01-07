@@ -280,17 +280,19 @@ async function loadStory(code) {
         videoEl.onerror = (e) => {
             console.error('❌ Video load error:', e);
             placeholder.innerHTML = `
-                <div class="placeholder-icon">📹</div>
-                <p>הסרטון בפורמט שלא נתמך</p>
-                <a href="${finalVideoUrl}" target="_blank" class="download-link" style="
+                <div class="placeholder-icon">🎬</div>
+                <p>לחץ להפעלת הסרטון</p>
+                <button onclick="window.open('${finalVideoUrl}', '_blank')" style="
                     display: inline-block;
                     margin-top: 15px;
                     padding: 12px 24px;
                     background: linear-gradient(135deg, #FF6B9D, #C06FBB);
                     color: white;
-                    text-decoration: none;
+                    border: none;
                     border-radius: 25px;
-                ">📥 הורד והפעל</a>
+                    font-size: 16px;
+                    cursor: pointer;
+                ">▶️ הפעל סרטון</button>
             `;
         };
         
