@@ -440,6 +440,113 @@ async function concatenateVideos(inputPaths, outputPath) {
   });
 }
 
+const TRANSITION_DURATION = 0.5;
+
+function getTransitionFilter(format) {
+  switch (format) {
+    case 'fade':
+    case 'scale-fade':
+      return 'fade';
+    case 'slide':
+    case 'flow':
+      return 'slideleft';
+    case 'zoom':
+    case 'parallax':
+      return 'zoomin';
+    case 'blur-rotate':
+      return 'circleopen';
+    case 'flip-pages':
+    case 'paper-fold':
+      return 'fadeblack';
+    case 'cube-3d':
+    case 'carousel-3d':
+      return 'diagtr';
+    case 'stack-cards':
+    case 'tinder-swipe':
+      return 'slideright';
+    case 'circular':
+      return 'radial';
+    case 'standard':
+    default:
+      return null;
+  }
+}
+
+async function concatenateWithTransitions(inputPaths, outputPath, format) {
+  const transition = getTransitionFilter(format);
+  
+  if (!transition || inputPaths.length < 2) {
+    console.log(`Using simple concatenation (format: ${format})`);
+    return concatenateVideos(inputPaths, outputPath);
+  }
+  
+  console.log(`Concatenating with ${transition} transitions (format: ${format})`);
+  
+  return new Promise((resolve, reject) => {
+    let command = ffmpeg();
+    
+    inputPaths.forEach(p => {
+      command = command.input(p);
+    });
+    
+    let filterComplex = '';
+    const n = inputPaths.length;
+    
+    for (let i = 0; i < n; i++) {
+      filterComplex += `[${i}:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v${i}];`;
+      filterComplex += `[${i}:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[a${i}];`;
+    }
+    
+    if (n === 2) {
+      filterComplex += `[v0][v1]xfade=transition=${transition}:duration=${TRANSITION_DURATION}:offset=2[vout];`;
+      filterComplex += `[a0][a1]acrossfade=d=${TRANSITION_DURATION}[aout]`;
+    } else {
+      let lastV = 'v0';
+      let lastA = 'a0';
+      let offset = 2;
+      
+      for (let i = 1; i < n; i++) {
+        const outV = i === n - 1 ? 'vout' : `vt${i}`;
+        const outA = i === n - 1 ? 'aout' : `at${i}`;
+        
+        filterComplex += `[${lastV}][v${i}]xfade=transition=${transition}:duration=${TRANSITION_DURATION}:offset=${offset}[${outV}];`;
+        filterComplex += `[${lastA}][a${i}]acrossfade=d=${TRANSITION_DURATION}[${outA}];`;
+        
+        lastV = outV;
+        lastA = outA;
+        offset += 2;
+      }
+    }
+    
+    command
+      .complexFilter(filterComplex)
+      .outputOptions([
+        '-map', '[vout]',
+        '-map', '[aout]',
+        '-c:v', 'libx264',
+        '-c:a', 'aac',
+        '-preset', 'fast',
+        '-crf', '23',
+        '-movflags', '+faststart',
+        '-pix_fmt', 'yuv420p'
+      ])
+      .output(outputPath)
+      .on('start', (cmd) => console.log('FFmpeg transitions:', cmd))
+      .on('progress', (p) => {
+        if (p.percent) console.log(`Transition progress: ${Math.round(p.percent)}%`);
+      })
+      .on('end', () => {
+        console.log('Transitions completed');
+        resolve(outputPath);
+      })
+      .on('error', (err) => {
+        console.error('Transition error, falling back to simple concat:', err.message);
+        concatenateVideos(inputPaths, outputPath).then(resolve).catch(reject);
+      })
+      .run();
+  });
+}
+
 function shuffleVideosAvoidConsecutive(videos) {
   if (videos.length <= 1) return videos;
   
@@ -515,8 +622,8 @@ app.post('/api/stories/:storyId/render', async (req, res) => {
       renderingJobs.get(jobId).progress = 10;
       
       const localPaths = [];
-      for (let i = 0; i < videoUrls.length; i++) {
-        const url = videoUrls[i];
+      for (let i = 0; i < processVideos.length; i++) {
+        const url = processVideos[i];
         const ext = url.toLowerCase().includes('.webm') ? 'webm' : 'mp4';
         const localPath = path.join(downloadDir, `clip_${i}.${ext}`);
         await downloadVideo(url, localPath);
@@ -530,13 +637,13 @@ app.post('/api/stories/:storyId/render', async (req, res) => {
           localPaths.push(localPath);
         }
         
-        renderingJobs.get(jobId).progress = 10 + Math.round((i + 1) / videoUrls.length * 40);
+        renderingJobs.get(jobId).progress = 10 + Math.round((i + 1) / processVideos.length * 40);
       }
       
       renderingJobs.get(jobId).progress = 50;
       
       const outputPath = path.join(convertedDir, `final_${jobId}.mp4`);
-      await concatenateVideos(localPaths, outputPath);
+      await concatenateWithTransitions(localPaths, outputPath, format);
       
       renderingJobs.get(jobId).progress = 80;
       
