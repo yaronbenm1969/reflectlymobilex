@@ -63,19 +63,28 @@ export const ProcessingScreen = () => {
       setStatus('אוסף את הסרטונים...');
       setProgress(5);
       
-      const videoUrls = [];
+      const videos = [];
       
       if (keyStoryUri) {
-        videoUrls.push(keyStoryUri);
+        videos.push({
+          url: keyStoryUri,
+          participantId: 'creator',
+          type: 'key_story'
+        });
       }
       
       reflections.forEach(reflection => {
         if (reflection.videoUrl) {
-          videoUrls.push(reflection.videoUrl);
+          videos.push({
+            url: reflection.videoUrl,
+            participantId: reflection.recipientId || reflection.playerName || 'unknown',
+            clipNumber: reflection.clipNumber,
+            type: 'reflection'
+          });
         }
       });
       
-      if (videoUrls.length === 0) {
+      if (videos.length === 0) {
         setError('אין סרטונים לעריכה');
         return;
       }
@@ -83,13 +92,13 @@ export const ProcessingScreen = () => {
       setStatus('שולח לשרת העריכה...');
       setProgress(10);
       
-      console.log('Starting render with', videoUrls.length, 'videos');
+      console.log('Starting render with', videos.length, 'videos');
       
       const response = await fetch(getApiUrl(`/api/stories/${currentStoryId}/render`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          videoUrls,
+          videos,
           format: videoFormat || 'standard',
           musicUrl: selectedMusic ? `music/${selectedMusic}.mp3` : null
         })
@@ -242,7 +251,7 @@ export const ProcessingScreen = () => {
               <View style={styles.infoRow}>
                 <Ionicons name="videocam" size={20} color="white" />
                 <Text style={styles.infoText}>
-                  {reflections.length + (keyStoryUri ? 1 : 0)} סרטונים
+                  {reflections.length} שיקופים + סרטון מפתח
                 </Text>
               </View>
               <View style={styles.infoRow}>

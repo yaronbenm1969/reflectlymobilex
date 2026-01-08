@@ -125,14 +125,12 @@ ${webPlayerUrl}
           </TouchableOpacity>
         </Card>
 
-        {sharedCount > 0 && (
-          <Card style={styles.statusCard}>
-            <Ionicons name="checkmark-circle" size={32} color={theme.colors.success} />
-            <Text style={styles.statusText}>
-              שיתפת {sharedCount} פעמים
-            </Text>
-          </Card>
-        )}
+        <Card style={styles.tipCard}>
+          <Ionicons name="bulb" size={24} color={theme.colors.primary} />
+          <Text style={styles.tipText}>
+            לחץ על כפתור השיתוף כמה פעמים שתרצה כדי לשלוח להרבה חברים!
+          </Text>
+        </Card>
 
         <View style={styles.actions}>
           <AppButton
@@ -249,18 +247,19 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontSize: 16,
   },
-  statusCard: {
+  tipCard: {
     padding: theme.spacing[4],
     marginBottom: theme.spacing[4],
-    alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    backgroundColor: '#FFF3E0',
   },
-  statusText: {
+  tipText: {
     ...theme.typography.body,
-    color: theme.colors.success,
-    fontWeight: 'bold',
+    color: theme.colors.text,
+    flex: 1,
+    textAlign: 'right',
   },
   actions: {
     paddingVertical: theme.spacing[4],

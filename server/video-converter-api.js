@@ -440,15 +440,47 @@ async function concatenateVideos(inputPaths, outputPath) {
   });
 }
 
-app.post('/api/stories/:storyId/render', async (req, res) => {
-  const { storyId } = req.params;
-  const { videoUrls, format = 'standard', musicUrl } = req.body;
+function shuffleVideosAvoidConsecutive(videos) {
+  if (videos.length <= 1) return videos;
   
-  if (!videoUrls || !Array.isArray(videoUrls) || videoUrls.length === 0) {
-    return res.status(400).json({ error: 'videoUrls array is required' });
+  const shuffled = [...videos];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   
-  const invalidUrls = videoUrls.filter(url => !isAllowedVideoUrl(url));
+  for (let i = 1; i < shuffled.length; i++) {
+    if (shuffled[i].participantId && shuffled[i].participantId === shuffled[i-1].participantId) {
+      for (let j = i + 1; j < shuffled.length; j++) {
+        if (shuffled[j].participantId !== shuffled[i-1].participantId) {
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          break;
+        }
+      }
+    }
+  }
+  
+  return shuffled;
+}
+
+app.post('/api/stories/:storyId/render', async (req, res) => {
+  const { storyId } = req.params;
+  const { videoUrls, videos, format = 'standard', musicUrl } = req.body;
+  
+  let processVideos = [];
+  if (videos && Array.isArray(videos) && videos.length > 0) {
+    const shuffled = shuffleVideosAvoidConsecutive(videos);
+    processVideos = shuffled.map(v => v.url);
+    console.log(`Shuffled ${videos.length} videos to avoid consecutive same-player clips`);
+  } else if (videoUrls && Array.isArray(videoUrls) && videoUrls.length > 0) {
+    processVideos = videoUrls;
+  }
+  
+  if (processVideos.length === 0) {
+    return res.status(400).json({ error: 'videoUrls or videos array is required' });
+  }
+  
+  const invalidUrls = processVideos.filter(url => !isAllowedVideoUrl(url));
   if (invalidUrls.length > 0) {
     console.warn('Blocked invalid video URLs:', invalidUrls);
     return res.status(400).json({ 
@@ -456,6 +488,8 @@ app.post('/api/stories/:storyId/render', async (req, res) => {
       message: 'Only Firebase Storage URLs are allowed'
     });
   }
+  
+  console.log(`Rendering ${processVideos.length} videos with format: ${format}, music: ${musicUrl ? 'yes' : 'no'}`);
   
   const jobId = `${storyId}_${Date.now()}`;
   
