@@ -44,6 +44,11 @@ export const useAppState = create((set, get) => ({
   participants: [],
   receivedVideos: [],
   
+  // Reflections from players (loaded from Firebase)
+  reflections: [],
+  reflectionsLoading: false,
+  reflectionsError: null,
+  
   // Processing state
   processingStatus: 'idle',
   processingProgress: 0,
