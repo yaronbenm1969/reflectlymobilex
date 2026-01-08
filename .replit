@@ -84,4 +84,4 @@ WEB_PLAYER_URL = "https://your-reflectly-web.replit.app"
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["node", "web-player/server.js"]
+run = ["sh", "-c", "node server/video-converter-api.js & node web-player/server.js"]

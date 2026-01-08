@@ -3,7 +3,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 const CONVERTER_PORT = 3001;
 
 const BUILD_VERSION = Date.now().toString();
@@ -28,6 +28,13 @@ const server = http.createServer((req, res) => {
     if (req.method === 'OPTIONS') {
         res.writeHead(200);
         res.end();
+        return;
+    }
+
+    // Health check endpoint - FAST response for Replit deployment
+    if (req.url === '/health' || req.url === '/_health') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('ok');
         return;
     }
 
