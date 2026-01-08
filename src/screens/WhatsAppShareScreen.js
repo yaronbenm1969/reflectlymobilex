@@ -31,7 +31,7 @@ export const WhatsAppShareScreen = () => {
   const webPlayerUrl = useMemo(() => {
     if (!currentStoryId) return '';
     const domain = Constants.expoConfig?.extra?.webPlayerDomain || 
-                   'ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev';
+                   'reflectly-mobile-x--yaronbenm1.replit.app';
     // Use path /s/storyId AND query ?storyId= for redundancy (WhatsApp sometimes strips path)
     return `https://${domain}/s/${currentStoryId}?storyId=${currentStoryId}`;
   }, [currentStoryId]);

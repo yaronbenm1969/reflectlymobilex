@@ -3,7 +3,7 @@ import { storage } from './firebase';
 import Constants from 'expo-constants';
 
 const VIDEO_CONVERTER_URL = Constants.expoConfig?.extra?.videoConverterUrl || 
-  'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev';
+  'https://reflectly-mobile-x--yaronbenm1.replit.app';
 
 function needsConversion(uri) {
   const lowerUri = uri.toLowerCase();
