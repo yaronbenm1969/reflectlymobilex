@@ -1,0 +1,41 @@
+You are my Replit Agent. Goal: fix “stale version / cache” issues WITHOUT using Publish or changing the domain.
+
+Context:
+- App is served on *.replit.dev
+- Users sometimes see an old build due to CDN/browser/service-worker cache.
+- We want a solution that works in Preview / dev URL and does not require Publish.
+
+Task (do step-by-step, verify each step):
+1) Detect stack:
+   - Is this a React/Vite/Next/Express app? Identify the entry server (e.g., server.js, index.js, next.config, vite.config).
+   - Check if a Service Worker / PWA is enabled:
+     - search for: serviceWorker, registerServiceWorker, workbox, sw.js, service-worker.js, vite-plugin-pwa, next-pwa, manifest.json
+2) If a Service Worker exists:
+   - Disable it for now (development and preview):
+     - Remove/disable registration in the client.
+     - Ensure no sw.js is generated/served.
+     - Add code to unregister any existing SW on load (dev only), and clear caches:
+       - navigator.serviceWorker.getRegistrations().then(r=>r.forEach(x=>x.unregister()))
+       - caches.keys().then(keys=>keys.forEach(k=>caches.delete(k)))
+3) Add no-cache headers on the server (Preview URL):
+   - For HTML: Cache-Control: no-store, max-age=0, must-revalidate
+   - Also set Pragma: no-cache and Expires: 0
+   - For JS/CSS assets: keep normal caching if hashed; otherwise set Cache-Control: no-cache
+   - If using Express, implement middleware BEFORE static serving:
+     - For requests with Accept: text/html => no-store headers
+4) If using Vite/React static build:
+   - Ensure filenames are hashed (default) and the HTML is not cached.
+   - Add a build “version stamp” to index.html (e.g., ?v=<timestamp>) on script tags if needed.
+5) Add a visible build version in the UI:
+   - Add an env-based build id (e.g., BUILD_ID=Date.now() in build step OR git commit).
+   - Display it in a small footer so I can confirm the user gets the fresh build.
+6) Provide clear instructions to validate:
+   - hard refresh (Ctrl+F5)
+   - open in Incognito
+   - test from a different device
+7) Do NOT click Publish. Do NOT change billing settings. Make only code/config changes.
+
+Output:
+- List what you found (SW yes/no, server type).
+- Show exact files changed + code snippets.
+- Explain how to revert if needed.

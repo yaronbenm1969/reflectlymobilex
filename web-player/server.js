@@ -6,6 +6,9 @@ const path = require('path');
 const PORT = 5000;
 const CONVERTER_PORT = 3001;
 
+const BUILD_VERSION = Date.now().toString();
+console.log(`Build Version: ${BUILD_VERSION}`);
+
 const MIME_TYPES = {
     '.html': 'text/html',
     '.css': 'text/css',
@@ -21,15 +24,24 @@ const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     
     if (req.method === 'OPTIONS') {
         res.writeHead(200);
         res.end();
         return;
     }
+
+    if (req.url === '/api/version') {
+        res.writeHead(200, { 
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        });
+        res.end(JSON.stringify({ version: BUILD_VERSION, timestamp: new Date().toISOString() }));
+        return;
+    }
     
-    // Video proxy endpoint to avoid CORS issues
     if (req.url.startsWith('/proxy-video')) {
         const urlParam = new URL('http://localhost' + req.url).searchParams.get('url');
         if (!urlParam) {
@@ -96,7 +108,6 @@ const server = http.createServer((req, res) => {
     
     let filePath = req.url.split('?')[0];
     
-    // Serve index.html for root, /s/*, or any path without extension
     if (filePath === '/' || filePath.startsWith('/s/') || !filePath.includes('.')) {
         filePath = '/index.html';
     }
@@ -104,6 +115,20 @@ const server = http.createServer((req, res) => {
     const fullPath = path.join(__dirname, filePath);
     const ext = path.extname(fullPath);
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    
+    const isHTML = ext === '.html' || filePath === '/index.html';
+    
+    const cacheHeaders = isHTML ? {
+        'Content-Type': contentType,
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'X-Build-Version': BUILD_VERSION
+    } : {
+        'Content-Type': contentType,
+        'Cache-Control': 'no-cache, max-age=0',
+        'X-Build-Version': BUILD_VERSION
+    };
     
     fs.readFile(fullPath, (err, content) => {
         if (err) {
@@ -113,8 +138,18 @@ const server = http.createServer((req, res) => {
                         res.writeHead(500);
                         res.end('Server Error');
                     } else {
-                        res.writeHead(200, { 'Content-Type': 'text/html' });
-                        res.end(content2);
+                        let htmlContent = content2.toString();
+                        htmlContent = htmlContent.replace('</body>', `
+    <script>
+    window.BUILD_VERSION = "${BUILD_VERSION}";
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(r => r.forEach(x => x.unregister()));
+        caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+    }
+    </script>
+</body>`);
+                        res.writeHead(200, cacheHeaders);
+                        res.end(htmlContent);
                     }
                 });
             } else {
@@ -122,14 +157,30 @@ const server = http.createServer((req, res) => {
                 res.end('Server Error');
             }
         } else {
-            res.writeHead(200, { 'Content-Type': contentType });
-            res.end(content);
+            if (isHTML) {
+                let htmlContent = content.toString();
+                htmlContent = htmlContent.replace('</body>', `
+    <script>
+    window.BUILD_VERSION = "${BUILD_VERSION}";
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(r => r.forEach(x => x.unregister()));
+        caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+    }
+    </script>
+</body>`);
+                res.writeHead(200, cacheHeaders);
+                res.end(htmlContent);
+            } else {
+                res.writeHead(200, cacheHeaders);
+                res.end(content);
+            }
         }
     });
 });
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Web Player running at http://0.0.0.0:${PORT}`);
+    console.log(`Build Version: ${BUILD_VERSION}`);
     console.log(`Proxying /api/* to converter at port ${CONVERTER_PORT}`);
     console.log('Ready for WhatsApp links!');
 });
