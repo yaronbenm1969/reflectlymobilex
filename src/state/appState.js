@@ -124,6 +124,11 @@ export const useAppState = create((set, get) => ({
     receivedVideos: [...get().receivedVideos, video] 
   }),
   
+  // Reflections actions
+  setReflections: (reflections) => set({ reflections }),
+  setReflectionsLoading: (loading) => set({ reflectionsLoading: loading }),
+  setReflectionsError: (error) => set({ reflectionsError: error }),
+  
   // Processing actions
   setProcessingStatus: (status) => set({ processingStatus: status }),
   setProcessingProgress: (progress) => set({ processingProgress: progress }),
