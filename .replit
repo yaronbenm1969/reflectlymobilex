@@ -85,4 +85,3 @@ WEB_PLAYER_URL = "https://your-reflectly-web.replit.app"
 [deployment]
 deploymentTarget = "autoscale"
 run = ["node", "web-player/server.js"]
-publicDir = "web-player"
