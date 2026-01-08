@@ -14,6 +14,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import theme from '../theme/theme';
+import { Platform } from 'react-native';
+
+const isWeb = Platform.OS === 'web';
 
 // Haptics fallback
 let Haptics;
@@ -88,6 +91,20 @@ export const RecordScreen = () => {
   };
 
   const startActualRecording = async () => {
+    // Web simulation mode - skip actual recording
+    if (isWeb) {
+      console.log('🌐 Web mode - simulating recording...');
+      setIsRecording(true);
+      setRecordingTimer(0);
+      
+      let timerValue = 0;
+      recordingTimerRef.current = setInterval(() => {
+        timerValue += 1;
+        setRecordingTimer(timerValue);
+      }, 1000);
+      return;
+    }
+    
     if (!cameraRef.current || isRecording) return;
 
     try {
@@ -127,16 +144,29 @@ export const RecordScreen = () => {
   };
 
   const stopRecording = async () => {
-    if (!isRecording || !cameraRef.current) return;
+    if (!isRecording) return;
+    
+    // Clear timer
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
+    // Web simulation mode - navigate with demo video
+    if (isWeb) {
+      console.log('🌐 Web mode - stopping simulated recording...');
+      setIsRecording(false);
+      const demoUri = 'web-demo-video';
+      setRecordedVideo(demoUri);
+      setLastRecording(demoUri);
+      go('Review', { videoUri: demoUri });
+      return;
+    }
+    
+    if (!cameraRef.current) return;
 
     try {
       console.log('⏹️ Stopping recording...');
-      
-      // Clear timer
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
       
       await cameraRef.current.stopRecording();
       setIsRecording(false);
