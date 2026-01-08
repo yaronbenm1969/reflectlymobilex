@@ -4,6 +4,13 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstati
 import { firebaseConfig } from './config.js';
 
 function isInAppBrowser() {
+    // Skip in-app detection for Replit preview/development
+    if (window.location.hostname.includes('replit.dev') || 
+        window.location.hostname.includes('replit.app') ||
+        new URLSearchParams(window.location.search).has('allowWebview')) {
+        return false;
+    }
+    
     const ua = navigator.userAgent || navigator.vendor || window.opera;
     if (/WhatsApp/i.test(ua)) return true;
     if (/FBAN|FBAV|FB_IAB/i.test(ua)) return true;
