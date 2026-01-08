@@ -83,6 +83,6 @@ packages = ["ffmpeg"]
 WEB_PLAYER_URL = "https://your-reflectly-web.replit.app"
 
 [deployment]
-deploymentTarget = "static"
+deploymentTarget = "autoscale"
 run = ["node", "web-player/server.js"]
 publicDir = "web-player"
