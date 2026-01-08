@@ -372,6 +372,186 @@ app.post('/api/generate-title', async (req, res) => {
   }
 });
 
+const renderingJobs = new Map();
+
+const ALLOWED_VIDEO_DOMAINS = [
+  'firebasestorage.googleapis.com',
+  'storage.googleapis.com',
+  'reflectly-mobile-x--yaronbenm1.replit.app'
+];
+
+function isAllowedVideoUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+    return ALLOWED_VIDEO_DOMAINS.some(domain => 
+      hostname === domain || hostname.endsWith('.' + domain)
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function downloadVideo(url, outputPath) {
+  console.log(`Downloading: ${url}`);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to download: ${url}`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  fs.writeFileSync(outputPath, buffer);
+  console.log(`Downloaded: ${outputPath} (${buffer.length} bytes)`);
+  return outputPath;
+}
+
+async function concatenateVideos(inputPaths, outputPath) {
+  return new Promise((resolve, reject) => {
+    console.log(`Concatenating ${inputPaths.length} videos...`);
+    
+    const listPath = path.join(tempDir, `concat_list_${Date.now()}.txt`);
+    const listContent = inputPaths.map(p => `file '${p}'`).join('\n');
+    fs.writeFileSync(listPath, listContent);
+    
+    ffmpeg()
+      .input(listPath)
+      .inputOptions(['-f', 'concat', '-safe', '0'])
+      .outputOptions([
+        '-c:v', 'libx264',
+        '-c:a', 'aac',
+        '-preset', 'fast',
+        '-crf', '23',
+        '-movflags', '+faststart',
+        '-pix_fmt', 'yuv420p'
+      ])
+      .output(outputPath)
+      .on('start', (cmd) => console.log('FFmpeg concat:', cmd))
+      .on('progress', (p) => {
+        if (p.percent) console.log(`Concat progress: ${Math.round(p.percent)}%`);
+      })
+      .on('end', () => {
+        fs.unlinkSync(listPath);
+        console.log('Concatenation completed');
+        resolve(outputPath);
+      })
+      .on('error', (err) => {
+        if (fs.existsSync(listPath)) fs.unlinkSync(listPath);
+        console.error('Concat error:', err);
+        reject(err);
+      })
+      .run();
+  });
+}
+
+app.post('/api/stories/:storyId/render', async (req, res) => {
+  const { storyId } = req.params;
+  const { videoUrls, format = 'standard', musicUrl } = req.body;
+  
+  if (!videoUrls || !Array.isArray(videoUrls) || videoUrls.length === 0) {
+    return res.status(400).json({ error: 'videoUrls array is required' });
+  }
+  
+  const invalidUrls = videoUrls.filter(url => !isAllowedVideoUrl(url));
+  if (invalidUrls.length > 0) {
+    console.warn('Blocked invalid video URLs:', invalidUrls);
+    return res.status(400).json({ 
+      error: 'Invalid video URLs detected', 
+      message: 'Only Firebase Storage URLs are allowed'
+    });
+  }
+  
+  const jobId = `${storyId}_${Date.now()}`;
+  
+  renderingJobs.set(jobId, {
+    status: 'processing',
+    progress: 0,
+    storyId,
+    startedAt: new Date().toISOString()
+  });
+  
+  res.json({ 
+    success: true, 
+    jobId, 
+    message: 'Rendering started',
+    status: 'processing'
+  });
+  
+  (async () => {
+    try {
+      const downloadDir = path.join(tempDir, jobId);
+      fs.mkdirSync(downloadDir, { recursive: true });
+      
+      renderingJobs.get(jobId).progress = 10;
+      
+      const localPaths = [];
+      for (let i = 0; i < videoUrls.length; i++) {
+        const url = videoUrls[i];
+        const ext = url.toLowerCase().includes('.webm') ? 'webm' : 'mp4';
+        const localPath = path.join(downloadDir, `clip_${i}.${ext}`);
+        await downloadVideo(url, localPath);
+        
+        if (ext === 'webm') {
+          const mp4Path = path.join(downloadDir, `clip_${i}.mp4`);
+          await convertVideo(localPath, mp4Path);
+          fs.unlinkSync(localPath);
+          localPaths.push(mp4Path);
+        } else {
+          localPaths.push(localPath);
+        }
+        
+        renderingJobs.get(jobId).progress = 10 + Math.round((i + 1) / videoUrls.length * 40);
+      }
+      
+      renderingJobs.get(jobId).progress = 50;
+      
+      const outputPath = path.join(convertedDir, `final_${jobId}.mp4`);
+      await concatenateVideos(localPaths, outputPath);
+      
+      renderingJobs.get(jobId).progress = 80;
+      
+      let finalUrl;
+      if (bucket) {
+        const storagePath = `edited/${storyId}/final_${Date.now()}.mp4`;
+        finalUrl = await uploadToFirebase(outputPath, storagePath);
+        fs.unlinkSync(outputPath);
+      } else {
+        finalUrl = `/edited/${path.basename(outputPath)}`;
+      }
+      
+      for (const p of localPaths) {
+        if (fs.existsSync(p)) fs.unlinkSync(p);
+      }
+      fs.rmdirSync(downloadDir, { recursive: true });
+      
+      renderingJobs.set(jobId, {
+        status: 'completed',
+        progress: 100,
+        storyId,
+        finalUrl,
+        completedAt: new Date().toISOString()
+      });
+      
+      console.log(`Rendering completed: ${finalUrl}`);
+      
+    } catch (error) {
+      console.error('Rendering error:', error);
+      renderingJobs.set(jobId, {
+        status: 'failed',
+        error: error.message,
+        storyId
+      });
+    }
+  })();
+});
+
+app.get('/api/render-status/:jobId', (req, res) => {
+  const { jobId } = req.params;
+  const job = renderingJobs.get(jobId);
+  
+  if (!job) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+  
+  res.json(job);
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Video Converter API running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);

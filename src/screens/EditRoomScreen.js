@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,36 +6,68 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  Modal,
 } from 'react-native';
+import { Video } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
+import { reflectionsService } from '../services/reflectionsService';
 
 export const EditRoomScreen = () => {
   const { go, back } = useNav();
   const storyName = useAppState((state) => state.storyName);
   const selectedMusic = useAppState((state) => state.selectedMusic);
   const videoFormat = useAppState((state) => state.videoFormat);
-  const receivedVideos = useAppState((state) => state.receivedVideos);
   const privacySettings = useAppState((state) => state.privacySettings);
+  const currentStoryId = useAppState((state) => state.currentStoryId);
+  const keyStoryUri = useAppState((state) => state.keyStoryUri);
   
-  const [isPlaying, setIsPlaying] = useState(false);
+  const setReflections = useAppState((state) => state.setReflections);
+  const setReflectionsLoading = useAppState((state) => state.setReflectionsLoading);
+  const reflections = useAppState((state) => state.reflections);
+  const reflectionsLoading = useAppState((state) => state.reflectionsLoading);
+  
   const [editConfirmStep, setEditConfirmStep] = useState(0);
   const [publishConfirmStep, setPublishConfirmStep] = useState(0);
+  const [previewVideo, setPreviewVideo] = useState(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  
+  const unsubscribeRef = useRef(null);
 
-  const mockReceivedVideos = [
-    { id: 1, name: 'דני', duration: '0:32', status: 'received' },
-    { id: 2, name: 'מיכל', duration: '0:28', status: 'received' },
-    { id: 3, name: 'יוסי', duration: '0:45', status: 'pending' },
-  ];
+  useEffect(() => {
+    if (currentStoryId) {
+      setReflectionsLoading(true);
+      
+      unsubscribeRef.current = reflectionsService.subscribeToReflections(
+        currentStoryId,
+        (newReflections) => {
+          setReflections(newReflections);
+          setReflectionsLoading(false);
+        }
+      );
+    }
+    
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+    };
+  }, [currentStoryId]);
 
-  const receivedCount = mockReceivedVideos.filter(v => v.status === 'received').length;
-  const totalCount = mockReceivedVideos.length;
+  const stats = reflectionsService.getReflectionStats(reflections);
+  const { participants, totalClips, completeParticipants, totalParticipants } = stats;
 
   const handleEditNow = () => {
+    if (totalClips === 0) {
+      Alert.alert('אין שיקופים', 'עדיין לא התקבלו שיקופים מהמשתתפים');
+      return;
+    }
+    
     if (editConfirmStep === 0) {
       setEditConfirmStep(1);
       setTimeout(() => {
@@ -63,6 +95,27 @@ export const EditRoomScreen = () => {
     }
   };
 
+  const handlePlayVideo = (videoUrl) => {
+    setPreviewVideo(videoUrl);
+    setIsModalVisible(true);
+  };
+
+  const closeModal = () => {
+    setIsModalVisible(false);
+    setPreviewVideo(null);
+  };
+
+  const formatDate = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    return d.toLocaleDateString('he-IL', { 
+      day: 'numeric', 
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -76,16 +129,19 @@ export const EditRoomScreen = () => {
       <ScrollView style={styles.content}>
         <Card style={styles.previewCard}>
           <View style={styles.videoPreview}>
-            <TouchableOpacity
-              style={styles.playButton}
-              onPress={() => setIsPlaying(!isPlaying)}
-            >
-              <Ionicons
-                name={isPlaying ? 'pause' : 'play'}
-                size={48}
-                color="white"
+            {keyStoryUri ? (
+              <Video
+                source={{ uri: keyStoryUri }}
+                style={styles.previewVideoPlayer}
+                useNativeControls
+                resizeMode="contain"
               />
-            </TouchableOpacity>
+            ) : (
+              <View style={styles.noVideoPlaceholder}>
+                <Ionicons name="videocam-off" size={48} color="#999" />
+                <Text style={styles.noVideoText}>אין סרטון מפתח</Text>
+              </View>
+            )}
           </View>
           <Text style={styles.previewTitle}>{storyName}</Text>
         </Card>
@@ -95,19 +151,27 @@ export const EditRoomScreen = () => {
             <Ionicons name="people" size={24} color={theme.colors.primary} />
             <Text style={styles.statusTitle}>סטטוס שיקופים</Text>
           </View>
-          <View style={styles.statusProgress}>
-            <Text style={styles.statusCount}>
-              {receivedCount} מתוך {totalCount} התקבלו
-            </Text>
-            <View style={styles.progressBar}>
-              <View 
-                style={[
-                  styles.progressFill, 
-                  { width: `${(receivedCount / totalCount) * 100}%` }
-                ]} 
-              />
+          
+          {reflectionsLoading ? (
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+          ) : (
+            <View style={styles.statusProgress}>
+              <Text style={styles.statusCount}>
+                {totalClips} קליפים מ-{totalParticipants} משתתפים
+              </Text>
+              <Text style={styles.statusSubtext}>
+                {completeParticipants} השלימו 3 שיקופים
+              </Text>
+              <View style={styles.progressBar}>
+                <View 
+                  style={[
+                    styles.progressFill, 
+                    { width: totalParticipants > 0 ? `${(completeParticipants / totalParticipants) * 100}%` : '0%' }
+                  ]} 
+                />
+              </View>
             </View>
-          </View>
+          )}
         </Card>
 
         <Card style={styles.settingsCard}>
@@ -141,25 +205,45 @@ export const EditRoomScreen = () => {
         </Card>
 
         <Card style={styles.videosCard}>
-          <Text style={styles.sectionTitle}>סרטונים שהתקבלו</Text>
+          <Text style={styles.sectionTitle}>שיקופים שהתקבלו</Text>
           
-          {mockReceivedVideos.map((video) => (
-            <View key={video.id} style={styles.videoRow}>
-              <View style={styles.videoInfo}>
-                <View style={[
-                  styles.statusDot,
-                  video.status === 'received' ? styles.statusReceived : styles.statusPending
-                ]} />
-                <Text style={styles.videoName}>{video.name}</Text>
-              </View>
-              <Text style={styles.videoDuration}>{video.duration}</Text>
-              {video.status === 'received' && (
-                <TouchableOpacity style={styles.playSmallButton}>
-                  <Ionicons name="play-circle" size={28} color={theme.colors.primary} />
-                </TouchableOpacity>
-              )}
+          {reflectionsLoading ? (
+            <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginVertical: 20 }} />
+          ) : participants.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="hourglass-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyText}>ממתין לשיקופים מהמשתתפים...</Text>
+              <Text style={styles.emptySubtext}>שלח את הלינק לחברים כדי שיוכלו להקליט</Text>
             </View>
-          ))}
+          ) : (
+            participants.map((participant) => (
+              <View key={participant.id} style={styles.participantSection}>
+                <View style={styles.participantHeader}>
+                  <View style={[
+                    styles.statusDot,
+                    participant.status === 'complete' ? styles.statusComplete : styles.statusPartial
+                  ]} />
+                  <Text style={styles.participantName}>{participant.name}</Text>
+                  <Text style={styles.clipCount}>{participant.totalClips}/3 קליפים</Text>
+                </View>
+                
+                <View style={styles.clipsRow}>
+                  {participant.clips.map((clip, index) => (
+                    <TouchableOpacity 
+                      key={index}
+                      style={styles.clipThumbnail}
+                      onPress={() => handlePlayVideo(clip.videoUrl)}
+                    >
+                      <View style={styles.clipPreview}>
+                        <Ionicons name="play-circle" size={32} color="white" />
+                      </View>
+                      <Text style={styles.clipLabel}>שיקוף {clip.clipNumber}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ))
+          )}
         </Card>
 
         <Card style={styles.actionsCard}>
@@ -189,8 +273,10 @@ export const EditRoomScreen = () => {
             style={[
               styles.editNowButton,
               editConfirmStep === 1 && styles.editNowButtonConfirm,
+              totalClips === 0 && styles.editNowButtonDisabled,
             ]}
             onPress={handleEditNow}
+            disabled={totalClips === 0}
           >
             <View style={styles.editNowContent}>
               <Ionicons 
@@ -201,12 +287,12 @@ export const EditRoomScreen = () => {
               <Text style={styles.editNowText}>
                 {editConfirmStep === 1 
                   ? 'לחץ שוב לאישור עריכה' 
-                  : `ערוך עכשיו (${receivedCount}/${totalCount})`}
+                  : `ערוך עכשיו (${totalClips} קליפים)`}
               </Text>
             </View>
-            {editConfirmStep === 0 && receivedCount < totalCount && (
+            {editConfirmStep === 0 && totalClips > 0 && completeParticipants < totalParticipants && (
               <Text style={styles.editNowHint}>
-                ניתן לערוך גם ללא כל הסרטונים
+                ניתן לערוך גם ללא כל השיקופים
               </Text>
             )}
           </TouchableOpacity>
@@ -247,6 +333,30 @@ export const EditRoomScreen = () => {
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={isModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <TouchableOpacity style={styles.closeButton} onPress={closeModal}>
+              <Ionicons name="close" size={28} color="white" />
+            </TouchableOpacity>
+            {previewVideo && (
+              <Video
+                source={{ uri: previewVideo }}
+                style={styles.modalVideo}
+                useNativeControls
+                resizeMode="contain"
+                shouldPlay
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -294,13 +404,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  previewVideoPlayer: {
+    width: '100%',
+    height: '100%',
+  },
+  noVideoPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  noVideoText: {
+    color: '#999',
+    marginTop: 8,
   },
   previewTitle: {
     ...theme.typography.h3,
@@ -326,8 +440,15 @@ const styles = StyleSheet.create({
   statusCount: {
     ...theme.typography.body,
     color: theme.colors.text,
-    marginBottom: theme.spacing[2],
+    marginBottom: theme.spacing[1],
     textAlign: 'center',
+    fontWeight: 'bold',
+  },
+  statusSubtext: {
+    ...theme.typography.caption,
+    color: theme.colors.subtext,
+    textAlign: 'center',
+    marginBottom: theme.spacing[2],
   },
   progressBar: {
     height: 8,
@@ -376,41 +497,74 @@ const styles = StyleSheet.create({
     padding: theme.spacing[4],
     marginBottom: theme.spacing[4],
   },
-  videoRow: {
-    flexDirection: 'row',
+  emptyState: {
     alignItems: 'center',
-    paddingVertical: theme.spacing[3],
+    paddingVertical: theme.spacing[6],
+  },
+  emptyText: {
+    ...theme.typography.body,
+    color: theme.colors.subtext,
+    marginTop: theme.spacing[3],
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    ...theme.typography.caption,
+    color: '#999',
+    marginTop: theme.spacing[1],
+    textAlign: 'center',
+  },
+  participantSection: {
+    marginBottom: theme.spacing[4],
+    paddingBottom: theme.spacing[3],
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  videoInfo: {
-    flex: 1,
+  participantHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing[2],
+    marginBottom: theme.spacing[2],
   },
   statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: theme.spacing[2],
   },
-  statusReceived: {
+  statusComplete: {
     backgroundColor: theme.colors.success,
   },
-  statusPending: {
+  statusPartial: {
     backgroundColor: '#FFA500',
   },
-  videoName: {
+  participantName: {
     ...theme.typography.body,
     color: theme.colors.text,
+    fontWeight: 'bold',
+    flex: 1,
   },
-  videoDuration: {
+  clipCount: {
     ...theme.typography.caption,
     color: theme.colors.subtext,
-    marginRight: theme.spacing[3],
   },
-  playSmallButton: {
-    padding: theme.spacing[1],
+  clipsRow: {
+    flexDirection: 'row',
+    gap: theme.spacing[2],
+  },
+  clipThumbnail: {
+    alignItems: 'center',
+  },
+  clipPreview: {
+    width: 80,
+    height: 60,
+    backgroundColor: '#333',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clipLabel: {
+    ...theme.typography.caption,
+    color: theme.colors.subtext,
+    marginTop: 4,
   },
   actionsCard: {
     padding: theme.spacing[4],
@@ -440,6 +594,9 @@ const styles = StyleSheet.create({
   },
   editNowButtonConfirm: {
     backgroundColor: '#4CAF50',
+  },
+  editNowButtonDisabled: {
+    backgroundColor: '#ccc',
   },
   editNowContent: {
     flexDirection: 'row',
@@ -487,5 +644,29 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '95%',
+    height: '70%',
+    backgroundColor: '#000',
+    borderRadius: 12,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 10,
+    padding: 8,
+  },
+  modalVideo: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
   },
 });
