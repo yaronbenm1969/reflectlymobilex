@@ -7,6 +7,7 @@ import {
   Share,
   Alert,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { Video } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +17,10 @@ import * as FileSystem from 'expo-file-system';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
+import { Video3DPlayer } from '../components/Video3DPlayer';
 import theme from '../theme/theme';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export const FinalVideoScreen = () => {
   const { go } = useNav();
@@ -25,12 +29,46 @@ export const FinalVideoScreen = () => {
   const resetStory = useAppState((state) => state.resetStory);
   const finalVideoUri = useAppState((state) => state.finalVideoUri);
   const reflections = useAppState((state) => state.reflections);
+  const videoFormat = useAppState((state) => state.videoFormat);
+  const keyStoryUri = useAppState((state) => state.keyStoryUri);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [playbackComplete, setPlaybackComplete] = useState(false);
   const videoRef = useRef(null);
 
   const participantCount = new Set(reflections.map(r => r.recipientId || r.participantId || 'anonymous')).size;
+
+  const is3DFormat = videoFormat && videoFormat !== 'standard';
+
+  const prepareVideosFor3D = () => {
+    const videos = [];
+    
+    if (keyStoryUri) {
+      videos.push({
+        url: keyStoryUri,
+        videoUrl: keyStoryUri,
+        playerName: 'הסיפור שלי',
+        participantId: 'creator',
+        thumbnail: null,
+      });
+    }
+    
+    reflections.forEach((reflection, index) => {
+      if (reflection.videoUrl) {
+        videos.push({
+          url: reflection.videoUrl,
+          videoUrl: reflection.videoUrl,
+          playerName: reflection.playerName || reflection.participantName || `משתתף ${index + 1}`,
+          participantId: reflection.recipientId || reflection.participantId,
+          thumbnail: reflection.thumbnailUrl || null,
+          clipNumber: reflection.clipNumber,
+        });
+      }
+    });
+    
+    return videos;
+  };
 
   const handlePlayPause = async () => {
     if (videoRef.current) {
@@ -106,6 +144,12 @@ export const FinalVideoScreen = () => {
     go('Home');
   };
 
+  const handlePlaybackComplete = () => {
+    setPlaybackComplete(true);
+  };
+
+  const videos3D = is3DFormat ? prepareVideosFor3D() : [];
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -115,12 +159,27 @@ export const FinalVideoScreen = () => {
         <View style={styles.headerContent}>
           <Text style={styles.title}>הסרטון מוכן! 🎉</Text>
           <Text style={styles.storyName}>{storyName}</Text>
+          {is3DFormat && (
+            <View style={styles.formatBadge}>
+              <Ionicons name="cube" size={16} color="white" />
+              <Text style={styles.formatText}>{videoFormat}</Text>
+            </View>
+          )}
         </View>
       </LinearGradient>
 
       <View style={styles.content}>
         <View style={styles.videoContainer}>
-          {finalVideoUri ? (
+          {is3DFormat && videos3D.length > 0 ? (
+            <Video3DPlayer
+              videos={videos3D}
+              format={videoFormat}
+              width={SCREEN_WIDTH - 48}
+              height={260}
+              autoPlay={true}
+              onComplete={handlePlaybackComplete}
+            />
+          ) : finalVideoUri ? (
             <Video
               ref={videoRef}
               source={{ uri: finalVideoUri }}
@@ -159,6 +218,13 @@ export const FinalVideoScreen = () => {
           </View>
         </View>
 
+        {playbackComplete && (
+          <View style={styles.completeBadge}>
+            <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
+            <Text style={styles.completeText}>הסתיים!</Text>
+          </View>
+        )}
+
         <View style={styles.privacyBadge}>
           <Ionicons 
             name={privacySettings.allowSocialMedia ? 'globe-outline' : 'lock-closed-outline'} 
@@ -173,20 +239,22 @@ export const FinalVideoScreen = () => {
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity 
-            style={styles.actionButton} 
-            onPress={handleDownload}
-            disabled={isDownloading}
-          >
-            <View style={styles.actionIcon}>
-              {isDownloading ? (
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-              ) : (
-                <Ionicons name="download-outline" size={28} color={theme.colors.primary} />
-              )}
-            </View>
-            <Text style={styles.actionLabel}>הורד</Text>
-          </TouchableOpacity>
+          {!is3DFormat && (
+            <TouchableOpacity 
+              style={styles.actionButton} 
+              onPress={handleDownload}
+              disabled={isDownloading}
+            >
+              <View style={styles.actionIcon}>
+                {isDownloading ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                ) : (
+                  <Ionicons name="download-outline" size={28} color={theme.colors.primary} />
+                )}
+              </View>
+              <Text style={styles.actionLabel}>הורד</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
             <View style={styles.actionIcon}>
@@ -247,6 +315,20 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     marginTop: theme.spacing[2],
   },
+  formatBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: theme.spacing[2],
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  formatText: {
+    color: 'white',
+    fontSize: 12,
+  },
   content: {
     flex: 1,
     padding: theme.spacing[4],
@@ -295,12 +377,26 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.subtext,
   },
+  completeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    marginTop: theme.spacing[3],
+    padding: theme.spacing[2],
+    backgroundColor: '#E8F5E9',
+    borderRadius: theme.radii.md,
+  },
+  completeText: {
+    color: theme.colors.success,
+    fontWeight: 'bold',
+  },
   privacyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing[2],
-    marginTop: theme.spacing[4],
+    marginTop: theme.spacing[3],
     padding: theme.spacing[3],
     backgroundColor: theme.colors.white,
     borderRadius: theme.radii.md,
@@ -312,8 +408,8 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginTop: theme.spacing[6],
-    paddingVertical: theme.spacing[4],
+    marginTop: theme.spacing[4],
+    paddingVertical: theme.spacing[3],
   },
   actionButton: {
     alignItems: 'center',
@@ -334,7 +430,7 @@ const styles = StyleSheet.create({
   },
   bottomActions: {
     marginTop: 'auto',
-    paddingVertical: theme.spacing[4],
+    paddingVertical: theme.spacing[3],
   },
   homeButton: {
     alignItems: 'center',
