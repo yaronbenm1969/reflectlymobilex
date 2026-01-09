@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Dimensions, StyleSheet, Image, Text, TouchableOpacity, Platform } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { View, Dimensions, StyleSheet, Image, Text, TouchableOpacity } from 'react-native';
 import { Video } from 'expo-av';
 import Carousel from 'react-native-reanimated-carousel';
+import Animated, { interpolate, Extrapolation } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../theme/theme';
 
@@ -9,7 +10,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
 
-const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
+const VideoSlide = ({ item, index, isActive, onVideoEnd, width, height }) => {
   const videoRef = useRef(null);
   const [showThumbnail, setShowThumbnail] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -78,7 +79,7 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
           }
         }
       } catch (error) {
-        console.log('Playback control error (expected on unmount):', error.message);
+        console.log('Playback control error:', error.message);
       }
     };
     controlPlayback();
@@ -107,7 +108,7 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
   }, []);
 
   return (
-    <View style={styles.slideContainer}>
+    <View style={[styles.slideContainer, { width, height }]}>
       {isConverting ? (
         <View style={styles.loadingContainer}>
           <Ionicons name="sync" size={32} color="white" />
@@ -153,84 +154,466 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
   );
 };
 
-const getCarouselConfig = (format) => {
+const createCube3DAnimation = (width) => (value) => {
+  'worklet';
+  
+  const translateX = interpolate(
+    value,
+    [-1, 0, 1],
+    [-width, 0, width],
+    Extrapolation.CLAMP
+  );
+
+  const rotateY = interpolate(
+    value,
+    [-1, 0, 1],
+    [90, 0, -90],
+    Extrapolation.CLAMP
+  );
+
+  const zIndex = Math.round(
+    interpolate(value, [-1, 0, 1], [0, 1000, 0], Extrapolation.CLAMP)
+  );
+
+  const scale = interpolate(
+    value,
+    [-1, 0, 1],
+    [0.9, 1, 0.9],
+    Extrapolation.CLAMP
+  );
+
+  return {
+    transform: [
+      { perspective: width * 2 },
+      { translateX },
+      { rotateY: `${rotateY}deg` },
+      { scale },
+    ],
+    zIndex,
+  };
+};
+
+const createCarousel3DAnimation = (width) => (value) => {
+  'worklet';
+  
+  const translateX = interpolate(
+    value,
+    [-1, 0, 1],
+    [-width * 0.7, 0, width * 0.7],
+    Extrapolation.CLAMP
+  );
+
+  const translateZ = interpolate(
+    value,
+    [-1, 0, 1],
+    [-200, 0, -200],
+    Extrapolation.CLAMP
+  );
+
+  const rotateY = interpolate(
+    value,
+    [-1, 0, 1],
+    [45, 0, -45],
+    Extrapolation.CLAMP
+  );
+
+  const scale = interpolate(
+    value,
+    [-1, 0, 1],
+    [0.7, 1, 0.7],
+    Extrapolation.CLAMP
+  );
+
+  const opacity = interpolate(
+    value,
+    [-1, -0.5, 0, 0.5, 1],
+    [0.5, 0.8, 1, 0.8, 0.5],
+    Extrapolation.CLAMP
+  );
+
+  return {
+    transform: [
+      { perspective: width * 3 },
+      { translateX },
+      { translateZ },
+      { rotateY: `${rotateY}deg` },
+      { scale },
+    ],
+    opacity,
+    zIndex: Math.round(interpolate(value, [-1, 0, 1], [0, 1000, 0])),
+  };
+};
+
+const createFlipPagesAnimation = (width) => (value) => {
+  'worklet';
+  
+  const translateX = interpolate(
+    value,
+    [-1, 0, 1],
+    [-width * 0.5, 0, width * 0.5],
+    Extrapolation.CLAMP
+  );
+
+  const rotateY = interpolate(
+    value,
+    [-1, 0, 1],
+    [180, 0, -180],
+    Extrapolation.CLAMP
+  );
+
+  const opacity = interpolate(
+    value,
+    [-1, -0.5, 0, 0.5, 1],
+    [0, 0.5, 1, 0.5, 0],
+    Extrapolation.CLAMP
+  );
+
+  return {
+    transform: [
+      { perspective: width * 2 },
+      { translateX },
+      { rotateY: `${rotateY}deg` },
+    ],
+    opacity,
+    backfaceVisibility: 'hidden',
+    zIndex: Math.round(interpolate(value, [-1, 0, 1], [0, 1000, 0])),
+  };
+};
+
+const createStackCardsAnimation = (value) => {
+  'worklet';
+  
+  const translateY = interpolate(
+    value,
+    [-1, 0, 1, 2, 3],
+    [0, 0, -15, -30, -45],
+    Extrapolation.CLAMP
+  );
+
+  const scale = interpolate(
+    value,
+    [-1, 0, 1, 2, 3],
+    [1, 1, 0.95, 0.9, 0.85],
+    Extrapolation.CLAMP
+  );
+
+  const opacity = interpolate(
+    value,
+    [-1, 0, 1, 2, 3],
+    [0, 1, 0.9, 0.8, 0.7],
+    Extrapolation.CLAMP
+  );
+
+  return {
+    transform: [
+      { translateY },
+      { scale },
+    ],
+    opacity,
+    zIndex: Math.round(interpolate(value, [-1, 0, 1, 2, 3], [0, 1000, 999, 998, 997])),
+  };
+};
+
+const createTinderAnimation = (width) => (value) => {
+  'worklet';
+  
+  const translateX = interpolate(
+    value,
+    [-2, -1, 0, 1, 2],
+    [-width * 2, -width, 0, width, width * 2],
+    Extrapolation.CLAMP
+  );
+
+  const rotate = interpolate(
+    value,
+    [-1, 0, 1],
+    [-15, 0, 15],
+    Extrapolation.CLAMP
+  );
+
+  const scale = interpolate(
+    value,
+    [-1, 0, 1],
+    [0.9, 1, 0.9],
+    Extrapolation.CLAMP
+  );
+
+  return {
+    transform: [
+      { translateX },
+      { rotate: `${rotate}deg` },
+      { scale },
+    ],
+    zIndex: Math.round(interpolate(value, [-1, 0, 1], [0, 1000, 0])),
+  };
+};
+
+const createFoldAnimation = (width) => (value) => {
+  'worklet';
+  
+  const translateX = interpolate(
+    value,
+    [-1, 0, 1],
+    [-width, 0, width],
+    Extrapolation.CLAMP
+  );
+
+  const rotateX = interpolate(
+    value,
+    [-1, 0, 1],
+    [60, 0, -60],
+    Extrapolation.CLAMP
+  );
+
+  const scaleY = interpolate(
+    value,
+    [-1, 0, 1],
+    [0.5, 1, 0.5],
+    Extrapolation.CLAMP
+  );
+
+  const opacity = interpolate(
+    value,
+    [-1, 0, 1],
+    [0.3, 1, 0.3],
+    Extrapolation.CLAMP
+  );
+
+  return {
+    transform: [
+      { perspective: width * 2 },
+      { translateX },
+      { rotateX: `${rotateX}deg` },
+      { scaleY },
+    ],
+    opacity,
+    zIndex: Math.round(interpolate(value, [-1, 0, 1], [0, 1000, 0])),
+  };
+};
+
+const createCircularAnimation = (width) => (value) => {
+  'worklet';
+  
+  const angle = value * 60;
+  const radius = width * 0.6;
+  
+  const translateX = Math.sin(angle * Math.PI / 180) * radius;
+  const translateZ = (Math.cos(angle * Math.PI / 180) - 1) * radius * 0.5;
+
+  const scale = interpolate(
+    value,
+    [-1, 0, 1],
+    [0.7, 1, 0.7],
+    Extrapolation.CLAMP
+  );
+
+  const opacity = interpolate(
+    value,
+    [-1, 0, 1],
+    [0.5, 1, 0.5],
+    Extrapolation.CLAMP
+  );
+
+  return {
+    transform: [
+      { perspective: width * 3 },
+      { translateX },
+      { translateZ },
+      { scale },
+    ],
+    opacity,
+    zIndex: Math.round(interpolate(value, [-1, 0, 1], [0, 1000, 0])),
+  };
+};
+
+const createFlowAnimation = (width) => (value) => {
+  'worklet';
+  
+  const translateX = interpolate(
+    value,
+    [-1, 0, 1],
+    [-width * 0.8, 0, width * 0.8],
+    Extrapolation.CLAMP
+  );
+
+  const scale = interpolate(
+    value,
+    [-1, 0, 1],
+    [0.8, 1, 0.8],
+    Extrapolation.CLAMP
+  );
+
+  const opacity = interpolate(
+    value,
+    [-2, -1, 0, 1, 2],
+    [0, 0.6, 1, 0.6, 0],
+    Extrapolation.CLAMP
+  );
+
+  return {
+    transform: [
+      { translateX },
+      { scale },
+    ],
+    opacity,
+    zIndex: Math.round(interpolate(value, [-1, 0, 1], [0, 1000, 0])),
+  };
+};
+
+const createParallaxAnimation = (width) => (value) => {
+  'worklet';
+  
+  const translateX = interpolate(
+    value,
+    [-1, 0, 1],
+    [-width * 0.9, 0, width * 0.9],
+    Extrapolation.CLAMP
+  );
+
+  const scale = interpolate(
+    value,
+    [-1, 0, 1],
+    [0.85, 1, 0.85],
+    Extrapolation.CLAMP
+  );
+
+  const translateZ = interpolate(
+    value,
+    [-1, 0, 1],
+    [-150, 0, -150],
+    Extrapolation.CLAMP
+  );
+
+  return {
+    transform: [
+      { perspective: width * 2 },
+      { translateX },
+      { translateZ },
+      { scale },
+    ],
+    zIndex: Math.round(interpolate(value, [-1, 0, 1], [0, 1000, 0])),
+  };
+};
+
+const createBlurRotateAnimation = (width) => (value) => {
+  'worklet';
+  
+  const translateX = interpolate(
+    value,
+    [-1, 0, 1],
+    [-width, 0, width],
+    Extrapolation.CLAMP
+  );
+
+  const rotate = interpolate(
+    value,
+    [-1, 0, 1],
+    [-30, 0, 30],
+    Extrapolation.CLAMP
+  );
+
+  const scale = interpolate(
+    value,
+    [-1, 0, 1],
+    [0.6, 1, 0.6],
+    Extrapolation.CLAMP
+  );
+
+  const opacity = interpolate(
+    value,
+    [-1, 0, 1],
+    [0.3, 1, 0.3],
+    Extrapolation.CLAMP
+  );
+
+  return {
+    transform: [
+      { translateX },
+      { rotate: `${rotate}deg` },
+      { scale },
+    ],
+    opacity,
+    zIndex: Math.round(interpolate(value, [-1, 0, 1], [0, 1000, 0])),
+  };
+};
+
+const createScaleFadeAnimation = (width) => (value) => {
+  'worklet';
+  
+  const translateX = interpolate(
+    value,
+    [-1, 0, 1],
+    [-width * 0.5, 0, width * 0.5],
+    Extrapolation.CLAMP
+  );
+
+  const scale = interpolate(
+    value,
+    [-1, 0, 1],
+    [0.5, 1, 0.5],
+    Extrapolation.CLAMP
+  );
+
+  const opacity = interpolate(
+    value,
+    [-1, 0, 1],
+    [0, 1, 0],
+    Extrapolation.CLAMP
+  );
+
+  return {
+    transform: [
+      { translateX },
+      { scale },
+    ],
+    opacity,
+    zIndex: Math.round(interpolate(value, [-1, 0, 1], [0, 1000, 0])),
+  };
+};
+
+const createStandardAnimation = (width) => (value) => {
+  'worklet';
+  
+  const translateX = interpolate(
+    value,
+    [-1, 0, 1],
+    [-width, 0, width],
+    Extrapolation.CLAMP
+  );
+
+  return {
+    transform: [{ translateX }],
+    zIndex: Math.round(interpolate(value, [-1, 0, 1], [0, 1000, 0])),
+  };
+};
+
+const getAnimationForFormat = (format, width) => {
   switch (format) {
     case 'cube-3d':
-      return {
-        mode: 'parallax',
-        modeConfig: {
-          parallaxScrollingScale: 0.75,
-          parallaxScrollingOffset: 60,
-          parallaxAdjacentItemScale: 0.65,
-        }
-      };
+      return createCube3DAnimation(width);
     case 'carousel-3d':
-      return {
-        mode: 'parallax',
-        modeConfig: {
-          parallaxScrollingScale: 0.85,
-          parallaxScrollingOffset: 45,
-          parallaxAdjacentItemScale: 0.75,
-        }
-      };
+      return createCarousel3DAnimation(width);
     case 'flip-pages':
-      return {
-        mode: 'parallax',
-        modeConfig: {
-          parallaxScrollingScale: 0.9,
-          parallaxScrollingOffset: 30,
-          parallaxAdjacentItemScale: 0.8,
-        }
-      };
+      return createFlipPagesAnimation(width);
     case 'stack-cards':
+      return createStackCardsAnimation;
     case 'tinder':
-      return {
-        mode: 'horizontal-stack',
-        modeConfig: {
-          snapDirection: 'left',
-          stackInterval: 18,
-          scaleInterval: 0.04,
-          opacityInterval: 0.2,
-        }
-      };
+      return createTinderAnimation(width);
     case 'fold':
-      return {
-        mode: 'vertical-stack',
-        modeConfig: {
-          stackInterval: 8,
-          scaleInterval: 0.04,
-        }
-      };
+      return createFoldAnimation(width);
     case 'circular':
-    case 'parallax':
+      return createCircularAnimation(width);
     case 'flow':
-      return {
-        mode: 'parallax',
-        modeConfig: {
-          parallaxScrollingScale: 0.88,
-          parallaxScrollingOffset: 35,
-          parallaxAdjacentItemScale: 0.78,
-        }
-      };
+      return createFlowAnimation(width);
+    case 'parallax':
+      return createParallaxAnimation(width);
     case 'blur-rotate':
+      return createBlurRotateAnimation(width);
     case 'scale-fade':
-      return {
-        mode: 'parallax',
-        modeConfig: {
-          parallaxScrollingScale: 0.7,
-          parallaxScrollingOffset: 80,
-          parallaxAdjacentItemScale: 0.5,
-        }
-      };
+      return createScaleFadeAnimation(width);
     case 'standard':
     default:
-      return {
-        mode: 'parallax',
-        modeConfig: {
-          parallaxScrollingScale: 0.95,
-          parallaxScrollingOffset: 20,
-        }
-      };
+      return createStandardAnimation(width);
   }
 };
 
@@ -255,9 +638,11 @@ export const Video3DPlayer = ({
     };
   }, []);
 
-  console.log('🎬 Video3DPlayer format:', format, 'videos:', videos.length);
+  console.log('🎬 Video3DPlayer format:', format, 'videos:', videos.length, '(3D animations enabled)');
 
-  const carouselConfig = getCarouselConfig(format);
+  const customAnimation = useMemo(() => {
+    return getAnimationForFormat(format, width);
+  }, [format, width]);
 
   const handleVideoEnd = useCallback((index) => {
     if (!isMountedRef.current || isTransitioning) return;
@@ -318,9 +703,8 @@ export const Video3DPlayer = ({
           height={height}
           data={videos}
           autoPlay={false}
-          scrollAnimationDuration={600}
-          mode={carouselConfig.mode}
-          modeConfig={carouselConfig.modeConfig}
+          scrollAnimationDuration={800}
+          customAnimation={customAnimation}
           onSnapToItem={handleSnapToItem}
           panGestureHandlerProps={{
             activeOffsetX: [-10, 10],
@@ -329,6 +713,8 @@ export const Video3DPlayer = ({
             <VideoSlide
               item={item}
               index={index}
+              width={width}
+              height={height}
               isActive={index === activeIndex && isPlaying && !isTransitioning}
               onVideoEnd={handleVideoEnd}
             />
@@ -380,7 +766,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   slideContainer: {
-    flex: 1,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#2a2a4e',
