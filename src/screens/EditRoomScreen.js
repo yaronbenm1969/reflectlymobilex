@@ -17,6 +17,8 @@ import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 import { reflectionsService } from '../services/reflectionsService';
+import { db } from '../services/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 export const EditRoomScreen = () => {
   const { go, back } = useNav();
@@ -37,10 +39,30 @@ export const EditRoomScreen = () => {
   const [previewVideo, setPreviewVideo] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [approvedClips, setApprovedClips] = useState({});
+  const [storyVideoUrl, setStoryVideoUrl] = useState(null);
   
   const unsubscribeRef = useRef(null);
 
   useEffect(() => {
+    const loadStoryDetails = async () => {
+      if (currentStoryId) {
+        try {
+          const storyDoc = await getDoc(doc(db, 'stories', currentStoryId));
+          if (storyDoc.exists()) {
+            const storyData = storyDoc.data();
+            console.log('📖 Story data loaded:', storyData.name, 'videoUrl:', storyData.videoUrl ? 'exists' : 'missing');
+            if (storyData.videoUrl) {
+              setStoryVideoUrl(storyData.videoUrl);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading story:', error);
+        }
+      }
+    };
+    
+    loadStoryDetails();
+    
     if (currentStoryId) {
       setReflectionsLoading(true);
       
@@ -59,6 +81,8 @@ export const EditRoomScreen = () => {
       }
     };
   }, [currentStoryId]);
+  
+  const effectiveKeyStoryUri = storyVideoUrl || keyStoryUri;
 
   console.log('📊 Raw reflections:', JSON.stringify(reflections, null, 2));
   
@@ -162,9 +186,9 @@ export const EditRoomScreen = () => {
       <ScrollView style={styles.content}>
         <Card style={styles.previewCard}>
           <View style={styles.videoPreview}>
-            {keyStoryUri ? (
+            {effectiveKeyStoryUri ? (
               <Video
-                source={{ uri: keyStoryUri }}
+                source={{ uri: effectiveKeyStoryUri }}
                 style={styles.previewVideoPlayer}
                 useNativeControls
                 resizeMode="contain"

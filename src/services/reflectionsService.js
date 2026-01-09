@@ -67,9 +67,50 @@ export const reflectionsService = {
   groupReflectionsByParticipant: (reflections) => {
     const grouped = {};
     
-    reflections.forEach(reflection => {
-      const participantId = reflection.recipientId || reflection.participantId || 'anonymous';
-      const participantName = reflection.participantName || reflection.recipientName || `משתתף ${Object.keys(grouped).length + 1}`;
+    const sortedReflections = [...reflections].sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeA - timeB;
+    });
+    
+    let anonymousCounter = 0;
+    const timeGroups = {};
+    
+    sortedReflections.forEach(reflection => {
+      let participantId = reflection.recipientId || reflection.participantId;
+      let participantName = reflection.participantName || reflection.recipientName;
+      
+      if (!participantId) {
+        const createdTime = reflection.createdAt ? new Date(reflection.createdAt).getTime() : 0;
+        const clipNum = reflection.clipNumber || 0;
+        
+        let foundGroup = null;
+        for (const [groupId, groupData] of Object.entries(timeGroups)) {
+          const timeDiff = Math.abs(createdTime - groupData.lastTime);
+          const hasClipNum = groupData.clipNumbers.includes(clipNum);
+          
+          if (timeDiff < 5 * 60 * 1000 && !hasClipNum) {
+            foundGroup = groupId;
+            groupData.lastTime = createdTime;
+            groupData.clipNumbers.push(clipNum);
+            break;
+          }
+        }
+        
+        if (foundGroup) {
+          participantId = foundGroup;
+          participantName = grouped[foundGroup]?.name;
+        } else {
+          anonymousCounter++;
+          participantId = `anon_${anonymousCounter}_${createdTime}`;
+          participantName = `משתתף ${anonymousCounter}`;
+          timeGroups[participantId] = { lastTime: createdTime, clipNumbers: [clipNum] };
+        }
+      }
+      
+      if (!participantName) {
+        participantName = `משתתף ${Object.keys(grouped).length + 1}`;
+      }
       
       if (!grouped[participantId]) {
         grouped[participantId] = {
