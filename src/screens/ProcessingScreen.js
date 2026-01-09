@@ -15,7 +15,7 @@ import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 
 const API_BASE_URL = Constants.expoConfig?.extra?.videoConverterUrl || 
-  'https://reflectly-mobile-x--yaronbenm1.replit.app';
+  'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
   
 const getApiUrl = (endpoint) => `${API_BASE_URL}${endpoint}`;
 
