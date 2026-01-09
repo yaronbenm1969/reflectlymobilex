@@ -103,6 +103,11 @@ export const EditRoomScreen = () => {
   };
 
   const handlePlayVideo = (videoUrl) => {
+    console.log('🎬 Playing video:', videoUrl);
+    if (!videoUrl) {
+      Alert.alert('שגיאה', 'אין כתובת לסרטון');
+      return;
+    }
     setPreviewVideo(videoUrl);
     setIsModalVisible(true);
   };
