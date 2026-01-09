@@ -36,6 +36,7 @@ export const EditRoomScreen = () => {
   const [publishConfirmStep, setPublishConfirmStep] = useState(0);
   const [previewVideo, setPreviewVideo] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [approvedClips, setApprovedClips] = useState({});
   
   const unsubscribeRef = useRef(null);
 
@@ -110,6 +111,23 @@ export const EditRoomScreen = () => {
     setIsModalVisible(false);
     setPreviewVideo(null);
   };
+
+  const getClipKey = (participantId, clipNumber) => `${participantId}_${clipNumber}`;
+
+  const toggleClipApproval = (participantId, clipNumber) => {
+    const key = getClipKey(participantId, clipNumber);
+    setApprovedClips(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const isClipApproved = (participantId, clipNumber) => {
+    const key = getClipKey(participantId, clipNumber);
+    return approvedClips[key] === true;
+  };
+
+  const approvedCount = Object.values(approvedClips).filter(Boolean).length;
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -234,18 +252,44 @@ export const EditRoomScreen = () => {
                 </View>
                 
                 <View style={styles.clipsRow}>
-                  {participant.clips.map((clip, index) => (
-                    <TouchableOpacity 
-                      key={index}
-                      style={styles.clipThumbnail}
-                      onPress={() => handlePlayVideo(clip.videoUrl)}
-                    >
-                      <View style={styles.clipPreview}>
-                        <Ionicons name="play-circle" size={32} color="white" />
+                  {participant.clips.map((clip, index) => {
+                    const approved = isClipApproved(participant.id, clip.clipNumber);
+                    return (
+                      <View key={index} style={styles.clipContainer}>
+                        <View style={[styles.clipPreview, approved && styles.clipPreviewApproved]}>
+                          <Ionicons name="videocam" size={24} color="white" />
+                          {approved && (
+                            <View style={styles.approvedBadge}>
+                              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.clipLabel}>שיקוף {clip.clipNumber}</Text>
+                        <View style={styles.clipActions}>
+                          <TouchableOpacity 
+                            style={styles.clipActionButton}
+                            onPress={() => handlePlayVideo(clip.videoUrl)}
+                          >
+                            <Ionicons name="play" size={16} color={theme.colors.primary} />
+                            <Text style={styles.clipActionText}>צפה</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[styles.clipActionButton, approved && styles.clipActionButtonApproved]}
+                            onPress={() => toggleClipApproval(participant.id, clip.clipNumber)}
+                          >
+                            <Ionicons 
+                              name={approved ? "checkmark-circle" : "add-circle-outline"} 
+                              size={16} 
+                              color={approved ? "#4CAF50" : theme.colors.primary} 
+                            />
+                            <Text style={[styles.clipActionText, approved && styles.clipActionTextApproved]}>
+                              {approved ? "מאושר" : "הוסף"}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                      <Text style={styles.clipLabel}>שיקוף {clip.clipNumber}</Text>
-                    </TouchableOpacity>
-                  ))}
+                    );
+                  })}
                 </View>
               </View>
             ))
@@ -292,8 +336,8 @@ export const EditRoomScreen = () => {
               />
               <Text style={styles.editNowText}>
                 {editConfirmStep === 1 
-                  ? (is3DFormat ? 'לחץ שוב לצפייה' : 'לחץ שוב לאישור עריכה')
-                  : (is3DFormat ? `צפה ב-${videoFormat} (${totalClips} קליפים)` : `ערוך עכשיו (${totalClips} קליפים)`)}
+                  ? 'לחץ שוב לאישור עריכה' 
+                  : `ערוך עכשיו (${approvedCount > 0 ? approvedCount : totalClips} קליפים)`}
               </Text>
             </View>
             {editConfirmStep === 0 && totalClips > 0 && completeParticipants < totalParticipants && (
@@ -554,10 +598,12 @@ const styles = StyleSheet.create({
   },
   clipsRow: {
     flexDirection: 'row',
-    gap: theme.spacing[2],
+    gap: theme.spacing[3],
+    flexWrap: 'wrap',
   },
-  clipThumbnail: {
+  clipContainer: {
     alignItems: 'center',
+    width: 90,
   },
   clipPreview: {
     width: 80,
@@ -566,11 +612,48 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  clipPreviewApproved: {
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+  },
+  approvedBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: 'white',
+    borderRadius: 10,
   },
   clipLabel: {
     ...theme.typography.caption,
     color: theme.colors.subtext,
     marginTop: 4,
+    textAlign: 'center',
+  },
+  clipActions: {
+    flexDirection: 'row',
+    gap: 4,
+    marginTop: 4,
+  },
+  clipActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 4,
+  },
+  clipActionButtonApproved: {
+    backgroundColor: '#E8F5E9',
+  },
+  clipActionText: {
+    fontSize: 10,
+    color: theme.colors.primary,
+  },
+  clipActionTextApproved: {
+    color: '#4CAF50',
   },
   actionsCard: {
     padding: theme.spacing[4],
