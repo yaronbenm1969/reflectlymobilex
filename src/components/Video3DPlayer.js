@@ -203,13 +203,6 @@ const createCarousel3DAnimation = (width) => (value) => {
     Extrapolation.CLAMP
   );
 
-  const translateZ = interpolate(
-    value,
-    [-1, 0, 1],
-    [-200, 0, -200],
-    Extrapolation.CLAMP
-  );
-
   const rotateY = interpolate(
     value,
     [-1, 0, 1],
@@ -220,7 +213,7 @@ const createCarousel3DAnimation = (width) => (value) => {
   const scale = interpolate(
     value,
     [-1, 0, 1],
-    [0.7, 1, 0.7],
+    [0.65, 1, 0.65],
     Extrapolation.CLAMP
   );
 
@@ -235,7 +228,6 @@ const createCarousel3DAnimation = (width) => (value) => {
     transform: [
       { perspective: width * 3 },
       { translateX },
-      { translateZ },
       { rotateY: `${rotateY}deg` },
       { scale },
     ],
@@ -398,12 +390,18 @@ const createCircularAnimation = (width) => (value) => {
   const radius = width * 0.6;
   
   const translateX = Math.sin(angle * Math.PI / 180) * radius;
-  const translateZ = (Math.cos(angle * Math.PI / 180) - 1) * radius * 0.5;
 
   const scale = interpolate(
     value,
     [-1, 0, 1],
     [0.7, 1, 0.7],
+    Extrapolation.CLAMP
+  );
+
+  const rotateY = interpolate(
+    value,
+    [-1, 0, 1],
+    [30, 0, -30],
     Extrapolation.CLAMP
   );
 
@@ -418,7 +416,7 @@ const createCircularAnimation = (width) => (value) => {
     transform: [
       { perspective: width * 3 },
       { translateX },
-      { translateZ },
+      { rotateY: `${rotateY}deg` },
       { scale },
     ],
     opacity,
@@ -473,14 +471,14 @@ const createParallaxAnimation = (width) => (value) => {
   const scale = interpolate(
     value,
     [-1, 0, 1],
-    [0.85, 1, 0.85],
+    [0.75, 1, 0.75],
     Extrapolation.CLAMP
   );
 
-  const translateZ = interpolate(
+  const rotateY = interpolate(
     value,
     [-1, 0, 1],
-    [-150, 0, -150],
+    [20, 0, -20],
     Extrapolation.CLAMP
   );
 
@@ -488,7 +486,7 @@ const createParallaxAnimation = (width) => (value) => {
     transform: [
       { perspective: width * 2 },
       { translateX },
-      { translateZ },
+      { rotateY: `${rotateY}deg` },
       { scale },
     ],
     zIndex: Math.round(interpolate(value, [-1, 0, 1], [0, 1000, 0])),
