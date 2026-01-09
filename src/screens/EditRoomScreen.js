@@ -85,12 +85,21 @@ export const EditRoomScreen = () => {
   
   const effectiveKeyStoryUri = storyVideoUrl || keyStoryUri;
 
-  console.log('📊 Raw reflections:', JSON.stringify(reflections, null, 2));
+  console.log('📊 Raw reflections count:', reflections.length);
+  reflections.forEach((r, i) => {
+    console.log(`📹 Reflection ${i}: clipNumber=${r.clipNumber}, videoUrl=${r.videoUrl ? r.videoUrl.substring(0, 50) + '...' : 'MISSING'}`);
+  });
   
   const stats = reflectionsService.getReflectionStats(reflections);
   const { participants, totalClips, completeParticipants, totalParticipants } = stats;
   
-  console.log('👥 Grouped participants:', JSON.stringify(participants, null, 2));
+  console.log('👥 Participants count:', participants.length);
+  participants.forEach((p, i) => {
+    console.log(`👤 Participant ${i}: name=${p.name}, clips=${p.clips.length}`);
+    p.clips.forEach((c, j) => {
+      console.log(`  📼 Clip ${j}: clipNumber=${c.clipNumber}, hasVideoUrl=${!!c.videoUrl}`);
+    });
+  });
 
   const is3DFormat = videoFormat && videoFormat !== 'standard';
 
@@ -134,7 +143,7 @@ export const EditRoomScreen = () => {
   const handlePlayVideo = async (videoUrl) => {
     console.log('🎬 Playing video:', videoUrl);
     if (!videoUrl) {
-      Alert.alert('שגיאה', 'אין כתובת לסרטון');
+      Alert.alert('שגיאה', 'הסרטון עדיין לא הועלה - נסה שוב עוד כמה רגעים');
       return;
     }
     
