@@ -693,8 +693,66 @@ app.get('/api/render-status/:jobId', (req, res) => {
   res.json(job);
 });
 
+app.post('/api/convert-url', async (req, res) => {
+  const { url } = req.body;
+  
+  if (!url) {
+    return res.status(400).json({ error: 'URL is required' });
+  }
+  
+  console.log('🔄 Converting URL:', url);
+  
+  try {
+    const https = require('https');
+    const http = require('http');
+    const protocol = url.startsWith('https') ? https : http;
+    
+    const timestamp = Date.now();
+    const inputPath = path.join(tempDir, `input_${timestamp}.webm`);
+    const outputPath = path.join(convertedDir, `output_${timestamp}.mp4`);
+    
+    await new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(inputPath);
+      protocol.get(url, (response) => {
+        response.pipe(file);
+        file.on('finish', () => {
+          file.close();
+          resolve();
+        });
+      }).on('error', (err) => {
+        fs.unlink(inputPath, () => {});
+        reject(err);
+      });
+    });
+    
+    console.log('📥 Downloaded to:', inputPath);
+    
+    await convertVideo(inputPath, outputPath);
+    
+    fs.unlinkSync(inputPath);
+    
+    if (bucket) {
+      const storagePath = `converted/${timestamp}.mp4`;
+      const convertedUrl = await uploadToFirebase(outputPath, storagePath);
+      fs.unlinkSync(outputPath);
+      console.log('✅ Converted and uploaded:', convertedUrl);
+      return res.json({ success: true, convertedUrl });
+    } else {
+      const localUrl = `http://localhost:${PORT}/converted/${timestamp}.mp4`;
+      console.log('✅ Converted locally:', localUrl);
+      return res.json({ success: true, convertedUrl: localUrl });
+    }
+  } catch (error) {
+    console.error('❌ Conversion error:', error);
+    return res.status(500).json({ error: error.message, originalUrl: url });
+  }
+});
+
+app.use('/converted', express.static(convertedDir));
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Video Converter API running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log('AI endpoints: /api/transcribe, /api/analyze-story, /api/editing-suggestions, /api/generate-title');
+  console.log('New: /api/convert-url - Convert webm to mp4');
 });

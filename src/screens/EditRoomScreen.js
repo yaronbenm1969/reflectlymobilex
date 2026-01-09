@@ -50,9 +50,10 @@ export const EditRoomScreen = () => {
           const storyDoc = await getDoc(doc(db, 'stories', currentStoryId));
           if (storyDoc.exists()) {
             const storyData = storyDoc.data();
-            console.log('📖 Story data loaded:', storyData.name, 'videoUrl:', storyData.videoUrl ? 'exists' : 'missing');
-            if (storyData.videoUrl) {
-              setStoryVideoUrl(storyData.videoUrl);
+            const videoUrl = storyData.videoUrl || storyData.videoUri;
+            console.log('📖 Story data loaded:', storyData.name, 'videoUrl:', videoUrl ? 'exists' : 'missing');
+            if (videoUrl) {
+              setStoryVideoUrl(videoUrl);
             }
           }
         } catch (error) {
@@ -130,13 +131,35 @@ export const EditRoomScreen = () => {
     }
   };
 
-  const handlePlayVideo = (videoUrl) => {
+  const handlePlayVideo = async (videoUrl) => {
     console.log('🎬 Playing video:', videoUrl);
     if (!videoUrl) {
       Alert.alert('שגיאה', 'אין כתובת לסרטון');
       return;
     }
-    setPreviewVideo(videoUrl);
+    
+    let finalUrl = videoUrl;
+    if (videoUrl.includes('.webm')) {
+      console.log('🔄 Converting webm to mp4...');
+      try {
+        const response = await fetch('https://reflectly-mobile-x--yaronbenm1.replit.app/api/convert-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: videoUrl })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.convertedUrl) {
+            finalUrl = data.convertedUrl;
+            console.log('✅ Converted to:', finalUrl);
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ Conversion failed, using original:', error.message);
+      }
+    }
+    
+    setPreviewVideo(finalUrl);
     setIsModalVisible(true);
   };
 
