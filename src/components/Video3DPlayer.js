@@ -153,13 +153,50 @@ const getAnimationStyle = (type, pageWidth, pageHeight) => {
   }
 };
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
+
 const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
   const videoRef = useRef(null);
   const [showThumbnail, setShowThumbnail] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [convertedUrl, setConvertedUrl] = useState(null);
+  const [isConverting, setIsConverting] = useState(false);
+
+  const rawVideoUrl = item.videoUrl || item.url;
+  const playerName = item.playerName || item.participantName || `משתתף ${index + 1}`;
+  const thumbnail = item.thumbnail || item.thumbnailUrl;
 
   useEffect(() => {
-    if (isActive && videoRef.current) {
+    const convertIfNeeded = async () => {
+      if (rawVideoUrl && rawVideoUrl.includes('.webm') && !convertedUrl) {
+        setIsConverting(true);
+        console.log(`🔄 Converting video ${index} from webm...`);
+        try {
+          const response = await fetch(`${API_URL}/api/convert-url`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: rawVideoUrl })
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.convertedUrl) {
+              console.log(`✅ Video ${index} converted:`, data.convertedUrl);
+              setConvertedUrl(data.convertedUrl);
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Video ${index} conversion failed:`, error);
+        }
+        setIsConverting(false);
+      } else if (rawVideoUrl && !rawVideoUrl.includes('.webm')) {
+        setConvertedUrl(rawVideoUrl);
+      }
+    };
+    convertIfNeeded();
+  }, [rawVideoUrl, index]);
+
+  useEffect(() => {
+    if (isActive && videoRef.current && convertedUrl) {
       setShowThumbnail(false);
       videoRef.current.playAsync();
       setIsPlaying(true);
@@ -169,7 +206,7 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
       setShowThumbnail(true);
       setIsPlaying(false);
     }
-  }, [isActive]);
+  }, [isActive, convertedUrl]);
 
   const handlePlaybackStatusUpdate = (status) => {
     if (status.didJustFinish && onVideoEnd) {
@@ -177,13 +214,17 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
     }
   };
 
-  const thumbnail = item.thumbnail || item.thumbnailUrl;
-  const videoUrl = item.videoUrl || item.url;
-  const playerName = item.playerName || item.participantName || `משתתף ${index + 1}`;
+  const videoUrl = convertedUrl || rawVideoUrl;
 
   return (
     <View style={styles.slideContainer}>
-      {showThumbnail && thumbnail ? (
+      {isConverting ? (
+        <View style={styles.loadingContainer}>
+          <Ionicons name="sync" size={32} color="white" />
+          <Text style={styles.loadingText}>ממיר סרטון...</Text>
+          <Text style={styles.playerName}>{playerName}</Text>
+        </View>
+      ) : showThumbnail && thumbnail ? (
         <View style={styles.thumbnailContainer}>
           <Image source={{ uri: thumbnail }} style={styles.thumbnail} />
           <View style={styles.thumbnailOverlay}>
@@ -196,16 +237,21 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
             )}
           </View>
         </View>
-      ) : (
+      ) : convertedUrl ? (
         <Video
           ref={videoRef}
-          source={{ uri: videoUrl }}
+          source={{ uri: convertedUrl }}
           style={styles.video}
           resizeMode="cover"
           shouldPlay={isActive}
           isLooping={false}
           onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
         />
+      ) : (
+        <View style={styles.loadingContainer}>
+          <Ionicons name="videocam" size={32} color="white" />
+          <Text style={styles.playerName}>{playerName}</Text>
+        </View>
       )}
       
       <View style={styles.slideInfo}>
@@ -443,6 +489,18 @@ const styles = StyleSheet.create({
   noVideosText: {
     color: 'white',
     fontSize: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#2a2a4e',
+    gap: 12,
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 14,
+    marginTop: 8,
   },
 });
 
