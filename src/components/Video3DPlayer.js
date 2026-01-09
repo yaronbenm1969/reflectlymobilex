@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Dimensions, StyleSheet, Image, Text, TouchableOpacity } from 'react-native';
 import { Video } from 'expo-av';
 import Carousel from 'react-native-reanimated-carousel';
+import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../theme/theme';
 
@@ -9,7 +10,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
 
-const VideoSlide = ({ item, index, isActive, onVideoEnd, isMounted }) => {
+const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
   const videoRef = useRef(null);
   const [showThumbnail, setShowThumbnail] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -153,36 +154,206 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd, isMounted }) => {
   );
 };
 
-const getCarouselMode = (format) => {
+// 3D Cube Animation
+const cube3DAnimation = (value, width) => {
+  'worklet';
+  const perspective = width * 2;
+  const rotateY = interpolate(value, [-1, 0, 1], [90, 0, -90]);
+  const translateX = interpolate(value, [-1, 0, 1], [-width / 2, 0, width / 2]);
+  const scale = interpolate(value, [-1, 0, 1], [0.9, 1, 0.9]);
+
+  return {
+    transform: [
+      { perspective },
+      { translateX },
+      { rotateY: `${rotateY}deg` },
+      { scale },
+    ],
+  };
+};
+
+// 3D Carousel Animation
+const carousel3DAnimation = (value, width) => {
+  'worklet';
+  const perspective = width * 2.5;
+  const rotateY = interpolate(value, [-1, 0, 1], [45, 0, -45]);
+  const translateX = interpolate(value, [-1, 0, 1], [-width * 0.3, 0, width * 0.3]);
+  const scale = interpolate(value, [-1, 0, 1], [0.85, 1, 0.85]);
+  const opacity = interpolate(value, [-1, 0, 1], [0.7, 1, 0.7]);
+
+  return {
+    transform: [
+      { perspective },
+      { translateX },
+      { rotateY: `${rotateY}deg` },
+      { scale },
+    ],
+    opacity,
+  };
+};
+
+// Flip Pages Animation
+const flipPagesAnimation = (value, width) => {
+  'worklet';
+  const perspective = width * 2;
+  const rotateY = interpolate(value, [-1, 0, 1], [180, 0, -180]);
+  const translateX = interpolate(value, [-1, 0, 1], [-width, 0, width]);
+  const scale = interpolate(value, [-1, 0, 1], [0.8, 1, 0.8]);
+
+  return {
+    transform: [
+      { perspective },
+      { translateX },
+      { rotateY: `${rotateY}deg` },
+      { scale },
+    ],
+    backfaceVisibility: 'hidden',
+  };
+};
+
+// Stack Cards Animation
+const stackCardsAnimation = (value, width) => {
+  'worklet';
+  const translateX = interpolate(value, [-1, 0, 1], [-width * 0.9, 0, width * 0.1]);
+  const translateY = interpolate(value, [-1, 0, 1], [0, 0, 10]);
+  const scale = interpolate(value, [-1, 0, 1], [0.9, 1, 0.95]);
+  const opacity = interpolate(value, [-1, 0, 1], [0, 1, 0.8]);
+  const zIndex = interpolate(value, [-1, 0, 1], [0, 10, 5]);
+
+  return {
+    transform: [
+      { translateX },
+      { translateY },
+      { scale },
+    ],
+    opacity,
+    zIndex: Math.round(zIndex),
+  };
+};
+
+// Paper Fold Animation
+const foldAnimation = (value, width) => {
+  'worklet';
+  const perspective = width * 2;
+  const rotateX = interpolate(value, [-1, 0, 1], [90, 0, -90]);
+  const translateY = interpolate(value, [-1, 0, 1], [-width / 4, 0, width / 4]);
+  const scale = interpolate(value, [-1, 0, 1], [0.8, 1, 0.8]);
+
+  return {
+    transform: [
+      { perspective },
+      { translateY },
+      { rotateX: `${rotateX}deg` },
+      { scale },
+    ],
+  };
+};
+
+// Circular Animation
+const circularAnimation = (value, width) => {
+  'worklet';
+  const perspective = width * 3;
+  const rotateY = interpolate(value, [-1, 0, 1], [60, 0, -60]);
+  const translateX = interpolate(value, [-1, 0, 1], [-width * 0.6, 0, width * 0.6]);
+  const translateZ = interpolate(value, [-1, 0, 1], [-100, 0, -100]);
+  const scale = interpolate(value, [-1, 0, 1], [0.7, 1, 0.7]);
+
+  return {
+    transform: [
+      { perspective },
+      { translateX },
+      { rotateY: `${rotateY}deg` },
+      { scale },
+    ],
+  };
+};
+
+// Parallax Animation
+const parallaxAnimation = (value, width) => {
+  'worklet';
+  const translateX = interpolate(value, [-1, 0, 1], [-width * 0.3, 0, width * 0.3]);
+  const scale = interpolate(value, [-1, 0, 1], [0.85, 1, 0.85]);
+  const opacity = interpolate(value, [-1, 0, 1], [0.6, 1, 0.6]);
+
+  return {
+    transform: [
+      { translateX },
+      { scale },
+    ],
+    opacity,
+  };
+};
+
+// Scale Fade Animation
+const scaleFadeAnimation = (value, width) => {
+  'worklet';
+  const translateX = interpolate(value, [-1, 0, 1], [-width, 0, width]);
+  const scale = interpolate(value, [-1, 0, 1], [0.5, 1, 0.5]);
+  const opacity = interpolate(value, [-1, 0, 1], [0, 1, 0]);
+
+  return {
+    transform: [
+      { translateX },
+      { scale },
+    ],
+    opacity,
+  };
+};
+
+// Standard Animation (no effects)
+const standardAnimation = (value, width) => {
+  'worklet';
+  const translateX = interpolate(value, [-1, 0, 1], [-width, 0, width]);
+
+  return {
+    transform: [{ translateX }],
+  };
+};
+
+const getAnimationStyle = (format) => {
   switch (format) {
     case 'cube-3d':
+      return cube3DAnimation;
     case 'carousel-3d':
-    case 'parallax':
-      return 'parallax';
+      return carousel3DAnimation;
+    case 'flip-pages':
+      return flipPagesAnimation;
     case 'stack-cards':
     case 'tinder':
-      return 'horizontal-stack';
+      return stackCardsAnimation;
     case 'fold':
-      return 'vertical-stack';
+      return foldAnimation;
+    case 'circular':
+      return circularAnimation;
+    case 'parallax':
+    case 'flow':
+      return parallaxAnimation;
+    case 'blur-rotate':
+    case 'scale-fade':
+      return scaleFadeAnimation;
+    case 'standard':
     default:
-      return 'parallax';
+      return standardAnimation;
   }
 };
 
-const getModeConfig = (format) => {
-  switch (format) {
-    case 'cube-3d':
-      return { parallaxScrollingScale: 0.8, parallaxScrollingOffset: 50, parallaxAdjacentItemScale: 0.7 };
-    case 'carousel-3d':
-      return { parallaxScrollingScale: 0.9, parallaxScrollingOffset: 40, parallaxAdjacentItemScale: 0.8 };
-    case 'stack-cards':
-    case 'tinder':
-      return { stackInterval: 18, scaleInterval: 0.04, opacityInterval: 0.2 };
-    case 'fold':
-      return { stackInterval: 8 };
-    default:
-      return { parallaxScrollingScale: 0.85, parallaxScrollingOffset: 30 };
-  }
+const AnimatedSlide = ({ item, index, animationValue, width, height, format, isActive, onVideoEnd }) => {
+  const animationFn = getAnimationStyle(format);
+  
+  const animatedStyle = useAnimatedStyle(() => {
+    return animationFn(animationValue.value, width);
+  }, [animationValue, width, format]);
+
+  return (
+    <Animated.View style={[{ width, height, position: 'absolute' }, animatedStyle]}>
+      <VideoSlide
+        item={item}
+        index={index}
+        isActive={isActive}
+        onVideoEnd={onVideoEnd}
+      />
+    </Animated.View>
+  );
 };
 
 export const Video3DPlayer = ({
@@ -206,10 +377,7 @@ export const Video3DPlayer = ({
     };
   }, []);
 
-  console.log('🎬 Video3DPlayer format:', format, 'videos:', videos.length);
-  
-  const mode = getCarouselMode(format);
-  const modeConfig = getModeConfig(format);
+  console.log('🎬 Video3DPlayer format:', format, 'videos:', videos.length, '(3D animations enabled)');
 
   const handleVideoEnd = useCallback((index) => {
     if (!isMountedRef.current || isTransitioning) return;
@@ -267,13 +435,20 @@ export const Video3DPlayer = ({
           data={videos}
           autoPlay={false}
           scrollAnimationDuration={800}
-          mode={mode}
-          modeConfig={modeConfig}
           onSnapToItem={handleSnapToItem}
-          renderItem={({ index, item }) => (
-            <VideoSlide
+          customAnimation={(value) => {
+            'worklet';
+            const animationFn = getAnimationStyle(format);
+            return animationFn(value, width);
+          }}
+          renderItem={({ index, item, animationValue }) => (
+            <AnimatedSlide
               item={item}
               index={index}
+              animationValue={animationValue}
+              width={width}
+              height={height}
+              format={format}
               isActive={index === activeIndex && isPlaying && !isTransitioning}
               onVideoEnd={handleVideoEnd}
             />
