@@ -1,157 +1,11 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Dimensions, StyleSheet, Image, Text, TouchableOpacity } from 'react-native';
 import { Video } from 'expo-av';
 import Carousel from 'react-native-reanimated-carousel';
-import Animated, {
-  Extrapolation,
-  interpolate,
-} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../theme/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const getAnimationStyle = (type, pageWidth, pageHeight) => {
-  switch (type) {
-    case 'cube-3d':
-      return (value) => {
-        'worklet';
-        const zIndex = interpolate(value, [-1, 0, 1], [-1000, 0, -1000]);
-        const translateX = interpolate(value, [-1, 0, 1], [-pageWidth, 0, pageWidth], Extrapolation.CLAMP);
-        const scale = interpolate(value, [-1, 0, 1], [0.7, 1, 0.7], Extrapolation.CLAMP);
-        const rotateY = `${interpolate(value, [-1, 0, 1], [-90, 0, 90], Extrapolation.CLAMP)}deg`;
-        return {
-          transform: [{ perspective: 1000 }, { scale }, { translateX }, { rotateY }],
-          zIndex,
-        };
-      };
-      
-    case 'carousel-3d':
-      return (value) => {
-        'worklet';
-        const translateX = interpolate(value, [-1, 0, 1], [-pageWidth * 0.5, 0, pageWidth * 0.5]);
-        const scale = interpolate(value, [-1, 0, 1], [0.8, 1, 0.8], Extrapolation.CLAMP);
-        const rotateY = `${interpolate(value, [-1, 0, 1], [45, 0, -45], Extrapolation.CLAMP)}deg`;
-        const zIndex = interpolate(value, [-1, 0, 1], [0, 1, 0]);
-        return {
-          transform: [{ perspective: 800 }, { translateX }, { scale }, { rotateY }],
-          zIndex,
-          opacity: interpolate(value, [-1, 0, 1], [0.7, 1, 0.7]),
-        };
-      };
-      
-    case 'flip-pages':
-      return (value) => {
-        'worklet';
-        const rotateY = `${interpolate(value, [-1, 0, 1], [180, 0, -180], Extrapolation.CLAMP)}deg`;
-        const opacity = interpolate(value, [-0.5, 0, 0.5], [0, 1, 0], Extrapolation.CLAMP);
-        return {
-          transform: [{ perspective: 1200 }, { rotateY }],
-          opacity,
-          backfaceVisibility: 'hidden',
-        };
-      };
-      
-    case 'stack-cards':
-      return (value) => {
-        'worklet';
-        const scale = interpolate(value, [-1, 0, 1], [0.9, 1, 0.9], Extrapolation.CLAMP);
-        const translateY = interpolate(value, [-1, 0, 1], [-30, 0, 30], Extrapolation.CLAMP);
-        const zIndex = interpolate(value, [-1, 0, 1], [0, 1, 0]);
-        return {
-          transform: [{ scale }, { translateY }],
-          zIndex,
-          opacity: interpolate(value, [-1, 0, 1], [0.5, 1, 0.5]),
-        };
-      };
-      
-    case 'tinder':
-      return (value) => {
-        'worklet';
-        const translateX = interpolate(value, [-1, 0, 1], [-pageWidth, 0, pageWidth]);
-        const rotate = `${interpolate(value, [-1, 0, 1], [-15, 0, 15], Extrapolation.CLAMP)}deg`;
-        const scale = interpolate(value, [-1, 0, 1], [0.9, 1, 0.9], Extrapolation.CLAMP);
-        return {
-          transform: [{ translateX }, { rotate }, { scale }],
-          opacity: interpolate(value, [-1, 0, 1], [0.5, 1, 0.5]),
-        };
-      };
-      
-    case 'fold':
-      return (value) => {
-        'worklet';
-        const rotateX = `${interpolate(value, [-1, 0, 1], [90, 0, -90], Extrapolation.CLAMP)}deg`;
-        const translateY = interpolate(value, [-1, 0, 1], [-pageHeight * 0.5, 0, pageHeight * 0.5]);
-        return {
-          transform: [{ perspective: 1000 }, { rotateX }, { translateY }],
-          opacity: interpolate(value, [-0.5, 0, 0.5], [0, 1, 0], Extrapolation.CLAMP),
-        };
-      };
-      
-    case 'circular':
-      return (value) => {
-        'worklet';
-        const rotate = `${interpolate(value, [-1, 0, 1], [-360, 0, 360], Extrapolation.CLAMP)}deg`;
-        const scale = interpolate(value, [-1, 0, 1], [0.5, 1, 0.5], Extrapolation.CLAMP);
-        return {
-          transform: [{ rotate }, { scale }],
-          opacity: interpolate(value, [-0.5, 0, 0.5], [0.3, 1, 0.3], Extrapolation.CLAMP),
-        };
-      };
-      
-    case 'flow':
-      return (value) => {
-        'worklet';
-        const translateX = interpolate(value, [-1, 0, 1], [-pageWidth * 0.3, 0, pageWidth * 0.3]);
-        const scale = interpolate(value, [-1, 0, 1], [0.85, 1, 0.85], Extrapolation.CLAMP);
-        return {
-          transform: [{ translateX }, { scale }],
-          opacity: interpolate(value, [-1, 0, 1], [0.6, 1, 0.6]),
-        };
-      };
-      
-    case 'parallax':
-      return (value) => {
-        'worklet';
-        const translateX = interpolate(value, [-1, 0, 1], [-pageWidth * 0.5, 0, pageWidth * 0.5]);
-        const scale = interpolate(value, [-1, 0, 1], [0.7, 1, 0.7], Extrapolation.CLAMP);
-        const zIndex = interpolate(value, [-1, 0, 1], [-100, 0, -100]);
-        return {
-          transform: [{ translateX }, { scale }],
-          zIndex,
-          opacity: interpolate(value, [-1, 0, 1], [0.4, 1, 0.4]),
-        };
-      };
-      
-    case 'blur-rotate':
-      return (value) => {
-        'worklet';
-        const rotate = `${interpolate(value, [-1, 0, 1], [30, 0, -30], Extrapolation.CLAMP)}deg`;
-        const scale = interpolate(value, [-1, 0, 1], [0.8, 1, 0.8], Extrapolation.CLAMP);
-        return {
-          transform: [{ rotate }, { scale }],
-          opacity: interpolate(value, [-0.8, 0, 0.8], [0.2, 1, 0.2], Extrapolation.CLAMP),
-        };
-      };
-      
-    case 'scale-fade':
-      return (value) => {
-        'worklet';
-        const scale = interpolate(value, [-1, 0, 1], [0.5, 1, 0.5], Extrapolation.CLAMP);
-        return {
-          transform: [{ scale }],
-          opacity: interpolate(value, [-0.5, 0, 0.5], [0, 1, 0], Extrapolation.CLAMP),
-        };
-      };
-      
-    default:
-      return (value) => {
-        'worklet';
-        const translateX = interpolate(value, [-1, 0, 1], [-pageWidth, 0, pageWidth]);
-        return { transform: [{ translateX }] };
-      };
-  }
-};
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
 
@@ -214,8 +68,6 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
     }
   };
 
-  const videoUrl = convertedUrl || rawVideoUrl;
-
   return (
     <View style={styles.slideContainer}>
       {isConverting ? (
@@ -262,6 +114,38 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
   );
 };
 
+const getCarouselMode = (format) => {
+  switch (format) {
+    case 'cube-3d':
+    case 'carousel-3d':
+    case 'parallax':
+      return 'parallax';
+    case 'stack-cards':
+    case 'tinder':
+      return 'horizontal-stack';
+    case 'fold':
+      return 'vertical-stack';
+    default:
+      return 'parallax';
+  }
+};
+
+const getModeConfig = (format) => {
+  switch (format) {
+    case 'cube-3d':
+      return { parallaxScrollingScale: 0.8, parallaxScrollingOffset: 50, parallaxAdjacentItemScale: 0.7 };
+    case 'carousel-3d':
+      return { parallaxScrollingScale: 0.9, parallaxScrollingOffset: 40, parallaxAdjacentItemScale: 0.8 };
+    case 'stack-cards':
+    case 'tinder':
+      return { stackInterval: 18, scaleInterval: 0.04, opacityInterval: 0.2 };
+    case 'fold':
+      return { stackInterval: 8 };
+    default:
+      return { parallaxScrollingScale: 0.85, parallaxScrollingOffset: 30 };
+  }
+};
+
 export const Video3DPlayer = ({
   videos = [],
   format = 'cube-3d',
@@ -274,10 +158,10 @@ export const Video3DPlayer = ({
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const carouselRef = useRef(null);
 
-  const animationStyle = useCallback(
-    getAnimationStyle(format, width, height),
-    [format, width, height]
-  );
+  console.log('🎬 Video3DPlayer format:', format, 'videos:', videos.length);
+  
+  const mode = getCarouselMode(format);
+  const modeConfig = getModeConfig(format);
 
   const handleVideoEnd = (index) => {
     if (index < videos.length - 1) {
@@ -320,7 +204,8 @@ export const Video3DPlayer = ({
           data={videos}
           autoPlay={false}
           scrollAnimationDuration={800}
-          customAnimation={animationStyle}
+          mode={mode}
+          modeConfig={modeConfig}
           onSnapToItem={handleSnapToItem}
           renderItem={({ index, item }) => (
             <VideoSlide
