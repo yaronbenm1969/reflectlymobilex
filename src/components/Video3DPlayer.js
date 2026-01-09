@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Dimensions, StyleSheet, Image, Text, TouchableOpacity } from 'react-native';
 import { Video } from 'expo-av';
 import Carousel from 'react-native-reanimated-carousel';
@@ -9,16 +9,25 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
 
-const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
+const VideoSlide = ({ item, index, isActive, onVideoEnd, isMounted }) => {
   const videoRef = useRef(null);
   const [showThumbnail, setShowThumbnail] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [convertedUrl, setConvertedUrl] = useState(null);
   const [isConverting, setIsConverting] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const isMountedRef = useRef(true);
 
   const rawVideoUrl = item.videoUrl || item.url;
   const playerName = item.playerName || item.participantName || `משתתף ${index + 1}`;
   const thumbnail = item.thumbnail || item.thumbnailUrl;
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const convertIfNeeded = async () => {
@@ -31,7 +40,7 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: rawVideoUrl })
           });
-          if (response.ok) {
+          if (response.ok && isMountedRef.current) {
             const data = await response.json();
             if (data.convertedUrl) {
               console.log(`✅ Video ${index} converted:`, data.convertedUrl);
@@ -41,7 +50,9 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
         } catch (error) {
           console.error(`❌ Video ${index} conversion failed:`, error);
         }
-        setIsConverting(false);
+        if (isMountedRef.current) {
+          setIsConverting(false);
+        }
       } else if (rawVideoUrl && !rawVideoUrl.includes('.webm')) {
         setConvertedUrl(rawVideoUrl);
       }
@@ -50,23 +61,50 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
   }, [rawVideoUrl, index]);
 
   useEffect(() => {
-    if (isActive && videoRef.current && convertedUrl) {
-      setShowThumbnail(false);
-      videoRef.current.playAsync();
-      setIsPlaying(true);
-    } else if (!isActive && videoRef.current) {
-      videoRef.current.pauseAsync();
-      videoRef.current.setPositionAsync(0);
-      setShowThumbnail(true);
-      setIsPlaying(false);
-    }
-  }, [isActive, convertedUrl]);
+    const controlPlayback = async () => {
+      if (!videoRef.current || !isMountedRef.current) return;
+      
+      try {
+        if (isActive && convertedUrl && isLoaded) {
+          setShowThumbnail(false);
+          await videoRef.current.playAsync();
+          if (isMountedRef.current) setIsPlaying(true);
+        } else if (!isActive && isLoaded) {
+          await videoRef.current.pauseAsync();
+          await videoRef.current.setPositionAsync(0);
+          if (isMountedRef.current) {
+            setShowThumbnail(true);
+            setIsPlaying(false);
+          }
+        }
+      } catch (error) {
+        console.log('Playback control error (expected on unmount):', error.message);
+      }
+    };
+    controlPlayback();
+  }, [isActive, convertedUrl, isLoaded]);
 
-  const handlePlaybackStatusUpdate = (status) => {
-    if (status.didJustFinish && onVideoEnd) {
-      onVideoEnd(index);
+  const handlePlaybackStatusUpdate = useCallback((status) => {
+    if (!isMountedRef.current) return;
+    
+    if (status.isLoaded && !isLoaded) {
+      setIsLoaded(true);
     }
-  };
+    
+    if (status.didJustFinish && onVideoEnd) {
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          onVideoEnd(index);
+        }
+      }, 500);
+    }
+  }, [onVideoEnd, index, isLoaded]);
+
+  const handleLoad = useCallback(() => {
+    if (isMountedRef.current) {
+      setIsLoaded(true);
+    }
+  }, []);
 
   return (
     <View style={styles.slideContainer}>
@@ -95,8 +133,9 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd }) => {
           source={{ uri: convertedUrl }}
           style={styles.video}
           resizeMode="cover"
-          shouldPlay={isActive}
+          shouldPlay={false}
           isLooping={false}
+          onLoad={handleLoad}
           onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
         />
       ) : (
@@ -156,34 +195,58 @@ export const Video3DPlayer = ({
 }) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const carouselRef = useRef(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   console.log('🎬 Video3DPlayer format:', format, 'videos:', videos.length);
   
   const mode = getCarouselMode(format);
   const modeConfig = getModeConfig(format);
 
-  const handleVideoEnd = (index) => {
+  const handleVideoEnd = useCallback((index) => {
+    if (!isMountedRef.current || isTransitioning) return;
+    
     if (index < videos.length - 1) {
+      setIsTransitioning(true);
       const nextIndex = index + 1;
-      setActiveIndex(nextIndex);
-      if (carouselRef.current) {
-        carouselRef.current.scrollTo({ index: nextIndex, animated: true });
-      }
+      
+      requestAnimationFrame(() => {
+        if (carouselRef.current && isMountedRef.current) {
+          setActiveIndex(nextIndex);
+          carouselRef.current.scrollTo({ index: nextIndex, animated: true });
+          
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              setIsTransitioning(false);
+            }
+          }, 1000);
+        }
+      });
     } else {
+      setIsPlaying(false);
       if (onComplete) {
         onComplete();
       }
     }
-  };
+  }, [videos.length, onComplete, isTransitioning]);
 
-  const handleSnapToItem = (index) => {
-    setActiveIndex(index);
-  };
+  const handleSnapToItem = useCallback((index) => {
+    if (isMountedRef.current) {
+      setActiveIndex(index);
+    }
+  }, []);
 
-  const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
-  };
+  const handlePlayPause = useCallback(() => {
+    setIsPlaying(prev => !prev);
+  }, []);
 
   if (videos.length === 0) {
     return (
@@ -211,7 +274,7 @@ export const Video3DPlayer = ({
             <VideoSlide
               item={item}
               index={index}
-              isActive={index === activeIndex && isPlaying}
+              isActive={index === activeIndex && isPlaying && !isTransitioning}
               onVideoEnd={handleVideoEnd}
             />
           )}
