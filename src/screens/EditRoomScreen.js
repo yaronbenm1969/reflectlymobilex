@@ -60,8 +60,12 @@ export const EditRoomScreen = () => {
     };
   }, [currentStoryId]);
 
+  console.log('📊 Raw reflections:', JSON.stringify(reflections, null, 2));
+  
   const stats = reflectionsService.getReflectionStats(reflections);
   const { participants, totalClips, completeParticipants, totalParticipants } = stats;
+  
+  console.log('👥 Grouped participants:', JSON.stringify(participants, null, 2));
 
   const is3DFormat = videoFormat && videoFormat !== 'standard';
 

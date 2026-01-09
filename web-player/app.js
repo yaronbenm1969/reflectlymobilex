@@ -60,6 +60,8 @@ function showWebViewRedirect() {
 
 let app, db, storage;
 let currentStory = null;
+let participantId = null;
+let participantName = null;
 let mediaRecorder = null;
 let recordedChunks = [];
 let recordedBlob = null;
@@ -201,7 +203,13 @@ async function loadStory(code) {
     }
     
     currentStory = story;
+    
+    participantId = localStorage.getItem(`participant_${story.id}`) || 
+                   `participant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem(`participant_${story.id}`, participantId);
+    
     console.log('📖 Story loaded:', story);
+    console.log('👤 Participant ID:', participantId);
     console.log('📖 Story details - name:', story.name, 'instructions:', story.instructions, 'creatorName:', story.creatorName);
     
     document.getElementById('story-title').textContent = story.name || story.inviteCode || 'הסיפור';
@@ -463,6 +471,8 @@ async function submitAllClips() {
                     storyId: currentStory.id,
                     clipNumber: i,
                     videoUrl: downloadUrl,
+                    participantId: participantId,
+                    participantName: participantName || `משתתף ${participantId.slice(-4)}`,
                     createdAt: serverTimestamp(),
                     status: 'pending'
                 });
