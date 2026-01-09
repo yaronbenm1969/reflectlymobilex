@@ -15,57 +15,26 @@
     display:grid;
     place-items:center;
     height:100vh;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    background:#0f1020;
     color:#fff;
     font-family:sans-serif;
     position:relative;
-    overflow: hidden;
   }
   .audio-control {
     position:fixed;
     top:20px;
     right:20px;
-    padding:12px 24px;
-    background: linear-gradient(135deg, #FF6B9D 0%, #C06FBB 100%);
+    padding:10px 20px;
+    background:#8B5CF6;
     color:white;
     border:none;
-    border-radius:25px;
+    border-radius:8px;
     cursor:pointer;
     font-size:16px;
     z-index:1000;
-    box-shadow: 0 4px 15px rgba(255, 107, 157, 0.4);
-    transition: transform 0.2s, box-shadow 0.2s;
   }
   .audio-control:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 20px rgba(255, 107, 157, 0.6);
-  }
-  .back-button {
-    position:fixed;
-    top:20px;
-    left:20px;
-    padding:12px 24px;
-    background: rgba(255,255,255,0.1);
-    color:white;
-    border: 1px solid rgba(255,255,255,0.3);
-    border-radius:25px;
-    cursor:pointer;
-    font-size:16px;
-    z-index:1000;
-    transition: background 0.2s;
-  }
-  .back-button:hover {
-    background: rgba(255,255,255,0.2);
-  }
-  .title {
-    position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 24px;
-    font-weight: bold;
-    text-shadow: 0 2px 10px rgba(0,0,0,0.5);
-    z-index: 100;
+    background:#7C3AED;
   }
   .stage {
     width:var(--size);
@@ -77,11 +46,6 @@
     position:relative;
     transform-style:preserve-3d;
     animation: spin var(--duration) linear infinite;
-    cursor: grab;
-  }
-  .cube:active {
-    cursor: grabbing;
-    animation-play-state: paused;
   }
   @keyframes spin {
     from { transform: rotateX(0deg) rotateY(0deg); }
@@ -92,13 +56,12 @@
     width:100%; height:100%;
     display:grid; place-items:center;
     backface-visibility:hidden;
-    border:2px solid rgba(255, 107, 157, 0.4);
-    border-radius:12px;
+    border:1px solid rgba(255,255,255,.2);
+    border-radius:10px;
     overflow:hidden;
-    background: linear-gradient(135deg, rgba(255, 107, 157, 0.2) 0%, rgba(192, 111, 187, 0.2) 100%);
+    background:#222a;
     font-size:20px;
     font-weight:bold;
-    box-shadow: 0 0 20px rgba(255, 107, 157, 0.3);
   }
   .face video {
     width:100%;
@@ -107,178 +70,44 @@
     display:block;
     position: relative;
   }
-  .face-label {
-    position: absolute;
-    bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,0.6);
-    padding: 5px 15px;
-    border-radius: 15px;
-    font-size: 14px;
-    white-space: nowrap;
-  }
   .front  { transform: translateZ(calc(var(--size)/2)); }
   .back   { transform: rotateY(180deg) translateZ(calc(var(--size)/2)); }
   .right  { transform: rotateY(90deg)  translateZ(calc(var(--size)/2)); }
   .left   { transform: rotateY(-90deg) translateZ(calc(var(--size)/2)); }
   .top    { transform: rotateX(90deg)  translateZ(calc(var(--size)/2)); }
   .bottom { transform: rotateX(-90deg) translateZ(calc(var(--size)/2)); }
-  
-  .loading-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-    transition: opacity 0.5s;
-  }
-  .loading-overlay.hidden {
-    opacity: 0;
-    pointer-events: none;
-  }
-  .loader {
-    width: 60px;
-    height: 60px;
-    border: 4px solid rgba(255, 107, 157, 0.3);
-    border-top-color: #FF6B9D;
-    border-radius: 50%;
-    animation: loader-spin 1s linear infinite;
-  }
-  @keyframes loader-spin {
-    to { transform: rotate(360deg); }
-  }
-  .loading-text {
-    margin-top: 20px;
-    font-size: 18px;
-    color: #FF6B9D;
-  }
-
-  @media (max-width: 400px) {
-    :root {
-      --size: 250px;
-    }
-  }
 </style>
 </head>
 <body>
-  <div class="loading-overlay" id="loadingOverlay">
-    <div class="loader"></div>
-    <div class="loading-text">טוען קוביה...</div>
-  </div>
-
-  <button class="back-button" onclick="history.back()">חזרה</button>
   <button class="audio-control" onclick="toggleAudio()" id="audioBtn">הפעל סאונד</button>
   
   <div class="stage">
-    <div class="cube" id="cube">
-      <div class="face front">
-        <video src="" autoplay loop muted playsinline></video>
-        <div class="face-label">פאה 1</div>
-      </div>
-      <div class="face back">
-        <video src="" autoplay loop muted playsinline></video>
-        <div class="face-label">פאה 2</div>
-      </div>
-      <div class="face right">
-        <video src="" autoplay loop muted playsinline></video>
-        <div class="face-label">פאה 3</div>
-      </div>
-      <div class="face left">
-        <video src="" autoplay loop muted playsinline></video>
-        <div class="face-label">פאה 4</div>
-      </div>
-      <div class="face top">
-        <video src="" autoplay loop muted playsinline></video>
-        <div class="face-label">פאה 5</div>
-      </div>
-      <div class="face bottom">
-        <video src="" autoplay loop muted playsinline></video>
-        <div class="face-label">פאה 6</div>
-      </div>
+    <div class="cube">
+      <div class="face front"><video id="video0" autoplay loop playsinline></video></div>
+      <div class="face back"><video id="video1" autoplay loop muted playsinline></video></div>
+      <div class="face right"><video id="video2" autoplay loop muted playsinline></video></div>
+      <div class="face left"><video id="video3" autoplay loop muted playsinline></video></div>
+      <div class="face top"><video id="video4" autoplay loop muted playsinline></video></div>
+      <div class="face bottom"><video id="video5" autoplay loop muted playsinline></video></div>
     </div>
   </div>
-
-  <div class="title" id="storyTitle">הסיפור שלי</div>
 
   <script>
     let audioEnabled = false;
     let audioContext = null;
     let gainNode = null;
     let videoSource = null;
-    let isDragging = false;
-    let startX, startY;
-    let rotationX = 0, rotationY = 0;
 
-    // Get video URLs from URL params or localStorage
-    function getVideoUrls() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const storyId = urlParams.get('storyId');
-      const title = urlParams.get('title');
-      
-      if (title) {
-        document.getElementById('storyTitle').textContent = decodeURIComponent(title);
-      }
-
-      // Try to get videos from localStorage
-      const storedVideos = localStorage.getItem(`cube_videos_${storyId}`);
-      if (storedVideos) {
-        return JSON.parse(storedVideos);
-      }
-
-      // Default: use final.mp4 for all faces
-      const defaultVideo = urlParams.get('video') || 'assets/final.mp4';
-      return [defaultVideo, defaultVideo, defaultVideo, defaultVideo, defaultVideo, defaultVideo];
+    function initializeVideoOnlySound() {
+      console.log('Preparing audio boost system');
     }
 
-    // Load videos into cube faces
-    function loadVideos() {
-      const videos = getVideoUrls();
-      const videoElements = document.querySelectorAll('.face video');
-      const labels = ['יוצר', 'משתתף 1', 'משתתף 2', 'משתתף 3', 'משתתף 4', 'משתתף 5'];
-      
-      let loadedCount = 0;
-      
-      videoElements.forEach((video, index) => {
-        if (videos[index]) {
-          video.src = videos[index];
-          video.onloadeddata = () => {
-            loadedCount++;
-            if (loadedCount >= videos.length) {
-              document.getElementById('loadingOverlay').classList.add('hidden');
-            }
-          };
-          video.onerror = () => {
-            loadedCount++;
-            if (loadedCount >= videos.length) {
-              document.getElementById('loadingOverlay').classList.add('hidden');
-            }
-          };
-        }
-        
-        // Update label
-        const label = video.parentElement.querySelector('.face-label');
-        if (label && labels[index]) {
-          label.textContent = labels[index];
-        }
-      });
-
-      // Fallback: hide loading after 5 seconds
-      setTimeout(() => {
-        document.getElementById('loadingOverlay').classList.add('hidden');
-      }, 5000);
-    }
-
-    // Audio control with amplification
-    async function setupAmplifier(videoElement) {
+    async function setupSuperAmplifier(videoElement) {
       try {
-        if (audioContext && videoSource) return true;
+        if (audioContext && videoSource) {
+          console.log('AMPLIFIER: Already connected, skipping setup');
+          return true;
+        }
 
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         videoSource = audioContext.createMediaElementSource(videoElement);
@@ -291,7 +120,7 @@
         compressor.release.value = 0.25;
 
         gainNode = audioContext.createGain();
-        gainNode.gain.value = 4.0;
+        gainNode.gain.value = 8.0;
 
         const limiter = audioContext.createDynamicsCompressor();
         limiter.threshold.value = -3;
@@ -309,9 +138,10 @@
           await audioContext.resume();
         }
 
+        console.log('EXTREME AMPLIFIER: Audio boost activated at 800% POWER!');
         return true;
       } catch (error) {
-        console.error('Amplifier error:', error);
+        console.error('AMPLIFIER ERROR:', error.message || error);
         return false;
       }
     }
@@ -325,72 +155,113 @@
           if (index === 0) {
             video.muted = false;
             video.volume = 1.0;
-            await setupAmplifier(video);
+            const amplifierSuccess = await setupSuperAmplifier(video);
+            if (amplifierSuccess) {
+              console.log('EXTREME BOOST: Video amplified to 800% MAXIMUM power!');
+            }
+            setInterval(() => {
+              if (video.volume < 1.0) {
+                video.volume = 1.0;
+              }
+              if (gainNode && gainNode.gain.value < 8.0) {
+                gainNode.gain.value = 8.0;
+              }
+            }, 1000);
           } else {
             video.muted = true;
           }
         });
-        btn.textContent = 'השתק סאונד';
+        btn.textContent = 'השתק מגבר x8';
         audioEnabled = true;
       } else {
         videos.forEach(video => {
           video.muted = true;
         });
+        if (audioContext && audioContext.state !== 'closed') {
+          try {
+            if (videoSource) videoSource.disconnect();
+            if (gainNode) gainNode.disconnect();
+          } catch (error) {
+            console.log('Amplifier disconnect error:', error);
+          }
+        }
         btn.textContent = 'הפעל סאונד';
         audioEnabled = false;
       }
     }
 
-    // Drag to rotate
-    const cube = document.getElementById('cube');
-    
-    cube.addEventListener('mousedown', (e) => {
-      isDragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      cube.style.animation = 'none';
-    });
+    function getVideoUrl() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const videoUrl = urlParams.get('video');
+      const storyId = urlParams.get('storyId');
+      
+      if (videoUrl) {
+        return decodeURIComponent(videoUrl);
+      }
+      
+      if (storyId) {
+        const storedUrl = localStorage.getItem(`final_video_${storyId}`);
+        if (storedUrl) return storedUrl;
+      }
+      
+      return 'assets/final.mp4';
+    }
 
-    document.addEventListener('mousemove', (e) => {
-      if (!isDragging) return;
-      const deltaX = e.clientX - startX;
-      const deltaY = e.clientY - startY;
-      rotationY += deltaX * 0.5;
-      rotationX -= deltaY * 0.5;
-      cube.style.transform = `rotateX(${rotationX}deg) rotateY(${rotationY}deg)`;
-      startX = e.clientX;
-      startY = e.clientY;
-    });
+    document.addEventListener('DOMContentLoaded', function() {
+      initializeVideoOnlySound();
+      
+      const videoUrl = getVideoUrl();
+      console.log('Loading video:', videoUrl);
 
-    document.addEventListener('mouseup', () => {
-      isDragging = false;
-    });
+      setTimeout(() => {
+        const videos = document.querySelectorAll('video');
+        videos.forEach(async (video, index) => {
+          video.src = videoUrl;
+          
+          if (index === 0) {
+            video.muted = false;
+            video.volume = 1.0;
 
-    // Touch support
-    cube.addEventListener('touchstart', (e) => {
-      isDragging = true;
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-      cube.style.animation = 'none';
-    });
+            setTimeout(async () => {
+              const amplifierSuccess = await setupSuperAmplifier(video);
+              if (amplifierSuccess) {
+                console.log('STARTUP BOOST: Auto-amplifier activated at 800% EXTREME power!');
+              }
+            }, 2000);
 
-    document.addEventListener('touchmove', (e) => {
-      if (!isDragging) return;
-      const deltaX = e.touches[0].clientX - startX;
-      const deltaY = e.touches[0].clientY - startY;
-      rotationY += deltaX * 0.5;
-      rotationX -= deltaY * 0.5;
-      cube.style.transform = `rotateX(${rotationX}deg) rotateY(${rotationY}deg)`;
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-    });
+            video.addEventListener('loadeddata', async () => {
+              video.volume = 1.0;
+            });
 
-    document.addEventListener('touchend', () => {
-      isDragging = false;
-    });
+            video.addEventListener('canplay', async () => {
+              video.volume = 1.0;
+              setTimeout(async () => {
+                if (!audioContext) {
+                  await setupSuperAmplifier(video);
+                }
+              }, 1000);
+            });
+          } else {
+            video.muted = true;
+          }
+          
+          video.currentTime = 0;
+          video.play().catch(e => {
+            console.log(`Video ${index} failed:`, e);
+            setTimeout(() => {
+              video.play().catch(e2 => console.log(`Video ${index} retry failed:`, e2));
+            }, 500);
+          });
+        });
+        
+        audioEnabled = true;
+        document.getElementById('audioBtn').textContent = 'השתק מגבר x8';
 
-    // Initialize
-    document.addEventListener('DOMContentLoaded', loadVideos);
+        setTimeout(() => {
+          console.log('SYSTEM READY: EXTREME audio amplifier system at 800% power fully initialized!');
+        }, 3000);
+      }, 1000);
+    });
   </script>
 </body>
 </html>
