@@ -8,7 +8,6 @@
   :root {
     --size: 300px;
     --persp: 900px;
-    --duration: 14s;
   }
   body {
     margin:0;
@@ -25,16 +24,27 @@
     top:20px;
     right:20px;
     padding:10px 20px;
-    background:#8B5CF6;
+    background: linear-gradient(135deg, #FF6B9D 0%, #C06FBB 100%);
     color:white;
     border:none;
-    border-radius:8px;
+    border-radius:20px;
     cursor:pointer;
     font-size:16px;
     z-index:1000;
   }
   .audio-control:hover {
-    background:#7C3AED;
+    opacity: 0.9;
+  }
+  .progress-info {
+    position:fixed;
+    bottom:20px;
+    left:50%;
+    transform: translateX(-50%);
+    padding:10px 20px;
+    background: rgba(255,255,255,0.1);
+    border-radius:20px;
+    font-size:14px;
+    z-index:1000;
   }
   .stage {
     width:var(--size);
@@ -45,21 +55,17 @@
     width:100%; height:100%;
     position:relative;
     transform-style:preserve-3d;
-    animation: spin var(--duration) linear infinite;
-  }
-  @keyframes spin {
-    from { transform: rotateX(0deg) rotateY(0deg); }
-    to   { transform: rotateX(360deg) rotateY(360deg); }
+    transition: transform 1.5s ease-in-out;
   }
   .face {
     position:absolute;
     width:100%; height:100%;
     display:grid; place-items:center;
     backface-visibility:hidden;
-    border:1px solid rgba(255,255,255,.2);
-    border-radius:10px;
+    border:2px solid rgba(255, 107, 157, 0.4);
+    border-radius:12px;
     overflow:hidden;
-    background:#222a;
+    background:#222;
     font-size:20px;
     font-weight:bold;
   }
@@ -68,7 +74,16 @@
     height:100%;
     object-fit:cover;
     display:block;
-    position: relative;
+  }
+  .face .player-name {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.7);
+    padding: 5px 15px;
+    border-radius: 15px;
+    font-size: 14px;
   }
   .front  { transform: translateZ(calc(var(--size)/2)); }
   .back   { transform: rotateY(180deg) translateZ(calc(var(--size)/2)); }
@@ -76,192 +91,198 @@
   .left   { transform: rotateY(-90deg) translateZ(calc(var(--size)/2)); }
   .top    { transform: rotateX(90deg)  translateZ(calc(var(--size)/2)); }
   .bottom { transform: rotateX(-90deg) translateZ(calc(var(--size)/2)); }
+  
+  .face.active {
+    border-color: #FF6B9D;
+    box-shadow: 0 0 20px rgba(255, 107, 157, 0.5);
+  }
 </style>
 </head>
 <body>
   <button class="audio-control" onclick="toggleAudio()" id="audioBtn">הפעל סאונד</button>
   
   <div class="stage">
-    <div class="cube">
-      <div class="face front"><video id="video0" autoplay loop playsinline></video></div>
-      <div class="face back"><video id="video1" autoplay loop muted playsinline></video></div>
-      <div class="face right"><video id="video2" autoplay loop muted playsinline></video></div>
-      <div class="face left"><video id="video3" autoplay loop muted playsinline></video></div>
-      <div class="face top"><video id="video4" autoplay loop muted playsinline></video></div>
-      <div class="face bottom"><video id="video5" autoplay loop muted playsinline></video></div>
+    <div class="cube" id="cube">
+      <div class="face front" data-face="0">
+        <video id="video0" playsinline></video>
+        <div class="player-name" id="name0"></div>
+      </div>
+      <div class="face back" data-face="1">
+        <video id="video1" muted playsinline></video>
+        <div class="player-name" id="name1"></div>
+      </div>
+      <div class="face right" data-face="2">
+        <video id="video2" muted playsinline></video>
+        <div class="player-name" id="name2"></div>
+      </div>
+      <div class="face left" data-face="3">
+        <video id="video3" muted playsinline></video>
+        <div class="player-name" id="name3"></div>
+      </div>
+      <div class="face top" data-face="4">
+        <video id="video4" muted playsinline></video>
+        <div class="player-name" id="name4"></div>
+      </div>
+      <div class="face bottom" data-face="5">
+        <video id="video5" muted playsinline></video>
+        <div class="player-name" id="name5"></div>
+      </div>
     </div>
   </div>
 
+  <div class="progress-info" id="progressInfo">סרטון 1 מתוך 6</div>
+
   <script>
     let audioEnabled = false;
-    let audioContext = null;
-    let gainNode = null;
-    let videoSource = null;
+    let currentFace = 0;
+    let allVideos = [];
+    let videoQueue = [];
+    let playedCount = 0;
+    
+    const rotations = [
+      { x: 0, y: 0 },
+      { x: 0, y: 180 },
+      { x: 0, y: 90 },
+      { x: 0, y: -90 },
+      { x: -90, y: 0 },
+      { x: 90, y: 0 }
+    ];
 
-    function initializeVideoOnlySound() {
-      console.log('Preparing audio boost system');
-    }
-
-    async function setupSuperAmplifier(videoElement) {
-      try {
-        if (audioContext && videoSource) {
-          console.log('AMPLIFIER: Already connected, skipping setup');
-          return true;
-        }
-
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        videoSource = audioContext.createMediaElementSource(videoElement);
-
-        const compressor = audioContext.createDynamicsCompressor();
-        compressor.threshold.value = -24;
-        compressor.knee.value = 30;
-        compressor.ratio.value = 12;
-        compressor.attack.value = 0.003;
-        compressor.release.value = 0.25;
-
-        gainNode = audioContext.createGain();
-        gainNode.gain.value = 8.0;
-
-        const limiter = audioContext.createDynamicsCompressor();
-        limiter.threshold.value = -3;
-        limiter.knee.value = 0;
-        limiter.ratio.value = 20;
-        limiter.attack.value = 0.001;
-        limiter.release.value = 0.01;
-
-        videoSource.connect(compressor);
-        compressor.connect(gainNode);
-        gainNode.connect(limiter);
-        limiter.connect(audioContext.destination);
-
-        if (audioContext.state === 'suspended') {
-          await audioContext.resume();
-        }
-
-        console.log('EXTREME AMPLIFIER: Audio boost activated at 800% POWER!');
-        return true;
-      } catch (error) {
-        console.error('AMPLIFIER ERROR:', error.message || error);
-        return false;
-      }
-    }
-
-    async function toggleAudio() {
-      const videos = document.querySelectorAll('video');
-      const btn = document.getElementById('audioBtn');
-
-      if (!audioEnabled) {
-        videos.forEach(async (video, index) => {
-          if (index === 0) {
-            video.muted = false;
-            video.volume = 1.0;
-            const amplifierSuccess = await setupSuperAmplifier(video);
-            if (amplifierSuccess) {
-              console.log('EXTREME BOOST: Video amplified to 800% MAXIMUM power!');
-            }
-            setInterval(() => {
-              if (video.volume < 1.0) {
-                video.volume = 1.0;
-              }
-              if (gainNode && gainNode.gain.value < 8.0) {
-                gainNode.gain.value = 8.0;
-              }
-            }, 1000);
-          } else {
-            video.muted = true;
-          }
-        });
-        btn.textContent = 'השתק מגבר x8';
-        audioEnabled = true;
-      } else {
-        videos.forEach(video => {
-          video.muted = true;
-        });
-        if (audioContext && audioContext.state !== 'closed') {
-          try {
-            if (videoSource) videoSource.disconnect();
-            if (gainNode) gainNode.disconnect();
-          } catch (error) {
-            console.log('Amplifier disconnect error:', error);
-          }
-        }
-        btn.textContent = 'הפעל סאונד';
-        audioEnabled = false;
-      }
-    }
-
-    function getVideoUrl() {
+    function getVideosFromParams() {
       const urlParams = new URLSearchParams(window.location.search);
-      const videoUrl = urlParams.get('video');
       const storyId = urlParams.get('storyId');
       
-      if (videoUrl) {
-        return decodeURIComponent(videoUrl);
-      }
-      
       if (storyId) {
-        const storedUrl = localStorage.getItem(`final_video_${storyId}`);
-        if (storedUrl) return storedUrl;
+        const storedVideos = localStorage.getItem(`cube_videos_${storyId}`);
+        if (storedVideos) {
+          return JSON.parse(storedVideos);
+        }
       }
       
-      return 'assets/final.mp4';
+      const videosParam = urlParams.get('videos');
+      if (videosParam) {
+        return JSON.parse(decodeURIComponent(videosParam));
+      }
+      
+      return [
+        { url: 'assets/demo1.mp4', playerName: 'יוצר הסיפור' },
+        { url: 'assets/demo2.mp4', playerName: 'משתתף 1' },
+        { url: 'assets/demo3.mp4', playerName: 'משתתף 2' },
+        { url: 'assets/demo4.mp4', playerName: 'משתתף 3' },
+        { url: 'assets/demo5.mp4', playerName: 'משתתף 4' },
+        { url: 'assets/demo6.mp4', playerName: 'משתתף 5' }
+      ];
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
-      initializeVideoOnlySound();
+    function loadVideoToFace(faceIndex, videoData) {
+      const video = document.getElementById(`video${faceIndex}`);
+      const nameEl = document.getElementById(`name${faceIndex}`);
       
-      const videoUrl = getVideoUrl();
-      console.log('Loading video:', videoUrl);
+      if (video && videoData) {
+        video.src = videoData.url;
+        video.load();
+        nameEl.textContent = videoData.playerName || `משתתף ${faceIndex + 1}`;
+      }
+    }
 
-      setTimeout(() => {
-        const videos = document.querySelectorAll('video');
-        videos.forEach(async (video, index) => {
-          video.src = videoUrl;
-          
-          if (index === 0) {
-            video.muted = false;
-            video.volume = 1.0;
+    function rotateTo(faceIndex) {
+      const cube = document.getElementById('cube');
+      const rot = rotations[faceIndex];
+      cube.style.transform = `rotateX(${-rot.x}deg) rotateY(${-rot.y}deg)`;
+      
+      document.querySelectorAll('.face').forEach((face, i) => {
+        face.classList.toggle('active', i === faceIndex);
+      });
+      
+      currentFace = faceIndex;
+      updateProgress();
+    }
 
-            setTimeout(async () => {
-              const amplifierSuccess = await setupSuperAmplifier(video);
-              if (amplifierSuccess) {
-                console.log('STARTUP BOOST: Auto-amplifier activated at 800% EXTREME power!');
-              }
-            }, 2000);
+    function updateProgress() {
+      const total = allVideos.length;
+      const current = playedCount + 1;
+      document.getElementById('progressInfo').textContent = `סרטון ${current} מתוך ${total}`;
+    }
 
-            video.addEventListener('loadeddata', async () => {
-              video.volume = 1.0;
-            });
-
-            video.addEventListener('canplay', async () => {
-              video.volume = 1.0;
-              setTimeout(async () => {
-                if (!audioContext) {
-                  await setupSuperAmplifier(video);
-                }
-              }, 1000);
-            });
-          } else {
-            video.muted = true;
-          }
-          
+    function playCurrentFace() {
+      const videos = document.querySelectorAll('video');
+      
+      videos.forEach((video, index) => {
+        if (index === currentFace) {
+          video.muted = !audioEnabled;
           video.currentTime = 0;
-          video.play().catch(e => {
-            console.log(`Video ${index} failed:`, e);
-            setTimeout(() => {
-              video.play().catch(e2 => console.log(`Video ${index} retry failed:`, e2));
-            }, 500);
-          });
-        });
-        
-        audioEnabled = true;
-        document.getElementById('audioBtn').textContent = 'השתק מגבר x8';
+          video.play().catch(e => console.log('Play error:', e));
+        } else {
+          video.pause();
+          video.muted = true;
+        }
+      });
+    }
 
+    function onVideoEnded() {
+      playedCount++;
+      
+      if (videoQueue.length > 0) {
+        const nextVideo = videoQueue.shift();
+        loadVideoToFace(currentFace, nextVideo);
+      }
+      
+      if (playedCount >= allVideos.length) {
+        console.log('All videos played!');
+        document.getElementById('progressInfo').textContent = 'הסתיים!';
+        return;
+      }
+      
+      const nextFace = (currentFace + 1) % 6;
+      
+      setTimeout(() => {
+        rotateTo(nextFace);
         setTimeout(() => {
-          console.log('SYSTEM READY: EXTREME audio amplifier system at 800% power fully initialized!');
-        }, 3000);
+          playCurrentFace();
+        }, 1500);
+      }, 500);
+    }
+
+    function toggleAudio() {
+      const btn = document.getElementById('audioBtn');
+      audioEnabled = !audioEnabled;
+      
+      const currentVideo = document.getElementById(`video${currentFace}`);
+      if (currentVideo) {
+        currentVideo.muted = !audioEnabled;
+      }
+      
+      btn.textContent = audioEnabled ? 'השתק' : 'הפעל סאונד';
+    }
+
+    function init() {
+      allVideos = getVideosFromParams();
+      
+      const initialVideos = allVideos.slice(0, 6);
+      videoQueue = allVideos.slice(6);
+      
+      initialVideos.forEach((videoData, index) => {
+        loadVideoToFace(index, videoData);
+      });
+      
+      for (let i = initialVideos.length; i < 6; i++) {
+        const nameEl = document.getElementById(`name${i}`);
+        if (nameEl) nameEl.textContent = '';
+      }
+      
+      document.querySelectorAll('video').forEach(video => {
+        video.addEventListener('ended', onVideoEnded);
+      });
+      
+      updateProgress();
+      
+      setTimeout(() => {
+        rotateTo(0);
+        playCurrentFace();
       }, 1000);
-    });
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
 </html>

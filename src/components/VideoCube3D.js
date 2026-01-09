@@ -1,176 +1,133 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Dimensions, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, Dimensions, StyleSheet, Text, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Video } from 'expo-av';
-import { CubeNavigationHorizontal } from 'react-native-3dcube-navigation';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../theme/theme';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
-
-const VideoFace = ({ item, index, isActive, onVideoEnd }) => {
-  const videoRef = useRef(null);
-  const [convertedUrl, setConvertedUrl] = useState(null);
-  const [isConverting, setIsConverting] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const isMountedRef = useRef(true);
-
-  const rawVideoUrl = item.videoUrl || item.url;
-  const playerName = item.playerName || item.participantName || `משתתף ${index + 1}`;
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const convertIfNeeded = async () => {
-      if (rawVideoUrl && rawVideoUrl.includes('.webm') && !convertedUrl) {
-        setIsConverting(true);
-        try {
-          const response = await fetch(`${API_URL}/api/convert-url`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: rawVideoUrl })
-          });
-          if (response.ok && isMountedRef.current) {
-            const data = await response.json();
-            if (data.convertedUrl) {
-              setConvertedUrl(data.convertedUrl);
-            }
-          }
-        } catch (error) {
-          console.error(`Video ${index} conversion failed:`, error);
-        }
-        if (isMountedRef.current) {
-          setIsConverting(false);
-        }
-      } else if (rawVideoUrl && !rawVideoUrl.includes('.webm')) {
-        setConvertedUrl(rawVideoUrl);
-      }
-    };
-    convertIfNeeded();
-  }, [rawVideoUrl, index]);
-
-  useEffect(() => {
-    const controlPlayback = async () => {
-      if (!videoRef.current || !isMountedRef.current) return;
-      
-      try {
-        if (isActive && convertedUrl && isLoaded) {
-          await videoRef.current.playAsync();
-        } else if (!isActive && isLoaded) {
-          await videoRef.current.pauseAsync();
-          await videoRef.current.setPositionAsync(0);
-        }
-      } catch (error) {
-        console.log('Playback error:', error.message);
-      }
-    };
-    controlPlayback();
-  }, [isActive, convertedUrl, isLoaded]);
-
-  const handlePlaybackStatusUpdate = useCallback((status) => {
-    if (!isMountedRef.current) return;
-    
-    if (status.isLoaded && !isLoaded) {
-      setIsLoaded(true);
-    }
-    
-    if (status.didJustFinish && onVideoEnd) {
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          onVideoEnd(index);
-        }
-      }, 500);
-    }
-  }, [onVideoEnd, index, isLoaded]);
-
-  const gradientColors = [
-    ['#FF6B9D', '#C06FBB'],
-    ['#4ECDC4', '#44A08D'],
-    ['#667EEA', '#764BA2'],
-    ['#F093FB', '#F5576C'],
-    ['#4FACFE', '#00F2FE'],
-    ['#43E97B', '#38F9D7'],
-  ];
-
-  const [color1, color2] = gradientColors[index % gradientColors.length];
-
-  return (
-    <View style={[styles.face, { backgroundColor: color1 }]}>
-      <View style={styles.faceGradient}>
-        {isConverting ? (
-          <View style={styles.loadingContainer}>
-            <Ionicons name="sync" size={48} color="white" />
-            <Text style={styles.loadingText}>ממיר סרטון...</Text>
-            <Text style={styles.playerName}>{playerName}</Text>
-          </View>
-        ) : convertedUrl ? (
-          <View style={styles.videoContainer}>
-            <Video
-              ref={videoRef}
-              source={{ uri: convertedUrl }}
-              style={styles.video}
-              resizeMode="cover"
-              shouldPlay={false}
-              isLooping={false}
-              onLoad={() => setIsLoaded(true)}
-              onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-            />
-            <View style={styles.videoOverlay}>
-              <Text style={styles.playerNameOnVideo}>{playerName}</Text>
-              <View style={styles.indexBadge}>
-                <Text style={styles.indexText}>{index + 1}</Text>
-              </View>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.loadingContainer}>
-            <Ionicons name="videocam" size={48} color="white" />
-            <Text style={styles.playerName}>{playerName}</Text>
-            <Text style={styles.waitingText}>טוען...</Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-};
 
 export const VideoCube3D = ({
   videos = [],
   width = SCREEN_WIDTH - 40,
-  height = 300,
+  height = 350,
   onComplete,
 }) => {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
-  const cubeRef = useRef(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [convertedUrls, setConvertedUrls] = useState({});
+  const videoRef = useRef(null);
+  
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  console.log('🎲 VideoCube3D loaded with', videos.length, 'videos');
+  console.log('VideoCube3D loaded with', videos.length, 'videos');
 
-  const handleSwipe = useCallback((position, index) => {
-    console.log('🎲 Cube swipe to index:', index);
-    setActiveIndex(index);
-  }, []);
-
-  const handleVideoEnd = useCallback((index) => {
-    if (index < videos.length - 1) {
-      const nextIndex = index + 1;
-      setActiveIndex(nextIndex);
-      if (cubeRef.current && cubeRef.current.scrollTo) {
-        cubeRef.current.scrollTo({ x: nextIndex * width, animated: true });
+  useEffect(() => {
+    const convertVideos = async () => {
+      const converted = {};
+      for (let i = 0; i < videos.length; i++) {
+        const video = videos[i];
+        const url = video.videoUrl || video.url;
+        
+        if (url && url.includes('.webm')) {
+          try {
+            const response = await fetch(`${API_URL}/api/convert-url`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url })
+            });
+            if (response.ok) {
+              const data = await response.json();
+              if (data.convertedUrl) {
+                converted[i] = data.convertedUrl;
+              }
+            }
+          } catch (error) {
+            console.error(`Video ${i} conversion failed:`, error);
+            converted[i] = url;
+          }
+        } else {
+          converted[i] = url;
+        }
       }
+      setConvertedUrls(converted);
+    };
+    
+    if (videos.length > 0) {
+      convertVideos();
+    }
+  }, [videos]);
+
+  const animateRotation = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.9,
+        duration: 300,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+        easing: Easing.inOut(Easing.cubic),
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+    ]).start(() => {
+      rotateAnim.setValue(0);
+    });
+  }, [rotateAnim, scaleAnim]);
+
+  const handleVideoEnd = useCallback(() => {
+    if (currentIndex < videos.length - 1) {
+      animateRotation();
+      setTimeout(() => {
+        setCurrentIndex(prev => prev + 1);
+      }, 500);
     } else {
       setIsPlaying(false);
       if (onComplete) {
         onComplete();
       }
     }
-  }, [videos.length, onComplete, width]);
+  }, [currentIndex, videos.length, onComplete, animateRotation]);
+
+  const handlePlaybackStatusUpdate = useCallback((status) => {
+    if (status.didJustFinish) {
+      handleVideoEnd();
+    }
+  }, [handleVideoEnd]);
+
+  const goToNext = () => {
+    if (currentIndex < videos.length - 1) {
+      animateRotation();
+      setTimeout(() => {
+        setCurrentIndex(prev => prev + 1);
+      }, 500);
+    }
+  };
+
+  const goToPrevious = () => {
+    if (currentIndex > 0) {
+      animateRotation();
+      setTimeout(() => {
+        setCurrentIndex(prev => prev - 1);
+      }, 500);
+    }
+  };
+
+  const rotateY = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '90deg'],
+  });
 
   if (videos.length === 0) {
     return (
@@ -180,53 +137,111 @@ export const VideoCube3D = ({
     );
   }
 
+  const currentVideo = videos[currentIndex];
+  const playerName = currentVideo?.playerName || currentVideo?.participantName || `משתתף ${currentIndex + 1}`;
+  const videoUrl = convertedUrls[currentIndex] || currentVideo?.videoUrl || currentVideo?.url;
+
   return (
-    <View style={[styles.container, { width, height: height + 60 }]}>
-      <View style={[styles.cubeWrapper, { width, height }]}>
-        <CubeNavigationHorizontal
-          ref={cubeRef}
-          callBackAfterSwipe={handleSwipe}
-          style={{ width, height }}
-        >
-          {videos.map((video, index) => (
-            <VideoFace
-              key={index}
-              item={video}
-              index={index}
-              isActive={index === activeIndex && isPlaying}
-              onVideoEnd={handleVideoEnd}
+    <View style={[styles.container, { width, height: height + 80 }]}>
+      <Animated.View 
+        style={[
+          styles.cubeContainer,
+          { 
+            width, 
+            height,
+            transform: [
+              { perspective: 1000 },
+              { scale: scaleAnim },
+              { rotateY: rotateY },
+            ]
+          }
+        ]}
+      >
+        <View style={styles.faceContainer}>
+          {videoUrl ? (
+            <Video
+              ref={videoRef}
+              source={{ uri: videoUrl }}
+              style={styles.video}
+              resizeMode="cover"
+              shouldPlay={isPlaying}
+              isLooping={false}
+              isMuted={isMuted}
+              onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
             />
-          ))}
-        </CubeNavigationHorizontal>
-      </View>
-      
+          ) : (
+            <View style={styles.loadingContainer}>
+              <Ionicons name="hourglass" size={40} color="white" />
+              <Text style={styles.loadingText}>טוען סרטון...</Text>
+            </View>
+          )}
+          
+          <View style={styles.overlay}>
+            <View style={styles.playerBadge}>
+              <Text style={styles.playerName}>{playerName}</Text>
+            </View>
+            <View style={styles.indexBadge}>
+              <Text style={styles.indexText}>{currentIndex + 1}</Text>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
+
       <View style={styles.controls}>
+        <TouchableOpacity 
+          onPress={goToPrevious} 
+          style={[styles.navButton, currentIndex === 0 && styles.disabledButton]}
+          disabled={currentIndex === 0}
+        >
+          <Ionicons name="chevron-back" size={24} color="white" />
+        </TouchableOpacity>
+
         <TouchableOpacity 
           onPress={() => setIsPlaying(prev => !prev)} 
           style={styles.playButton}
         >
           <Ionicons 
             name={isPlaying ? 'pause' : 'play'} 
-            size={24} 
+            size={28} 
             color="white" 
           />
         </TouchableOpacity>
-        
+
+        <TouchableOpacity 
+          onPress={() => setIsMuted(prev => !prev)} 
+          style={styles.muteButton}
+        >
+          <Ionicons 
+            name={isMuted ? 'volume-mute' : 'volume-high'} 
+            size={22} 
+            color="white" 
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          onPress={goToNext} 
+          style={[styles.navButton, currentIndex === videos.length - 1 && styles.disabledButton]}
+          disabled={currentIndex === videos.length - 1}
+        >
+          <Ionicons name="chevron-forward" size={24} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.progressContainer}>
         <View style={styles.progressDots}>
           {videos.map((_, i) => (
             <View 
               key={i} 
               style={[
                 styles.dot, 
-                i === activeIndex && styles.activeDot,
-                i < activeIndex && styles.completedDot
+                i === currentIndex && styles.activeDot,
+                i < currentIndex && styles.completedDot
               ]} 
             />
           ))}
         </View>
-        
         <Text style={styles.progressText}>
-          {activeIndex + 1} / {videos.length}
+          {currentIndex + 1} / {videos.length}
         </Text>
       </View>
     </View>
@@ -240,49 +255,55 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a2e',
     borderRadius: 16,
     overflow: 'hidden',
+    padding: 10,
   },
-  cubeWrapper: {
-    overflow: 'hidden',
+  cubeContainer: {
     borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#16213e',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 107, 157, 0.4)',
   },
-  face: {
+  faceContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  faceGradient: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  videoContainer: {
-    flex: 1,
-    width: '100%',
     position: 'relative',
   },
   video: {
     flex: 1,
     width: '100%',
   },
-  videoOverlay: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#16213e',
+  },
+  loadingText: {
+    color: 'white',
+    marginTop: 10,
+    fontSize: 16,
+  },
+  overlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 16,
+    padding: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  playerNameOnVideo: {
+  playerBadge: {
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  playerName: {
     color: 'white',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
   },
   indexBadge: {
     width: 32,
@@ -297,51 +318,49 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    color: 'white',
-    fontSize: 16,
-    marginTop: 8,
-  },
-  playerName: {
-    color: 'white',
-    fontSize: 22,
-    fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  waitingText: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 14,
-  },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    justifyContent: 'center',
     paddingVertical: 12,
-    width: '100%',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    gap: 16,
+  },
+  navButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disabledButton: {
+    opacity: 0.3,
   },
   playButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: theme.colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  muteButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
   progressDots: {
     flexDirection: 'row',
     gap: 6,
-    flex: 1,
-    justifyContent: 'center',
   },
   dot: {
     width: 8,
@@ -358,11 +377,11 @@ const styles = StyleSheet.create({
   },
   progressText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 14,
   },
   noVideosText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 18,
   },
 });
 
