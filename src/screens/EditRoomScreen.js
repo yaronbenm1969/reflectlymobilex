@@ -153,7 +153,7 @@ export const EditRoomScreen = () => {
       console.log('🔄 Converting webm to mp4...');
       setIsConverting(true);
       try {
-        const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev';
+        const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
         console.log('📡 Calling API:', API_URL);
         const response = await fetch(`${API_URL}/api/convert-url`, {
           method: 'POST',
