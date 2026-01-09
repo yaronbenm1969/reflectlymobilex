@@ -62,6 +62,8 @@ export const EditRoomScreen = () => {
   const stats = reflectionsService.getReflectionStats(reflections);
   const { participants, totalClips, completeParticipants, totalParticipants } = stats;
 
+  const is3DFormat = videoFormat && videoFormat !== 'standard';
+
   const handleEditNow = () => {
     if (totalClips === 0) {
       Alert.alert('אין שיקופים', 'עדיין לא התקבלו שיקופים מהמשתתפים');
@@ -75,7 +77,11 @@ export const EditRoomScreen = () => {
       }, 3000);
     } else if (editConfirmStep === 1) {
       setEditConfirmStep(0);
-      go('Processing');
+      if (is3DFormat) {
+        go('FinalVideo');
+      } else {
+        go('Processing');
+      }
     }
   };
 
@@ -286,8 +292,8 @@ export const EditRoomScreen = () => {
               />
               <Text style={styles.editNowText}>
                 {editConfirmStep === 1 
-                  ? 'לחץ שוב לאישור עריכה' 
-                  : `ערוך עכשיו (${totalClips} קליפים)`}
+                  ? (is3DFormat ? 'לחץ שוב לצפייה' : 'לחץ שוב לאישור עריכה')
+                  : (is3DFormat ? `צפה ב-${videoFormat} (${totalClips} קליפים)` : `ערוך עכשיו (${totalClips} קליפים)`)}
               </Text>
             </View>
             {editConfirmStep === 0 && totalClips > 0 && completeParticipants < totalParticipants && (
