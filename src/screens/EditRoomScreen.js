@@ -151,7 +151,8 @@ export const EditRoomScreen = () => {
     if (videoUrl.includes('.webm')) {
       console.log('🔄 Converting webm to mp4...');
       try {
-        const response = await fetch('https://reflectly-mobile-x--yaronbenm1.replit.app/api/convert-url', {
+        const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev';
+        const response = await fetch(`${API_URL}/api/convert-url`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: videoUrl })
