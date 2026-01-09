@@ -40,6 +40,7 @@ export const EditRoomScreen = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [approvedClips, setApprovedClips] = useState({});
   const [storyVideoUrl, setStoryVideoUrl] = useState(null);
+  const [isConverting, setIsConverting] = useState(false);
   
   const unsubscribeRef = useRef(null);
 
@@ -150,23 +151,42 @@ export const EditRoomScreen = () => {
     let finalUrl = videoUrl;
     if (videoUrl.includes('.webm')) {
       console.log('🔄 Converting webm to mp4...');
+      setIsConverting(true);
       try {
         const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev';
+        console.log('📡 Calling API:', API_URL);
         const response = await fetch(`${API_URL}/api/convert-url`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: videoUrl })
         });
+        console.log('📡 Response status:', response.status);
         if (response.ok) {
           const data = await response.json();
+          console.log('📡 Response data:', JSON.stringify(data));
           if (data.convertedUrl) {
             finalUrl = data.convertedUrl;
             console.log('✅ Converted to:', finalUrl);
+          } else if (data.error) {
+            console.log('❌ Conversion error from API:', data.error);
+            Alert.alert('שגיאה בהמרה', 'לא ניתן להמיר את הסרטון. נסה שוב.');
+            setIsConverting(false);
+            return;
           }
+        } else {
+          const text = await response.text();
+          console.log('❌ API error response:', text.substring(0, 200));
+          Alert.alert('שגיאה', 'השרת לא זמין. נסה שוב מאוחר יותר.');
+          setIsConverting(false);
+          return;
         }
       } catch (error) {
-        console.log('⚠️ Conversion failed, using original:', error.message);
+        console.log('⚠️ Conversion failed:', error.message);
+        Alert.alert('שגיאה', 'בעיית רשת. בדוק את החיבור לאינטרנט.');
+        setIsConverting(false);
+        return;
       }
+      setIsConverting(false);
     }
     
     setPreviewVideo(finalUrl);
@@ -449,6 +469,18 @@ export const EditRoomScreen = () => {
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={isConverting}
+        transparent={true}
+        animationType="fade"
+      >
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="white" />
+          <Text style={styles.loadingText}>ממיר סרטון לפורמט תואם...</Text>
+          <Text style={styles.loadingSubtext}>זה עשוי לקחת עד 30 שניות</Text>
+        </View>
+      </Modal>
 
       <Modal
         visible={isModalVisible}
@@ -799,6 +831,25 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  loadingSubtext: {
+    color: '#999',
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,
