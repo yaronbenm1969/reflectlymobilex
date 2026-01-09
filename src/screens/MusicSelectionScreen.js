@@ -5,12 +5,14 @@ import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
+import { storiesService } from '../services/storiesService';
 import theme from '../theme/theme';
 
 export const MusicSelectionScreen = ({ route }) => {
   const { go, back } = useNav();
   const setSelectedMusic = useAppState((state) => state.setSelectedMusic);
   const selectedMusic = useAppState((state) => state.selectedMusic);
+  const currentStoryId = useAppState((state) => state.currentStoryId);
   const [currentSelection, setCurrentSelection] = useState(selectedMusic || null);
   const [isReady, setIsReady] = useState(false);
 
@@ -36,15 +38,23 @@ export const MusicSelectionScreen = ({ route }) => {
     { id: 'none', name: 'No Music', description: 'Keep original audio only' },
   ];
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!isReady) {
       console.log('⏸️ Save ignored - screen not ready');
       return;
     }
-    console.log('💾 Save music selection:', currentSelection);
+    console.log('💾 Save music selection:', currentSelection, 'storyId:', currentStoryId);
     if (currentSelection) {
       setSelectedMusic(currentSelection);
     }
+    
+    if (currentStoryId) {
+      const result = await storiesService.updateStory(currentStoryId, {
+        music: currentSelection || 'none',
+      });
+      console.log('💾 Firebase music update result:', result);
+    }
+    
     go('Instructions');
   };
 

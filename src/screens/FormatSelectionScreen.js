@@ -6,6 +6,7 @@ import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
 import { SimpleFormatPreview } from '../components/SimpleFormatPreview';
+import { storiesService } from '../services/storiesService';
 import theme from '../theme/theme';
 
 const ANIMATION_TYPES = {
@@ -29,6 +30,7 @@ export const FormatSelectionScreen = ({ route }) => {
   const setBackgroundStyle = useAppState((state) => state.setBackgroundStyle);
   const videoFormat = useAppState((state) => state.videoFormat);
   const backgroundStyle = useAppState((state) => state.backgroundStyle);
+  const currentStoryId = useAppState((state) => state.currentStoryId);
   
   const [selectedFormat, setSelectedFormat] = useState(videoFormat || null);
   const [selectedBackground, setSelectedBackground] = useState(backgroundStyle || null);
@@ -70,19 +72,27 @@ export const FormatSelectionScreen = ({ route }) => {
     { id: 'split-screen', name: 'שילוב דמויות', description: 'מסך מפוצל עם כולם ביחד', icon: 'grid' },
   ];
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!isReady) {
       console.log('⏸️ Save ignored - screen not ready');
       return;
     }
     
-    console.log('💾 Saving format & style:', { selectedFormat, selectedBackground });
+    console.log('💾 Saving format & style:', { selectedFormat, selectedBackground, storyId: currentStoryId });
     
     if (selectedFormat) {
       setVideoFormat(selectedFormat);
     }
     if (selectedBackground) {
       setBackgroundStyle(selectedBackground);
+    }
+    
+    if (currentStoryId) {
+      const result = await storiesService.updateStory(currentStoryId, {
+        format: selectedFormat || 'standard',
+        backgroundStyle: selectedBackground || 'original',
+      });
+      console.log('💾 Firebase update result:', result);
     }
     
     go('MusicSelection');

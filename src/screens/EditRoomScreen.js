@@ -31,6 +31,9 @@ export const EditRoomScreen = () => {
   
   const setReflections = useAppState((state) => state.setReflections);
   const setReflectionsLoading = useAppState((state) => state.setReflectionsLoading);
+  const setVideoFormat = useAppState((state) => state.setVideoFormat);
+  const setSelectedMusic = useAppState((state) => state.setSelectedMusic);
+  const setBackgroundStyle = useAppState((state) => state.setBackgroundStyle);
   const reflections = useAppState((state) => state.reflections);
   const reflectionsLoading = useAppState((state) => state.reflectionsLoading);
   
@@ -52,9 +55,21 @@ export const EditRoomScreen = () => {
           if (storyDoc.exists()) {
             const storyData = storyDoc.data();
             const videoUrl = storyData.videoUrl || storyData.videoUri;
-            console.log('📖 Story data loaded:', storyData.name, 'videoUrl:', videoUrl ? 'exists' : 'missing');
+            console.log('📖 Story data loaded:', storyData.name, 'videoUrl:', videoUrl ? 'exists' : 'missing', 'format:', storyData.format);
             if (videoUrl) {
               setStoryVideoUrl(videoUrl);
+            }
+            if (storyData.format) {
+              setVideoFormat(storyData.format);
+              console.log('🎨 Loaded format from Firebase:', storyData.format);
+            }
+            if (storyData.music) {
+              setSelectedMusic(storyData.music);
+              console.log('🎵 Loaded music from Firebase:', storyData.music);
+            }
+            if (storyData.backgroundStyle) {
+              setBackgroundStyle(storyData.backgroundStyle);
+              console.log('🖼️ Loaded backgroundStyle from Firebase:', storyData.backgroundStyle);
             }
           }
         } catch (error) {
