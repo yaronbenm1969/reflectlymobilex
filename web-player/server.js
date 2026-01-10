@@ -44,6 +44,25 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // Serve cube demo directly - bypasses all caching issues
+    if (req.url.startsWith('/cube3d') || req.url.startsWith('/cube-demo')) {
+        const cubeFile = path.join(__dirname, 'cube3d-v2.html');
+        fs.readFile(cubeFile, (err, content) => {
+            if (err) {
+                res.writeHead(404);
+                res.end('Cube demo not found');
+            } else {
+                res.writeHead(200, {
+                    'Content-Type': 'text/html; charset=utf-8',
+                    'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                    'Clear-Site-Data': '"cache", "storage"'
+                });
+                res.end(content);
+            }
+        });
+        return;
+    }
+
     // Force cache clear and redirect to cube demo - multiple endpoints to bypass cache
     if (req.url === '/cube' || req.url === '/demo' || req.url === '/fresh' || req.url === '/clean') {
         res.writeHead(200, { 
