@@ -113,24 +113,66 @@ export const FinalVideoScreen = () => {
     console.log(`🎲 Cube face ${faceIndex} ${action}`);
   };
 
-  const startCubePlayback = () => {
+  const [convertedVideos, setConvertedVideos] = useState([]);
+  const [isConverting, setIsConverting] = useState(false);
+
+  const convertVideoUrl = async (url) => {
+    if (!url) return url;
+    if (url.includes('.mp4') || url.includes('video%2Fmp4')) return url;
+    
+    try {
+      const response = await fetch('https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev/api/convert-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.url) {
+          console.log(`✅ Converted video to mp4`);
+          return data.url;
+        }
+      }
+    } catch (error) {
+      console.log(`⚠️ Conversion failed, using original:`, error.message);
+    }
+    return url;
+  };
+
+  const startCubePlayback = async () => {
     const validFaces = cubeFaces.filter(f => f && f.videoUrl);
     if (validFaces.length > 0) {
-      setCurrentVideoIndex(0);
-      setActiveVideoUrl(validFaces[0].videoUrl);
-      setShowVideoPlayer(true);
-      setIsPlaying(true);
-      console.log(`▶️ Starting cube playback with ${validFaces.length} videos`);
+      setIsConverting(true);
+      console.log(`🔄 Converting ${validFaces.length} videos...`);
+      
+      try {
+        const converted = await Promise.all(
+          validFaces.map(f => convertVideoUrl(f.videoUrl))
+        );
+        setConvertedVideos(converted);
+        setCurrentVideoIndex(0);
+        setActiveVideoUrl(converted[0]);
+        setShowVideoPlayer(true);
+        setIsPlaying(true);
+        console.log(`▶️ Starting cube playback with ${converted.length} videos`);
+      } catch (error) {
+        console.error('Conversion error:', error);
+        setActiveVideoUrl(validFaces[0].videoUrl);
+        setShowVideoPlayer(true);
+        setIsPlaying(true);
+      } finally {
+        setIsConverting(false);
+      }
     }
   };
 
   const playNextVideo = () => {
-    const validFaces = cubeFaces.filter(f => f && f.videoUrl);
     const nextIndex = currentVideoIndex + 1;
-    if (nextIndex < validFaces.length) {
+    if (nextIndex < convertedVideos.length) {
       setCurrentVideoIndex(nextIndex);
-      setActiveVideoUrl(validFaces[nextIndex].videoUrl);
-      console.log(`▶️ Playing video ${nextIndex + 1}/${validFaces.length}`);
+      setActiveVideoUrl(convertedVideos[nextIndex]);
+      console.log(`⏭️ Playing video ${nextIndex + 1}/${convertedVideos.length}`);
     } else {
       setShowVideoPlayer(false);
       setActiveVideoUrl(null);
@@ -254,11 +296,18 @@ export const FinalVideoScreen = () => {
                 <TouchableOpacity 
                   style={styles.cubePlayButton}
                   onPress={startCubePlayback}
+                  disabled={isConverting}
                 >
                   <View style={styles.playButtonCircle}>
-                    <Ionicons name="play" size={40} color="white" />
+                    {isConverting ? (
+                      <ActivityIndicator size="large" color="white" />
+                    ) : (
+                      <Ionicons name="play" size={40} color="white" />
+                    )}
                   </View>
-                  <Text style={styles.cubePlayText}>לחץ להפעלה</Text>
+                  <Text style={styles.cubePlayText}>
+                    {isConverting ? 'ממיר סרטונים...' : 'לחץ להפעלה'}
+                  </Text>
                 </TouchableOpacity>
               )}
               {showVideoPlayer && activeVideoUrl && (
