@@ -821,8 +821,25 @@ async function initApp() {
             showWebViewRedirect();
             return;
         }
-        showScreen('code');
+        showScreen('watch');
+        showWelcomeMessage();
     }
+}
+
+function showWelcomeMessage() {
+    const videoContainer = document.querySelector('.video-container');
+    if (videoContainer) {
+        videoContainer.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: white; text-align: center; padding: 20px;">
+                <div style="font-size: 80px; margin-bottom: 20px;">🎬</div>
+                <h2 style="margin-bottom: 15px;">ברוכים הבאים ל-Reflectly</h2>
+                <p style="opacity: 0.8; margin-bottom: 20px;">כדי לצפות בסיפור, קבל קישור מחבר</p>
+                <a href="/cube-demo.html" style="background: white; color: #C06FBB; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: bold;">🎲 צפה בדמו הקוביה</a>
+            </div>
+        `;
+    }
+    const recordBtn = document.getElementById('continue-to-record');
+    if (recordBtn) recordBtn.style.display = 'none';
 }
 
 function addInAppBrowserBanner() {
