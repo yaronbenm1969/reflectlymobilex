@@ -110,12 +110,6 @@ const server = http.createServer((req, res) => {
             try {
                 const { code } = JSON.parse(body);
                 
-                if (MAINTENANCE_MODE) {
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ valid: false, maintenance: true }));
-                    return;
-                }
-                
                 if (!ACCESS_CODE) {
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ valid: true }));
