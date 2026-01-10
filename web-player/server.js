@@ -97,8 +97,8 @@ const server = http.createServer((req, res) => {
     if (req.url === '/api/maintenance-status') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ 
-            maintenance: MAINTENANCE_MODE,
-            requiresCode: !!ACCESS_CODE && !MAINTENANCE_MODE
+            maintenance: false,
+            requiresCode: false
         }));
         return;
     }

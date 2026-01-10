@@ -20,7 +20,7 @@ app.use(express.json());
 const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/converted'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
