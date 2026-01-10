@@ -18,18 +18,16 @@ export const AccessGate = ({ children }) => {
   const checkAccess = async () => {
     setStatus('loading');
     
-    const maintenanceResult = await accessService.checkMaintenanceStatus();
-    
-    if (maintenanceResult.maintenance) {
-      setStatus('maintenance');
-      return;
-    }
-
     const storedCode = await accessService.getStoredCode();
     
     if (storedCode) {
       const verifyResult = await accessService.verifyAccessCode(storedCode);
       if (verifyResult.valid) {
+        const maintenanceResult = await accessService.checkMaintenanceStatus();
+        if (maintenanceResult.maintenance) {
+          setStatus('maintenance');
+          return;
+        }
         setStatus('unlocked');
         return;
       } else {
