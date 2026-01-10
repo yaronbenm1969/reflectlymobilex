@@ -18,6 +18,7 @@ import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
 import { Video3DPlayer } from '../components/Video3DPlayer';
+import CubeProjectorView from '../components/cube3d/CubeProjectorView';
 import theme from '../theme/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
