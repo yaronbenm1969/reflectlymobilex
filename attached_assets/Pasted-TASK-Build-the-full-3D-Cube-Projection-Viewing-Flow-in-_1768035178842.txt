@@ -1,0 +1,147 @@
+TASK: Build the full “3D Cube Projection Viewing Flow” in our Expo app (for app stores), using the app’s existing colors/styles (do NOT invent new colors). The cube must feel native to the app UI.
+
+HIGH-LEVEL EXPERIENCE (what the user sees):
+1) A cinematic viewing screen with a rotating 3D cube.
+2) Each cube face shows the FIRST FRAME thumbnail of the clip that will play on that face.
+3) When a face becomes “active”, that face’s clip begins playing (projected onto that face).
+4) The cube MUST keep gentle random motion even while a clip is playing.
+5) The active face’s video continues playing even as the face moves away (locked to that face).
+6) When the active face rotates away past an EXIT threshold OR the clip ends, the video fades out over 1 second.
+7) Then the next face that comes into view becomes active and starts playing.
+8) If there are more than 6 clips: the cube keeps 6 active faces and uses a queue; when a face’s clip ends, load the next clip into that face (thumbnail first), so it can continue indefinitely.
+9) Cube motion timing must be computed from each clip’s duration: most of the clip is “readable” slow movement, last 1 second is fade-out + transition to next.
+
+IMPORTANT CONSTRAINTS:
+- Expo managed workflow (store safe for iOS + Android).
+- Implement the “stable approach”: cube uses images on faces; video is played using expo-av as an overlay “projector” aligned to the active face (NOT true video textures on the 3D mesh yet).
+- Must include a robust fallback: if 3D/GL fails or ENABLE_3D_CUBE=false, show a 2D carousel + standard video player flow.
+
+DEPENDENCIES (install and configure):
+- expo-av
+- expo-gl
+- three
+- @react-three/fiber
+- expo-video-thumbnails
+- (Optional only if needed): react-native-gesture-handler, react-native-reanimated (only if our project already uses them; avoid risky changes)
+- Do NOT add web-only renderers.
+
+DELIVERABLES (files/components to create):
+A) Screen: WatchExperienceScreen.(tsx|jsx)
+   - Layout:
+     - Header (use existing app header style)
+     - Main area: CubeProjectorView
+     - Under cube: Clips carousel (thumbnails) + small controls (Reset, Shuffle/Loop toggle if desired)
+     - Tabs/segments: "Cube" | "Clips" | "Resonances" (use existing UI components)
+   - Must match existing app styling (spacing, typography, colors).
+
+B) Component: CubeProjectorView.(tsx|jsx)
+   - Renders the 3D cube (images on faces).
+   - Handles cube motion + face selection logic.
+   - Hosts the video overlay projection that aligns to the active face.
+
+C) Component: ProjectedVideoOverlay.(tsx|jsx)
+   - Uses expo-av Video to play the active face clip.
+   - Supports: fade-in (250–350ms) on start; fade-out (1000ms) on stop.
+   - Keeps playing while face moves (overlay transform updates to follow active face).
+   - Optionally fade audio out during the 1s fade-out (nice-to-have).
+
+D) Component: ClipsCarousel.(tsx|jsx)
+   - Horizontal list of all clips (more than 6 supported).
+   - Tapping a clip can:
+     - either jump it to “next in queue”
+     - or set it as “front face next”
+     - Keep it minimal: at least highlight which 6 are currently on the cube.
+
+E) Component: Fallback2DView.(tsx|jsx)
+   - If 3D fails, show a 2D carousel of thumbnails + a normal video player.
+   - Keep the same sequential playback rules.
+
+DATA / STATE MODEL:
+- Define a Clip type:
+  Clip = { clipId, title, videoUri }
+- Add derived/cached thumbnail:
+  clipThumbUriMap[clipId] = generated thumbnail URI
+- Define cube faces as indices 0..5:
+  FaceState = { faceIndex, clipId, videoUri, posterThumbUri }
+- Maintain:
+  activeFaceIndex (or activeFaceId) = currently projecting face (locked)
+  queue = remaining clips not currently on cube (FIFO or shuffle pool)
+  ENABLE_3D_CUBE flag (config constant; default true for now)
+
+THUMBNAIL REQUIREMENT (very important):
+- Each face poster MUST be the first frame from its clip.
+- Use expo-video-thumbnails:
+  - Try time=0; if fails/black, try time=0.1
+- Generate thumbnails once per clip and cache by clipId to avoid rework.
+- If thumbnail fails, fall back to an existing placeholder image (from our assets).
+
+SEQUENTIAL PLAYBACK LOGIC (state machine):
+- The cube always displays 6 active faces (FaceState[6]).
+- Face activation:
+  1) When no active face: choose the face that is most front-facing AND within ENTER_THRESHOLD (angle).
+  2) Set activeFaceIndex to that face and start projecting its clip.
+- While active:
+  - Keep playing the same face clip even as cube rotates (locked to that face).
+  - Do NOT switch just because another face becomes more front-facing.
+- Stop conditions:
+  - If active face goes beyond EXIT_THRESHOLD (back-facing / not visible enough) -> start 1s fade-out, then stop and clear activeFaceIndex.
+  - If clip ends (didJustFinish) -> start 1s fade-out; after fade-out, replace that face’s clip from queue (if available), generate thumb, update face poster; then clear activeFaceIndex so next face can become active.
+- Hysteresis:
+  - ENTER_THRESHOLD < EXIT_THRESHOLD to prevent flicker.
+  - Example: ENTER=20°, EXIT=60° (tune as needed).
+- Crossfade:
+  - Fade-out 1s then next face fade-in 0.25–0.35s.
+
+CUBE MOTION (must be random yet gentle):
+- Cube must always move:
+  - Base slow auto-rotation.
+  - Add subtle random wobble using smooth noise or sin waves with random phases.
+  - Every 3–6 seconds pick a new small random target rotation delta; smoothly interpolate (slerp/lerp).
+- Movement must be “organic” (no sharp changes).
+- During playback:
+  - Motion is computed from clip duration:
+    Let D = durationMillis.
+    Phase1 (0 → D-1000ms): keep cube mostly readable (very slow drift).
+    Phase2 (D-1000ms → D): slightly increase rotation to transition + fade-out.
+  - If duration is unknown: default D=8000ms until known.
+
+ALIGN VIDEO OVERLAY TO ACTIVE FACE (projector effect):
+- Use a fixed on-screen “projection area” that visually sits on the cube’s front face.
+- Update overlay transform (scale/translate/rotate) to mimic the face orientation.
+- Keep it stable: do not attempt true video textures on the mesh now.
+- Ensure rounded corners and subtle shadow consistent with existing app style.
+
+MORE THAN 6 CLIPS (queue):
+- Initialize cube with first 6 clips.
+- Remaining clips go into queue (FIFO or shuffle; choose shuffle if easy).
+- When a face clip finishes: pop next from queue and assign to that face.
+- Do not preload all videos. Only keep:
+  - active clip + maybe prefetch next clip’s thumbnail (optional).
+- If queue empties:
+  - Loop: refill from full list and continue (recommended),
+  - or stop gracefully (choose loop by default).
+
+ERROR HANDLING + FALLBACK:
+- If GL init fails, or rendering throws, or ENABLE_3D_CUBE=false:
+  - Switch to Fallback2DView automatically.
+- Add clear console logs:
+  - activeFace changes
+  - clip duration D
+  - face enter/exit decisions
+  - queue replacements
+  - thumbnail generation success/failure
+
+STEP-BY-STEP DELIVERY (important):
+1) Implement minimal CubeProjectorView with 6 image faces + gentle motion.
+2) Add thumbnail generation from clips and render those thumbnails on faces.
+3) Add video overlay projection for the active face + fade-in/fade-out.
+4) Add state machine (ENTER/EXIT thresholds + locked face logic).
+5) Add queue logic for >6 clips and replacement on clip end.
+6) Add duration-synced motion phases (Phase1/Phase2 based on D).
+7) Add Fallback2DView and a toggle flag ENABLE_3D_CUBE.
+8) Report exactly:
+   - dependencies added
+   - files created/edited
+   - how to run/test on iOS and Android.
+
+Use the app’s existing theme/colors/components. Do NOT introduce a new color scheme.
