@@ -9,7 +9,7 @@ const CONVERTER_PORT = 3001;
 const BUILD_VERSION = Date.now().toString();
 console.log(`Build Version: ${BUILD_VERSION}`);
 
-const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
+const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE?.toLowerCase() === 'true';
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
 
 console.log(`Maintenance Mode: ${MAINTENANCE_MODE}`);
