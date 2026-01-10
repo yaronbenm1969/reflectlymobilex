@@ -29,6 +29,15 @@ const FACE_COLORS = [
   '#A855F7',
 ];
 
+const EMISSIVE_COLORS = [
+  '#FF3377',
+  '#9933FF',
+  '#6633FF',
+  '#FF3399',
+  '#FF66AA',
+  '#9933CC',
+];
+
 function ImageFace({ position, rotation, textureUrl, faceIndex, isActive, playerName }) {
   const meshRef = useRef();
   const [texture, setTexture] = useState(null);
@@ -59,16 +68,21 @@ function ImageFace({ position, rotation, textureUrl, faceIndex, isActive, player
     }
   }, [textureUrl, faceIndex]);
 
-  const faceColor = loadFailed || !texture ? FACE_COLORS[faceIndex % FACE_COLORS.length] : '#ffffff';
+  const faceColor = FACE_COLORS[faceIndex % FACE_COLORS.length];
+  const emissiveColor = EMISSIVE_COLORS[faceIndex % EMISSIVE_COLORS.length];
 
   return (
     <mesh ref={meshRef} position={position} rotation={rotation}>
       <planeGeometry args={[1.98, 1.98]} />
-      <meshBasicMaterial
+      <meshStandardMaterial
         map={texture}
         color={faceColor}
+        emissive={emissiveColor}
+        emissiveIntensity={isActive ? 0.6 : 0.4}
         transparent={true}
-        opacity={isActive ? 1 : 0.85}
+        opacity={isActive ? 1 : 0.9}
+        roughness={0.3}
+        metalness={0.1}
       />
     </mesh>
   );
@@ -238,8 +252,10 @@ function Scene({ faces, onFaceChange, activeFaceIndex, setActiveFaceIndex, targe
 
   return (
     <>
-      <ambientLight intensity={0.8} />
-      <pointLight position={[10, 10, 10]} intensity={0.5} />
+      <ambientLight intensity={1.2} />
+      <pointLight position={[10, 10, 10]} intensity={1} />
+      <pointLight position={[-10, -10, 10]} intensity={0.5} color="#FF6B9D" />
+      <pointLight position={[0, 0, 8]} intensity={0.8} color="#ffffff" />
       <Cube3DInner
         ref={cubeRef}
         faces={faces}
