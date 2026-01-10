@@ -36,11 +36,15 @@ export const FinalVideoScreen = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [playbackComplete, setPlaybackComplete] = useState(false);
+  const [activeFaceIndex, setActiveFaceIndex] = useState(-1);
+  const [activeVideoUrl, setActiveVideoUrl] = useState(null);
   const videoRef = useRef(null);
+  const cubeRef = useRef(null);
 
   const participantCount = new Set(reflections.map(r => r.recipientId || r.participantId || 'anonymous')).size;
 
   const is3DFormat = videoFormat && videoFormat !== 'standard';
+  const isCube3D = videoFormat === 'cube-3d';
 
   const prepareVideosFor3D = () => {
     const videos = [];
@@ -69,6 +73,37 @@ export const FinalVideoScreen = () => {
     });
     
     return videos;
+  };
+
+  const prepareCubeFaces = () => {
+    const faces = [];
+    reflections.forEach((reflection, index) => {
+      if (reflection.videoUrl && faces.length < 6) {
+        faces.push({
+          posterThumbUri: reflection.thumbnailUrl || null,
+          videoUrl: reflection.videoUrl,
+          playerName: reflection.playerName || reflection.participantName || `משתתף ${Math.floor(index / 3) + 1}`,
+          clipNumber: reflection.clipNumber,
+        });
+      }
+    });
+    while (faces.length < 6) {
+      faces.push(null);
+    }
+    return faces;
+  };
+
+  const cubeFaces = isCube3D ? prepareCubeFaces() : [];
+
+  const handleCubeFaceChange = (faceIndex, action) => {
+    console.log(`🎲 Cube face ${faceIndex} ${action}`);
+    if (action === 'enter' && cubeFaces[faceIndex]?.videoUrl) {
+      setActiveVideoUrl(cubeFaces[faceIndex].videoUrl);
+      setIsPlaying(true);
+    } else if (action === 'exit') {
+      setActiveVideoUrl(null);
+      setIsPlaying(false);
+    }
   };
 
   const handlePlayPause = async () => {
@@ -171,7 +206,37 @@ export const FinalVideoScreen = () => {
 
       <View style={styles.content}>
         <View style={styles.videoContainer}>
-          {is3DFormat && videos3D.length > 0 ? (
+          {isCube3D && cubeFaces.some(f => f !== null) ? (
+            <View style={styles.cubeContainer}>
+              <CubeProjectorView
+                ref={cubeRef}
+                faces={cubeFaces}
+                onFaceChange={handleCubeFaceChange}
+                activeFaceIndex={activeFaceIndex}
+                setActiveFaceIndex={setActiveFaceIndex}
+                isVideoPlaying={isPlaying}
+              />
+              {activeVideoUrl && (
+                <View style={styles.activeVideoOverlay}>
+                  <Video
+                    ref={videoRef}
+                    source={{ uri: activeVideoUrl }}
+                    style={styles.overlayVideo}
+                    useNativeControls={false}
+                    shouldPlay={isPlaying}
+                    isLooping={false}
+                    resizeMode="contain"
+                    onPlaybackStatusUpdate={(status) => {
+                      if (status.didJustFinish) {
+                        setActiveVideoUrl(null);
+                        setIsPlaying(false);
+                      }
+                    }}
+                  />
+                </View>
+              )}
+            </View>
+          ) : is3DFormat && videos3D.length > 0 ? (
             <Video3DPlayer
               videos={videos3D}
               format={videoFormat}
@@ -339,6 +404,27 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.lg,
     overflow: 'hidden',
     ...theme.shadows.md,
+  },
+  cubeContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing[4],
+    minHeight: 300,
+  },
+  activeVideoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  overlayVideo: {
+    width: '90%',
+    height: '80%',
+    borderRadius: 12,
   },
   videoPlayer: {
     width: '100%',
