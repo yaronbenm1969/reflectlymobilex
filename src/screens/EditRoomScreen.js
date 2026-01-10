@@ -34,6 +34,7 @@ export const EditRoomScreen = () => {
   const setVideoFormat = useAppState((state) => state.setVideoFormat);
   const setSelectedMusic = useAppState((state) => state.setSelectedMusic);
   const setBackgroundStyle = useAppState((state) => state.setBackgroundStyle);
+  const setKeyStoryUri = useAppState((state) => state.setKeyStoryUri);
   const reflections = useAppState((state) => state.reflections);
   const reflectionsLoading = useAppState((state) => state.reflectionsLoading);
   
@@ -133,6 +134,7 @@ export const EditRoomScreen = () => {
     } else if (editConfirmStep === 1) {
       setEditConfirmStep(0);
       if (is3DFormat) {
+        setKeyStoryUri(effectiveKeyStoryUri);
         go('FinalVideo');
       } else {
         go('Processing');
@@ -149,9 +151,11 @@ export const EditRoomScreen = () => {
         }, 3000);
       } else if (publishConfirmStep === 1) {
         setPublishConfirmStep(0);
+        setKeyStoryUri(effectiveKeyStoryUri);
         go('FinalVideo');
       }
     } else {
+      setKeyStoryUri(effectiveKeyStoryUri);
       go('FinalVideo');
     }
   };
