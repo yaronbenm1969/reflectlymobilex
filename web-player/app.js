@@ -379,21 +379,21 @@ async function loadStory(code) {
                     console.log('✅ Conversion result:', result);
                     if (result.url) {
                         console.log('🎬 Setting video src to converted URL:', result.url);
-                        videoEl.src = result.url;
+                        videoEl.src = '/proxy-video?url=' + encodeURIComponent(result.url);
                     } else {
                         console.log('⚠️ No URL in result, using original');
-                        videoEl.src = videoUrl;
+                        videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
                     }
                 } else {
                     console.log('❌ Conversion API error, using original URL');
-                    videoEl.src = videoUrl;
+                    videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
                 }
             } catch (error) {
                 console.error('❌ Conversion error:', error);
-                videoEl.src = videoUrl;
+                videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
             }
         } else {
-            videoEl.src = videoUrl;
+            videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
         }
         
         const finalVideoUrl = videoEl.src;
