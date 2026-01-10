@@ -95,6 +95,17 @@ export const FinalVideoScreen = () => {
 
   const cubeFaces = isCube3D ? prepareCubeFaces() : [];
 
+  useEffect(() => {
+    if (isCube3D) {
+      console.log(`🎲 Cube faces prepared: ${cubeFaces.filter(f => f !== null).length} faces with content`);
+      cubeFaces.forEach((face, i) => {
+        if (face) {
+          console.log(`  Face ${i}: ${face.playerName}, hasVideo=${!!face.videoUrl}, hasPoster=${!!face.posterThumbUri}`);
+        }
+      });
+    }
+  }, [isCube3D, cubeFaces]);
+
   const handleCubeFaceChange = (faceIndex, action) => {
     console.log(`🎲 Cube face ${faceIndex} ${action}`);
     if (action === 'enter' && cubeFaces[faceIndex]?.videoUrl) {

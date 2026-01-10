@@ -20,34 +20,53 @@ const FACE_ROTATIONS = [
   { x: Math.PI / 2, y: 0 },
 ];
 
-function ImageFace({ position, rotation, textureUrl, faceIndex, isActive }) {
+const FACE_COLORS = [
+  '#FF6B9D',
+  '#C06FBB',
+  '#8B5CF6',
+  '#EC4899',
+  '#F472B6',
+  '#A855F7',
+];
+
+function ImageFace({ position, rotation, textureUrl, faceIndex, isActive, playerName }) {
   const meshRef = useRef();
   const [texture, setTexture] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
+    console.log(`🎨 Face ${faceIndex} textureUrl:`, textureUrl ? textureUrl.substring(0, 60) + '...' : 'null');
     if (textureUrl) {
+      setLoadFailed(false);
       const loader = new THREE.TextureLoader();
+      loader.crossOrigin = 'anonymous';
       loader.load(
         textureUrl,
         (loadedTexture) => {
           loadedTexture.minFilter = THREE.LinearFilter;
           loadedTexture.magFilter = THREE.LinearFilter;
           setTexture(loadedTexture);
+          console.log(`✅ Texture loaded for face ${faceIndex}`);
         },
         undefined,
         (error) => {
-          console.log(`❌ Texture load failed for face ${faceIndex}:`, error);
+          console.log(`❌ Texture load failed for face ${faceIndex}:`, error?.message || error);
+          setLoadFailed(true);
         }
       );
+    } else {
+      setLoadFailed(true);
     }
   }, [textureUrl, faceIndex]);
+
+  const faceColor = loadFailed || !texture ? FACE_COLORS[faceIndex % FACE_COLORS.length] : '#ffffff';
 
   return (
     <mesh ref={meshRef} position={position} rotation={rotation}>
       <planeGeometry args={[1.98, 1.98]} />
       <meshBasicMaterial
         map={texture}
-        color={texture ? '#ffffff' : '#333333'}
+        color={faceColor}
         transparent={true}
         opacity={isActive ? 1 : 0.85}
       />
