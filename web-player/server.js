@@ -44,6 +44,28 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // Force cache clear and redirect to cube demo
+    if (req.url === '/cube' || req.url === '/demo') {
+        res.writeHead(200, { 
+            'Content-Type': 'text/html',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Clear-Site-Data': '"cache", "cookies", "storage"'
+        });
+        res.end(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<script>
+if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(r=>r.forEach(x=>x.unregister()));}
+if('caches' in window){caches.keys().then(k=>k.forEach(c=>caches.delete(c)));}
+localStorage.clear();
+sessionStorage.clear();
+setTimeout(()=>location.href='/cube-demo.html?t=${Date.now()}',500);
+</script>
+</head><body style="background:linear-gradient(135deg,#FF6B9D,#C06FBB);display:flex;align-items:center;justify-content:center;height:100vh;color:white;font-family:sans-serif;">
+<div style="text-align:center;"><h2>מנקה קאש...</h2><p>מעביר לדמו הקוביה</p></div>
+</body></html>`);
+        return;
+    }
+
     if (req.url === '/api/version') {
         res.writeHead(200, { 
             'Content-Type': 'application/json',
@@ -164,17 +186,14 @@ const server = http.createServer((req, res) => {
     const ext = path.extname(fullPath);
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
     
-    const isHTML = ext === '.html' || filePath === '/index.html';
+    const isHTML = ext === '.html' || filePath === 'index.html';
     
-    const cacheHeaders = isHTML ? {
+    const cacheHeaders = {
         'Content-Type': contentType,
-        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
         'Pragma': 'no-cache',
         'Expires': '0',
-        'X-Build-Version': BUILD_VERSION
-    } : {
-        'Content-Type': contentType,
-        'Cache-Control': 'no-cache, max-age=0',
+        'Surrogate-Control': 'no-store',
         'X-Build-Version': BUILD_VERSION
     };
     
