@@ -33,6 +33,7 @@
     "expo-sharing": "~14.0.7",
     "expo-status-bar": "^3.0.8",
     "expo-three": "^8.0.0",
+    "expo-video-thumbnails": "^10.0.8",
     "express": "^5.2.1",
     "firebase": "^12.7.0",
     "firebase-admin": "^13.6.0",
