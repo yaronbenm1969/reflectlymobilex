@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Cube Demo - Reflectly</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #FF6B9D 0%, #C06FBB 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+
+        h1 {
+            color: white;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .cube-container {
+            width: 300px;
+            height: 300px;
+            perspective: 1000px;
+            margin: 40px auto;
+        }
+
+        .cube {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: rotateCube 12s infinite linear;
+        }
+
+        .cube-face {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            border: 3px solid rgba(255,255,255,0.5);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            background: linear-gradient(145deg, rgba(255,107,157,0.9), rgba(192,111,187,0.9));
+            backdrop-filter: blur(10px);
+            box-shadow: 
+                0 0 30px rgba(255,107,157,0.3),
+                inset 0 0 60px rgba(255,255,255,0.1);
+        }
+
+        .cube-face .icon {
+            font-size: 60px;
+            margin-bottom: 15px;
+        }
+
+        .cube-face .label {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+
+        .front  { transform: rotateY(0deg) translateZ(150px); }
+        .back   { transform: rotateY(180deg) translateZ(150px); }
+        .right  { transform: rotateY(90deg) translateZ(150px); }
+        .left   { transform: rotateY(-90deg) translateZ(150px); }
+        .top    { transform: rotateX(90deg) translateZ(150px); }
+        .bottom { transform: rotateX(-90deg) translateZ(150px); }
+
+        @keyframes rotateCube {
+            0%   { transform: rotateX(-15deg) rotateY(0deg); }
+            100% { transform: rotateX(-15deg) rotateY(360deg); }
+        }
+
+        .controls {
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .control-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            background: white;
+            color: #C06FBB;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+
+        .control-btn.active {
+            background: #FF6B9D;
+            color: white;
+        }
+
+        .info {
+            color: white;
+            margin-top: 30px;
+            text-align: center;
+            max-width: 400px;
+            line-height: 1.6;
+            opacity: 0.9;
+        }
+
+        .cube.paused {
+            animation-play-state: paused;
+        }
+
+        .face-1 { background: linear-gradient(145deg, #FF6B9D, #FF8FB1); }
+        .face-2 { background: linear-gradient(145deg, #C06FBB, #D48FD1); }
+        .face-3 { background: linear-gradient(145deg, #9B59B6, #BB79D6); }
+        .face-4 { background: linear-gradient(145deg, #E74C3C, #F07C6C); }
+        .face-5 { background: linear-gradient(145deg, #3498DB, #64B8FB); }
+        .face-6 { background: linear-gradient(145deg, #2ECC71, #5EEC91); }
+    </style>
+</head>
+<body>
+    <h1>🎲 Reflectly 3D Cube</h1>
+
+    <div class="cube-container">
+        <div class="cube" id="cube">
+            <div class="cube-face front face-1">
+                <div class="icon">🎬</div>
+                <div>סרטון 1</div>
+                <div class="label">הסיפור שלי</div>
+            </div>
+            <div class="cube-face back face-2">
+                <div class="icon">💭</div>
+                <div>סרטון 2</div>
+                <div class="label">שיקוף מחבר</div>
+            </div>
+            <div class="cube-face right face-3">
+                <div class="icon">✨</div>
+                <div>סרטון 3</div>
+                <div class="label">שיקוף נוסף</div>
+            </div>
+            <div class="cube-face left face-4">
+                <div class="icon">❤️</div>
+                <div>סרטון 4</div>
+                <div class="label">שיקוף מיוחד</div>
+            </div>
+            <div class="cube-face top face-5">
+                <div class="icon">🌟</div>
+                <div>סרטון 5</div>
+                <div class="label">שיקוף עליון</div>
+            </div>
+            <div class="cube-face bottom face-6">
+                <div class="icon">🎉</div>
+                <div>סרטון 6</div>
+                <div class="label">שיקוף תחתון</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="control-btn" onclick="toggleRotation()">⏯️ עצור/הפעל</button>
+        <button class="control-btn" onclick="rotateManual(-1)">⬅️ שמאלה</button>
+        <button class="control-btn" onclick="rotateManual(1)">➡️ ימינה</button>
+    </div>
+
+    <div class="info">
+        <p>זוהי תצוגת דמו של קוביית ה-3D של Reflectly.</p>
+        <p>כל פאה מציגה סרטון שונה - הסיפור המרכזי ושיקופים מחברים.</p>
+    </div>
+
+    <script>
+        const cube = document.getElementById('cube');
+        let isPaused = false;
+        let currentRotation = 0;
+
+        function toggleRotation() {
+            isPaused = !isPaused;
+            cube.classList.toggle('paused', isPaused);
+        }
+
+        function rotateManual(direction) {
+            if (!isPaused) {
+                isPaused = true;
+                cube.classList.add('paused');
+            }
+            currentRotation += direction * 90;
+            cube.style.transform = `rotateX(-15deg) rotateY(${currentRotation}deg)`;
+        }
+    </script>
+</body>
+</html>
