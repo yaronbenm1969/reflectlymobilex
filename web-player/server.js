@@ -44,6 +44,24 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // Serve dynamic cube story (connected to Firebase)
+    if (req.url.startsWith('/cube-story') || req.url.startsWith('/3d/')) {
+        const cubeFile = path.join(__dirname, 'cube-story.html');
+        fs.readFile(cubeFile, (err, content) => {
+            if (err) {
+                res.writeHead(404);
+                res.end('Cube story not found');
+            } else {
+                res.writeHead(200, {
+                    'Content-Type': 'text/html; charset=utf-8',
+                    'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+                });
+                res.end(content);
+            }
+        });
+        return;
+    }
+
     // Serve cube demo directly - bypasses all caching issues
     if (req.url.startsWith('/cube3d') || req.url.startsWith('/cube-demo') || req.url.startsWith('/showcube') || req.url.startsWith('/qube')) {
         const cubeFile = path.join(__dirname, 'cube3d-v2.html');

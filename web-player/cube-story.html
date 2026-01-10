@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Cube Story - Reflectly</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #FF6B9D 0%, #C06FBB 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+        h1 { color: white; margin-bottom: 10px; text-shadow: 0 2px 10px rgba(0,0,0,0.2); font-size: 28px; }
+        .subtitle { color: rgba(255,255,255,0.8); margin-bottom: 20px; font-size: 16px; }
+        .loading { color: white; font-size: 18px; text-align: center; }
+        .cube-container { width: 280px; height: 280px; perspective: 1000px; margin: 20px auto; }
+        .cube {
+            width: 100%; height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: rotateCube 15s infinite linear;
+        }
+        .cube.paused { animation-play-state: paused; }
+        .cube-face {
+            position: absolute;
+            width: 280px; height: 280px;
+            border: 3px solid rgba(255,255,255,0.5);
+            border-radius: 15px;
+            overflow: hidden;
+            background: linear-gradient(145deg, rgba(255,107,157,0.9), rgba(192,111,187,0.9));
+        }
+        .cube-face video {
+            width: 100%; height: 100%;
+            object-fit: cover;
+        }
+        .cube-face .placeholder {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100%; color: white; text-align: center;
+        }
+        .cube-face .placeholder .icon { font-size: 50px; margin-bottom: 10px; }
+        .cube-face .placeholder .label { font-size: 14px; opacity: 0.8; }
+        .front  { transform: rotateY(0deg) translateZ(140px); }
+        .back   { transform: rotateY(180deg) translateZ(140px); }
+        .right  { transform: rotateY(90deg) translateZ(140px); }
+        .left   { transform: rotateY(-90deg) translateZ(140px); }
+        .top    { transform: rotateX(90deg) translateZ(140px); }
+        .bottom { transform: rotateX(-90deg) translateZ(140px); }
+        @keyframes rotateCube {
+            0%   { transform: rotateX(-15deg) rotateY(0deg); }
+            100% { transform: rotateX(-15deg) rotateY(360deg); }
+        }
+        .controls { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        .control-btn {
+            padding: 10px 20px; border: none; border-radius: 20px;
+            background: white; color: #C06FBB;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        .control-btn:hover { transform: scale(1.05); }
+        .error { color: white; text-align: center; padding: 40px; }
+        .error a { color: white; }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading">
+        <div style="font-size: 60px; margin-bottom: 20px;">🎲</div>
+        <p>טוען סיפור...</p>
+    </div>
+    
+    <div id="content" style="display: none;">
+        <h1 id="story-title">Reflectly 3D Cube 🎲</h1>
+        <p class="subtitle" id="creator-name"></p>
+        
+        <div class="cube-container">
+            <div class="cube" id="cube">
+                <div class="cube-face front" id="face-front">
+                    <div class="placeholder"><span class="icon">🎬</span><span class="label">סיפור מרכזי</span></div>
+                </div>
+                <div class="cube-face back" id="face-back">
+                    <div class="placeholder"><span class="icon">💭</span><span class="label">שיקוף 1</span></div>
+                </div>
+                <div class="cube-face right" id="face-right">
+                    <div class="placeholder"><span class="icon">💭</span><span class="label">שיקוף 2</span></div>
+                </div>
+                <div class="cube-face left" id="face-left">
+                    <div class="placeholder"><span class="icon">💭</span><span class="label">שיקוף 3</span></div>
+                </div>
+                <div class="cube-face top" id="face-top">
+                    <div class="placeholder"><span class="icon">⭐</span><span class="label">Reflectly</span></div>
+                </div>
+                <div class="cube-face bottom" id="face-bottom">
+                    <div class="placeholder"><span class="icon">💝</span><span class="label">זכרונות</span></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button class="control-btn" onclick="toggleRotation()">⏸️ עצור/הפעל</button>
+            <button class="control-btn" onclick="rotateManual(-1)">⬅️ שמאלה</button>
+            <button class="control-btn" onclick="rotateManual(1)">➡️ ימינה</button>
+        </div>
+    </div>
+    
+    <div id="error" class="error" style="display: none;"></div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+        import { getFirestore, doc, getDoc, collection, query, where, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
+        import { firebaseConfig } from './config.js';
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        let isPaused = false;
+        let currentRotation = 0;
+        
+        window.toggleRotation = function() {
+            isPaused = !isPaused;
+            document.getElementById('cube').classList.toggle('paused', isPaused);
+        };
+        
+        window.rotateManual = function(direction) {
+            if (!isPaused) {
+                isPaused = true;
+                document.getElementById('cube').classList.add('paused');
+            }
+            currentRotation += direction * 90;
+            document.getElementById('cube').style.transform = `rotateX(-15deg) rotateY(${currentRotation}deg)`;
+        };
+        
+        function getStoryIdFromURL() {
+            const pathParts = window.location.pathname.split('/').filter(Boolean);
+            if (pathParts.length >= 2 && (pathParts[0] === 'cube-story' || pathParts[0] === 's')) {
+                return decodeURIComponent(pathParts[1]);
+            }
+            const params = new URLSearchParams(window.location.search);
+            return params.get('storyId') || params.get('story') || params.get('s') || params.get('id');
+        }
+        
+        async function findStory(code) {
+            try {
+                const storyRef = doc(db, 'stories', code);
+                const storySnap = await getDoc(storyRef);
+                if (storySnap.exists()) return { id: storySnap.id, ...storySnap.data() };
+                
+                const q = query(collection(db, 'stories'), where('inviteCode', '==', code.trim()));
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) {
+                    const docSnap = querySnapshot.docs[0];
+                    return { id: docSnap.id, ...docSnap.data() };
+                }
+                return null;
+            } catch (error) {
+                console.error('Error finding story:', error);
+                return null;
+            }
+        }
+        
+        async function loadReflections(storyId) {
+            try {
+                const q = query(collection(db, 'stories', storyId, 'reflections'));
+                const querySnapshot = await getDocs(q);
+                const reflections = [];
+                querySnapshot.forEach(doc => {
+                    reflections.push({ id: doc.id, ...doc.data() });
+                });
+                return reflections;
+            } catch (error) {
+                console.error('Error loading reflections:', error);
+                return [];
+            }
+        }
+        
+        function setFaceVideo(faceId, videoUrl, label) {
+            const face = document.getElementById(faceId);
+            if (!face || !videoUrl) return;
+            
+            const proxiedUrl = '/proxy-video?url=' + encodeURIComponent(videoUrl);
+            face.innerHTML = `<video src="${proxiedUrl}" muted loop playsinline autoplay></video>`;
+            const video = face.querySelector('video');
+            video.play().catch(() => {});
+        }
+        
+        async function init() {
+            const storyId = getStoryIdFromURL();
+            
+            if (!storyId) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerHTML = `
+                    <div style="font-size: 60px; margin-bottom: 20px;">🎲</div>
+                    <h2>Reflectly 3D Cube</h2>
+                    <p style="margin: 20px 0;">כדי לצפות בסיפור בקוביה 3D, קבל קישור מחבר</p>
+                    <a href="/" style="background: white; color: #C06FBB; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: bold;">🏠 חזרה לדף הבית</a>
+                `;
+                return;
+            }
+            
+            const story = await findStory(storyId);
+            
+            if (!story) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerHTML = `
+                    <div style="font-size: 60px; margin-bottom: 20px;">😕</div>
+                    <h2>סיפור לא נמצא</h2>
+                    <p style="margin: 20px 0;">הקוד "${storyId}" לא נמצא</p>
+                    <a href="/" style="background: white; color: #C06FBB; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: bold;">🏠 חזרה לדף הבית</a>
+                `;
+                return;
+            }
+            
+            document.getElementById('story-title').textContent = story.name || 'הסיפור שלי';
+            document.getElementById('creator-name').textContent = story.creatorName ? `מאת: ${story.creatorName}` : '';
+            
+            const keyVideoUrl = story.videoUri || story.videoUrl;
+            if (keyVideoUrl) {
+                setFaceVideo('face-front', keyVideoUrl, 'סיפור מרכזי');
+            }
+            
+            const reflections = await loadReflections(story.id);
+            console.log('Loaded reflections:', reflections);
+            
+            const faces = ['face-back', 'face-right', 'face-left', 'face-top', 'face-bottom'];
+            let faceIndex = 0;
+            
+            for (const reflection of reflections) {
+                if (faceIndex >= faces.length) break;
+                
+                const videos = [
+                    reflection.video1Url || reflection.videoUrl,
+                    reflection.video2Url,
+                    reflection.video3Url
+                ].filter(Boolean);
+                
+                for (const videoUrl of videos) {
+                    if (faceIndex >= faces.length) break;
+                    setFaceVideo(faces[faceIndex], videoUrl, `שיקוף ${faceIndex + 1}`);
+                    faceIndex++;
+                }
+            }
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+        }
+        
+        init();
+    </script>
+</body>
+</html>
