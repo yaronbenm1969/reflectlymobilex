@@ -44,8 +44,8 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // Force cache clear and redirect to cube demo
-    if (req.url === '/cube' || req.url === '/demo') {
+    // Force cache clear and redirect to cube demo - multiple endpoints to bypass cache
+    if (req.url === '/cube' || req.url === '/demo' || req.url === '/fresh' || req.url === '/clean') {
         res.writeHead(200, { 
             'Content-Type': 'text/html',
             'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
@@ -58,7 +58,7 @@ if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then
 if('caches' in window){caches.keys().then(k=>k.forEach(c=>caches.delete(c)));}
 localStorage.clear();
 sessionStorage.clear();
-setTimeout(()=>location.href='/cube-demo.html?t=${Date.now()}',500);
+setTimeout(()=>location.href='/cube3d-v2.html?v=${Date.now()}',500);
 </script>
 </head><body style="background:linear-gradient(135deg,#FF6B9D,#C06FBB);display:flex;align-items:center;justify-content:center;height:100vh;color:white;font-family:sans-serif;">
 <div style="text-align:center;"><h2>מנקה קאש...</h2><p>מעביר לדמו הקוביה</p></div>
