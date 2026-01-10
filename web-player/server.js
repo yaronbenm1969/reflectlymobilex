@@ -45,7 +45,7 @@ const server = http.createServer((req, res) => {
     }
 
     // Serve cube demo directly - bypasses all caching issues
-    if (req.url.startsWith('/cube3d') || req.url.startsWith('/cube-demo')) {
+    if (req.url.startsWith('/cube3d') || req.url.startsWith('/cube-demo') || req.url.startsWith('/showcube') || req.url.startsWith('/qube')) {
         const cubeFile = path.join(__dirname, 'cube3d-v2.html');
         fs.readFile(cubeFile, (err, content) => {
             if (err) {
