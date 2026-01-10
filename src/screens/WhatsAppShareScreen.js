@@ -25,6 +25,7 @@ export const WhatsAppShareScreen = () => {
   const currentStoryId = useAppState((state) => state.currentStoryId);
   const currentInviteCode = useAppState((state) => state.currentInviteCode);
   const user = useAppState((state) => state.user);
+  const videoFormat = useAppState((state) => state.videoFormat);
   
   const inviteCode = currentInviteCode || '';
   
@@ -81,7 +82,12 @@ ${webPlayerUrl}
   };
 
   const handleContinue = () => {
-    go('Processing');
+    const is3DFormat = videoFormat && videoFormat !== 'standard';
+    if (is3DFormat) {
+      go('FinalVideo');
+    } else {
+      go('Processing');
+    }
   };
 
   return (
