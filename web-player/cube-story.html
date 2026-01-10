@@ -82,7 +82,7 @@
         <div class="cube-container">
             <div class="cube" id="cube">
                 <div class="cube-face front" id="face-front">
-                    <div class="placeholder"><span class="icon">🎬</span><span class="label">סיפור מרכזי</span></div>
+                    <div class="placeholder"><span class="icon">💭</span><span class="label">שיקוף 1</span></div>
                 </div>
                 <div class="cube-face back" id="face-back">
                     <div class="placeholder"><span class="icon">💭</span><span class="label">שיקוף 1</span></div>
@@ -221,15 +221,10 @@
             document.getElementById('story-title').textContent = story.name || 'הסיפור שלי';
             document.getElementById('creator-name').textContent = story.creatorName ? `מאת: ${story.creatorName}` : '';
             
-            const keyVideoUrl = story.videoUri || story.videoUrl;
-            if (keyVideoUrl) {
-                setFaceVideo('face-front', keyVideoUrl, 'סיפור מרכזי');
-            }
-            
             const reflections = await loadReflections(story.id);
             console.log('Loaded reflections:', reflections);
             
-            const faces = ['face-back', 'face-right', 'face-left', 'face-top', 'face-bottom'];
+            const faces = ['face-front', 'face-back', 'face-right', 'face-left', 'face-top', 'face-bottom'];
             let faceIndex = 0;
             
             for (const reflection of reflections) {
