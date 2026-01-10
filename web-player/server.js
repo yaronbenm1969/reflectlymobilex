@@ -155,7 +155,9 @@ const server = http.createServer((req, res) => {
     let filePath = req.url.split('?')[0];
     
     if (filePath === '/' || filePath.startsWith('/s/') || !filePath.includes('.')) {
-        filePath = '/index.html';
+        filePath = 'index.html';
+    } else {
+        filePath = filePath.replace(/^\/+/, '');
     }
     
     const fullPath = path.join(__dirname, filePath);
