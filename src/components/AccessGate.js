@@ -49,11 +49,17 @@ export const AccessGate = ({ children }) => {
 
     const result = await accessService.verifyAccessCode(accessCode.trim());
 
-    setIsVerifying(false);
-
     if (result.valid) {
-      setStatus('unlocked');
+      const maintenanceResult = await accessService.checkMaintenanceStatus();
+      setIsVerifying(false);
+      
+      if (maintenanceResult.maintenance) {
+        setStatus('maintenance');
+      } else {
+        setStatus('unlocked');
+      }
     } else {
+      setIsVerifying(false);
       setError('Invalid access code');
       setAccessCode('');
     }
