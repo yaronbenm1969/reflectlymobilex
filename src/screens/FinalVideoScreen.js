@@ -125,6 +125,7 @@ export const FinalVideoScreen = () => {
       setShowVideoPlayer(true);
       setIsPlaying(true);
       console.log(`▶️ Starting cube playback with ${urls.length} videos`);
+      console.log(`📹 First video URL: ${urls[0]?.substring(0, 100)}...`);
     }
   };
 
@@ -270,11 +271,16 @@ export const FinalVideoScreen = () => {
                     ref={videoRef}
                     source={{ uri: activeVideoUrl }}
                     style={styles.overlayVideo}
-                    useNativeControls={false}
+                    useNativeControls={true}
                     shouldPlay={true}
                     isLooping={false}
                     resizeMode="contain"
+                    onLoad={() => console.log('✅ Video loaded successfully')}
+                    onError={(error) => console.log('❌ Video error:', error)}
                     onPlaybackStatusUpdate={(status) => {
+                      if (status.error) {
+                        console.log('❌ Playback error:', status.error);
+                      }
                       if (status.didJustFinish) {
                         playNextVideo();
                       }
