@@ -106,14 +106,37 @@ export const FinalVideoScreen = () => {
     }
   }, [isCube3D, cubeFaces]);
 
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+
   const handleCubeFaceChange = (faceIndex, action) => {
     console.log(`🎲 Cube face ${faceIndex} ${action}`);
-    if (action === 'enter' && cubeFaces[faceIndex]?.videoUrl) {
-      setActiveVideoUrl(cubeFaces[faceIndex].videoUrl);
+  };
+
+  const startCubePlayback = () => {
+    const validFaces = cubeFaces.filter(f => f && f.videoUrl);
+    if (validFaces.length > 0) {
+      setCurrentVideoIndex(0);
+      setActiveVideoUrl(validFaces[0].videoUrl);
+      setShowVideoPlayer(true);
       setIsPlaying(true);
-    } else if (action === 'exit') {
+      console.log(`▶️ Starting cube playback with ${validFaces.length} videos`);
+    }
+  };
+
+  const playNextVideo = () => {
+    const validFaces = cubeFaces.filter(f => f && f.videoUrl);
+    const nextIndex = currentVideoIndex + 1;
+    if (nextIndex < validFaces.length) {
+      setCurrentVideoIndex(nextIndex);
+      setActiveVideoUrl(validFaces[nextIndex].videoUrl);
+      console.log(`▶️ Playing video ${nextIndex + 1}/${validFaces.length}`);
+    } else {
+      setShowVideoPlayer(false);
       setActiveVideoUrl(null);
       setIsPlaying(false);
+      setCurrentVideoIndex(0);
+      console.log(`✅ Cube playback complete`);
     }
   };
 
@@ -227,23 +250,48 @@ export const FinalVideoScreen = () => {
                 setActiveFaceIndex={setActiveFaceIndex}
                 isVideoPlaying={isPlaying}
               />
-              {activeVideoUrl && (
+              {!showVideoPlayer && (
+                <TouchableOpacity 
+                  style={styles.cubePlayButton}
+                  onPress={startCubePlayback}
+                >
+                  <View style={styles.playButtonCircle}>
+                    <Ionicons name="play" size={40} color="white" />
+                  </View>
+                  <Text style={styles.cubePlayText}>לחץ להפעלה</Text>
+                </TouchableOpacity>
+              )}
+              {showVideoPlayer && activeVideoUrl && (
                 <View style={styles.activeVideoOverlay}>
                   <Video
                     ref={videoRef}
                     source={{ uri: activeVideoUrl }}
                     style={styles.overlayVideo}
                     useNativeControls={false}
-                    shouldPlay={isPlaying}
+                    shouldPlay={true}
                     isLooping={false}
                     resizeMode="contain"
                     onPlaybackStatusUpdate={(status) => {
                       if (status.didJustFinish) {
-                        setActiveVideoUrl(null);
-                        setIsPlaying(false);
+                        playNextVideo();
                       }
                     }}
                   />
+                  <View style={styles.videoCounter}>
+                    <Text style={styles.videoCounterText}>
+                      {currentVideoIndex + 1}/{cubeFaces.filter(f => f?.videoUrl).length}
+                    </Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.closeVideoButton}
+                    onPress={() => {
+                      setShowVideoPlayer(false);
+                      setActiveVideoUrl(null);
+                      setIsPlaying(false);
+                    }}
+                  >
+                    <Ionicons name="close" size={28} color="white" />
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -421,6 +469,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: theme.spacing[4],
     minHeight: 300,
+    position: 'relative',
+  },
+  cubePlayButton: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  playButtonCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 107, 157, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...theme.shadows.lg,
+  },
+  cubePlayText: {
+    marginTop: theme.spacing[2],
+    color: theme.colors.primary,
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   activeVideoOverlay: {
     position: 'absolute',
@@ -428,14 +498,41 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 20,
+    borderRadius: theme.radii.lg,
   },
   overlayVideo: {
-    width: '90%',
-    height: '80%',
+    width: '95%',
+    height: '85%',
     borderRadius: 12,
+  },
+  videoCounter: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: 'rgba(255, 107, 157, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  videoCounterText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  closeVideoButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   videoPlayer: {
     width: '100%',
