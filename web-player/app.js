@@ -778,14 +778,7 @@ async function init() {
     console.log('📍 Search:', window.location.search);
     console.log('📍 Hash:', window.location.hash);
     
-    setupAccessGate();
-    
-    const accessGranted = await initAccessCheck();
-    if (!accessGranted) {
-        console.log('🔒 Access check failed - waiting for unlock');
-        return;
-    }
-    
+    // Go directly to app - no access code required
     initApp();
 }
 
@@ -812,12 +805,10 @@ async function initApp() {
                 addInAppBrowserBanner();
             }
         } else {
-            if (inAppBrowser) {
-                showWebViewRedirect();
-                return;
-            }
-            document.getElementById('invite-code-input').value = urlParams.value;
-            showScreen('code');
+            // Story not found - show welcome screen (no code entry)
+            console.log('⚠️ Story not found, showing welcome screen');
+            showScreen('watch');
+            showWelcomeMessage();
         }
     } else {
         console.log('⚠️ No URL params found');
