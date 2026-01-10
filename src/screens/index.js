@@ -20,3 +20,4 @@ export { AboutScreen } from './AboutScreen';
 export { HelpScreen } from './HelpScreen';
 export { TermsScreen } from './TermsScreen';
 export { ThankYouScreen } from './ThankYouScreen';
+export { default as WatchExperienceScreen } from './WatchExperienceScreen';

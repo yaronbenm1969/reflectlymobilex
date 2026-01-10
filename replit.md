@@ -1,282 +1,59 @@
 # Reflectly Mobile App
 
 ## Overview
-Reflectly is a React Native/Expo mobile journaling app that allows users to record personal stories and invite friends to share reflections. The app features video recording, story management, and social sharing capabilities.
-
-## Recent Changes (January 6, 2026)
-- **NEW: 12 Video Display Formats** - Full carousel animation library with live previews
-  - 3D Cube, 3D Carousel, Flip Pages, Standard
-  - Stack Cards, Tinder Swipe, Paper Fold, Circular
-  - Flow, Parallax, Blur Rotate, Scale Fade
-- **NEW: VideoCarousel Component** - `src/components/VideoCarousel.js`
-  - Uses react-native-reanimated-carousel (free, MIT license)
-  - Smooth 60 FPS animations on iOS/Android
-  - Demo previews with "דגימה" button for each format
-- **Updated FormatSelectionScreen** - Interactive format selection with live demos
-- **Added GestureHandlerRootView** - Required for touch gestures in carousels
-- **Updated babel.config.js** - Added reanimated plugin for animations
-- **NEW: AI Service** - `server/ai-service.js`
-  - OpenAI Whisper transcription
-  - GPT-4o story analysis
-  - Automatic editing suggestions
-  - AI-generated video titles
-
-## Recent Changes (January 3, 2026)
-- **NEW: Deep Links & Universal Links** - App opens directly from WhatsApp links when installed
-  - iOS: Associated Domains configured for `reflectly.app`
-  - Android: Intent Filters with autoVerify for direct app opening
-  - Custom URL scheme: `reflectly://`
-- **NEW: Smart App Banner** - iOS Safari shows "Open in App" banner
-- **NEW: Open Graph tags** - Beautiful WhatsApp link previews
-- **Improved URL parsing** - Better storyId detection in web player
-
-## Recent Changes (January 2, 2026)
-- **NEW: Video Converter API** - Server-side ffmpeg conversion for iPhone HEVC→H.264 compatibility
-- **NEW: server/ folder** - Backend services for video processing
-  - `video-converter-api.js` - Express server with ffmpeg for format conversion
-  - `video-editor.ts` - Full video editing capabilities (from ReflectlyPlayback-2)
-  - `format-manager.ts` - Video format detection and conversion planning
-  - `video-storage-service.ts` - Firebase Storage integration
-  - `firebase-admin.ts` - Firebase Admin SDK setup
-- **Updated storageService.js** - Auto-detects iPhone videos and routes through converter
-
-## Recent Changes (December 30, 2025)
-- **NEW: Invite Code System** - Each story gets a unique 6-character code (e.g., ABC123)
-- **NEW: Web Player** - `/web-player/` folder with HTML/CSS/JS for browser-based viewing and recording
-- **NEW: Join with Code** - HomeScreen now has input field for entering invite codes
-- **Upgraded to Expo SDK 54** with React 19.1.0 and React Native 0.81.5
-- **Fixed critical bug**: Removed deprecated SafeAreaView, added react-native-safe-area-context
-- **Fixed Touch Bleed-Through**: Added 300ms interaction guard to ReviewScreen and MusicSelectionScreen
-- **Added FormatSelectionScreen**: New screen for video format and AI background styling
-- **Added SplashScreen**: 3-second animated splash screen with logo
-- **Added ElevenLabs integration**: AI-generated custom music option in MusicSelectionScreen
-- **Updated color theme**: Pink-purple gradient (#FF6B9D → #C06FBB) matching Reflectly aesthetic
-- **Configured Expo tunnel**: Using ngrok for mobile device testing from Replit cloud
-- **Firebase fully integrated**: Auth, Firestore, Storage with session persistence
-- **Auth state listener**: Restores user session on app restart (App.js useEffect)
-- **EditRoomScreen**: Double-tap confirmation for editing/publishing at any stage
-- **ThankYouScreen**: New screen for players with app download links
-- App running on tunnel via Expo Go with comprehensive logging
-- **Copied all screens** from original app in attached_assets/expo-mobile-standalone/
-
-## Invite Code & Web Player System
-### How it works:
-1. Creator records story → System generates invite code (e.g., `XK7M2P`)
-2. Creator shares via WhatsApp: "Join my story! Code: XK7M2P" + web link
-3. Friend clicks link → Web player opens → Watches video → Records reflection
-4. OR: Friend opens app → Enters code in HomeScreen → Views story
-
-### Files:
-- `web-player/index.html` - Main HTML page
-- `web-player/styles.css` - Pink-purple themed styles
-- `web-player/app.js` - Firebase integration + recording logic
-- `web-player/config.js` - Firebase config (needs real values for production)
-- `web-player/server.js` - Simple Node.js server for local testing
-
-### For Production:
-1. Update `web-player/config.js` with real Firebase credentials
-2. Deploy to Firebase Hosting or Vercel
-3. Update `WhatsAppShareScreen.js` with production URL
-
-## Project Architecture
-
-### Tech Stack
-- **Framework**: Expo SDK 54 / React Native 0.81.5 / React 19.1.0
-- **State Management**: Zustand
-- **Data Fetching**: TanStack React Query
-- **UI**: Custom components with Linear Gradients
-- **Icons**: Expo Vector Icons (Ionicons)
-- **Camera**: expo-camera with CameraView
-- **Safe Area**: react-native-safe-area-context
-- **Styling**: React Native StyleSheet with custom theme
-- **AI Integration**: ElevenLabs for custom music generation (planned)
-
-### Project Structure
-```
-/
-├── App.js              # Main app component with screen routing
-├── index.js            # Entry point with registerRootComponent
-├── app.json            # Expo configuration
-├── package.json        # Dependencies
-├── babel.config.js     # Babel configuration
-├── metro.config.js     # Metro bundler config
-├── assets/             # App assets (icons, images)
-└── src/
-    ├── components/     # Reusable UI components
-    │   └── SideMenu.js
-    ├── screens/        # App screens
-    │   ├── HomeScreen.js
-    │   ├── RecordScreen.js
-    │   ├── ReviewScreen.js
-    │   ├── MyStoriesScreen.js
-    │   ├── SettingsScreen.js
-    │   ├── MusicSelectionScreen.js
-    │   ├── FormatSelectionScreen.js  # NEW: Video format & AI styling
-    │   ├── CameraSettingsScreen.js
-    │   ├── AboutScreen.js
-    │   ├── HelpScreen.js
-    │   └── TermsScreen.js
-    ├── state/          # Zustand state management
-    │   └── appState.js
-    ├── hooks/          # Custom React hooks
-    │   └── useNav.js
-    ├── theme/          # Theme configuration
-    │   └── theme.js
-    └── ui/             # UI primitives
-        ├── AppButton.js
-        └── Card.js
-```
-
-### FULL User Flow (Requested by User)
-1. **Splash Screen** (3 seconds) → Auto-navigate to Home
-2. **Home Screen** → Input story name (saved to state for all screens)
-3. **Record Screen** → Record key story video
-4. **Format Selection** → Choose presentation format:
-   - 3D Cube
-   - 3D Carousel
-   - Flip Pages
-   - Standard
-5. **Music Selection** → Choose background music:
-   - 🎼 AI-generated custom music (ElevenLabs)
-   - Pre-made tracks (Upbeat, Calm, Dramatic, Romantic)
-   - No music option
-6. **Instructions Screen** → Creator writes instructions for players:
-   - Generic instructions for all players
-   - Specific timing for each of 3 reflection videos
-   - Privacy settings (social media vs private viewing)
-7. **WhatsApp Share Screen** → Send invitation via WhatsApp:
-   - Select contacts from device
-   - Auto-generate message: "Hi, this is my story [attached], please click link to view and respond"
-   - Send story link to selected contacts
-8. **Player View Screen** → Player watches key story video
-9. **Player Record Screen** → Player records 3 reflection videos:
-   - 3 styled recording buttons
-   - Generic + specific instructions visible
-   - Timer for each video
-   - Privacy consent checkbox
-10. **Processing Screen** → AI editing in progress:
-    - Combines all player videos
-    - Applies selected format (3D cube/carousel/flip)
-    - Adds selected music
-    - Uses AI background styling
-11. **Edit Room Screen** → Creator controls editing:
-    - Preview all collected videos
-    - Control when and how to edit
-    - Adjust final output
-12. **Final Video Screen** → View and share completed video:
-    - Play edited video with soundtrack
-    - Share or download based on player privacy settings
-
-### Implemented Screens (Current Status - ALL COMPLETE!)
-✅ **Creator Flow:**
-1. **SplashScreen**: 3-second animated logo screen
-2. **HomeScreen**: Story name input + navigation
-3. **RecordScreen**: Full video recording with camera controls
-4. **ReviewScreen**: Review recorded video with action buttons
-5. **FormatSelectionScreen**: Video format (3D cube, carousel, flip pages, standard)
-6. **MusicSelectionScreen**: Background music selection including AI option
-7. **InstructionsScreen**: Creator instructions for players (3 video timings, privacy)
-8. **WhatsAppShareScreen**: Native WhatsApp sharing (FREE, no Twilio!)
-9. **ProcessingScreen**: AI editing progress animation
-10. **EditRoomScreen**: Creator's editing control panel
-11. **FinalVideoScreen**: View, share, and download final video
-
-✅ **Player Flow (for friends who receive invitations):**
-12. **PlayerViewScreen**: Player watches key story video
-13. **PlayerRecordScreen**: Player records 3 reflection videos with timers
-
-✅ **Utility Screens:**
-14. **MyStoriesScreen**: Story gallery (UI only, no backend)
-15. **SettingsScreen**: App configuration
-16. **CameraSettingsScreen**: Recording preferences
-17. **AboutScreen, HelpScreen, TermsScreen**: Information screens
-
-### Navigation System
-- Custom navigation using Zustand state management
-- No React Navigation dependency
-- Screen switching via `useAppState` and `useNav` hooks
-- Side menu for main navigation
-
-### Theme (Reflectly-Style)
-- **Primary Gradient**: #FF6B9D (Pink) → #C06FBB (Purple)
-- **Background**: #FFEFF4 (Light pink)
-- **Success**: #4CAF50
-- **Text**: #333333
-- **Subtext**: #666666
-- **Design**: Clean, warm, minimalist, journaling-focused
-
-## Development
-
-### Running the App
-The app is configured to run with Expo tunnel for mobile testing:
-```bash
-npx expo start --tunnel
-```
-
-Access on mobile via:
-- Scan QR code with Expo Go (Android/iOS)
-- Web preview available at localhost:8081
-
-### Current Status
-- **Demo Mode**: Running without backend
-- **Tunnel**: Configured with ngrok for Replit cloud mobile access
-- **Mobile**: Fully testable with Expo Go via QR code
-- **Platform**: Optimized for mobile (iOS/Android)
-- **Recording**: Working on actual mobile devices
-- **Navigation**: Fixed touch bleed-through issues
-
-### API Keys & Secrets Status
-**User has API keys in another Replit project: "ReflectlyPlayback-2"**
-
-Required Secrets (ADDED ✅):
-- ✅ `OPENAI_API_KEY` - For AI video processing and transcription
-- ✅ `REPLICATE_API_TOKEN` - For AI video processing
-- ✅ `Music123` - Music related key
-
-**NOT needed:**
-- ❌ Twilio keys - WhatsApp sharing will use native device sharing (expo-sharing + Linking API) - FREE!
-- ❌ PostgreSQL keys - This is a mobile app, database is in backend project
-- ❌ Object Storage keys - Will be handled by backend
-
-**WhatsApp Sharing Solution:**
-- Use `expo-sharing` or `Linking.openURL('whatsapp://send?text=...')` to open WhatsApp directly
-- Use `expo-contacts` to select contacts from device
-- No paid API required!
-
-### Known Considerations
-- **Backend**: No backend yet - all features are UI/UX only
-- **AI Features**: ElevenLabs music generation not connected (waiting for API key)
-- **Video Processing**: AI editing pipeline not implemented
-- **WhatsApp Sharing**: Not implemented (waiting for Twilio keys)
-- **Expo Haptics**: Not available on web (expected behavior)
-- **Camera**: Requires native mobile device (Expo Go)
-- **Version Warnings**: @types/react, babel-preset-expo, typescript have minor version mismatches (non-critical)
+Reflectly is a mobile journaling app built with React Native/Expo that enables users to record personal video stories, invite friends to contribute reflections, and share these collaborative video narratives. The app aims to facilitate meaningful social interaction through shared video experiences, featuring advanced video processing, AI integration, and a unique web-player system for seamless participation. The business vision is to create a leading platform for interactive personal storytelling, fostering deeper connections among users.
 
 ## User Preferences
 - User speaks Hebrew - prefer Hebrew communication when appropriate
 - User has existing project "רפלקטלי פלייבק 2" with all API keys configured
 - User wants complete social video journaling app with multi-user collaboration
 
-## Next Steps (When User Returns)
-1. **Verify Secrets Added**: User will add API keys from "רפלקטלי פלייבק 2" project
-2. **Update appState.js**: Add storyName, playerInstructions, videoTimings, participants, privacySettings
-3. **Build Missing Screens**:
-   - StoryNameScreen (or integrate into HomeScreen)
-   - InstructionsScreen
-   - WhatsAppShareScreen
-   - PlayerViewScreen
-   - PlayerRecordScreen
-   - ProcessingScreen
-   - EditRoomScreen
-   - FinalVideoScreen
-4. **Update Navigation Flow**: Splash → StoryName → Record → Format → Music → Instructions → WhatsApp → Processing → EditRoom → FinalVideo
-5. **Integrate APIs**:
-   - ElevenLabs for custom music generation
-   - Twilio for WhatsApp sharing
-   - OpenAI for video transcription and AI editing
-6. **Build Backend**: API endpoints for video storage, processing queue, and multi-user collaboration
+## System Architecture
 
-## Original Source Files
-- **Location**: `attached_assets/expo-mobile-standalone/`
-- **Contains**: All base screens, components, theme, and project structure
-- **Note**: Original app is demo-only with no backend or API keys
+### Core Features
+- **Video Journaling**: Users record key stories and invite friends to record reflection videos.
+- **Invite System**: Each story generates a unique 6-character code for sharing.
+- **Web Player**: A browser-based player allows friends to watch stories and record reflections without installing the app.
+- **Advanced Video Presentation**: Supports 12 distinct video display formats including 3D Cube, 3D Carousel, Flip Pages, Stack Cards, and more, using `react-native-reanimated-carousel`.
+- **AI Integration**:
+    - OpenAI Whisper for transcription.
+    - GPT-4o for story analysis and automatic editing suggestions.
+    - AI-generated video titles.
+    - ElevenLabs for AI-generated custom music options.
+- **Deep Linking & Social Sharing**: Supports deep links (`reflectly://`), universal links, and smart app banners for seamless app opening from WhatsApp. Open Graph tags ensure rich WhatsApp link previews.
+- **Video Conversion Service**: Server-side FFmpeg conversion handles HEVC to H.264 transcoding for iPhone compatibility.
+
+### Tech Stack
+- **Framework**: Expo SDK 54, React Native 0.81.5, React 19.1.0
+- **State Management**: Zustand
+- **Data Fetching**: TanStack React Query
+- **UI**: Custom components, Linear Gradients, Expo Vector Icons (Ionicons)
+- **Camera**: `expo-camera` with `CameraView`
+- **Animations**: `react-native-reanimated-carousel`
+- **Styling**: React Native StyleSheet with a custom pink-purple gradient theme (#FF6B9D → #C06FBB).
+
+### Project Structure
+- **Modular Design**: Organized into `components/`, `screens/`, `state/`, `hooks/`, `theme/`, and `ui/` for maintainability.
+- **Dedicated Backend Services**: A `server/` directory houses backend logic for video conversion (`video-converter-api.js`), video editing (`video-editor.ts`), format management (`format-manager.ts`), and Firebase Storage integration (`video-storage-service.ts`, `firebase-admin.ts`).
+- **Web Player**: Separate `web-player/` directory contains HTML, CSS, and JavaScript for the browser-based player.
+
+### User Flow
+The application supports distinct Creator and Player flows, encompassing:
+- **Creator Flow**: Splash, Home (story name), Record, Format Selection, Music Selection (including AI music), Instructions, WhatsApp Share, Processing, Edit Room, Final Video.
+- **Player Flow**: Player View (watch key story), Player Record (record 3 reflection videos).
+- **Navigation**: Custom navigation system using Zustand, avoiding React Navigation, with a side menu for primary app navigation.
+
+### UI/UX Design
+- **Theme**: Reflectly-style pink-purple gradient (#FF6B9D → #C06FBB) as the primary color scheme, with a light pink background (#FFEFF4).
+- **Aesthetic**: Clean, warm, minimalist design focused on journaling.
+- **Interaction**: Features smooth 60 FPS animations for carousels and interactive format selection.
+
+## External Dependencies
+
+- **Firebase**: Authentication, Firestore (database), Storage (for video assets).
+- **OpenAI**: Whisper API for transcription, GPT-4o for story analysis and suggestions.
+- **Replicate**: For AI video processing.
+- **ElevenLabs**: For AI-generated custom music.
+- **FFmpeg**: Server-side for video format conversion.
+- **Expo APIs**: `expo-camera`, `expo-sharing`, `Linking` (for WhatsApp integration), `expo-contacts`.
+- **React Native Libraries**: `react-native-reanimated-carousel`, `react-native-safe-area-context`.

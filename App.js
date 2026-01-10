@@ -24,7 +24,8 @@ import {
   AboutScreen,
   HelpScreen,
   TermsScreen,
-  ThankYouScreen 
+  ThankYouScreen,
+  WatchExperienceScreen
 } from './src/screens';
 import { SideMenu } from './src/components/SideMenu';
 import { AccessGate } from './src/components/AccessGate';
@@ -197,6 +198,8 @@ export default function App() {
         return <TermsScreen />;
       case 'ThankYou':
         return <ThankYouScreen />;
+      case 'WatchExperience':
+        return <WatchExperienceScreen />;
       default:
         return <HomeScreen />;
     }
