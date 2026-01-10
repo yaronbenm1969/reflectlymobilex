@@ -59,6 +59,42 @@
             <p>טוען...</p>
         </div>
 
+        <div id="maintenance-screen" class="screen" style="display: none;">
+            <div class="logo-container">
+                <div class="logo">🔧</div>
+                <h1>תחזוקה</h1>
+            </div>
+            <div class="card" style="text-align: center; padding: 30px;">
+                <div style="font-size: 48px; margin-bottom: 20px;">🛠️</div>
+                <h2 style="margin-bottom: 15px;">האפליקציה בתחזוקה</h2>
+                <p style="margin-bottom: 20px; color: #666;">
+                    אנחנו משפרים את החוויה שלך. נחזור בקרוב!
+                </p>
+                <button id="check-again-btn" class="btn-primary" style="width: 100%; padding: 15px; font-size: 18px;">
+                    🔄 בדוק שוב
+                </button>
+            </div>
+        </div>
+
+        <div id="access-gate-screen" class="screen" style="display: none;">
+            <div class="logo-container">
+                <div class="logo">🔐</div>
+                <h1>גישה נדרשת</h1>
+            </div>
+            <div class="card" style="text-align: center; padding: 30px;">
+                <div style="font-size: 48px; margin-bottom: 20px;">🔑</div>
+                <h2 style="margin-bottom: 15px;">הכנס קוד גישה</h2>
+                <p style="margin-bottom: 20px; color: #666;">
+                    הזן את קוד הגישה שקיבלת
+                </p>
+                <input type="password" id="access-code-input" placeholder="קוד גישה" autocomplete="off" style="font-size: 16px; text-align: center; margin-bottom: 15px; padding: 15px; border: 2px solid #f0f0f0; border-radius: 12px; width: 100%; box-sizing: border-box;">
+                <p class="error-text" id="access-error" style="color: #e74c3c; display: none;"></p>
+                <button id="unlock-btn" class="btn-primary" style="width: 100%; padding: 15px; font-size: 18px;">
+                    🔓 פתח
+                </button>
+            </div>
+        </div>
+
         <div id="code-screen" class="screen">
             <div class="header">
                 <div class="logo-small">🎬</div>

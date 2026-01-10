@@ -10,8 +10,63 @@ const { getStorage } = require('firebase-admin/storage');
 const app = express();
 const PORT = 3001;
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'x-app-access-code']
+}));
 app.use(express.json());
+
+const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
+const ACCESS_CODE = process.env.ACCESS_CODE || '';
+
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access'];
+
+const accessControlMiddleware = (req, res, next) => {
+  if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
+    return next();
+  }
+  
+  if (MAINTENANCE_MODE) {
+    return res.status(503).json({ error: 'Service under maintenance' });
+  }
+  
+  const providedCode = req.headers['x-app-access-code'];
+  
+  if (!ACCESS_CODE) {
+    return next();
+  }
+  
+  if (!providedCode || providedCode !== ACCESS_CODE) {
+    return res.status(403).json({ error: 'Access denied - invalid or missing access code' });
+  }
+  
+  next();
+};
+
+app.get('/api/maintenance-status', (req, res) => {
+  res.json({ 
+    maintenance: MAINTENANCE_MODE,
+    requiresCode: !!ACCESS_CODE && !MAINTENANCE_MODE
+  });
+});
+
+app.post('/api/verify-access', (req, res) => {
+  const { code } = req.body;
+  
+  if (MAINTENANCE_MODE) {
+    return res.json({ valid: false, maintenance: true });
+  }
+  
+  if (!ACCESS_CODE) {
+    return res.json({ valid: true });
+  }
+  
+  const isValid = code === ACCESS_CODE;
+  res.json({ valid: isValid });
+});
+
+app.use(accessControlMiddleware);
 
 const tempDir = path.join(process.cwd(), 'temp', 'uploads');
 const convertedDir = path.join(process.cwd(), 'temp', 'converted');

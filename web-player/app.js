@@ -86,6 +86,8 @@ const clipTimes = {
 
 const screens = {
     loading: document.getElementById('loading-screen'),
+    maintenance: document.getElementById('maintenance-screen'),
+    accessGate: document.getElementById('access-gate-screen'),
     code: document.getElementById('code-screen'),
     watch: document.getElementById('watch-screen'),
     record3clips: document.getElementById('record-3clips-screen'),
@@ -95,6 +97,8 @@ const screens = {
     webviewRedirect: document.getElementById('webview-redirect-screen')
 };
 
+const ACCESS_CODE_KEY = 'reflectly_access_code';
+
 function showScreen(screenName) {
     Object.values(screens).forEach(s => {
         if (s) s.classList.remove('active');
@@ -102,6 +106,113 @@ function showScreen(screenName) {
     if (screens[screenName]) {
         screens[screenName].classList.add('active');
     }
+}
+
+async function checkAccessStatus() {
+    try {
+        const response = await fetch('/api/maintenance-status');
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Failed to check access status:', error);
+        return { maintenance: false, requiresCode: false };
+    }
+}
+
+async function verifyAccessCode(code) {
+    try {
+        const response = await fetch('/api/verify-access', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code })
+        });
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Failed to verify access code:', error);
+        return { valid: false };
+    }
+}
+
+function setupAccessGate() {
+    const checkAgainBtn = document.getElementById('check-again-btn');
+    if (checkAgainBtn) {
+        checkAgainBtn.addEventListener('click', () => {
+            showScreen('loading');
+            initAccessCheck();
+        });
+    }
+
+    const unlockBtn = document.getElementById('unlock-btn');
+    const accessCodeInput = document.getElementById('access-code-input');
+    const accessError = document.getElementById('access-error');
+
+    if (unlockBtn && accessCodeInput) {
+        unlockBtn.addEventListener('click', async () => {
+            const code = accessCodeInput.value.trim();
+            if (!code) {
+                if (accessError) {
+                    accessError.textContent = 'הזן קוד גישה';
+                    accessError.style.display = 'block';
+                }
+                return;
+            }
+
+            unlockBtn.disabled = true;
+            unlockBtn.textContent = '⏳ בודק...';
+
+            const result = await verifyAccessCode(code);
+
+            if (result.valid) {
+                localStorage.setItem(ACCESS_CODE_KEY, code);
+                continueToApp();
+            } else {
+                if (accessError) {
+                    accessError.textContent = 'קוד גישה שגוי';
+                    accessError.style.display = 'block';
+                }
+                accessCodeInput.value = '';
+            }
+
+            unlockBtn.disabled = false;
+            unlockBtn.textContent = '🔓 פתח';
+        });
+
+        accessCodeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                unlockBtn.click();
+            }
+        });
+    }
+}
+
+async function initAccessCheck() {
+    const status = await checkAccessStatus();
+
+    if (status.maintenance) {
+        showScreen('maintenance');
+        return false;
+    }
+
+    if (status.requiresCode) {
+        const storedCode = localStorage.getItem(ACCESS_CODE_KEY);
+        if (storedCode) {
+            const verifyResult = await verifyAccessCode(storedCode);
+            if (verifyResult.valid) {
+                return true;
+            } else {
+                localStorage.removeItem(ACCESS_CODE_KEY);
+            }
+        }
+        showScreen('accessGate');
+        return false;
+    }
+
+    return true;
+}
+
+function continueToApp() {
+    initApp();
 }
 
 async function initFirebase() {
@@ -662,6 +773,18 @@ async function init() {
     console.log('📍 Search:', window.location.search);
     console.log('📍 Hash:', window.location.hash);
     
+    setupAccessGate();
+    
+    const accessGranted = await initAccessCheck();
+    if (!accessGranted) {
+        console.log('🔒 Access check failed - waiting for unlock');
+        return;
+    }
+    
+    initApp();
+}
+
+async function initApp() {
     const inAppBrowser = isInAppBrowser();
     
     const fbInit = await initFirebase();

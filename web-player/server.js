@@ -9,6 +9,12 @@ const CONVERTER_PORT = 3001;
 const BUILD_VERSION = Date.now().toString();
 console.log(`Build Version: ${BUILD_VERSION}`);
 
+const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
+const ACCESS_CODE = process.env.ACCESS_CODE || '';
+
+console.log(`Maintenance Mode: ${MAINTENANCE_MODE}`);
+console.log(`Access Code Required: ${!!ACCESS_CODE}`);
+
 const MIME_TYPES = {
     '.html': 'text/html',
     '.css': 'text/css',
@@ -88,6 +94,45 @@ const server = http.createServer((req, res) => {
         return;
     }
     
+    if (req.url === '/api/maintenance-status') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+            maintenance: MAINTENANCE_MODE,
+            requiresCode: !!ACCESS_CODE && !MAINTENANCE_MODE
+        }));
+        return;
+    }
+
+    if (req.url === '/api/verify-access' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const { code } = JSON.parse(body);
+                
+                if (MAINTENANCE_MODE) {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ valid: false, maintenance: true }));
+                    return;
+                }
+                
+                if (!ACCESS_CODE) {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ valid: true }));
+                    return;
+                }
+                
+                const isValid = code === ACCESS_CODE;
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ valid: isValid }));
+            } catch (e) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Invalid JSON' }));
+            }
+        });
+        return;
+    }
+
     if (req.url.startsWith('/api/')) {
         const proxyReq = http.request({
             hostname: 'localhost',

@@ -27,6 +27,7 @@ import {
   ThankYouScreen 
 } from './src/screens';
 import { SideMenu } from './src/components/SideMenu';
+import { AccessGate } from './src/components/AccessGate';
 import { useAppState } from './src/state/appState';
 import { authService } from './src/services/authService';
 
@@ -204,15 +205,17 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <View style={styles.container}>
-          <StatusBar style="auto" backgroundColor="#FFEFF4" />
-          {renderScreen()}
-          
-          <SideMenu 
-            isOpen={isSideMenuOpen}
-            onClose={() => setSideMenuOpen(false)}
-          />
-        </View>
+        <AccessGate>
+          <View style={styles.container}>
+            <StatusBar style="auto" backgroundColor="#FFEFF4" />
+            {renderScreen()}
+            
+            <SideMenu 
+              isOpen={isSideMenuOpen}
+              onClose={() => setSideMenuOpen(false)}
+            />
+          </View>
+        </AccessGate>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
