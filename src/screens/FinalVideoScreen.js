@@ -44,7 +44,7 @@ export const FinalVideoScreen = () => {
   const prepareVideosFor3D = () => {
     const videos = [];
     
-    if (keyStoryUri) {
+    if (keyStoryUri && videoFormat !== 'cube-3d') {
       videos.push({
         url: keyStoryUri,
         videoUrl: keyStoryUri,
