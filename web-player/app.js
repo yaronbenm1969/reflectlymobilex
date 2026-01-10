@@ -267,6 +267,11 @@ function getStoryParamsFromURL() {
     
     if (pathParts.length > 0) {
         const lastPart = decodeURIComponent(pathParts[pathParts.length - 1]);
+        // Skip static files (contain .) and demo pages
+        if (lastPart.includes('.') || lastPart.startsWith('cube') || lastPart.startsWith('qube') || lastPart === 'demo' || lastPart === 'fresh') {
+            console.log('📁 Detected static file or demo page, skipping invite code lookup');
+            return null;
+        }
         if (!lastPart.includes('?') && !lastPart.includes('=') && lastPart.length >= 2 && lastPart.length <= 30) {
             return { type: 'code', value: lastPart.trim() };
         }
