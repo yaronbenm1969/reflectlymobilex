@@ -23,11 +23,6 @@ export const AccessGate = ({ children }) => {
     if (storedCode) {
       const verifyResult = await accessService.verifyAccessCode(storedCode);
       if (verifyResult.valid) {
-        const maintenanceResult = await accessService.checkMaintenanceStatus();
-        if (maintenanceResult.maintenance) {
-          setStatus('maintenance');
-          return;
-        }
         setStatus('unlocked');
         return;
       } else {
@@ -48,18 +43,11 @@ export const AccessGate = ({ children }) => {
     setError('');
 
     const result = await accessService.verifyAccessCode(accessCode.trim());
+    setIsVerifying(false);
 
     if (result.valid) {
-      const maintenanceResult = await accessService.checkMaintenanceStatus();
-      setIsVerifying(false);
-      
-      if (maintenanceResult.maintenance) {
-        setStatus('maintenance');
-      } else {
-        setStatus('unlocked');
-      }
+      setStatus('unlocked');
     } else {
-      setIsVerifying(false);
       setError('Invalid access code');
       setAccessCode('');
     }
