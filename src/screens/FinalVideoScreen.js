@@ -121,25 +121,23 @@ export const FinalVideoScreen = () => {
     return videos;
   };
 
-  // Shuffle array utility function
-  const shuffleArray = (array) => {
-    const shuffled = [...array];
+  // Memoize cube faces to prevent reshuffling on every render
+  const cubeFaces = useMemo(() => {
+    if (!isCube3D || !reflections || reflections.length === 0) {
+      return [];
+    }
+    
+    const faces = [];
+    const validReflections = reflections.filter(r => r.videoUrl).slice(0, 6);
+    
+    // Shuffle once
+    const shuffled = [...validReflections];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    return shuffled;
-  };
-
-  const prepareCubeFaces = () => {
-    const faces = [];
-    // First collect all valid reflections
-    const validReflections = reflections.filter(r => r.videoUrl).slice(0, 6);
     
-    // Shuffle them randomly
-    const shuffledReflections = shuffleArray(validReflections);
-    
-    shuffledReflections.forEach((reflection, index) => {
+    shuffled.forEach((reflection, index) => {
       faces.push({
         posterThumbUri: reflection.thumbnailUrl || null,
         videoUrl: reflection.videoUrl,
@@ -151,11 +149,10 @@ export const FinalVideoScreen = () => {
     while (faces.length < 6) {
       faces.push(null);
     }
-    console.log('🎲 Shuffled cube faces order');
+    
+    console.log('🎲 Cube faces prepared once');
     return faces;
-  };
-
-  const cubeFaces = isCube3D ? prepareCubeFaces() : [];
+  }, [isCube3D, reflections.length]);
 
   useEffect(() => {
     if (isCube3D) {
@@ -444,26 +441,14 @@ export const FinalVideoScreen = () => {
                 </View>
               )}
               {showVideoPlayer && activeVideoUrl && faceTransform.visibility > 0.3 && (
-                <View 
-                  style={[
-                    styles.projectedVideoContainer,
-                    {
-                      left: faceTransform.center?.x || SCREEN_WIDTH * 0.35,
-                      top: faceTransform.center?.y || SCREEN_WIDTH * 0.35,
-                      marginLeft: -(faceTransform.width || 160) / 2,
-                      marginTop: -(faceTransform.height || 160) / 2,
-                      width: faceTransform.width || 160,
-                      height: faceTransform.height || 160,
-                    }
-                  ]}
-                >
+                <View style={styles.projectedVideoOverlay}>
                   <View 
                     style={[
                       styles.projectedVideoFrame,
                       {
-                        width: faceTransform.width || 160,
-                        height: faceTransform.height || 160,
-                        opacity: Math.max(0.5, faceTransform.visibility),
+                        width: Math.max(80, Math.min(180, faceTransform.width || 140)),
+                        height: Math.max(80, Math.min(180, faceTransform.height || 140)),
+                        opacity: Math.max(0.7, faceTransform.visibility),
                       }
                     ]}
                   >
@@ -751,6 +736,16 @@ const styles = StyleSheet.create({
   },
   projectedVideoContainer: {
     position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  projectedVideoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
