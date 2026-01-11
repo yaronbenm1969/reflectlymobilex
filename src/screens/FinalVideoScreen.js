@@ -369,8 +369,14 @@ export const FinalVideoScreen = () => {
                       if (status.error) {
                         console.log('❌ Playback error:', status.error);
                       }
-                      if (status.didJustFinish) {
-                        playNextVideo();
+                      if (status.isLoaded) {
+                        if (status.isPlaying) {
+                          console.log(`🎬 Video ${currentVideoIndex + 1} playing, position: ${Math.round(status.positionMillis/1000)}s / ${Math.round(status.durationMillis/1000)}s`);
+                        }
+                        if (status.didJustFinish && !status.isLooping) {
+                          console.log(`🏁 Video ${currentVideoIndex + 1} finished!`);
+                          playNextVideo();
+                        }
                       }
                     }}
                   />
