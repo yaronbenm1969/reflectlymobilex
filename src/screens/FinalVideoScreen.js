@@ -23,6 +23,10 @@ import theme from '../theme/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const VIDEO_CONVERTER_URL = 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
+
+const convertedUrlCache = new Map();
+
 export const FinalVideoScreen = () => {
   const { go } = useNav();
   const storyName = useAppState((state) => state.storyName);
@@ -38,8 +42,49 @@ export const FinalVideoScreen = () => {
   const [playbackComplete, setPlaybackComplete] = useState(false);
   const [activeFaceIndex, setActiveFaceIndex] = useState(-1);
   const [activeVideoUrl, setActiveVideoUrl] = useState(null);
+  const [isConverting, setIsConverting] = useState(false);
+  const [conversionProgress, setConversionProgress] = useState('');
   const videoRef = useRef(null);
   const cubeRef = useRef(null);
+
+  const needsConversion = (url) => {
+    if (!url) return false;
+    return url.includes('.webm') || url.includes('video%2Fwebm');
+  };
+
+  const convertVideoUrl = async (originalUrl) => {
+    if (convertedUrlCache.has(originalUrl)) {
+      console.log('📦 Using cached converted URL');
+      return convertedUrlCache.get(originalUrl);
+    }
+
+    console.log('🔄 Converting video:', originalUrl.substring(0, 80) + '...');
+    
+    try {
+      const response = await fetch(`${VIDEO_CONVERTER_URL}/api/convert-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: originalUrl }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Conversion failed: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.convertedUrl) {
+        console.log('✅ Video converted successfully');
+        convertedUrlCache.set(originalUrl, result.convertedUrl);
+        return result.convertedUrl;
+      } else {
+        throw new Error(result.error || 'Conversion failed');
+      }
+    } catch (error) {
+      console.error('❌ Video conversion error:', error);
+      return originalUrl;
+    }
+  };
 
   const participantCount = new Set(reflections.map(r => r.recipientId || r.participantId || 'anonymous')).size;
 
@@ -114,18 +159,54 @@ export const FinalVideoScreen = () => {
   };
 
   const [videoUrls, setVideoUrls] = useState([]);
+  const [convertedUrls, setConvertedUrls] = useState([]);
 
-  const startCubePlayback = () => {
+  const startCubePlayback = async () => {
     const validFaces = cubeFaces.filter(f => f && f.videoUrl);
     if (validFaces.length > 0) {
-      const urls = validFaces.map(f => f.videoUrl);
-      setVideoUrls(urls);
-      setCurrentVideoIndex(0);
-      setActiveVideoUrl(urls[0]);
-      setShowVideoPlayer(true);
-      setIsPlaying(true);
-      console.log(`▶️ Starting cube playback with ${urls.length} videos`);
-      console.log(`📹 First video URL: ${urls[0]?.substring(0, 100)}...`);
+      const originalUrls = validFaces.map(f => f.videoUrl);
+      console.log(`▶️ Starting cube playback with ${originalUrls.length} videos`);
+      
+      const firstUrl = originalUrls[0];
+      if (needsConversion(firstUrl)) {
+        setIsConverting(true);
+        setConversionProgress('ממיר סרטון 1...');
+        
+        try {
+          const convertedUrl = await convertVideoUrl(firstUrl);
+          const allConvertedUrls = [convertedUrl];
+          
+          for (let i = 1; i < originalUrls.length; i++) {
+            setConversionProgress(`ממיר סרטון ${i + 1}/${originalUrls.length}...`);
+            if (needsConversion(originalUrls[i])) {
+              const converted = await convertVideoUrl(originalUrls[i]);
+              allConvertedUrls.push(converted);
+            } else {
+              allConvertedUrls.push(originalUrls[i]);
+            }
+          }
+          
+          setConvertedUrls(allConvertedUrls);
+          setVideoUrls(allConvertedUrls);
+          setCurrentVideoIndex(0);
+          setActiveVideoUrl(allConvertedUrls[0]);
+          setShowVideoPlayer(true);
+          setIsPlaying(true);
+          console.log(`✅ All videos converted, starting playback`);
+        } catch (error) {
+          console.error('❌ Conversion failed:', error);
+          Alert.alert('שגיאה', 'לא ניתן להמיר את הסרטונים');
+        } finally {
+          setIsConverting(false);
+          setConversionProgress('');
+        }
+      } else {
+        setVideoUrls(originalUrls);
+        setCurrentVideoIndex(0);
+        setActiveVideoUrl(originalUrls[0]);
+        setShowVideoPlayer(true);
+        setIsPlaying(true);
+      }
     }
   };
 
@@ -254,7 +335,7 @@ export const FinalVideoScreen = () => {
                 setActiveFaceIndex={setActiveFaceIndex}
                 isVideoPlaying={isPlaying}
               />
-              {!showVideoPlayer && (
+              {!showVideoPlayer && !isConverting && (
                 <TouchableOpacity 
                   style={styles.cubePlayButton}
                   onPress={startCubePlayback}
@@ -264,6 +345,12 @@ export const FinalVideoScreen = () => {
                   </View>
                   <Text style={styles.cubePlayText}>לחץ להפעלה</Text>
                 </TouchableOpacity>
+              )}
+              {isConverting && (
+                <View style={styles.cubePlayButton}>
+                  <ActivityIndicator size="large" color={theme.colors.primary} />
+                  <Text style={styles.cubePlayText}>{conversionProgress}</Text>
+                </View>
               )}
               {showVideoPlayer && activeVideoUrl && (
                 <View style={styles.activeVideoOverlay}>
