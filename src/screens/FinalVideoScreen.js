@@ -420,32 +420,18 @@ export const FinalVideoScreen = () => {
                   <Text style={styles.cubePlayText}>{conversionProgress}</Text>
                 </View>
               )}
-              {showVideoPlayer && activeVideoUrl && faceTransform.visibility > 0.3 && (() => {
-                const videoSize = Math.max(180, Math.min(SCREEN_WIDTH * 0.5, faceTransform.width || 200));
-                return (
-                <View style={styles.projectedVideoOverlay} pointerEvents="none">
-                  <View 
-                    style={[
-                      styles.projectedVideoFrame,
-                      {
-                        width: videoSize,
-                        height: videoSize,
-                        opacity: Math.max(0.9, faceTransform.visibility),
-                      },
-                      faceTransform.corners && getTransformStyle(
-                        computePerspectiveTransform(faceTransform.corners, videoSize, videoSize)
-                      ),
-                    ]}
-                  >
+              {showVideoPlayer && activeVideoUrl && (
+                <View style={styles.fullscreenVideoOverlay}>
+                  <View style={styles.fullscreenVideoFrame}>
                     <Video
                       key={`cube-video-${currentPlayingFaceIndex}-${activeVideoUrl}`}
                       ref={videoRef}
                       source={{ uri: activeVideoUrl }}
-                      style={styles.projectedVideo}
+                      style={styles.fullscreenVideo}
                       useNativeControls={false}
                       shouldPlay={true}
                       isLooping={false}
-                      resizeMode="cover"
+                      resizeMode="contain"
                       onLoad={(status) => {
                         console.log(`✅ Video loaded, duration: ${status.durationMillis}ms`);
                         if (status.durationMillis) {
@@ -464,16 +450,19 @@ export const FinalVideoScreen = () => {
                         }
                       }}
                     />
-                    <View style={styles.videoScreenBorder} />
+                    <View style={styles.videoPlayerNameBadge}>
+                      <Text style={styles.videoPlayerNameText}>
+                        {cubeFaces[currentPlayingFaceIndex]?.playerName || `סרטון ${currentPlayingFaceIndex + 1}`}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.projectedVideoCounter}>
-                    <Text style={styles.projectedVideoCounterText}>
+                  <View style={styles.videoProgressBadge}>
+                    <Text style={styles.videoProgressText}>
                       {playedFaces.size}/{cubeFaces.filter(f => f?.videoUrl).length}
                     </Text>
                   </View>
                 </View>
-                );
-              })()}
+              )}
               {cubeStarted && !showVideoPlayer && !isConverting && (
                 <View style={styles.cubeStatusBadge}>
                   <Ionicons name="sync" size={16} color="white" />
@@ -780,6 +769,61 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     fontSize: 12,
+  },
+  fullscreenVideoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenVideoFrame: {
+    width: '92%',
+    aspectRatio: 9/16,
+    maxHeight: '85%',
+    backgroundColor: '#000',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#FF6B9D',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  fullscreenVideo: {
+    width: '100%',
+    height: '100%',
+  },
+  videoPlayerNameBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: 'rgba(255, 107, 157, 0.9)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+  },
+  videoPlayerNameText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  videoProgressBadge: {
+    position: 'absolute',
+    bottom: 30,
+    backgroundColor: 'rgba(255, 107, 157, 0.9)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  videoProgressText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   cubeStatusBadge: {
     position: 'absolute',
