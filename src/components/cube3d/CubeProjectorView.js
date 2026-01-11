@@ -1,24 +1,11 @@
 import React, { useRef, useMemo, useEffect, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { View, StyleSheet, Dimensions, Platform } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import { Canvas, useFrame, useThree } from '@react-three/fiber/native';
 import * as THREE from 'three';
 import { theme } from '../../theme/theme';
 
-const ENABLE_3D_CUBE = true;
-const ENTER_THRESHOLD = 25;
-const EXIT_THRESHOLD = 55;
-
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CUBE_SIZE = SCREEN_WIDTH * 0.6;
-
-const FACE_ROTATIONS = [
-  { x: 0, y: 0 },
-  { x: 0, y: Math.PI },
-  { x: 0, y: Math.PI / 2 },
-  { x: 0, y: -Math.PI / 2 },
-  { x: -Math.PI / 2, y: 0 },
-  { x: Math.PI / 2, y: 0 },
-];
+const CUBE_SIZE = SCREEN_WIDTH * 0.7;
 
 const FACE_COLORS = [
   '#FF6B9D',
@@ -29,24 +16,12 @@ const FACE_COLORS = [
   '#A855F7',
 ];
 
-const EMISSIVE_COLORS = [
-  '#FF3377',
-  '#9933FF',
-  '#6633FF',
-  '#FF3399',
-  '#FF66AA',
-  '#9933CC',
-];
-
-function ImageFace({ position, rotation, textureUrl, faceIndex, isActive, playerName }) {
+function CubeFace({ position, rotation, textureUrl, faceIndex, isActive, isPlaying }) {
   const meshRef = useRef();
   const [texture, setTexture] = useState(null);
-  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
-    console.log(`🎨 Face ${faceIndex} textureUrl:`, textureUrl ? textureUrl.substring(0, 60) + '...' : 'null');
     if (textureUrl) {
-      setLoadFailed(false);
       const loader = new THREE.TextureLoader();
       loader.crossOrigin = 'anonymous';
       loader.load(
@@ -55,54 +30,46 @@ function ImageFace({ position, rotation, textureUrl, faceIndex, isActive, player
           loadedTexture.minFilter = THREE.LinearFilter;
           loadedTexture.magFilter = THREE.LinearFilter;
           setTexture(loadedTexture);
-          console.log(`✅ Texture loaded for face ${faceIndex}`);
         },
         undefined,
-        (error) => {
-          console.log(`❌ Texture load failed for face ${faceIndex}:`, error?.message || error);
-          setLoadFailed(true);
-        }
+        () => {}
       );
-    } else {
-      setLoadFailed(true);
     }
   }, [textureUrl, faceIndex]);
 
   const faceColor = FACE_COLORS[faceIndex % FACE_COLORS.length];
-  const emissiveColor = EMISSIVE_COLORS[faceIndex % EMISSIVE_COLORS.length];
 
   return (
     <mesh ref={meshRef} position={position} rotation={rotation}>
-      <planeGeometry args={[1.98, 1.98]} />
+      <planeGeometry args={[1.95, 1.95]} />
       <meshStandardMaterial
         map={texture}
-        color={faceColor}
-        emissive={emissiveColor}
-        emissiveIntensity={isActive ? 0.6 : 0.4}
+        color={texture ? '#ffffff' : faceColor}
+        emissive={isPlaying ? '#FF6B9D' : (isActive ? '#FF6B9D' : '#000000')}
+        emissiveIntensity={isPlaying ? 0.8 : (isActive ? 0.4 : 0.1)}
         transparent={true}
-        opacity={isActive ? 1 : 0.9}
-        roughness={0.3}
+        opacity={isPlaying ? 0.3 : 1}
+        roughness={0.4}
         metalness={0.1}
       />
     </mesh>
   );
 }
 
-const Cube3DInner = forwardRef(function Cube3DInner({ 
+const RotatingCube = forwardRef(function RotatingCube({ 
   faces, 
-  onFaceChange, 
-  activeFaceIndex, 
-  setActiveFaceIndex,
-  targetFaceIndex,
-  isVideoPlaying,
-  isAdvancing,
+  onFaceEnterFront,
+  onFaceExitFront,
+  currentVideoDuration,
+  isPlaying,
+  currentPlayingFaceIndex,
 }, ref) {
   const groupRef = useRef();
-  const [rotationTarget, setRotationTarget] = useState({ x: 0, y: 0 });
-  const currentRotation = useRef({ x: 0, y: 0 });
-  const wobblePhase = useRef({ x: Math.random() * Math.PI * 2, y: Math.random() * Math.PI * 2 });
-  const lastTargetChange = useRef(Date.now());
-  const rotatingToFace = useRef(false);
+  const rotationY = useRef(0);
+  const rotationX = useRef(-0.15);
+  const angularVelocity = useRef(0.4);
+  const lastFrontFace = useRef(-1);
+  const faceEnteredAt = useRef(null);
 
   const facePositions = useMemo(() => [
     { position: [0, 0, 1], rotation: [0, 0, 0] },
@@ -113,158 +80,105 @@ const Cube3DInner = forwardRef(function Cube3DInner({
     { position: [0, -1, 0], rotation: [Math.PI / 2, 0, 0] },
   ], []);
 
-  useImperativeHandle(ref, () => ({
-    rotateTo: (faceIndex) => {
-      if (faceIndex >= 0 && faceIndex < 6) {
-        const targetRot = FACE_ROTATIONS[faceIndex];
-        setRotationTarget({ x: targetRot.x, y: targetRot.y });
-        rotatingToFace.current = true;
-        console.log(`🎯 Rotating to face ${faceIndex}`);
-      }
-    },
-    addRandomWobble: () => {
-      setRotationTarget(prev => ({
-        x: prev.x + (Math.random() - 0.5) * 0.3,
-        y: prev.y + (Math.random() - 0.5) * 0.3,
-      }));
-    },
-  }), []);
-
-  useEffect(() => {
-    if (targetFaceIndex !== undefined && targetFaceIndex >= 0 && targetFaceIndex < 6) {
-      const targetRot = FACE_ROTATIONS[targetFaceIndex];
-      setRotationTarget({ x: targetRot.x, y: targetRot.y });
-      rotatingToFace.current = true;
-    }
-  }, [targetFaceIndex]);
-
-  const getFaceNormal = useCallback((faceIndex, groupRotation) => {
-    const normals = [
-      new THREE.Vector3(0, 0, 1),
-      new THREE.Vector3(0, 0, -1),
-      new THREE.Vector3(1, 0, 0),
-      new THREE.Vector3(-1, 0, 0),
-      new THREE.Vector3(0, 1, 0),
-      new THREE.Vector3(0, -1, 0),
-    ];
-
-    const euler = new THREE.Euler(groupRotation.x, groupRotation.y, 0, 'XYZ');
-    const quaternion = new THREE.Quaternion().setFromEuler(euler);
-    const normal = normals[faceIndex].clone().applyQuaternion(quaternion);
-    return normal;
+  const getFrontFaceIndex = useCallback((rotY) => {
+    const normalized = ((rotY % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    if (normalized < Math.PI / 4 || normalized >= Math.PI * 7 / 4) return 0;
+    if (normalized >= Math.PI / 4 && normalized < Math.PI * 3 / 4) return 3;
+    if (normalized >= Math.PI * 3 / 4 && normalized < Math.PI * 5 / 4) return 1;
+    if (normalized >= Math.PI * 5 / 4 && normalized < Math.PI * 7 / 4) return 2;
+    return 0;
   }, []);
 
-  const checkFaceVisibility = useCallback(() => {
-    if (!groupRef.current) return;
-    if (isAdvancing) return;
-
-    const cameraDir = new THREE.Vector3(0, 0, 1);
-    let bestFace = -1;
-    let bestAngle = 180;
-
-    for (let i = 0; i < 6; i++) {
-      if (!faces[i]) continue;
-      const normal = getFaceNormal(i, currentRotation.current);
-      const dot = normal.dot(cameraDir);
-      const angle = Math.acos(Math.max(-1, Math.min(1, dot))) * (180 / Math.PI);
-
-      if (angle < bestAngle) {
-        bestAngle = angle;
-        bestFace = i;
-      }
+  useEffect(() => {
+    if (currentVideoDuration && currentVideoDuration > 0) {
+      const minSpeed = 0.15;
+      const maxSpeed = 0.8;
+      const durationSec = currentVideoDuration / 1000;
+      const calculatedSpeed = (Math.PI / 2) / durationSec;
+      angularVelocity.current = Math.max(minSpeed, Math.min(maxSpeed, calculatedSpeed));
+      console.log(`🎬 Rotation speed set to ${angularVelocity.current.toFixed(3)} for ${durationSec.toFixed(1)}s video`);
     }
+  }, [currentVideoDuration]);
 
-    if (activeFaceIndex === -1 && !isVideoPlaying) {
-      if (bestAngle < ENTER_THRESHOLD && bestFace !== -1 && faces[bestFace]) {
-        console.log(`🎯 Face ${bestFace} entered (angle: ${bestAngle.toFixed(1)}°)`);
-        setActiveFaceIndex(bestFace);
-        onFaceChange?.(bestFace, 'enter');
-        rotatingToFace.current = false;
-      }
-    } else if (activeFaceIndex !== -1) {
-      const activeNormal = getFaceNormal(activeFaceIndex, currentRotation.current);
-      const activeDot = activeNormal.dot(cameraDir);
-      const activeAngle = Math.acos(Math.max(-1, Math.min(1, activeDot))) * (180 / Math.PI);
-
-      if (activeAngle > EXIT_THRESHOLD && !isVideoPlaying) {
-        console.log(`👋 Face ${activeFaceIndex} exited (angle: ${activeAngle.toFixed(1)}°)`);
-        onFaceChange?.(activeFaceIndex, 'exit');
-        setActiveFaceIndex(-1);
-      }
-    }
-  }, [activeFaceIndex, setActiveFaceIndex, onFaceChange, getFaceNormal, faces, isVideoPlaying, isAdvancing]);
+  useImperativeHandle(ref, () => ({
+    setSpeed: (speed) => {
+      angularVelocity.current = speed;
+    },
+    getCurrentFace: () => getFrontFaceIndex(rotationY.current),
+  }), [getFrontFaceIndex]);
 
   useFrame((state, delta) => {
     if (!groupRef.current) return;
 
-    const time = state.clock.elapsedTime;
-    const wobbleIntensity = isVideoPlaying ? 0.02 : 0.05;
-    const wobbleX = Math.sin(time * 0.3 + wobblePhase.current.x) * wobbleIntensity;
-    const wobbleY = Math.sin(time * 0.4 + wobblePhase.current.y) * wobbleIntensity;
+    rotationY.current += delta * angularVelocity.current;
 
-    if (!isVideoPlaying && !rotatingToFace.current) {
-      if (Date.now() - lastTargetChange.current > 5000 + Math.random() * 4000) {
-        setRotationTarget(prev => ({
-          x: prev.x + (Math.random() - 0.5) * 0.4,
-          y: prev.y + (Math.random() - 0.5) * 0.4,
-        }));
-        lastTargetChange.current = Date.now();
+    const wobbleX = Math.sin(state.clock.elapsedTime * 0.5) * 0.03;
+    const wobbleZ = Math.sin(state.clock.elapsedTime * 0.3) * 0.02;
+    
+    groupRef.current.rotation.x = rotationX.current + wobbleX;
+    groupRef.current.rotation.y = rotationY.current;
+    groupRef.current.rotation.z = wobbleZ;
+
+    const frontFace = getFrontFaceIndex(rotationY.current);
+    
+    if (frontFace !== lastFrontFace.current) {
+      if (lastFrontFace.current !== -1 && faces[lastFrontFace.current]) {
+        onFaceExitFront?.(lastFrontFace.current);
+      }
+      
+      lastFrontFace.current = frontFace;
+      faceEnteredAt.current = state.clock.elapsedTime;
+      
+      if (faces[frontFace] && faces[frontFace].videoUrl) {
+        console.log(`🎲 Face ${frontFace} entering front`);
+        onFaceEnterFront?.(frontFace);
       }
     }
-
-    const lerpFactor = isVideoPlaying ? 0.01 : (rotatingToFace.current ? 0.03 : 0.015);
-    currentRotation.current.x += (rotationTarget.x - currentRotation.current.x) * lerpFactor;
-    currentRotation.current.y += (rotationTarget.y - currentRotation.current.y) * lerpFactor;
-
-    groupRef.current.rotation.x = currentRotation.current.x + wobbleX;
-    groupRef.current.rotation.y = currentRotation.current.y + wobbleY;
-
-    checkFaceVisibility();
   });
 
   return (
     <group ref={groupRef}>
       {facePositions.map((face, index) => (
-        <ImageFace
+        <CubeFace
           key={index}
           faceIndex={index}
           position={face.position}
           rotation={face.rotation}
           textureUrl={faces[index]?.posterThumbUri}
-          isActive={activeFaceIndex === index}
+          isActive={index === lastFrontFace.current}
+          isPlaying={isPlaying && currentPlayingFaceIndex === index}
         />
       ))}
       <mesh>
         <boxGeometry args={[2, 2, 2]} />
-        <meshBasicMaterial color="#1a1a2e" transparent opacity={0.3} />
+        <meshBasicMaterial color="#1a1a2e" transparent opacity={0.15} />
       </mesh>
     </group>
   );
 });
 
-function Scene({ faces, onFaceChange, activeFaceIndex, setActiveFaceIndex, targetFaceIndex, isVideoPlaying, isAdvancing, cubeRef }) {
+function Scene({ faces, onFaceEnterFront, onFaceExitFront, currentVideoDuration, isPlaying, currentPlayingFaceIndex, cubeRef }) {
   const { camera } = useThree();
 
   useEffect(() => {
-    camera.position.set(0, 0, 5);
+    camera.position.set(0, 0, 4.2);
     camera.lookAt(0, 0, 0);
   }, [camera]);
 
   return (
     <>
-      <ambientLight intensity={1.2} />
-      <pointLight position={[10, 10, 10]} intensity={1} />
-      <pointLight position={[-10, -10, 10]} intensity={0.5} color="#FF6B9D" />
-      <pointLight position={[0, 0, 8]} intensity={0.8} color="#ffffff" />
-      <Cube3DInner
+      <ambientLight intensity={1.0} />
+      <pointLight position={[5, 5, 5]} intensity={0.8} />
+      <pointLight position={[-5, -5, 5]} intensity={0.4} color="#FF6B9D" />
+      <pointLight position={[0, 0, 6]} intensity={0.6} color="#ffffff" />
+      <RotatingCube
         ref={cubeRef}
         faces={faces}
-        onFaceChange={onFaceChange}
-        activeFaceIndex={activeFaceIndex}
-        setActiveFaceIndex={setActiveFaceIndex}
-        targetFaceIndex={targetFaceIndex}
-        isVideoPlaying={isVideoPlaying}
-        isAdvancing={isAdvancing}
+        onFaceEnterFront={onFaceEnterFront}
+        onFaceExitFront={onFaceExitFront}
+        currentVideoDuration={currentVideoDuration}
+        isPlaying={isPlaying}
+        currentPlayingFaceIndex={currentPlayingFaceIndex}
       />
     </>
   );
@@ -272,29 +186,28 @@ function Scene({ faces, onFaceChange, activeFaceIndex, setActiveFaceIndex, targe
 
 const CubeProjectorView = forwardRef(function CubeProjectorView({
   faces = [],
-  onFaceChange,
-  activeFaceIndex = -1,
-  setActiveFaceIndex,
-  targetFaceIndex,
-  isVideoPlaying = false,
-  isAdvancing = false,
+  onFaceEnterFront,
+  onFaceExitFront,
+  currentVideoDuration,
+  isPlaying = false,
+  currentPlayingFaceIndex = -1,
   onError,
 }, ref) {
   const [glError, setGlError] = useState(false);
   const cubeRef = useRef();
 
   useImperativeHandle(ref, () => ({
-    rotateTo: (faceIndex) => cubeRef.current?.rotateTo(faceIndex),
-    addRandomWobble: () => cubeRef.current?.addRandomWobble(),
+    setSpeed: (speed) => cubeRef.current?.setSpeed(speed),
+    getCurrentFace: () => cubeRef.current?.getCurrentFace(),
   }), []);
 
   const handleGLError = useCallback((error) => {
-    console.log('❌ GL Error:', error);
+    console.log('GL Error:', error);
     setGlError(true);
     onError?.(error);
   }, [onError]);
 
-  if (glError || !ENABLE_3D_CUBE) {
+  if (glError) {
     return null;
   }
 
@@ -303,20 +216,17 @@ const CubeProjectorView = forwardRef(function CubeProjectorView({
       <Canvas
         style={styles.canvas}
         gl={{ antialias: true }}
-        onCreated={(state) => {
-          console.log('✅ 3D Canvas created');
-        }}
+        onCreated={() => console.log('3D Cube ready')}
         onError={handleGLError}
       >
         <Scene
           cubeRef={cubeRef}
           faces={faces}
-          onFaceChange={onFaceChange}
-          activeFaceIndex={activeFaceIndex}
-          setActiveFaceIndex={setActiveFaceIndex}
-          targetFaceIndex={targetFaceIndex}
-          isVideoPlaying={isVideoPlaying}
-          isAdvancing={isAdvancing}
+          onFaceEnterFront={onFaceEnterFront}
+          onFaceExitFront={onFaceExitFront}
+          currentVideoDuration={currentVideoDuration}
+          isPlaying={isPlaying}
+          currentPlayingFaceIndex={currentPlayingFaceIndex}
         />
       </Canvas>
     </View>
@@ -332,9 +242,10 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     borderRadius: theme.radii.lg,
     overflow: 'hidden',
-    backgroundColor: '#0a0a1a',
+    backgroundColor: 'transparent',
   },
   canvas: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
 });

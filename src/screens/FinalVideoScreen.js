@@ -170,18 +170,76 @@ export const FinalVideoScreen = () => {
 
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
-
-  const handleCubeFaceChange = (faceIndex, action) => {
-    console.log(`🎲 Cube face ${faceIndex} ${action}`);
-  };
+  const [currentPlayingFaceIndex, setCurrentPlayingFaceIndex] = useState(-1);
+  const [currentVideoDuration, setCurrentVideoDuration] = useState(5000);
+  const [cubeStarted, setCubeStarted] = useState(false);
+  const [playedFaces, setPlayedFaces] = useState(new Set());
 
   const [videoUrls, setVideoUrls] = useState([]);
   const [convertedUrls, setConvertedUrls] = useState([]);
 
-  const startCubePlayback = async () => {
+  const handleFaceEnterFront = async (faceIndex) => {
+    if (!cubeStarted) return;
+    if (playedFaces.has(faceIndex)) return;
+    
+    const face = cubeFaces[faceIndex];
+    if (!face || !face.videoUrl) return;
+
+    console.log(`🎲 Face ${faceIndex} entered front, starting video`);
+    setPlayedFaces(prev => new Set([...prev, faceIndex]));
+    
+    let videoUrl = face.videoUrl;
+    if (needsConversion(videoUrl)) {
+      setIsConverting(true);
+      setConversionProgress('ממיר...');
+      try {
+        videoUrl = await convertVideoUrl(videoUrl);
+      } catch (e) {
+        console.log('Conversion failed, using original');
+      }
+      setIsConverting(false);
+      setConversionProgress('');
+    }
+    
+    setCurrentPlayingFaceIndex(faceIndex);
+    setActiveVideoUrl(videoUrl);
+    setShowVideoPlayer(true);
+    setIsPlaying(true);
+    setVideoHasPlayed(false);
+  };
+
+  const handleFaceExitFront = (faceIndex) => {
+    if (currentPlayingFaceIndex === faceIndex) {
+      console.log(`🎲 Face ${faceIndex} exiting front`);
+    }
+  };
+
+  const handleVideoFinished = () => {
+    console.log(`🏁 Video finished on face ${currentPlayingFaceIndex}`);
+    setShowVideoPlayer(false);
+    setActiveVideoUrl(null);
+    setIsPlaying(false);
+    setCurrentPlayingFaceIndex(-1);
+    
+    const totalFaces = cubeFaces.filter(f => f?.videoUrl).length;
+    if (playedFaces.size >= totalFaces) {
+      console.log('✅ All cube videos played');
+      setPlaybackComplete(true);
+      setCubeStarted(false);
+      setPlayedFaces(new Set());
+    }
+  };
+
+  const startCubePlayback = () => {
+    console.log(`▶️ Starting cube rotation`);
+    setCubeStarted(true);
+    setPlayedFaces(new Set());
+    setPlaybackComplete(false);
+  };
+
+  const legacyStartCubePlayback = async () => {
     const validFaces = cubeFaces.filter(f => f && f.videoUrl);
     if (validFaces.length > 0) {
-      // Shuffle the faces for random playback order
       const shuffledFaces = shuffleArray(validFaces);
       const originalUrls = shuffledFaces.map(f => f.videoUrl);
       console.log(`▶️ Starting cube playback with ${originalUrls.length} videos (shuffled)`);
@@ -350,12 +408,13 @@ export const FinalVideoScreen = () => {
               <CubeProjectorView
                 ref={cubeRef}
                 faces={cubeFaces}
-                onFaceChange={handleCubeFaceChange}
-                activeFaceIndex={activeFaceIndex}
-                setActiveFaceIndex={setActiveFaceIndex}
-                isVideoPlaying={isPlaying}
+                onFaceEnterFront={handleFaceEnterFront}
+                onFaceExitFront={handleFaceExitFront}
+                currentVideoDuration={currentVideoDuration}
+                isPlaying={isPlaying}
+                currentPlayingFaceIndex={currentPlayingFaceIndex}
               />
-              {!showVideoPlayer && !isConverting && (
+              {!cubeStarted && !isConverting && (
                 <TouchableOpacity 
                   style={styles.cubePlayButton}
                   onPress={startCubePlayback}
@@ -373,52 +432,47 @@ export const FinalVideoScreen = () => {
                 </View>
               )}
               {showVideoPlayer && activeVideoUrl && (
-                <View style={styles.cubeVideoContainer}>
-                  <View style={styles.cubeVideoFrame}>
+                <View style={styles.projectedVideoContainer}>
+                  <View style={styles.projectedVideoFrame}>
                     <Video
-                      key={`video-${currentVideoIndex}-${activeVideoUrl}`}
+                      key={`cube-video-${currentPlayingFaceIndex}-${activeVideoUrl}`}
                       ref={videoRef}
                       source={{ uri: activeVideoUrl }}
-                      style={styles.cubeVideo}
+                      style={styles.projectedVideo}
                       useNativeControls={false}
                       shouldPlay={true}
                       isLooping={false}
                       resizeMode="cover"
-                      onLoad={() => console.log(`✅ Video ${currentVideoIndex + 1} loaded successfully`)}
+                      onLoad={(status) => {
+                        console.log(`✅ Video loaded, duration: ${status.durationMillis}ms`);
+                        if (status.durationMillis) {
+                          setCurrentVideoDuration(status.durationMillis);
+                        }
+                      }}
                       onError={(error) => console.log('❌ Video error:', error)}
                       onPlaybackStatusUpdate={(status) => {
-                        if (status.error) {
-                          console.log('❌ Playback error:', status.error);
-                        }
                         if (status.isLoaded) {
                           if (status.isPlaying && status.positionMillis > 100 && !videoHasPlayed) {
-                            console.log(`🎬 Video ${currentVideoIndex + 1} started playing`);
                             setVideoHasPlayed(true);
                           }
                           if (status.didJustFinish && !status.isLooping && videoHasPlayed) {
-                            console.log(`🏁 Video ${currentVideoIndex + 1} finished! (played ${Math.round(status.positionMillis/1000)}s)`);
-                            playNextVideo();
+                            handleVideoFinished();
                           }
                         }
                       }}
                     />
-                    <View style={styles.cubeVideoGlow} />
                   </View>
-                  <View style={styles.cubeVideoCounter}>
-                    <Text style={styles.cubeVideoCounterText}>
-                      {currentVideoIndex + 1}/{cubeFaces.filter(f => f?.videoUrl).length}
+                  <View style={styles.projectedVideoCounter}>
+                    <Text style={styles.projectedVideoCounterText}>
+                      {playedFaces.size}/{cubeFaces.filter(f => f?.videoUrl).length}
                     </Text>
                   </View>
-                  <TouchableOpacity 
-                    style={styles.cubeCloseButton}
-                    onPress={() => {
-                      setShowVideoPlayer(false);
-                      setActiveVideoUrl(null);
-                      setIsPlaying(false);
-                    }}
-                  >
-                    <Ionicons name="close" size={24} color="white" />
-                  </TouchableOpacity>
+                </View>
+              )}
+              {cubeStarted && !showVideoPlayer && !isConverting && (
+                <View style={styles.cubeStatusBadge}>
+                  <Ionicons name="sync" size={16} color="white" />
+                  <Text style={styles.cubeStatusText}>מסתובב...</Text>
                 </View>
               )}
             </View>
@@ -661,78 +715,62 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // New cube video styles - video plays on visible cube face
-  cubeVideoContainer: {
+  projectedVideoContainer: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: '50%',
+    left: '50%',
+    marginTop: -90,
+    marginLeft: -90,
+    width: 180,
+    height: 180,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 15,
+    zIndex: 10,
   },
-  cubeVideoFrame: {
-    width: 200,
-    height: 200,
-    borderRadius: 12,
+  projectedVideoFrame: {
+    width: 180,
+    height: 180,
+    borderRadius: 8,
     overflow: 'hidden',
-    transform: [{ perspective: 800 }, { rotateY: '5deg' }, { rotateX: '-5deg' }],
+    borderWidth: 3,
+    borderColor: 'rgba(255, 107, 157, 0.8)',
     shadowColor: '#FF6B9D',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 20,
-    elevation: 15,
+    shadowOpacity: 1,
+    shadowRadius: 25,
+    elevation: 20,
   },
-  cubeVideo: {
+  projectedVideo: {
     width: '100%',
     height: '100%',
   },
-  cubeVideoGlow: {
+  projectedVideoCounter: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderWidth: 3,
-    borderColor: 'rgba(255, 107, 157, 0.6)',
-    borderRadius: 12,
-    pointerEvents: 'none',
-  },
-  cubeVideoCounter: {
-    position: 'absolute',
-    top: 20,
-    left: 20,
+    bottom: -30,
     backgroundColor: 'rgba(255, 107, 157, 0.9)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  cubeVideoCounterText: {
+  projectedVideoCounterText: {
     color: 'white',
     fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 12,
   },
-  cubeCloseButton: {
+  cubeStatusBadge: {
     position: 'absolute',
-    top: 20,
-    right: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    bottom: 10,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    gap: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  cubeStatusText: {
+    color: 'white',
+    fontSize: 12,
   },
   videoPlayer: {
     width: '100%',
