@@ -131,9 +131,7 @@ const RotatingCube = forwardRef(function RotatingCube({
     
     timeRef.current += delta;
 
-    if (!isPlaying) {
-      rotationY.current += delta * angularVelocityY.current;
-    }
+    rotationY.current += delta * angularVelocityY.current;
     rotationX.current = Math.sin(timeRef.current * 0.2) * 0.3;
     const wobbleZ = Math.sin(timeRef.current * 0.35) * 0.04;
     

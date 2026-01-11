@@ -19,8 +19,8 @@ import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
 import { Video3DPlayer } from '../components/Video3DPlayer';
 import CubeProjectorView from '../components/cube3d/CubeProjectorView';
+import ProjectedVideoOverlay from '../components/cube3d/ProjectedVideoOverlay';
 import { useReflectionAssets } from '../hooks/useReflectionAssets';
-import { computePerspectiveTransform, getTransformStyle } from '../utils/perspectiveTransform';
 import theme from '../theme/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -421,47 +421,28 @@ export const FinalVideoScreen = () => {
                 </View>
               )}
               {showVideoPlayer && activeVideoUrl && (
-                <View style={styles.fullscreenVideoOverlay}>
-                  <View style={styles.fullscreenVideoFrame}>
-                    <Video
-                      key={`cube-video-${currentPlayingFaceIndex}-${activeVideoUrl}`}
-                      ref={videoRef}
-                      source={{ uri: activeVideoUrl }}
-                      style={styles.fullscreenVideo}
-                      useNativeControls={false}
-                      shouldPlay={true}
-                      isLooping={false}
-                      resizeMode="contain"
-                      onLoad={(status) => {
-                        console.log(`✅ Video loaded, duration: ${status.durationMillis}ms`);
-                        if (status.durationMillis) {
-                          setCurrentVideoDuration(status.durationMillis);
-                        }
-                      }}
-                      onError={(error) => console.log('❌ Video error:', error)}
-                      onPlaybackStatusUpdate={(status) => {
-                        if (status.isLoaded) {
-                          if (status.isPlaying && status.positionMillis > 100 && !videoHasPlayed) {
-                            setVideoHasPlayed(true);
-                          }
-                          if (status.didJustFinish && !status.isLooping && videoHasPlayed) {
-                            handleVideoFinished();
-                          }
-                        }
-                      }}
-                    />
-                    <View style={styles.videoPlayerNameBadge}>
-                      <Text style={styles.videoPlayerNameText}>
-                        {cubeFaces[currentPlayingFaceIndex]?.playerName || `סרטון ${currentPlayingFaceIndex + 1}`}
-                      </Text>
-                    </View>
-                  </View>
+                <>
+                  <ProjectedVideoOverlay
+                    key={`projected-${currentPlayingFaceIndex}-${activeVideoUrl}`}
+                    videoUri={activeVideoUrl}
+                    isActive={true}
+                    corners={faceTransform.corners}
+                    visibility={faceTransform.visibility}
+                    playerName={cubeFaces[currentPlayingFaceIndex]?.playerName || `סרטון ${currentPlayingFaceIndex + 1}`}
+                    onDurationKnown={(duration) => setCurrentVideoDuration(duration)}
+                    onVideoEnd={handleVideoFinished}
+                    onPlaybackStatusUpdate={(status) => {
+                      if (status.isPlaying && status.positionMillis > 100 && !videoHasPlayed) {
+                        setVideoHasPlayed(true);
+                      }
+                    }}
+                  />
                   <View style={styles.videoProgressBadge}>
                     <Text style={styles.videoProgressText}>
                       {playedFaces.size}/{cubeFaces.filter(f => f?.videoUrl).length}
                     </Text>
                   </View>
-                </View>
+                </>
               )}
               {cubeStarted && !showVideoPlayer && !isConverting && (
                 <View style={styles.cubeStatusBadge}>
