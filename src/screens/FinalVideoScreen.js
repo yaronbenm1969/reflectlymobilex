@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
 import { Video3DPlayer } from '../components/Video3DPlayer';
 import CubeProjectorView from '../components/cube3d/CubeProjectorView';
+import { useReflectionAssets } from '../hooks/useReflectionAssets';
 import theme from '../theme/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -92,6 +93,15 @@ export const FinalVideoScreen = () => {
   const is3DFormat = videoFormat && videoFormat !== 'standard';
   const isCube3D = videoFormat === 'cube-3d';
 
+  const { 
+    status: assetStatus, 
+    progress: assetProgress, 
+    preparedFaces, 
+    isReady: assetsReady 
+  } = useReflectionAssets(isCube3D ? reflections : [], 6);
+
+  const cubeFaces = preparedFaces;
+
   const prepareVideosFor3D = () => {
     const videos = [];
     
@@ -121,49 +131,16 @@ export const FinalVideoScreen = () => {
     return videos;
   };
 
-  // Memoize cube faces to prevent reshuffling on every render
-  const cubeFaces = useMemo(() => {
-    if (!isCube3D || !reflections || reflections.length === 0) {
-      return [];
-    }
-    
-    const faces = [];
-    const validReflections = reflections.filter(r => r.videoUrl).slice(0, 6);
-    
-    // Shuffle once
-    const shuffled = [...validReflections];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    
-    shuffled.forEach((reflection, index) => {
-      faces.push({
-        posterThumbUri: reflection.thumbnailUrl || null,
-        videoUrl: reflection.videoUrl,
-        playerName: reflection.playerName || reflection.participantName || `משתתף ${Math.floor(index / 3) + 1}`,
-        clipNumber: reflection.clipNumber,
-      });
-    });
-    
-    while (faces.length < 6) {
-      faces.push(null);
-    }
-    
-    console.log('🎲 Cube faces prepared once');
-    return faces;
-  }, [isCube3D, reflections.length]);
-
   useEffect(() => {
-    if (isCube3D) {
-      console.log(`🎲 Cube faces prepared: ${cubeFaces.filter(f => f !== null).length} faces with content`);
+    if (isCube3D && assetsReady) {
+      console.log(`🎲 Cube faces ready: ${cubeFaces.filter(f => f !== null).length} faces with pre-converted videos`);
       cubeFaces.forEach((face, i) => {
         if (face) {
-          console.log(`  Face ${i}: ${face.playerName}, hasVideo=${!!face.videoUrl}, hasPoster=${!!face.posterThumbUri}`);
+          console.log(`  Face ${i}: ${face.playerName}, hasVideo=${!!face.videoUrl}, status=${face.status}`);
         }
       });
     }
-  }, [isCube3D, cubeFaces]);
+  }, [isCube3D, assetsReady, cubeFaces]);
 
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
@@ -182,31 +159,18 @@ export const FinalVideoScreen = () => {
   const [videoUrls, setVideoUrls] = useState([]);
   const [convertedUrls, setConvertedUrls] = useState([]);
 
-  const handleFaceEnterFront = async (faceIndex) => {
+  const handleFaceEnterFront = (faceIndex) => {
     if (!cubeStarted) return;
     if (playedFaces.has(faceIndex)) return;
     
     const face = cubeFaces[faceIndex];
     if (!face || !face.videoUrl) return;
 
-    console.log(`🎲 Face ${faceIndex} entered front, starting video`);
+    console.log(`🎲 Face ${faceIndex} entered front, playing pre-loaded video`);
     setPlayedFaces(prev => new Set([...prev, faceIndex]));
     
-    let videoUrl = face.videoUrl;
-    if (needsConversion(videoUrl)) {
-      setIsConverting(true);
-      setConversionProgress('ממיר...');
-      try {
-        videoUrl = await convertVideoUrl(videoUrl);
-      } catch (e) {
-        console.log('Conversion failed, using original');
-      }
-      setIsConverting(false);
-      setConversionProgress('');
-    }
-    
     setCurrentPlayingFaceIndex(faceIndex);
-    setActiveVideoUrl(videoUrl);
+    setActiveVideoUrl(face.videoUrl);
     setShowVideoPlayer(true);
     setIsPlaying(true);
     setVideoHasPlayed(false);
@@ -239,7 +203,11 @@ export const FinalVideoScreen = () => {
   };
 
   const startCubePlayback = () => {
-    console.log(`▶️ Starting cube rotation`);
+    if (!assetsReady) {
+      console.log('⏳ Assets not ready yet, waiting...');
+      return;
+    }
+    console.log(`▶️ Starting cube rotation with ${cubeFaces.filter(f => f).length} pre-loaded videos`);
     setCubeStarted(true);
     setPlayedFaces(new Set());
     setPlaybackComplete(false);
@@ -411,7 +379,7 @@ export const FinalVideoScreen = () => {
 
       <View style={styles.content}>
         <View style={styles.videoContainer}>
-          {isCube3D && cubeFaces.some(f => f !== null) ? (
+          {isCube3D && (assetStatus !== 'idle' || cubeFaces.some(f => f !== null)) ? (
             <View style={styles.cubeContainer}>
               <CubeProjectorView
                 ref={cubeRef}
@@ -423,7 +391,16 @@ export const FinalVideoScreen = () => {
                 isPlaying={isPlaying}
                 currentPlayingFaceIndex={currentPlayingFaceIndex}
               />
-              {!cubeStarted && !isConverting && (
+              {!cubeStarted && !assetsReady && assetStatus === 'converting' && (
+                <View style={styles.cubePlayButton}>
+                  <ActivityIndicator size="large" color={theme.colors.primary} />
+                  <Text style={styles.cubePlayText}>{assetProgress.message}</Text>
+                  <Text style={styles.cubeProgressText}>
+                    {assetProgress.converted}/{assetProgress.total}
+                  </Text>
+                </View>
+              )}
+              {!cubeStarted && assetsReady && (
                 <TouchableOpacity 
                   style={styles.cubePlayButton}
                   onPress={startCubePlayback}
@@ -431,7 +408,9 @@ export const FinalVideoScreen = () => {
                   <View style={styles.playButtonCircle}>
                     <Ionicons name="play" size={40} color="white" />
                   </View>
-                  <Text style={styles.cubePlayText}>לחץ להפעלה</Text>
+                  <Text style={styles.cubePlayText}>
+                    {cubeFaces.filter(f => f).length} סרטונים מוכנים - לחץ להפעלה
+                  </Text>
                 </TouchableOpacity>
               )}
               {isConverting && (
@@ -691,6 +670,12 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontWeight: 'bold',
     fontSize: 14,
+    textAlign: 'center',
+  },
+  cubeProgressText: {
+    marginTop: 4,
+    color: theme.colors.textSecondary,
+    fontSize: 12,
   },
   activeVideoOverlay: {
     position: 'absolute',
