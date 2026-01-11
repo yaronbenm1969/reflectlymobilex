@@ -355,14 +355,15 @@ export const FinalVideoScreen = () => {
               {showVideoPlayer && activeVideoUrl && (
                 <View style={styles.activeVideoOverlay}>
                   <Video
+                    key={`video-${currentVideoIndex}-${activeVideoUrl}`}
                     ref={videoRef}
                     source={{ uri: activeVideoUrl }}
                     style={styles.overlayVideo}
-                    useNativeControls={true}
+                    useNativeControls={false}
                     shouldPlay={true}
                     isLooping={false}
                     resizeMode="contain"
-                    onLoad={() => console.log('✅ Video loaded successfully')}
+                    onLoad={() => console.log(`✅ Video ${currentVideoIndex + 1} loaded successfully`)}
                     onError={(error) => console.log('❌ Video error:', error)}
                     onPlaybackStatusUpdate={(status) => {
                       if (status.error) {
