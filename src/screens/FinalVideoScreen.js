@@ -121,21 +121,37 @@ export const FinalVideoScreen = () => {
     return videos;
   };
 
+  // Shuffle array utility function
+  const shuffleArray = (array) => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
   const prepareCubeFaces = () => {
     const faces = [];
-    reflections.forEach((reflection, index) => {
-      if (reflection.videoUrl && faces.length < 6) {
-        faces.push({
-          posterThumbUri: reflection.thumbnailUrl || null,
-          videoUrl: reflection.videoUrl,
-          playerName: reflection.playerName || reflection.participantName || `משתתף ${Math.floor(index / 3) + 1}`,
-          clipNumber: reflection.clipNumber,
-        });
-      }
+    // First collect all valid reflections
+    const validReflections = reflections.filter(r => r.videoUrl).slice(0, 6);
+    
+    // Shuffle them randomly
+    const shuffledReflections = shuffleArray(validReflections);
+    
+    shuffledReflections.forEach((reflection, index) => {
+      faces.push({
+        posterThumbUri: reflection.thumbnailUrl || null,
+        videoUrl: reflection.videoUrl,
+        playerName: reflection.playerName || reflection.participantName || `משתתף ${Math.floor(index / 3) + 1}`,
+        clipNumber: reflection.clipNumber,
+      });
     });
+    
     while (faces.length < 6) {
       faces.push(null);
     }
+    console.log('🎲 Shuffled cube faces order');
     return faces;
   };
 
@@ -165,8 +181,10 @@ export const FinalVideoScreen = () => {
   const startCubePlayback = async () => {
     const validFaces = cubeFaces.filter(f => f && f.videoUrl);
     if (validFaces.length > 0) {
-      const originalUrls = validFaces.map(f => f.videoUrl);
-      console.log(`▶️ Starting cube playback with ${originalUrls.length} videos`);
+      // Shuffle the faces for random playback order
+      const shuffledFaces = shuffleArray(validFaces);
+      const originalUrls = shuffledFaces.map(f => f.videoUrl);
+      console.log(`▶️ Starting cube playback with ${originalUrls.length} videos (shuffled)`);
       
       const firstUrl = originalUrls[0];
       if (needsConversion(firstUrl)) {
@@ -355,50 +373,51 @@ export const FinalVideoScreen = () => {
                 </View>
               )}
               {showVideoPlayer && activeVideoUrl && (
-                <View style={styles.activeVideoOverlay}>
-                  <Video
-                    key={`video-${currentVideoIndex}-${activeVideoUrl}`}
-                    ref={videoRef}
-                    source={{ uri: activeVideoUrl }}
-                    style={styles.overlayVideo}
-                    useNativeControls={false}
-                    shouldPlay={true}
-                    isLooping={false}
-                    resizeMode="contain"
-                    onLoad={() => console.log(`✅ Video ${currentVideoIndex + 1} loaded successfully`)}
-                    onError={(error) => console.log('❌ Video error:', error)}
-                    onPlaybackStatusUpdate={(status) => {
-                      if (status.error) {
-                        console.log('❌ Playback error:', status.error);
-                      }
-                      if (status.isLoaded) {
-                        // Mark as played once video actually starts playing
-                        if (status.isPlaying && status.positionMillis > 100 && !videoHasPlayed) {
-                          console.log(`🎬 Video ${currentVideoIndex + 1} started playing`);
-                          setVideoHasPlayed(true);
+                <View style={styles.cubeVideoContainer}>
+                  <View style={styles.cubeVideoFrame}>
+                    <Video
+                      key={`video-${currentVideoIndex}-${activeVideoUrl}`}
+                      ref={videoRef}
+                      source={{ uri: activeVideoUrl }}
+                      style={styles.cubeVideo}
+                      useNativeControls={false}
+                      shouldPlay={true}
+                      isLooping={false}
+                      resizeMode="cover"
+                      onLoad={() => console.log(`✅ Video ${currentVideoIndex + 1} loaded successfully`)}
+                      onError={(error) => console.log('❌ Video error:', error)}
+                      onPlaybackStatusUpdate={(status) => {
+                        if (status.error) {
+                          console.log('❌ Playback error:', status.error);
                         }
-                        // Only advance if video has actually played AND finished
-                        if (status.didJustFinish && !status.isLooping && videoHasPlayed) {
-                          console.log(`🏁 Video ${currentVideoIndex + 1} finished! (played ${Math.round(status.positionMillis/1000)}s)`);
-                          playNextVideo();
+                        if (status.isLoaded) {
+                          if (status.isPlaying && status.positionMillis > 100 && !videoHasPlayed) {
+                            console.log(`🎬 Video ${currentVideoIndex + 1} started playing`);
+                            setVideoHasPlayed(true);
+                          }
+                          if (status.didJustFinish && !status.isLooping && videoHasPlayed) {
+                            console.log(`🏁 Video ${currentVideoIndex + 1} finished! (played ${Math.round(status.positionMillis/1000)}s)`);
+                            playNextVideo();
+                          }
                         }
-                      }
-                    }}
-                  />
-                  <View style={styles.videoCounter}>
-                    <Text style={styles.videoCounterText}>
+                      }}
+                    />
+                    <View style={styles.cubeVideoGlow} />
+                  </View>
+                  <View style={styles.cubeVideoCounter}>
+                    <Text style={styles.cubeVideoCounterText}>
                       {currentVideoIndex + 1}/{cubeFaces.filter(f => f?.videoUrl).length}
                     </Text>
                   </View>
                   <TouchableOpacity 
-                    style={styles.closeVideoButton}
+                    style={styles.cubeCloseButton}
                     onPress={() => {
                       setShowVideoPlayer(false);
                       setActiveVideoUrl(null);
                       setIsPlaying(false);
                     }}
                   >
-                    <Ionicons name="close" size={28} color="white" />
+                    <Ionicons name="close" size={24} color="white" />
                   </TouchableOpacity>
                 </View>
               )}
@@ -641,6 +660,79 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // New cube video styles - video plays on visible cube face
+  cubeVideoContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 15,
+  },
+  cubeVideoFrame: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+    overflow: 'hidden',
+    transform: [{ perspective: 800 }, { rotateY: '5deg' }, { rotateX: '-5deg' }],
+    shadowColor: '#FF6B9D',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  cubeVideo: {
+    width: '100%',
+    height: '100%',
+  },
+  cubeVideoGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 107, 157, 0.6)',
+    borderRadius: 12,
+    pointerEvents: 'none',
+  },
+  cubeVideoCounter: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    backgroundColor: 'rgba(255, 107, 157, 0.9)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  cubeVideoCounterText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  cubeCloseButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   videoPlayer: {
     width: '100%',
