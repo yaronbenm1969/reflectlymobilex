@@ -117,7 +117,10 @@ const RotatingCube = forwardRef(function RotatingCube({
     if (currentVideoDuration && currentVideoDuration > 0) {
       const durationSec = currentVideoDuration / 1000;
       const calculatedSpeed = (Math.PI / 2) / durationSec;
-      angularVelocityY.current = Math.max(0.08, Math.min(0.5, calculatedSpeed));
+      angularVelocityY.current = calculatedSpeed;
+      console.log(`🎬 Angular velocity set to ${calculatedSpeed.toFixed(3)} rad/s for ${durationSec}s video`);
+    } else {
+      angularVelocityY.current = 0.15;
     }
   }, [currentVideoDuration]);
 
@@ -141,7 +144,9 @@ const RotatingCube = forwardRef(function RotatingCube({
 
     const { faceIndex, dot } = getFrontFace(rotationX.current, rotationY.current);
     
-    if (faceIndex !== lastFrontFace.current && dot > 0.7) {
+    const isVideoPlaying = currentPlayingFaceIndex >= 0;
+    
+    if (!isVideoPlaying && faceIndex !== lastFrontFace.current && dot > 0.85) {
       if (lastFrontFace.current !== -1) {
         onFaceExitFront?.(lastFrontFace.current);
       }
