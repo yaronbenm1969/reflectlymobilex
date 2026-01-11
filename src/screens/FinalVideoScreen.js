@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { AppButton } from '../ui/AppButton';
 import { Video3DPlayer } from '../components/Video3DPlayer';
 import CubeProjectorView from '../components/cube3d/CubeProjectorView';
 import { useReflectionAssets } from '../hooks/useReflectionAssets';
+import { computePerspectiveTransform, getTransformStyle } from '../utils/perspectiveTransform';
 import theme from '../theme/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -420,15 +421,18 @@ export const FinalVideoScreen = () => {
                 </View>
               )}
               {showVideoPlayer && activeVideoUrl && faceTransform.visibility > 0.3 && (
-                <View style={styles.projectedVideoOverlay}>
+                <View style={styles.projectedVideoOverlay} pointerEvents="none">
                   <View 
                     style={[
                       styles.projectedVideoFrame,
                       {
-                        width: Math.max(80, Math.min(180, faceTransform.width || 140)),
-                        height: Math.max(80, Math.min(180, faceTransform.height || 140)),
-                        opacity: Math.max(0.7, faceTransform.visibility),
-                      }
+                        width: 140,
+                        height: 140,
+                        opacity: Math.max(0.85, faceTransform.visibility),
+                      },
+                      faceTransform.corners && getTransformStyle(
+                        computePerspectiveTransform(faceTransform.corners, 140, 140)
+                      ),
                     ]}
                   >
                     <Video
@@ -731,11 +735,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
     zIndex: 10,
   },
   projectedVideoFrame: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
     borderRadius: 4,
     overflow: 'hidden',
     backgroundColor: '#000',
