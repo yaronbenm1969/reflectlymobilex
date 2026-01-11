@@ -420,18 +420,20 @@ export const FinalVideoScreen = () => {
                   <Text style={styles.cubePlayText}>{conversionProgress}</Text>
                 </View>
               )}
-              {showVideoPlayer && activeVideoUrl && faceTransform.visibility > 0.3 && (
+              {showVideoPlayer && activeVideoUrl && faceTransform.visibility > 0.3 && (() => {
+                const videoSize = Math.max(180, Math.min(SCREEN_WIDTH * 0.5, faceTransform.width || 200));
+                return (
                 <View style={styles.projectedVideoOverlay} pointerEvents="none">
                   <View 
                     style={[
                       styles.projectedVideoFrame,
                       {
-                        width: 140,
-                        height: 140,
-                        opacity: Math.max(0.85, faceTransform.visibility),
+                        width: videoSize,
+                        height: videoSize,
+                        opacity: Math.max(0.9, faceTransform.visibility),
                       },
                       faceTransform.corners && getTransformStyle(
-                        computePerspectiveTransform(faceTransform.corners, 140, 140)
+                        computePerspectiveTransform(faceTransform.corners, videoSize, videoSize)
                       ),
                     ]}
                   >
@@ -470,7 +472,8 @@ export const FinalVideoScreen = () => {
                     </Text>
                   </View>
                 </View>
-              )}
+                );
+              })()}
               {cubeStarted && !showVideoPlayer && !isConverting && (
                 <View style={styles.cubeStatusBadge}>
                   <Ionicons name="sync" size={16} color="white" />

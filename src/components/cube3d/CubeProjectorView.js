@@ -4,8 +4,9 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber/native';
 import * as THREE from 'three';
 import { theme } from '../../theme/theme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CUBE_SIZE = SCREEN_WIDTH * 0.7;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const RESERVED_UI = 200;
+const CUBE_SIZE = Math.min(SCREEN_WIDTH * 0.92, (SCREEN_HEIGHT - RESERVED_UI) * 0.85);
 
 const FACE_COLORS = [
   '#FF6B9D',
