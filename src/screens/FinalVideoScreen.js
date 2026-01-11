@@ -175,11 +175,11 @@ export const FinalVideoScreen = () => {
   const [cubeStarted, setCubeStarted] = useState(false);
   const [playedFaces, setPlayedFaces] = useState(new Set());
   const [faceTransform, setFaceTransform] = useState({
-    rotateX: 0,
-    rotateY: 0,
-    rotateZ: 0,
-    scale: 1,
-    opacity: 1,
+    center: { x: 0, y: 0 },
+    width: 160,
+    height: 160,
+    visibility: 1,
+    corners: null,
   });
 
   const [videoUrls, setVideoUrls] = useState([]);
@@ -443,20 +443,27 @@ export const FinalVideoScreen = () => {
                   <Text style={styles.cubePlayText}>{conversionProgress}</Text>
                 </View>
               )}
-              {showVideoPlayer && activeVideoUrl && (
-                <View style={styles.projectedVideoContainer}>
+              {showVideoPlayer && activeVideoUrl && faceTransform.visibility > 0.3 && (
+                <View 
+                  style={[
+                    styles.projectedVideoContainer,
+                    {
+                      left: faceTransform.center?.x || SCREEN_WIDTH * 0.35,
+                      top: faceTransform.center?.y || SCREEN_WIDTH * 0.35,
+                      marginLeft: -(faceTransform.width || 160) / 2,
+                      marginTop: -(faceTransform.height || 160) / 2,
+                      width: faceTransform.width || 160,
+                      height: faceTransform.height || 160,
+                    }
+                  ]}
+                >
                   <View 
                     style={[
                       styles.projectedVideoFrame,
                       {
-                        transform: [
-                          { perspective: 800 },
-                          { rotateX: `${faceTransform.rotateX * 0.7}deg` },
-                          { rotateY: `${faceTransform.rotateY * 0.7}deg` },
-                          { rotateZ: `${faceTransform.rotateZ}deg` },
-                          { scale: faceTransform.scale },
-                        ],
-                        opacity: Math.max(0.6, faceTransform.opacity),
+                        width: faceTransform.width || 160,
+                        height: faceTransform.height || 160,
+                        opacity: Math.max(0.5, faceTransform.visibility),
                       }
                     ]}
                   >
@@ -744,27 +751,19 @@ const styles = StyleSheet.create({
   },
   projectedVideoContainer: {
     position: 'absolute',
-    top: '50%',
-    left: '50%',
-    marginTop: -80,
-    marginLeft: -80,
-    width: 160,
-    height: 160,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
   },
   projectedVideoFrame: {
-    width: 160,
-    height: 160,
-    borderRadius: 6,
+    borderRadius: 4,
     overflow: 'hidden',
     backgroundColor: '#000',
     shadowColor: '#FF6B9D',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.9,
-    shadowRadius: 20,
-    elevation: 15,
+    shadowRadius: 15,
+    elevation: 12,
   },
   videoScreenBorder: {
     position: 'absolute',
