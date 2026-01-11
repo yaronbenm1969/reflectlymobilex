@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useEffect, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions, Animated } from 'react-native';
 import { Canvas, useFrame, useThree } from '@react-three/fiber/native';
 import * as THREE from 'three';
 import { theme } from '../../theme/theme';
@@ -46,9 +46,9 @@ function CubeFace({ position, rotation, textureUrl, faceIndex, isActive, isPlayi
         map={texture}
         color={texture ? '#ffffff' : faceColor}
         emissive={isPlaying ? '#FF6B9D' : (isActive ? '#FF6B9D' : '#000000')}
-        emissiveIntensity={isPlaying ? 0.8 : (isActive ? 0.4 : 0.1)}
+        emissiveIntensity={isPlaying ? 0.6 : (isActive ? 0.3 : 0.1)}
         transparent={true}
-        opacity={isPlaying ? 0.3 : 1}
+        opacity={isPlaying ? 0.2 : 1}
         roughness={0.4}
         metalness={0.1}
       />
@@ -60,79 +60,110 @@ const RotatingCube = forwardRef(function RotatingCube({
   faces, 
   onFaceEnterFront,
   onFaceExitFront,
+  onFaceTransformUpdate,
   currentVideoDuration,
   isPlaying,
   currentPlayingFaceIndex,
 }, ref) {
   const groupRef = useRef();
   const rotationY = useRef(0);
-  const rotationX = useRef(-0.15);
-  const angularVelocity = useRef(0.4);
+  const rotationX = useRef(0);
+  const angularVelocityY = useRef(0.35);
+  const angularVelocityX = useRef(0.12);
   const lastFrontFace = useRef(-1);
-  const faceEnteredAt = useRef(null);
+  const timeRef = useRef(0);
 
   const facePositions = useMemo(() => [
-    { position: [0, 0, 1], rotation: [0, 0, 0] },
-    { position: [0, 0, -1], rotation: [0, Math.PI, 0] },
-    { position: [1, 0, 0], rotation: [0, Math.PI / 2, 0] },
-    { position: [-1, 0, 0], rotation: [0, -Math.PI / 2, 0] },
-    { position: [0, 1, 0], rotation: [-Math.PI / 2, 0, 0] },
-    { position: [0, -1, 0], rotation: [Math.PI / 2, 0, 0] },
+    { position: [0, 0, 1], rotation: [0, 0, 0], normal: [0, 0, 1] },
+    { position: [0, 0, -1], rotation: [0, Math.PI, 0], normal: [0, 0, -1] },
+    { position: [1, 0, 0], rotation: [0, Math.PI / 2, 0], normal: [1, 0, 0] },
+    { position: [-1, 0, 0], rotation: [0, -Math.PI / 2, 0], normal: [-1, 0, 0] },
+    { position: [0, 1, 0], rotation: [-Math.PI / 2, 0, 0], normal: [0, 1, 0] },
+    { position: [0, -1, 0], rotation: [Math.PI / 2, 0, 0], normal: [0, -1, 0] },
   ], []);
 
-  const getFrontFaceIndex = useCallback((rotY) => {
-    const normalized = ((rotY % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    if (normalized < Math.PI / 4 || normalized >= Math.PI * 7 / 4) return 0;
-    if (normalized >= Math.PI / 4 && normalized < Math.PI * 3 / 4) return 3;
-    if (normalized >= Math.PI * 3 / 4 && normalized < Math.PI * 5 / 4) return 1;
-    if (normalized >= Math.PI * 5 / 4 && normalized < Math.PI * 7 / 4) return 2;
-    return 0;
-  }, []);
+  const getFrontFaceAndAngle = useCallback((rotX, rotY) => {
+    const cameraDir = new THREE.Vector3(0, 0, 1);
+    const euler = new THREE.Euler(rotX, rotY, 0, 'XYZ');
+    const quaternion = new THREE.Quaternion().setFromEuler(euler);
+    
+    let bestFace = 0;
+    let bestDot = -2;
+    let bestAngle = 180;
+    
+    for (let i = 0; i < 6; i++) {
+      const normal = new THREE.Vector3(...facePositions[i].normal);
+      normal.applyQuaternion(quaternion);
+      const dot = normal.dot(cameraDir);
+      
+      if (dot > bestDot) {
+        bestDot = dot;
+        bestFace = i;
+        bestAngle = Math.acos(Math.min(1, Math.max(-1, dot))) * (180 / Math.PI);
+      }
+    }
+    
+    return { faceIndex: bestFace, angle: bestAngle, dot: bestDot };
+  }, [facePositions]);
 
   useEffect(() => {
     if (currentVideoDuration && currentVideoDuration > 0) {
-      const minSpeed = 0.15;
-      const maxSpeed = 0.8;
       const durationSec = currentVideoDuration / 1000;
       const calculatedSpeed = (Math.PI / 2) / durationSec;
-      angularVelocity.current = Math.max(minSpeed, Math.min(maxSpeed, calculatedSpeed));
-      console.log(`🎬 Rotation speed set to ${angularVelocity.current.toFixed(3)} for ${durationSec.toFixed(1)}s video`);
+      angularVelocityY.current = Math.max(0.1, Math.min(0.6, calculatedSpeed));
+      angularVelocityX.current = angularVelocityY.current * 0.3;
     }
   }, [currentVideoDuration]);
 
   useImperativeHandle(ref, () => ({
-    setSpeed: (speed) => {
-      angularVelocity.current = speed;
-    },
-    getCurrentFace: () => getFrontFaceIndex(rotationY.current),
-  }), [getFrontFaceIndex]);
+    getRotation: () => ({ x: rotationX.current, y: rotationY.current }),
+    getCurrentFace: () => lastFrontFace.current,
+  }), []);
 
   useFrame((state, delta) => {
     if (!groupRef.current) return;
-
-    rotationY.current += delta * angularVelocity.current;
-
-    const wobbleX = Math.sin(state.clock.elapsedTime * 0.5) * 0.03;
-    const wobbleZ = Math.sin(state.clock.elapsedTime * 0.3) * 0.02;
     
-    groupRef.current.rotation.x = rotationX.current + wobbleX;
+    timeRef.current += delta;
+
+    rotationY.current += delta * angularVelocityY.current;
+    rotationX.current = Math.sin(timeRef.current * 0.25) * 0.4;
+
+    const wobbleZ = Math.sin(timeRef.current * 0.4) * 0.05;
+    
+    groupRef.current.rotation.x = rotationX.current;
     groupRef.current.rotation.y = rotationY.current;
     groupRef.current.rotation.z = wobbleZ;
 
-    const frontFace = getFrontFaceIndex(rotationY.current);
+    const { faceIndex, angle, dot } = getFrontFaceAndAngle(rotationX.current, rotationY.current);
     
-    if (frontFace !== lastFrontFace.current) {
-      if (lastFrontFace.current !== -1 && faces[lastFrontFace.current]) {
+    if (faceIndex !== lastFrontFace.current && angle < 45) {
+      if (lastFrontFace.current !== -1) {
         onFaceExitFront?.(lastFrontFace.current);
       }
       
-      lastFrontFace.current = frontFace;
-      faceEnteredAt.current = state.clock.elapsedTime;
+      lastFrontFace.current = faceIndex;
       
-      if (faces[frontFace] && faces[frontFace].videoUrl) {
-        console.log(`🎲 Face ${frontFace} entering front`);
-        onFaceEnterFront?.(frontFace);
+      if (faces[faceIndex] && faces[faceIndex].videoUrl) {
+        onFaceEnterFront?.(faceIndex);
       }
+    }
+
+    if (currentPlayingFaceIndex >= 0 && currentPlayingFaceIndex < 6) {
+      const faceNormal = new THREE.Vector3(...facePositions[currentPlayingFaceIndex].normal);
+      const euler = new THREE.Euler(rotationX.current, rotationY.current, wobbleZ, 'XYZ');
+      const quaternion = new THREE.Quaternion().setFromEuler(euler);
+      faceNormal.applyQuaternion(quaternion);
+      
+      const faceRotX = Math.asin(-faceNormal.y);
+      const faceRotY = Math.atan2(faceNormal.x, faceNormal.z);
+      
+      onFaceTransformUpdate?.({
+        rotateX: faceRotX * (180 / Math.PI),
+        rotateY: faceRotY * (180 / Math.PI),
+        rotateZ: wobbleZ * (180 / Math.PI),
+        scale: 0.85 + Math.max(0, faceNormal.z) * 0.15,
+        opacity: Math.max(0.3, faceNormal.z),
+      });
     }
   });
 
@@ -151,13 +182,13 @@ const RotatingCube = forwardRef(function RotatingCube({
       ))}
       <mesh>
         <boxGeometry args={[2, 2, 2]} />
-        <meshBasicMaterial color="#1a1a2e" transparent opacity={0.15} />
+        <meshBasicMaterial color="#1a1a2e" transparent opacity={0.1} />
       </mesh>
     </group>
   );
 });
 
-function Scene({ faces, onFaceEnterFront, onFaceExitFront, currentVideoDuration, isPlaying, currentPlayingFaceIndex, cubeRef }) {
+function Scene({ faces, onFaceEnterFront, onFaceExitFront, onFaceTransformUpdate, currentVideoDuration, isPlaying, currentPlayingFaceIndex, cubeRef }) {
   const { camera } = useThree();
 
   useEffect(() => {
@@ -167,15 +198,16 @@ function Scene({ faces, onFaceEnterFront, onFaceExitFront, currentVideoDuration,
 
   return (
     <>
-      <ambientLight intensity={1.0} />
-      <pointLight position={[5, 5, 5]} intensity={0.8} />
+      <ambientLight intensity={0.9} />
+      <pointLight position={[5, 5, 5]} intensity={0.7} />
       <pointLight position={[-5, -5, 5]} intensity={0.4} color="#FF6B9D" />
-      <pointLight position={[0, 0, 6]} intensity={0.6} color="#ffffff" />
+      <pointLight position={[0, 0, 6]} intensity={0.5} color="#ffffff" />
       <RotatingCube
         ref={cubeRef}
         faces={faces}
         onFaceEnterFront={onFaceEnterFront}
         onFaceExitFront={onFaceExitFront}
+        onFaceTransformUpdate={onFaceTransformUpdate}
         currentVideoDuration={currentVideoDuration}
         isPlaying={isPlaying}
         currentPlayingFaceIndex={currentPlayingFaceIndex}
@@ -188,6 +220,7 @@ const CubeProjectorView = forwardRef(function CubeProjectorView({
   faces = [],
   onFaceEnterFront,
   onFaceExitFront,
+  onFaceTransformUpdate,
   currentVideoDuration,
   isPlaying = false,
   currentPlayingFaceIndex = -1,
@@ -197,12 +230,11 @@ const CubeProjectorView = forwardRef(function CubeProjectorView({
   const cubeRef = useRef();
 
   useImperativeHandle(ref, () => ({
-    setSpeed: (speed) => cubeRef.current?.setSpeed(speed),
+    getRotation: () => cubeRef.current?.getRotation(),
     getCurrentFace: () => cubeRef.current?.getCurrentFace(),
   }), []);
 
   const handleGLError = useCallback((error) => {
-    console.log('GL Error:', error);
     setGlError(true);
     onError?.(error);
   }, [onError]);
@@ -216,7 +248,6 @@ const CubeProjectorView = forwardRef(function CubeProjectorView({
       <Canvas
         style={styles.canvas}
         gl={{ antialias: true }}
-        onCreated={() => console.log('3D Cube ready')}
         onError={handleGLError}
       >
         <Scene
@@ -224,6 +255,7 @@ const CubeProjectorView = forwardRef(function CubeProjectorView({
           faces={faces}
           onFaceEnterFront={onFaceEnterFront}
           onFaceExitFront={onFaceExitFront}
+          onFaceTransformUpdate={onFaceTransformUpdate}
           currentVideoDuration={currentVideoDuration}
           isPlaying={isPlaying}
           currentPlayingFaceIndex={currentPlayingFaceIndex}

@@ -174,6 +174,13 @@ export const FinalVideoScreen = () => {
   const [currentVideoDuration, setCurrentVideoDuration] = useState(5000);
   const [cubeStarted, setCubeStarted] = useState(false);
   const [playedFaces, setPlayedFaces] = useState(new Set());
+  const [faceTransform, setFaceTransform] = useState({
+    rotateX: 0,
+    rotateY: 0,
+    rotateZ: 0,
+    scale: 1,
+    opacity: 1,
+  });
 
   const [videoUrls, setVideoUrls] = useState([]);
   const [convertedUrls, setConvertedUrls] = useState([]);
@@ -212,6 +219,10 @@ export const FinalVideoScreen = () => {
     if (currentPlayingFaceIndex === faceIndex) {
       console.log(`🎲 Face ${faceIndex} exiting front`);
     }
+  };
+
+  const handleFaceTransformUpdate = (transform) => {
+    setFaceTransform(transform);
   };
 
   const handleVideoFinished = () => {
@@ -410,6 +421,7 @@ export const FinalVideoScreen = () => {
                 faces={cubeFaces}
                 onFaceEnterFront={handleFaceEnterFront}
                 onFaceExitFront={handleFaceExitFront}
+                onFaceTransformUpdate={handleFaceTransformUpdate}
                 currentVideoDuration={currentVideoDuration}
                 isPlaying={isPlaying}
                 currentPlayingFaceIndex={currentPlayingFaceIndex}
@@ -433,7 +445,21 @@ export const FinalVideoScreen = () => {
               )}
               {showVideoPlayer && activeVideoUrl && (
                 <View style={styles.projectedVideoContainer}>
-                  <View style={styles.projectedVideoFrame}>
+                  <View 
+                    style={[
+                      styles.projectedVideoFrame,
+                      {
+                        transform: [
+                          { perspective: 800 },
+                          { rotateX: `${faceTransform.rotateX * 0.7}deg` },
+                          { rotateY: `${faceTransform.rotateY * 0.7}deg` },
+                          { rotateZ: `${faceTransform.rotateZ}deg` },
+                          { scale: faceTransform.scale },
+                        ],
+                        opacity: Math.max(0.6, faceTransform.opacity),
+                      }
+                    ]}
+                  >
                     <Video
                       key={`cube-video-${currentPlayingFaceIndex}-${activeVideoUrl}`}
                       ref={videoRef}
@@ -461,6 +487,7 @@ export const FinalVideoScreen = () => {
                         }
                       }}
                     />
+                    <View style={styles.videoScreenBorder} />
                   </View>
                   <View style={styles.projectedVideoCounter}>
                     <Text style={styles.projectedVideoCounterText}>
@@ -719,26 +746,36 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '50%',
     left: '50%',
-    marginTop: -90,
-    marginLeft: -90,
-    width: 180,
-    height: 180,
+    marginTop: -80,
+    marginLeft: -80,
+    width: 160,
+    height: 160,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
   },
   projectedVideoFrame: {
-    width: 180,
-    height: 180,
-    borderRadius: 8,
+    width: 160,
+    height: 160,
+    borderRadius: 6,
     overflow: 'hidden',
-    borderWidth: 3,
-    borderColor: 'rgba(255, 107, 157, 0.8)',
+    backgroundColor: '#000',
     shadowColor: '#FF6B9D',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 25,
-    elevation: 20,
+    shadowOpacity: 0.9,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  videoScreenBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 6,
+    pointerEvents: 'none',
   },
   projectedVideo: {
     width: '100%',
