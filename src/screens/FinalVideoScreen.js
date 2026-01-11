@@ -44,6 +44,7 @@ export const FinalVideoScreen = () => {
   const [activeVideoUrl, setActiveVideoUrl] = useState(null);
   const [isConverting, setIsConverting] = useState(false);
   const [conversionProgress, setConversionProgress] = useState('');
+  const [videoHasPlayed, setVideoHasPlayed] = useState(false);
   const videoRef = useRef(null);
   const cubeRef = useRef(null);
 
@@ -212,6 +213,7 @@ export const FinalVideoScreen = () => {
 
   const playNextVideo = () => {
     const nextIndex = currentVideoIndex + 1;
+    setVideoHasPlayed(false); // Reset for next video
     if (nextIndex < videoUrls.length) {
       setCurrentVideoIndex(nextIndex);
       setActiveVideoUrl(videoUrls[nextIndex]);
@@ -370,11 +372,14 @@ export const FinalVideoScreen = () => {
                         console.log('❌ Playback error:', status.error);
                       }
                       if (status.isLoaded) {
-                        if (status.isPlaying) {
-                          console.log(`🎬 Video ${currentVideoIndex + 1} playing, position: ${Math.round(status.positionMillis/1000)}s / ${Math.round(status.durationMillis/1000)}s`);
+                        // Mark as played once video actually starts playing
+                        if (status.isPlaying && status.positionMillis > 100 && !videoHasPlayed) {
+                          console.log(`🎬 Video ${currentVideoIndex + 1} started playing`);
+                          setVideoHasPlayed(true);
                         }
-                        if (status.didJustFinish && !status.isLooping) {
-                          console.log(`🏁 Video ${currentVideoIndex + 1} finished!`);
+                        // Only advance if video has actually played AND finished
+                        if (status.didJustFinish && !status.isLooping && videoHasPlayed) {
+                          console.log(`🏁 Video ${currentVideoIndex + 1} finished! (played ${Math.round(status.positionMillis/1000)}s)`);
                           playNextVideo();
                         }
                       }
