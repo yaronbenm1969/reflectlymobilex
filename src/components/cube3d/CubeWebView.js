@@ -123,47 +123,54 @@ const CubeWebView = ({
         transform: translate3d(-10px, -15px, 8px);
       }
     }
-    @keyframes spin {
-      0% { 
-        transform: rotateX(-15deg) rotateY(0deg) rotateZ(0deg);
-      }
-      25% { 
-        transform: rotateX(-8deg) rotateY(90deg) rotateZ(3deg);
-      }
-      50% { 
-        transform: rotateX(-20deg) rotateY(180deg) rotateZ(-2deg);
-      }
-      75% { 
-        transform: rotateX(-5deg) rotateY(270deg) rotateZ(4deg);
-      }
-      100% { 
-        transform: rotateX(-15deg) rotateY(360deg) rotateZ(0deg);
-      }
+    @keyframes spinY {
+      0% { transform: rotateY(0deg); }
+      100% { transform: rotateY(360deg); }
+    }
+    @keyframes tiltX {
+      0%, 100% { transform: rotateX(-12deg); }
+      25% { transform: rotateX(-5deg); }
+      50% { transform: rotateX(-18deg); }
+      75% { transform: rotateX(-8deg); }
+    }
+    @keyframes wobbleZ {
+      0%, 100% { transform: rotateZ(0deg); }
+      25% { transform: rotateZ(4deg); }
+      50% { transform: rotateZ(-3deg); }
+      75% { transform: rotateZ(5deg); }
     }
     .float-wrapper {
       width: 100%;
       height: 100%;
       animation: float 8s infinite ease-in-out;
     }
+    .tilt-wrapper {
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      animation: tiltX 6s infinite ease-in-out;
+    }
     .spin-wrapper {
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
-      animation: spin 12s infinite linear;
+      animation: spinY 10s infinite linear, wobbleZ 7s infinite ease-in-out;
     }
   </style>
 </head>
 <body>
   <div class="scene">
     <div class="float-wrapper">
-      <div class="spin-wrapper" id="spin-wrapper">
-        <div class="cube" id="cube">
-          <div class="cube-face front" id="face-0"></div>
-          <div class="cube-face back" id="face-1"></div>
-          <div class="cube-face right" id="face-2"></div>
-          <div class="cube-face left" id="face-3"></div>
-          <div class="cube-face top" id="face-4"></div>
-          <div class="cube-face bottom" id="face-5"></div>
+      <div class="tilt-wrapper" id="tilt-wrapper">
+        <div class="spin-wrapper" id="spin-wrapper">
+          <div class="cube" id="cube">
+            <div class="cube-face front" id="face-0"></div>
+            <div class="cube-face back" id="face-1"></div>
+            <div class="cube-face right" id="face-2"></div>
+            <div class="cube-face left" id="face-3"></div>
+            <div class="cube-face top" id="face-4"></div>
+            <div class="cube-face bottom" id="face-5"></div>
+          </div>
         </div>
       </div>
     </div>
