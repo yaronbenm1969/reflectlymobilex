@@ -97,7 +97,9 @@ export const FinalVideoScreen = () => {
     status: assetStatus, 
     progress: assetProgress, 
     preparedFaces, 
-    isReady: assetsReady 
+    isReady: assetsReady,
+    reset: resetAssets,
+    prepareAllAssets 
   } = useReflectionAssets(isCube3D ? reflections : [], 6);
 
   const cubeFaces = preparedFaces;
@@ -379,11 +381,54 @@ export const FinalVideoScreen = () => {
 
       <View style={styles.content}>
         <View style={styles.videoContainer}>
-          {isCube3D && (assetStatus !== 'idle' || cubeFaces.some(f => f !== null)) ? (
+          {isCube3D && assetStatus === 'error' ? (
+            /* Show error screen with retry option when downloads failed */
+            <View style={styles.cubeContainer}>
+              <View style={styles.loadingContainer}>
+                <Ionicons name="cloud-offline-outline" size={48} color={theme.colors.error || '#EF4444'} />
+                <Text style={styles.errorTitle}>שגיאה בהורדת סרטונים</Text>
+                <Text style={styles.cubePlayText}>{assetProgress.message}</Text>
+                <Text style={styles.cubeProgressText}>
+                  {assetProgress.converted} מתוך {assetProgress.total} הורדו בהצלחה
+                </Text>
+                <TouchableOpacity 
+                  style={styles.retryButton}
+                  onPress={() => {
+                    resetAssets();
+                    setTimeout(() => prepareAllAssets(), 100);
+                  }}
+                >
+                  <Ionicons name="refresh-outline" size={20} color="white" />
+                  <Text style={styles.retryButtonText}>נסה שוב</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : isCube3D && (assetStatus === 'converting' || (assetStatus === 'idle' && reflections.length > 0)) && !assetsReady ? (
+            /* Show loading screen while downloading/converting ALL videos */
+            <View style={styles.cubeContainer}>
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text style={styles.loadingTitle}>מכין את הקוביה...</Text>
+                <Text style={styles.cubePlayText}>{assetProgress.message}</Text>
+                <View style={styles.progressBar}>
+                  <View 
+                    style={[
+                      styles.progressFill, 
+                      { width: `${assetProgress.total > 0 ? (assetProgress.converted / assetProgress.total) * 100 : 0}%` }
+                    ]} 
+                  />
+                </View>
+                <Text style={styles.cubeProgressText}>
+                  {assetProgress.converted} מתוך {assetProgress.total} סרטונים
+                </Text>
+              </View>
+            </View>
+          ) : isCube3D && assetsReady ? (
+            /* Show cube only after ALL videos are cached locally */
             <View style={styles.cubeContainer}>
               <CubeWebView
                 faces={cubeFaces}
-                autoRotate={cubeStarted && assetsReady}
+                autoRotate={cubeStarted}
                 rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
                 onFaceChange={(faceIndex) => {
                   if (cubeStarted && cubeFaces[faceIndex]?.videoUrl) {
@@ -394,16 +439,7 @@ export const FinalVideoScreen = () => {
                 onVideoEnd={handleVideoFinished}
                 currentPlayingFaceIndex={currentPlayingFaceIndex}
               />
-              {!cubeStarted && !assetsReady && assetStatus === 'converting' && (
-                <View style={styles.cubePlayButton}>
-                  <ActivityIndicator size="large" color={theme.colors.primary} />
-                  <Text style={styles.cubePlayText}>{assetProgress.message}</Text>
-                  <Text style={styles.cubeProgressText}>
-                    {assetProgress.converted}/{assetProgress.total}
-                  </Text>
-                </View>
-              )}
-              {!cubeStarted && assetsReady && (
+              {!cubeStarted && (
                 <TouchableOpacity 
                   style={styles.cubePlayButton}
                   onPress={startCubePlayback}
@@ -415,12 +451,6 @@ export const FinalVideoScreen = () => {
                     {cubeFaces.filter(f => f).length} סרטונים מוכנים - לחץ להפעלה
                   </Text>
                 </TouchableOpacity>
-              )}
-              {isConverting && (
-                <View style={styles.cubePlayButton}>
-                  <ActivityIndicator size="large" color={theme.colors.primary} />
-                  <Text style={styles.cubePlayText}>{conversionProgress}</Text>
-                </View>
               )}
               {cubeStarted && (
                 <View style={styles.cubeStatusBadge}>
@@ -605,6 +635,53 @@ const styles = StyleSheet.create({
     padding: theme.spacing[4],
     minHeight: 300,
     position: 'relative',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing[6],
+  },
+  loadingTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+    marginTop: theme.spacing[3],
+    marginBottom: theme.spacing[2],
+  },
+  progressBar: {
+    width: '80%',
+    height: 8,
+    backgroundColor: theme.colors.border || '#E5E7EB',
+    borderRadius: 4,
+    marginTop: theme.spacing[3],
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: theme.colors.primary,
+    borderRadius: 4,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.error || '#EF4444',
+    marginTop: theme.spacing[3],
+    marginBottom: theme.spacing[2],
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing[4],
+    paddingVertical: theme.spacing[3],
+    borderRadius: theme.radii.md,
+    marginTop: theme.spacing[4],
+    gap: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   cubePlayButton: {
     position: 'absolute',

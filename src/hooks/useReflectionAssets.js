@@ -23,37 +23,48 @@ const getLocalFileName = (url) => {
   return filename;
 };
 
+const MAX_DOWNLOAD_RETRIES = 3;
+const RETRY_DELAY_MS = 1000;
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 const downloadToCache = async (remoteUrl, onProgress) => {
   if (Platform.OS === 'web') {
     return remoteUrl;
   }
   
-  try {
-    await ensureCacheDir();
-    const localUri = localCacheDir + getLocalFileName(remoteUrl);
-    
-    const fileInfo = await FileSystem.getInfoAsync(localUri);
-    if (fileInfo.exists && fileInfo.size > 0) {
-      console.log('📁 Using cached video:', localUri);
-      return localUri;
-    }
-    
-    console.log('⬇️ Downloading video to cache...');
-    const downloadResult = await FileSystem.downloadAsync(remoteUrl, localUri, {
-      md5: false,
-    });
-    
-    if (downloadResult.status === 200) {
-      console.log('✅ Downloaded to cache:', localUri);
-      return localUri;
-    } else {
-      console.warn('⚠️ Download failed, using remote URL');
-      return remoteUrl;
-    }
-  } catch (error) {
-    console.warn('⚠️ Cache download error:', error.message);
-    return remoteUrl;
+  await ensureCacheDir();
+  const localUri = localCacheDir + getLocalFileName(remoteUrl);
+  
+  const fileInfo = await FileSystem.getInfoAsync(localUri);
+  if (fileInfo.exists && fileInfo.size > 0) {
+    console.log('📁 Using cached video:', localUri);
+    return localUri;
   }
+  
+  for (let attempt = 1; attempt <= MAX_DOWNLOAD_RETRIES; attempt++) {
+    try {
+      console.log(`⬇️ Downloading video to cache (attempt ${attempt}/${MAX_DOWNLOAD_RETRIES})...`);
+      const downloadResult = await FileSystem.downloadAsync(remoteUrl, localUri, {
+        md5: false,
+      });
+      
+      if (downloadResult.status === 200) {
+        console.log('✅ Downloaded to cache:', localUri);
+        return localUri;
+      } else {
+        console.warn(`⚠️ Download attempt ${attempt} failed with status ${downloadResult.status}`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Download attempt ${attempt} error:`, error.message);
+    }
+    
+    if (attempt < MAX_DOWNLOAD_RETRIES) {
+      await sleep(RETRY_DELAY_MS * attempt);
+    }
+  }
+  
+  throw new Error(`Failed to download video after ${MAX_DOWNLOAD_RETRIES} attempts`);
 };
 
 const needsConversion = (url) => {
@@ -200,8 +211,15 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
         });
       }
       
-      const localVideoUrl = await downloadToCache(videoUrl);
-      videoUrl = localVideoUrl;
+      let localVideoUrl = null;
+      let downloadFailed = false;
+      
+      try {
+        localVideoUrl = await downloadToCache(videoUrl);
+      } catch (downloadError) {
+        console.error(`❌ Failed to cache video ${i + 1}:`, downloadError.message);
+        downloadFailed = true;
+      }
 
       if (reflection.thumbnailUrl) {
         try {
@@ -215,28 +233,58 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
       if (isMountedRef.current) {
         setPreparedFaces(prev => {
           const updated = [...prev];
-          updated[i] = {
-            ...updated[i],
-            videoUrl: videoUrl,
-            isReady: true,
-            status: 'ready',
-          };
+          if (downloadFailed) {
+            updated[i] = {
+              ...updated[i],
+              videoUrl: null,
+              isReady: false,
+              status: 'failed',
+            };
+          } else {
+            updated[i] = {
+              ...updated[i],
+              videoUrl: localVideoUrl,
+              isReady: true,
+              status: 'ready',
+            };
+          }
           return updated;
         });
         
         setProgress({ 
           converted: i + 1, 
           total, 
-          message: `הוכן סרטון ${i + 1} מתוך ${total}` 
+          message: downloadFailed 
+            ? `שגיאה בסרטון ${i + 1} מתוך ${total}` 
+            : `הוכן סרטון ${i + 1} מתוך ${total}` 
         });
       }
     }
 
-    console.log(`🎬 All videos prepared and ready`);
     if (isMountedRef.current) {
-      setStatus('ready');
-      setIsReady(true);
-      setProgress({ converted: total, total, message: 'הכל מוכן!' });
+      setPreparedFaces(currentFaces => {
+        const failedCount = currentFaces.filter(f => f?.status === 'failed').length;
+        const readyCount = currentFaces.filter(f => f?.status === 'ready').length;
+        
+        if (failedCount > 0) {
+          console.log(`❌ ${failedCount} videos failed to download`);
+          setStatus('error');
+          setIsReady(false);
+          setProgress({ 
+            converted: readyCount, 
+            total, 
+            message: `${failedCount} סרטונים נכשלו בהורדה`,
+            failedCount: failedCount
+          });
+        } else {
+          console.log(`🎬 All ${total} videos prepared and cached locally`);
+          setStatus('ready');
+          setIsReady(true);
+          setProgress({ converted: total, total, message: 'הכל מוכן!', failedCount: 0 });
+        }
+        
+        return currentFaces;
+      });
     }
   }, [reflections, maxFaces, shuffleArray]);
 
