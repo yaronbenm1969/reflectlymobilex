@@ -171,11 +171,13 @@ const CubeWebView = ({
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
+      animation: float 8s infinite ease-in-out;
     }
     .spin-wrapper {
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
+      animation: spin 20s infinite linear;
     }
   </style>
 </head>
