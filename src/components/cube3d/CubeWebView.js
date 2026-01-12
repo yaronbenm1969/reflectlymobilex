@@ -397,6 +397,21 @@ const CubeWebView = ({
     }
   }, [rotationSpeed]);
 
+  // Dynamically update faces when new videos are ready
+  useEffect(() => {
+    if (webViewRef.current && faces.some(f => f?.videoUrl)) {
+      const facesData = faces.map((face, index) => ({
+        index,
+        videoUrl: face?.videoUrl || null,
+        thumbnailUrl: face?.thumbnailUrl || face?.posterThumbUri || null,
+        playerName: face?.playerName || `סרטון ${index + 1}`,
+      }));
+      const js = `window.updateFaces && window.updateFaces(${JSON.stringify(facesData)}); true;`;
+      webViewRef.current.injectJavaScript(js);
+      console.log('🔄 Injected updated faces:', facesData.filter(f => f.videoUrl).length, 'videos');
+    }
+  }, [faces]);
+
   useEffect(() => {
     const saveHtmlToFile = async () => {
       if (Platform.OS === 'web') {
