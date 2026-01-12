@@ -125,6 +125,8 @@ export const reflectionsService = {
       grouped[participantId].clips.push({
         clipNumber: reflection.clipNumber,
         videoUrl: reflection.videoUrl,
+        convertedUrl: reflection.convertedUrl,
+        conversionStatus: reflection.conversionStatus,
         createdAt: reflection.createdAt,
         status: reflection.status || 'received'
       });
