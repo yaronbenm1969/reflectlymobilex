@@ -364,25 +364,55 @@ export const FinalVideoScreen = () => {
 
   return (
     <View style={[styles.container, isCubeFullscreen && styles.fullscreenMode]}>
-      {!isCubeFullscreen && (
-        <LinearGradient
-          colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
-          style={styles.header}
-        >
-          <View style={styles.headerContent}>
-            <Text style={styles.title}>הסרטון מוכן! 🎉</Text>
-            <Text style={styles.storyName}>{storyName}</Text>
-            {is3DFormat && (
-              <View style={styles.formatBadge}>
-                <Ionicons name="cube" size={16} color="white" />
-                <Text style={styles.formatText}>{videoFormat}</Text>
-              </View>
-            )}
-          </View>
-        </LinearGradient>
+      {/* FULLSCREEN CUBE - renders on top of everything */}
+      {isCubeFullscreen && isCube3D && assetsReady && (
+        <View style={styles.fullscreenCubeOverlay}>
+          <CubeWebView
+            faces={cubeFaces}
+            autoRotate={cubeStarted}
+            rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
+            isFullscreen={true}
+            onFaceChange={(faceIndex) => {
+              if (cubeStarted && cubeFaces[faceIndex]?.videoUrl) {
+                handleFaceEnterFront(faceIndex);
+              }
+            }}
+            onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
+            onVideoEnd={handleVideoFinished}
+            onPlaybackStart={() => {
+              console.log('🚀 Cube fullscreen mode ON');
+              setIsCubeFullscreen(true);
+              setCubeStarted(true);
+            }}
+            onPlaybackComplete={() => {
+              console.log('✅ Cube fullscreen mode OFF');
+              setIsCubeFullscreen(false);
+              setVideoHasPlayed(true);
+            }}
+            currentPlayingFaceIndex={currentPlayingFaceIndex}
+          />
+        </View>
       )}
 
-      <View style={styles.content}>
+      {!isCubeFullscreen && (
+        <>
+          <LinearGradient
+            colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
+            style={styles.header}
+          >
+            <View style={styles.headerContent}>
+              <Text style={styles.title}>הסרטון מוכן! 🎉</Text>
+              <Text style={styles.storyName}>{storyName}</Text>
+              {is3DFormat && (
+                <View style={styles.formatBadge}>
+                  <Ionicons name="cube" size={16} color="white" />
+                  <Text style={styles.formatText}>{videoFormat}</Text>
+                </View>
+              )}
+            </View>
+          </LinearGradient>
+
+          <View style={styles.content}>
         <View style={styles.videoContainer}>
           {isCube3D && assetStatus === 'error' ? (
             /* Show error screen with retry option when downloads failed */
@@ -490,44 +520,39 @@ export const FinalVideoScreen = () => {
             </View>
           )}
           
-          {!isCubeFullscreen && (
-            <View style={styles.videoInfo}>
-              <View style={styles.infoRow}>
-                <Ionicons name="people-outline" size={18} color={theme.colors.subtext} />
-                <Text style={styles.infoText}>{participantCount} משתתפים</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Ionicons name="videocam-outline" size={18} color={theme.colors.subtext} />
-                <Text style={styles.infoText}>{reflections.length} שיקופים</Text>
-              </View>
+          <View style={styles.videoInfo}>
+            <View style={styles.infoRow}>
+              <Ionicons name="people-outline" size={18} color={theme.colors.subtext} />
+              <Text style={styles.infoText}>{participantCount} משתתפים</Text>
             </View>
-          )}
+            <View style={styles.infoRow}>
+              <Ionicons name="videocam-outline" size={18} color={theme.colors.subtext} />
+              <Text style={styles.infoText}>{reflections.length} שיקופים</Text>
+            </View>
+          </View>
         </View>
 
-        {!isCubeFullscreen && playbackComplete && (
+        {playbackComplete && (
           <View style={styles.completeBadge}>
             <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
             <Text style={styles.completeText}>הסתיים!</Text>
           </View>
         )}
 
-        {!isCubeFullscreen && (
-          <View style={styles.privacyBadge}>
-            <Ionicons 
-              name={privacySettings.allowSocialMedia ? 'globe-outline' : 'lock-closed-outline'} 
-              size={18} 
-              color={privacySettings.allowSocialMedia ? theme.colors.success : theme.colors.primary} 
-            />
-            <Text style={styles.privacyText}>
-              {privacySettings.allowSocialMedia 
-                ? 'ניתן לפרסום ברשתות חברתיות' 
-                : 'צפייה פרטית בלבד'}
-            </Text>
-          </View>
-        )}
+        <View style={styles.privacyBadge}>
+          <Ionicons 
+            name={privacySettings.allowSocialMedia ? 'globe-outline' : 'lock-closed-outline'} 
+            size={18} 
+            color={privacySettings.allowSocialMedia ? theme.colors.success : theme.colors.primary} 
+          />
+          <Text style={styles.privacyText}>
+            {privacySettings.allowSocialMedia 
+              ? 'ניתן לפרסום ברשתות חברתיות' 
+              : 'צפייה פרטית בלבד'}
+          </Text>
+        </View>
 
-        {!isCubeFullscreen && (
-          <View style={styles.actions}>
+        <View style={styles.actions}>
             {!is3DFormat && (
               <TouchableOpacity 
                 style={styles.actionButton} 
@@ -559,9 +584,7 @@ export const FinalVideoScreen = () => {
               <Text style={styles.actionLabel}>ערוך</Text>
             </TouchableOpacity>
           </View>
-        )}
 
-        {!isCubeFullscreen && (
           <View style={styles.bottomActions}>
             <AppButton
               title="צור סיפור חדש"
@@ -578,8 +601,9 @@ export const FinalVideoScreen = () => {
               <Text style={styles.homeButtonText}>חזור לדף הבית</Text>
             </TouchableOpacity>
           </View>
-        )}
-      </View>
+        </View>
+        </>
+      )}
     </View>
   );
 };
@@ -591,6 +615,15 @@ const styles = StyleSheet.create({
   },
   fullscreenMode: {
     backgroundColor: '#000',
+  },
+  fullscreenCubeOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#000',
+    zIndex: 1000,
   },
   header: {
     paddingTop: 60,
