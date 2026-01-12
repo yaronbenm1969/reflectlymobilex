@@ -46,6 +46,7 @@ export const FinalVideoScreen = () => {
   const [isConverting, setIsConverting] = useState(false);
   const [conversionProgress, setConversionProgress] = useState('');
   const [videoHasPlayed, setVideoHasPlayed] = useState(false);
+  const [isCubeFullscreen, setIsCubeFullscreen] = useState(false);
   const videoRef = useRef(null);
   const cubeRef = useRef(null);
 
@@ -362,22 +363,24 @@ export const FinalVideoScreen = () => {
   const videos3D = is3DFormat ? prepareVideosFor3D() : [];
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <Text style={styles.title}>הסרטון מוכן! 🎉</Text>
-          <Text style={styles.storyName}>{storyName}</Text>
-          {is3DFormat && (
-            <View style={styles.formatBadge}>
-              <Ionicons name="cube" size={16} color="white" />
-              <Text style={styles.formatText}>{videoFormat}</Text>
-            </View>
-          )}
-        </View>
-      </LinearGradient>
+    <View style={[styles.container, isCubeFullscreen && styles.fullscreenMode]}>
+      {!isCubeFullscreen && (
+        <LinearGradient
+          colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
+          style={styles.header}
+        >
+          <View style={styles.headerContent}>
+            <Text style={styles.title}>הסרטון מוכן! 🎉</Text>
+            <Text style={styles.storyName}>{storyName}</Text>
+            {is3DFormat && (
+              <View style={styles.formatBadge}>
+                <Ionicons name="cube" size={16} color="white" />
+                <Text style={styles.formatText}>{videoFormat}</Text>
+              </View>
+            )}
+          </View>
+        </LinearGradient>
+      )}
 
       <View style={styles.content}>
         <View style={styles.videoContainer}>
@@ -425,11 +428,12 @@ export const FinalVideoScreen = () => {
             </View>
           ) : isCube3D && assetsReady ? (
             /* Show cube only after ALL videos are cached locally */
-            <View style={styles.cubeContainer}>
+            <View style={[styles.cubeContainer, isCubeFullscreen && styles.cubeFullscreenContainer]}>
               <CubeWebView
                 faces={cubeFaces}
                 autoRotate={cubeStarted}
                 rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
+                isFullscreen={isCubeFullscreen}
                 onFaceChange={(faceIndex) => {
                   if (cubeStarted && cubeFaces[faceIndex]?.videoUrl) {
                     handleFaceEnterFront(faceIndex);
@@ -437,28 +441,18 @@ export const FinalVideoScreen = () => {
                 }}
                 onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
                 onVideoEnd={handleVideoFinished}
+                onPlaybackStart={() => {
+                  console.log('🚀 Cube fullscreen mode ON');
+                  setIsCubeFullscreen(true);
+                  setCubeStarted(true);
+                }}
+                onPlaybackComplete={() => {
+                  console.log('✅ Cube fullscreen mode OFF');
+                  setIsCubeFullscreen(false);
+                  setVideoHasPlayed(true);
+                }}
                 currentPlayingFaceIndex={currentPlayingFaceIndex}
               />
-              {!cubeStarted && (
-                <TouchableOpacity 
-                  style={styles.cubePlayButton}
-                  onPress={startCubePlayback}
-                >
-                  <View style={styles.playButtonCircle}>
-                    <Ionicons name="play" size={40} color="white" />
-                  </View>
-                  <Text style={styles.cubePlayText}>
-                    {cubeFaces.filter(f => f).length} סרטונים מוכנים - לחץ להפעלה
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {cubeStarted && (
-                <View style={styles.cubeStatusBadge}>
-                  <Text style={styles.cubeStatusText}>
-                    {playedFaces.size}/{cubeFaces.filter(f => f?.videoUrl).length} סרטונים
-                  </Text>
-                </View>
-              )}
             </View>
           ) : is3DFormat && videos3D.length > 0 ? (
             <Video3DPlayer
@@ -496,87 +490,95 @@ export const FinalVideoScreen = () => {
             </View>
           )}
           
-          <View style={styles.videoInfo}>
-            <View style={styles.infoRow}>
-              <Ionicons name="people-outline" size={18} color={theme.colors.subtext} />
-              <Text style={styles.infoText}>{participantCount} משתתפים</Text>
+          {!isCubeFullscreen && (
+            <View style={styles.videoInfo}>
+              <View style={styles.infoRow}>
+                <Ionicons name="people-outline" size={18} color={theme.colors.subtext} />
+                <Text style={styles.infoText}>{participantCount} משתתפים</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Ionicons name="videocam-outline" size={18} color={theme.colors.subtext} />
+                <Text style={styles.infoText}>{reflections.length} שיקופים</Text>
+              </View>
             </View>
-            <View style={styles.infoRow}>
-              <Ionicons name="videocam-outline" size={18} color={theme.colors.subtext} />
-              <Text style={styles.infoText}>{reflections.length} שיקופים</Text>
-            </View>
-          </View>
+          )}
         </View>
 
-        {playbackComplete && (
+        {!isCubeFullscreen && playbackComplete && (
           <View style={styles.completeBadge}>
             <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
             <Text style={styles.completeText}>הסתיים!</Text>
           </View>
         )}
 
-        <View style={styles.privacyBadge}>
-          <Ionicons 
-            name={privacySettings.allowSocialMedia ? 'globe-outline' : 'lock-closed-outline'} 
-            size={18} 
-            color={privacySettings.allowSocialMedia ? theme.colors.success : theme.colors.primary} 
-          />
-          <Text style={styles.privacyText}>
-            {privacySettings.allowSocialMedia 
-              ? 'ניתן לפרסום ברשתות חברתיות' 
-              : 'צפייה פרטית בלבד'}
-          </Text>
-        </View>
+        {!isCubeFullscreen && (
+          <View style={styles.privacyBadge}>
+            <Ionicons 
+              name={privacySettings.allowSocialMedia ? 'globe-outline' : 'lock-closed-outline'} 
+              size={18} 
+              color={privacySettings.allowSocialMedia ? theme.colors.success : theme.colors.primary} 
+            />
+            <Text style={styles.privacyText}>
+              {privacySettings.allowSocialMedia 
+                ? 'ניתן לפרסום ברשתות חברתיות' 
+                : 'צפייה פרטית בלבד'}
+            </Text>
+          </View>
+        )}
 
-        <View style={styles.actions}>
-          {!is3DFormat && (
-            <TouchableOpacity 
-              style={styles.actionButton} 
-              onPress={handleDownload}
-              disabled={isDownloading}
-            >
+        {!isCubeFullscreen && (
+          <View style={styles.actions}>
+            {!is3DFormat && (
+              <TouchableOpacity 
+                style={styles.actionButton} 
+                onPress={handleDownload}
+                disabled={isDownloading}
+              >
+                <View style={styles.actionIcon}>
+                  {isDownloading ? (
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                  ) : (
+                    <Ionicons name="download-outline" size={28} color={theme.colors.primary} />
+                  )}
+                </View>
+                <Text style={styles.actionLabel}>הורד</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
               <View style={styles.actionIcon}>
-                {isDownloading ? (
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
-                ) : (
-                  <Ionicons name="download-outline" size={28} color={theme.colors.primary} />
-                )}
+                <Ionicons name="share-social-outline" size={28} color={theme.colors.primary} />
               </View>
-              <Text style={styles.actionLabel}>הורד</Text>
+              <Text style={styles.actionLabel}>שתף</Text>
             </TouchableOpacity>
-          )}
 
-          <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
-            <View style={styles.actionIcon}>
-              <Ionicons name="share-social-outline" size={28} color={theme.colors.primary} />
-            </View>
-            <Text style={styles.actionLabel}>שתף</Text>
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={() => go('EditRoom')}>
+              <View style={styles.actionIcon}>
+                <Ionicons name="create-outline" size={28} color={theme.colors.primary} />
+              </View>
+              <Text style={styles.actionLabel}>ערוך</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-          <TouchableOpacity style={styles.actionButton} onPress={() => go('EditRoom')}>
-            <View style={styles.actionIcon}>
-              <Ionicons name="create-outline" size={28} color={theme.colors.primary} />
-            </View>
-            <Text style={styles.actionLabel}>ערוך</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.bottomActions}>
-          <AppButton
-            title="צור סיפור חדש"
-            onPress={handleNewStory}
-            variant="primary"
-            size="lg"
-            fullWidth
-          />
-          
-          <TouchableOpacity 
-            style={styles.homeButton}
-            onPress={() => go('Home')}
-          >
-            <Text style={styles.homeButtonText}>חזור לדף הבית</Text>
-          </TouchableOpacity>
-        </View>
+        {!isCubeFullscreen && (
+          <View style={styles.bottomActions}>
+            <AppButton
+              title="צור סיפור חדש"
+              onPress={handleNewStory}
+              variant="primary"
+              size="lg"
+              fullWidth
+            />
+            
+            <TouchableOpacity 
+              style={styles.homeButton}
+              onPress={() => go('Home')}
+            >
+              <Text style={styles.homeButtonText}>חזור לדף הבית</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -586,6 +588,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.bg,
+  },
+  fullscreenMode: {
+    backgroundColor: '#000',
   },
   header: {
     paddingTop: 60,
@@ -635,6 +640,16 @@ const styles = StyleSheet.create({
     padding: theme.spacing[4],
     minHeight: 300,
     position: 'relative',
+  },
+  cubeFullscreenContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 0,
+    zIndex: 1000,
+    backgroundColor: '#000',
   },
   loadingContainer: {
     alignItems: 'center',

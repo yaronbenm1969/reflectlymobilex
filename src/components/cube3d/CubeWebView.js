@@ -15,6 +15,10 @@ const CubeWebView = ({
   onFaceChange,
   onVideoStart,
   onVideoEnd,
+  onPlaybackStart,
+  onPlaybackComplete,
+  onReadyToPlay,
+  isFullscreen = false,
   currentPlayingFaceIndex = -1,
 }) => {
   const webViewRef = useRef(null);
@@ -586,7 +590,8 @@ const CubeWebView = ({
           setIsLoading(false);
           break;
         case 'faceChange':
-          onFaceChange?.(data.faceId);
+        case 'faceChanged':
+          onFaceChange?.(data.faceIndex || data.faceId);
           break;
         case 'videoStart':
           onVideoStart?.(data.faceId);
@@ -594,11 +599,23 @@ const CubeWebView = ({
         case 'videoEnd':
           onVideoEnd?.(data.faceId);
           break;
+        case 'readyToPlay':
+          console.log('🎬 Cube ready to play');
+          onReadyToPlay?.();
+          break;
+        case 'animationStarted':
+          console.log('▶️ Cube playback started');
+          onPlaybackStart?.();
+          break;
+        case 'allVideosComplete':
+          console.log('✅ Cube playback complete');
+          onPlaybackComplete?.();
+          break;
       }
     } catch (e) {
       console.warn('WebView message parse error:', e);
     }
-  }, [onFaceChange, onVideoStart, onVideoEnd]);
+  }, [onFaceChange, onVideoStart, onVideoEnd, onReadyToPlay, onPlaybackStart, onPlaybackComplete]);
 
   useEffect(() => {
     if (webViewRef.current) {
@@ -667,11 +684,11 @@ const CubeWebView = ({
   const baseUrl = Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isFullscreen && styles.fullscreenContainer]}>
       <WebView
         ref={webViewRef}
         source={webViewSource}
-        style={styles.webView}
+        style={[styles.webView, isFullscreen && styles.fullscreenWebView]}
         onMessage={onMessage}
         onError={(e) => setError(e.nativeEvent.description)}
         onLoad={() => setIsLoading(false)}
@@ -718,10 +735,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'transparent',
   },
+  fullscreenContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+    zIndex: 999,
+  },
   webView: {
     width: CUBE_SIZE + 40,
     height: CUBE_SIZE + 40,
     backgroundColor: 'transparent',
+  },
+  fullscreenWebView: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+    backgroundColor: '#000',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
