@@ -126,25 +126,34 @@ const CubeWebView = ({
         transform: translate3d(-10px, -15px, 8px);
       }
     }
-    @keyframes spinY {
-      from { transform: rotateX(-15deg) rotateY(0deg); }
-      to { transform: rotateX(-15deg) rotateY(360deg); }
-    }
-    @keyframes float {
-      0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-15px); }
+    @keyframes spin {
+      0% { 
+        transform: rotateX(-15deg) rotateY(0deg) rotateZ(0deg);
+      }
+      25% { 
+        transform: rotateX(-8deg) rotateY(90deg) rotateZ(3deg);
+      }
+      50% { 
+        transform: rotateX(-20deg) rotateY(180deg) rotateZ(-2deg);
+      }
+      75% { 
+        transform: rotateX(-5deg) rotateY(270deg) rotateZ(4deg);
+      }
+      100% { 
+        transform: rotateX(-15deg) rotateY(360deg) rotateZ(0deg);
+      }
     }
     .float-wrapper {
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
-      animation: float 4s infinite ease-in-out;
+      animation: float 8s infinite ease-in-out;
     }
     .spin-wrapper {
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
-      animation: spinY 12s infinite linear;
+      animation: spin 12s infinite linear;
     }
   </style>
 </head>
