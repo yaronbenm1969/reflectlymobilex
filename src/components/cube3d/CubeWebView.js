@@ -158,12 +158,14 @@ const CubeWebView = ({
     <div class="float-wrapper">
       <div class="spin-wrapper" id="spin-wrapper">
         <div class="cube" id="cube">
-      <div class="cube-face front" id="face-0"></div>
-      <div class="cube-face back" id="face-1"></div>
-      <div class="cube-face right" id="face-2"></div>
-      <div class="cube-face left" id="face-3"></div>
-      <div class="cube-face top" id="face-4"></div>
-      <div class="cube-face bottom" id="face-5"></div>
+          <div class="cube-face front" id="face-0"></div>
+          <div class="cube-face back" id="face-1"></div>
+          <div class="cube-face right" id="face-2"></div>
+          <div class="cube-face left" id="face-3"></div>
+          <div class="cube-face top" id="face-4"></div>
+          <div class="cube-face bottom" id="face-5"></div>
+        </div>
+      </div>
     </div>
   </div>
   <script>
@@ -218,8 +220,8 @@ const CubeWebView = ({
     let lastFrontFace = -1;
     
     function detectFrontFace() {
-      const cube = document.getElementById('cube');
-      const style = window.getComputedStyle(cube);
+      const spinWrapper = document.getElementById('spin-wrapper');
+      const style = window.getComputedStyle(spinWrapper);
       const matrix = style.transform;
       
       if (matrix === 'none') return 0;
