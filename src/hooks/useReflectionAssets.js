@@ -180,14 +180,6 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
       
       const reflection = shuffledReflections[i];
       
-      if (isMountedRef.current) {
-        setProgress({ 
-          converted: i, 
-          total, 
-          message: `ממיר סרטון ${i + 1} מתוך ${total}...` 
-        });
-      }
-
       let videoUrl = reflection.videoUrl;
       
       console.log(`🔍 Video ${i + 1}/${total} status:`, {
@@ -196,13 +188,28 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
         originalUrl: videoUrl?.substring(0, 60)
       });
       
-      if (reflection.convertedUrl && reflection.conversionStatus === 'ready') {
+      // Check if already converted - use convertedUrl directly without re-converting
+      if (reflection.convertedUrl) {
         console.log(`✅ Using pre-converted URL for video ${i + 1}/${total}`);
         videoUrl = reflection.convertedUrl;
-      } else if (reflection.convertedUrl) {
-        console.log(`✅ Using convertedUrl (no status check) for video ${i + 1}/${total}`);
-        videoUrl = reflection.convertedUrl;
+        
+        if (isMountedRef.current) {
+          setProgress({ 
+            converted: i, 
+            total, 
+            message: `מוריד סרטון ${i + 1} מתוך ${total}...` 
+          });
+        }
       } else if (needsConversion(videoUrl)) {
+        // Only convert if no convertedUrl exists
+        if (isMountedRef.current) {
+          setProgress({ 
+            converted: i, 
+            total, 
+            message: `ממיר סרטון ${i + 1} מתוך ${total}...` 
+          });
+        }
+        
         try {
           console.log(`🔄 Converting video ${i + 1}/${total} on-demand`);
           videoUrl = await convertVideoUrl(videoUrl);
@@ -210,14 +217,15 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
         } catch (error) {
           console.log(`❌ Conversion failed for video ${i + 1}, using original`);
         }
-      }
-
-      if (isMountedRef.current) {
-        setProgress({ 
-          converted: i, 
-          total, 
-          message: `מוריד סרטון ${i + 1} מתוך ${total}...` 
-        });
+      } else {
+        // MP4 file, no conversion needed
+        if (isMountedRef.current) {
+          setProgress({ 
+            converted: i, 
+            total, 
+            message: `מוריד סרטון ${i + 1} מתוך ${total}...` 
+          });
+        }
       }
       
       let localVideoUrl = null;
