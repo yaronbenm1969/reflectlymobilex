@@ -8,7 +8,7 @@ const CUBE_SIZE = Math.min(SCREEN_WIDTH * 0.85, 340);
 const CubeWebView = ({
   faces = [],
   autoRotate = true,
-  rotationSpeed = 15000,
+  rotationSpeed = 12000,
   onFaceChange,
   onVideoStart,
   onVideoEnd,
@@ -46,29 +46,28 @@ const CubeWebView = ({
       justify-content: center;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
-    .cube-container { 
+    .scene {
       width: ${CUBE_SIZE}px; 
       height: ${CUBE_SIZE}px; 
-      perspective: 1200px;
+      perspective: 800px;
+      perspective-origin: 50% 50%;
     }
     .cube {
       width: 100%; 
       height: 100%;
       position: relative;
       transform-style: preserve-3d;
-      animation: rotateCube ${rotationSpeed}ms infinite linear;
-      animation-play-state: ${autoRotate ? 'running' : 'paused'};
+      animation: floatAndSpin 12s infinite ease-in-out;
     }
-    .cube.paused { animation-play-state: paused; }
     .cube-face {
       position: absolute;
       width: ${CUBE_SIZE}px; 
       height: ${CUBE_SIZE}px;
-      border: 4px solid rgba(255,255,255,0.6);
-      border-radius: 20px;
+      border: 4px solid rgba(255,255,255,0.7);
+      border-radius: 16px;
       overflow: hidden;
       background: linear-gradient(145deg, rgba(255,107,157,0.95), rgba(192,111,187,0.95));
-      backface-visibility: hidden;
+      box-shadow: 0 0 30px rgba(0,0,0,0.3);
     }
     .cube-face video,
     .cube-face img {
@@ -110,14 +109,27 @@ const CubeWebView = ({
     .left   { transform: rotateY(-90deg) translateZ(${CUBE_SIZE/2}px); }
     .top    { transform: rotateX(90deg) translateZ(${CUBE_SIZE/2}px); }
     .bottom { transform: rotateX(-90deg) translateZ(${CUBE_SIZE/2}px); }
-    @keyframes rotateCube {
-      0%   { transform: rotateX(-12deg) rotateY(0deg); }
-      100% { transform: rotateX(-12deg) rotateY(360deg); }
+    @keyframes floatAndSpin {
+      0% { 
+        transform: rotateX(-15deg) rotateY(0deg) translateY(0px);
+      }
+      25% { 
+        transform: rotateX(-10deg) rotateY(90deg) translateY(-10px);
+      }
+      50% { 
+        transform: rotateX(-20deg) rotateY(180deg) translateY(0px);
+      }
+      75% { 
+        transform: rotateX(-10deg) rotateY(270deg) translateY(-10px);
+      }
+      100% { 
+        transform: rotateX(-15deg) rotateY(360deg) translateY(0px);
+      }
     }
   </style>
 </head>
 <body>
-  <div class="cube-container">
+  <div class="scene">
     <div class="cube" id="cube">
       <div class="cube-face front" id="face-0"></div>
       <div class="cube-face back" id="face-1"></div>
@@ -150,7 +162,7 @@ const CubeWebView = ({
         }
         
         if (face.videoUrl) {
-          html += '<video src="' + face.videoUrl + '" muted loop playsinline preload="auto" style="' + (face.thumbnailUrl ? 'opacity:0' : '') + '"></video>';
+          html += '<video src="' + face.videoUrl + '" muted loop playsinline preload="auto" autoplay style="' + (face.thumbnailUrl ? 'opacity:0' : '') + '"></video>';
         }
         
         html += '<div class="player-badge">' + (face.playerName || 'סרטון') + '</div>';
@@ -176,14 +188,6 @@ const CubeWebView = ({
       }
     }
     
-    function detectCurrentFace() {
-      const cube = document.getElementById('cube');
-      const style = window.getComputedStyle(cube);
-      const transform = style.transform;
-      
-      postMessage('cubeReady', {});
-    }
-    
     function init() {
       faces.forEach((face, index) => {
         setFaceContent(index, face);
@@ -199,11 +203,11 @@ const CubeWebView = ({
     };
     
     window.pauseCube = function() {
-      document.getElementById('cube').classList.add('paused');
+      document.getElementById('cube').style.animationPlayState = 'paused';
     };
     
     window.resumeCube = function() {
-      document.getElementById('cube').classList.remove('paused');
+      document.getElementById('cube').style.animationPlayState = 'running';
     };
     
     window.setRotationSpeed = function(ms) {
@@ -215,7 +219,7 @@ const CubeWebView = ({
 </body>
 </html>
     `;
-  }, [faces, autoRotate, rotationSpeed]);
+  }, [faces]);
 
   const onMessage = useCallback((event) => {
     try {
