@@ -483,71 +483,10 @@ const CubeWebView = ({
       }
     }
     
-    let lastFrontFace = -1;
-    
-    function detectFrontFace() {
-      const spinWrapper = document.getElementById('spin-wrapper');
-      const style = window.getComputedStyle(spinWrapper);
-      const matrix = style.transform;
-      
-      if (matrix === 'none') return 0;
-      
-      const values = matrix.match(/matrix3d\\((.+)\\)/);
-      if (!values) return 0;
-      
-      const m = values[1].split(',').map(parseFloat);
-      
-      const faceNormals = [
-        [0, 0, 1],
-        [0, 0, -1],
-        [1, 0, 0],
-        [-1, 0, 0],
-        [0, 1, 0],
-        [0, -1, 0]
-      ];
-      
-      let bestFace = 0;
-      let maxZ = -Infinity;
-      
-      for (let i = 0; i < 4; i++) {
-        const [nx, ny, nz] = faceNormals[i];
-        const tz = nx * m[2] + ny * m[6] + nz * m[10];
-        if (tz > maxZ) {
-          maxZ = tz;
-          bestFace = i;
-        }
-      }
-      
-      return bestFace;
-    }
-    
-    function updateAudioForFrontFace() {
-      const frontFace = detectFrontFace();
-      
-      if (frontFace !== lastFrontFace) {
-        lastFrontFace = frontFace;
-        
-        videos.forEach(v => {
-          if (v.faceId === frontFace) {
-            v.element.muted = false;
-            v.element.volume = 1.0;
-          } else {
-            v.element.muted = true;
-          }
-        });
-        
-        postMessage('faceChange', { faceId: frontFace });
-      }
-    }
-    
-    setInterval(updateAudioForFrontFace, 200);
-    
     function init() {
       faces.forEach((face, index) => {
         setFaceContent(index, face);
       });
-      
-      setTimeout(updateAudioForFrontFace, 500);
       
       postMessage('cubeReady', { faceCount: faces.filter(f => f.videoUrl).length });
     }
@@ -559,17 +498,16 @@ const CubeWebView = ({
     };
     
     window.pauseCube = function() {
-      document.getElementById('spin-wrapper').style.animationPlayState = 'paused';
-      document.querySelector('.float-wrapper').style.animationPlayState = 'paused';
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+      }
     };
     
     window.resumeCube = function() {
-      document.getElementById('spin-wrapper').style.animationPlayState = 'running';
-      document.querySelector('.float-wrapper').style.animationPlayState = 'running';
-    };
-    
-    window.setRotationSpeed = function(ms) {
-      document.getElementById('spin-wrapper').style.animationDuration = ms + 'ms';
+      if (!animationId && animationStarted) {
+        animationId = requestAnimationFrame(animate);
+      }
     };
     
     init();
