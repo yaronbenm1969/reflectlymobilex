@@ -127,53 +127,38 @@ const CubeWebView = ({
       }
     }
     @keyframes spinY {
-      0% { transform: rotateY(0deg); }
-      100% { transform: rotateY(360deg); }
+      from { transform: rotateX(-15deg) rotateY(0deg); }
+      to { transform: rotateX(-15deg) rotateY(360deg); }
     }
-    @keyframes tiltX {
-      0%, 100% { transform: rotateX(-12deg); }
-      25% { transform: rotateX(-5deg); }
-      50% { transform: rotateX(-18deg); }
-      75% { transform: rotateX(-8deg); }
-    }
-    @keyframes wobbleZ {
-      0%, 100% { transform: rotateZ(0deg); }
-      25% { transform: rotateZ(4deg); }
-      50% { transform: rotateZ(-3deg); }
-      75% { transform: rotateZ(5deg); }
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-15px); }
     }
     .float-wrapper {
       width: 100%;
       height: 100%;
-      animation: float 8s infinite ease-in-out;
-    }
-    .tilt-wrapper {
-      width: 100%;
-      height: 100%;
       transform-style: preserve-3d;
-      animation: tiltX 6s infinite ease-in-out;
+      animation: float 4s infinite ease-in-out;
     }
     .spin-wrapper {
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
-      animation: spinY 10s infinite linear, wobbleZ 7s infinite ease-in-out;
+      animation: spinY 12s infinite linear;
     }
   </style>
 </head>
 <body>
   <div class="scene">
     <div class="float-wrapper">
-      <div class="tilt-wrapper" id="tilt-wrapper">
-        <div class="spin-wrapper" id="spin-wrapper">
-          <div class="cube" id="cube">
-            <div class="cube-face front" id="face-0"></div>
-            <div class="cube-face back" id="face-1"></div>
-            <div class="cube-face right" id="face-2"></div>
-            <div class="cube-face left" id="face-3"></div>
-            <div class="cube-face top" id="face-4"></div>
-            <div class="cube-face bottom" id="face-5"></div>
-          </div>
+      <div class="spin-wrapper" id="spin-wrapper">
+        <div class="cube" id="cube">
+          <div class="cube-face front" id="face-0"></div>
+          <div class="cube-face back" id="face-1"></div>
+          <div class="cube-face right" id="face-2"></div>
+          <div class="cube-face left" id="face-3"></div>
+          <div class="cube-face top" id="face-4"></div>
+          <div class="cube-face bottom" id="face-5"></div>
         </div>
       </div>
     </div>
@@ -341,13 +326,11 @@ const CubeWebView = ({
     
     window.pauseCube = function() {
       document.getElementById('spin-wrapper').style.animationPlayState = 'paused';
-      document.getElementById('tilt-wrapper').style.animationPlayState = 'paused';
       document.querySelector('.float-wrapper').style.animationPlayState = 'paused';
     };
     
     window.resumeCube = function() {
       document.getElementById('spin-wrapper').style.animationPlayState = 'running';
-      document.getElementById('tilt-wrapper').style.animationPlayState = 'running';
       document.querySelector('.float-wrapper').style.animationPlayState = 'running';
     };
     
