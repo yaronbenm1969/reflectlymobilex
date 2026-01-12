@@ -171,13 +171,11 @@ const CubeWebView = ({
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
-      animation: float 8s infinite ease-in-out;
     }
     .spin-wrapper {
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
-      animation: spin 20s infinite linear;
     }
   </style>
 </head>
@@ -311,7 +309,17 @@ const CubeWebView = ({
       if (!cycleStartTime) cycleStartTime = timestamp;
       
       const elapsed = (timestamp - cycleStartTime) / 1000;
-      const cycleTime = elapsed % totalCycleDuration;
+      
+      if (elapsed >= totalCycleDuration) {
+        console.log('All videos completed! Animation finished.');
+        postMessage('allVideosComplete', {});
+        videos.forEach(v => {
+          v.element.pause();
+        });
+        return;
+      }
+      
+      const cycleTime = elapsed;
       const globalTime = elapsed;
       
       let currentRotation = { x: 0, y: 0, z: 0 };
