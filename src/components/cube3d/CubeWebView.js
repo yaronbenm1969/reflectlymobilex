@@ -229,7 +229,7 @@ const CubeWebView = ({
         }
         
         if (face.videoUrl) {
-          html += '<video muted playsinline preload="auto" style="opacity:0"></video>';
+          html += '<video muted loop playsinline preload="auto" style="opacity:0"></video>';
         }
         
         html += '<div class="player-badge">' + (face.playerName || 'סרטון') + '</div>';
