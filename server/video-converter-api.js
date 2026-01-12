@@ -6,11 +6,12 @@ const path = require('path');
 const fs = require('fs');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getStorage } = require('firebase-admin/storage');
-const { conversionQueue } = require('./conversion-queue');
+const { ConversionQueue } = require('./conversion-queue');
 
 const app = express();
 
 const MAX_CONCURRENT_CONVERSIONS = parseInt(process.env.MAX_CONCURRENT_CONVERSIONS) || 3;
+const conversionQueue = new ConversionQueue({ maxConcurrent: MAX_CONCURRENT_CONVERSIONS });
 const PORT = 3001;
 
 app.use(cors({
@@ -227,24 +228,28 @@ app.post('/api/convert-and-upload', upload.single('video'), async (req, res) => 
   
   console.log(`Received video: ${originalName}, type: ${mimeType}, size: ${req.file.size}`);
 
-  try {
-    let finalPath = inputPath;
+  const conversionProcessor = async (data, updateProgress) => {
+    let finalPath = data.inputPath;
     let wasConverted = false;
 
-    if (needsConversion(mimeType, originalName)) {
+    updateProgress(10);
+
+    if (needsConversion(data.mimeType, data.originalName)) {
       console.log('Video needs conversion (HEVC/MOV -> H.264/MP4)');
-      const outputPath = path.join(convertedDir, `${storyId}_${Date.now()}.mp4`);
-      await convertVideo(inputPath, outputPath);
+      const outputPath = path.join(convertedDir, `${data.storyId}_${Date.now()}.mp4`);
+      await convertVideo(data.inputPath, outputPath);
       finalPath = outputPath;
       wasConverted = true;
-      fs.unlinkSync(inputPath);
+      fs.unlinkSync(data.inputPath);
     }
 
+    updateProgress(50);
+
     let storagePath;
-    if (type === 'reflection' && recipientId) {
-      storagePath = `reflections/${storyId}/${recipientId}_clip${clipNumber || 1}.mp4`;
+    if (data.type === 'reflection' && data.recipientId) {
+      storagePath = `reflections/${data.storyId}/${data.recipientId}_clip${data.clipNumber || 1}.mp4`;
     } else {
-      storagePath = `stories/${storyId}.mp4`;
+      storagePath = `stories/${data.storyId}.mp4`;
     }
 
     let publicUrl;
@@ -256,16 +261,23 @@ app.post('/api/convert-and-upload', upload.single('video'), async (req, res) => 
       console.log('Saved locally (Firebase not configured)');
     }
 
+    updateProgress(90);
+
     if (wasConverted || bucket) {
       fs.unlinkSync(finalPath);
     }
 
-    res.json({
-      success: true,
-      url: publicUrl,
-      converted: wasConverted,
-      storagePath
-    });
+    updateProgress(100);
+    return { url: publicUrl, converted: wasConverted, storagePath };
+  };
+
+  try {
+    const { jobId, promise } = await conversionQueue.addJob('convert-and-upload', {
+      inputPath, originalName, mimeType, storyId, type, recipientId, clipNumber
+    }, conversionProcessor);
+
+    const result = await promise;
+    res.json({ success: true, ...result });
 
   } catch (error) {
     console.error('Processing error:', error);
@@ -324,37 +336,50 @@ app.post('/api/convert-from-url', async (req, res) => {
   
   console.log('Converting video from URL:', videoUrl);
   
-  try {
-    const response = await fetch(videoUrl);
+  const conversionProcessor = async (data, updateProgress) => {
+    updateProgress(10);
+    
+    const response = await fetch(data.videoUrl);
     if (!response.ok) {
       throw new Error('Failed to download video');
     }
     
     const buffer = Buffer.from(await response.arrayBuffer());
     const inputPath = path.join(tempDir, `download_${Date.now()}.mov`);
-    const outputPath = path.join(convertedDir, `converted_${storyId || Date.now()}.mp4`);
+    const outputPath = path.join(convertedDir, `converted_${data.storyId || Date.now()}.mp4`);
     
     fs.writeFileSync(inputPath, buffer);
     console.log(`Downloaded video: ${buffer.length} bytes`);
+    updateProgress(30);
     
     await convertVideo(inputPath, outputPath);
+    updateProgress(70);
     
     fs.unlinkSync(inputPath);
     
+    let publicUrl;
     if (bucket) {
-      const storagePath = `converted/${storyId || Date.now()}.mp4`;
-      const publicUrl = await uploadToFirebase(outputPath, storagePath);
+      const storagePath = `converted/${data.storyId || Date.now()}.mp4`;
+      publicUrl = await uploadToFirebase(outputPath, storagePath);
       fs.unlinkSync(outputPath);
-      
-      convertedCache.set(cacheKey, publicUrl);
       console.log('Converted and uploaded:', publicUrl);
-      res.json({ success: true, url: publicUrl, converted: true });
     } else {
-      const publicUrl = `/converted/${path.basename(outputPath)}`;
-      convertedCache.set(cacheKey, publicUrl);
+      publicUrl = `/converted/${path.basename(outputPath)}`;
       console.log('Converted locally:', publicUrl);
-      res.json({ success: true, url: publicUrl, converted: true });
     }
+    
+    updateProgress(100);
+    convertedCache.set(data.cacheKey, publicUrl);
+    return { url: publicUrl, converted: true };
+  };
+  
+  try {
+    const { jobId, promise } = await conversionQueue.addJob('convert-from-url', { 
+      videoUrl, storyId, cacheKey 
+    }, conversionProcessor);
+    
+    const result = await promise;
+    res.json({ success: true, ...result });
     
   } catch (error) {
     console.error('Conversion from URL error:', error);
