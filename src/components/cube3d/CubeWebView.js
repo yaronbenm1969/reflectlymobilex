@@ -324,6 +324,8 @@ const CubeWebView = ({
     let totalDuration = 0;
     let cycleStartTime = 0;
     let lastFrontFace = -1;
+    let playedFaces = new Set(); // Track which faces have been played
+    let currentlyPlayingFace = -1; // The face currently playing its video
     
     const DEFAULT_VIDEO_DURATION = 5;
     
@@ -352,17 +354,8 @@ const CubeWebView = ({
       if (!cycleStartTime) cycleStartTime = timestamp;
       
       const elapsed = (timestamp - cycleStartTime) / 1000;
-      const progress = Math.min(elapsed / totalDuration, 1);
       
-      if (progress >= 1) {
-        console.log('All videos completed! Animation finished.');
-        postMessage('allVideosComplete', {});
-        videos.forEach(v => v.element.pause());
-        animationStarted = false;
-        showPlayButton();
-        return;
-      }
-      
+      // Animation continues until all videos have been played (checked in onVideoEnded)
       const baseSpeed = 2 * Math.PI / totalDuration;
       
       const rotY = elapsed * baseSpeed * 57.3 * 1.5 + 
@@ -421,14 +414,57 @@ const CubeWebView = ({
     }
     
     function updateAudioForFace(faceIndex) {
-      videos.forEach(v => {
-        if (v.faceId === faceIndex) {
-          v.element.muted = false;
-          v.element.volume = 1;
-        } else {
-          v.element.muted = true;
+      // Only play video when face comes to front AND hasn't been played yet
+      const videoForFace = videos.find(v => v.faceId === faceIndex);
+      
+      if (videoForFace && !playedFaces.has(faceIndex)) {
+        // This face hasn't been played yet - start playing it
+        playedFaces.add(faceIndex);
+        currentlyPlayingFace = faceIndex;
+        
+        // Pause all other videos
+        videos.forEach(v => {
+          if (v.faceId !== faceIndex) {
+            v.element.pause();
+            v.element.muted = true;
+          }
+        });
+        
+        // Play this video with audio
+        videoForFace.element.currentTime = 0;
+        videoForFace.element.muted = false;
+        videoForFace.element.volume = 1;
+        videoForFace.element.play().catch(() => {});
+        
+        console.log('Playing face ' + faceIndex + ' (played: ' + playedFaces.size + '/' + videos.length + ')');
+        postMessage('videoStart', { faceId: faceIndex, playedCount: playedFaces.size, totalVideos: videos.length });
+      } else if (currentlyPlayingFace >= 0 && currentlyPlayingFace !== faceIndex) {
+        // Different face is in front but current video is still playing - just update audio
+        videos.forEach(v => {
+          // Keep current playing video going but mute it when not in front
+          if (v.faceId === currentlyPlayingFace) {
+            v.element.muted = (faceIndex !== currentlyPlayingFace);
+          }
+        });
+      }
+    }
+    
+    function onVideoEnded(faceId) {
+      console.log('Video ended on face ' + faceId + ' (played: ' + playedFaces.size + '/' + videos.length + ')');
+      currentlyPlayingFace = -1;
+      
+      // Check if all videos have been played
+      const videosWithContent = videos.filter(v => v.element.src && v.element.duration > 0);
+      if (playedFaces.size >= videosWithContent.length) {
+        console.log('All videos completed! Finishing animation.');
+        postMessage('allVideosComplete', {});
+        animationStarted = false;
+        showPlayButton();
+        if (animationId) {
+          cancelAnimationFrame(animationId);
+          animationId = null;
         }
-      });
+      }
     }
     
     function startAnimation() {
@@ -461,12 +497,24 @@ const CubeWebView = ({
       if (!isReady) return;
       hidePlayButton();
       
+      // Reset tracking for new playback
+      playedFaces = new Set();
+      currentlyPlayingFace = -1;
+      
+      // Don't auto-play all videos - they will play when their face comes to front
       videos.forEach(v => {
+        v.element.pause();
         v.element.currentTime = 0;
-        v.element.play().catch(() => {});
+        v.element.muted = true;
       });
       
       startAnimation();
+      
+      // Start with the first front-facing video
+      setTimeout(() => {
+        const currentFront = getFrontFaceFromRotation(0, 0);
+        updateAudioForFace(currentFront);
+      }, 100);
     }
     
     function tryStartAnimation() {
@@ -498,7 +546,7 @@ const CubeWebView = ({
         }
         
         if (face.videoUrl) {
-          html += '<video muted loop playsinline preload="auto" style="opacity:0"></video>';
+          html += '<video muted playsinline preload="auto" style="opacity:0"></video>';
         }
         
         html += '<div class="player-badge">' + (face.playerName || 'סרטון') + '</div>';
@@ -552,6 +600,7 @@ const CubeWebView = ({
           
           video.addEventListener('ended', () => {
             postMessage('videoEnd', { faceId });
+            onVideoEnded(faceId);
           });
           
           video.src = face.videoUrl;
