@@ -113,47 +113,71 @@ const CubeWebView = ({
     .top    { transform: rotateX(90deg) translateZ(${CUBE_SIZE/2}px); }
     .bottom { transform: rotateX(-90deg) translateZ(${CUBE_SIZE/2}px); }
     @keyframes float {
-      0%, 100% { 
+      0% { 
         transform: translate3d(0, 0, 0);
       }
+      10% { 
+        transform: translate3d(15px, -20px, 40px);
+      }
       25% { 
-        transform: translate3d(8px, -12px, 15px);
+        transform: translate3d(-10px, -35px, 25px);
       }
-      50% { 
-        transform: translate3d(-5px, -8px, -10px);
+      40% { 
+        transform: translate3d(20px, -15px, -30px);
       }
-      75% { 
-        transform: translate3d(-10px, -15px, 8px);
+      55% { 
+        transform: translate3d(-25px, -30px, 50px);
+      }
+      70% { 
+        transform: translate3d(10px, -10px, -20px);
+      }
+      85% { 
+        transform: translate3d(-15px, -25px, 35px);
+      }
+      100% { 
+        transform: translate3d(0, 0, 0);
       }
     }
     @keyframes spin {
       0% { 
-        transform: rotateX(-15deg) rotateY(0deg) rotateZ(0deg);
+        transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+      }
+      12.5% { 
+        transform: rotateX(25deg) rotateY(45deg) rotateZ(8deg);
       }
       25% { 
-        transform: rotateX(-8deg) rotateY(90deg) rotateZ(3deg);
+        transform: rotateX(45deg) rotateY(90deg) rotateZ(-5deg);
+      }
+      37.5% { 
+        transform: rotateX(20deg) rotateY(135deg) rotateZ(12deg);
       }
       50% { 
-        transform: rotateX(-20deg) rotateY(180deg) rotateZ(-2deg);
+        transform: rotateX(-30deg) rotateY(180deg) rotateZ(-8deg);
+      }
+      62.5% { 
+        transform: rotateX(-15deg) rotateY(225deg) rotateZ(10deg);
       }
       75% { 
-        transform: rotateX(-5deg) rotateY(270deg) rotateZ(4deg);
+        transform: rotateX(35deg) rotateY(270deg) rotateZ(-6deg);
+      }
+      87.5% { 
+        transform: rotateX(10deg) rotateY(315deg) rotateZ(5deg);
       }
       100% { 
-        transform: rotateX(-15deg) rotateY(360deg) rotateZ(0deg);
+        transform: rotateX(0deg) rotateY(360deg) rotateZ(0deg);
       }
     }
     .float-wrapper {
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
-      animation: float 8s infinite ease-in-out;
+      animation: float 10s infinite ease-in-out;
     }
     .spin-wrapper {
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
-      animation: spin 12s infinite linear;
+      animation: spin 16s infinite ease-in-out;
     }
   </style>
 </head>
