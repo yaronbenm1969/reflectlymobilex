@@ -109,28 +109,55 @@ const CubeWebView = ({
     .left   { transform: rotateY(-90deg) translateZ(${CUBE_SIZE/2}px); }
     .top    { transform: rotateX(90deg) translateZ(${CUBE_SIZE/2}px); }
     .bottom { transform: rotateX(-90deg) translateZ(${CUBE_SIZE/2}px); }
-    @keyframes floatAndSpin {
-      0% { 
-        transform: rotateX(-15deg) rotateY(0deg) translateY(0px);
+    @keyframes float {
+      0%, 100% { 
+        transform: translate3d(0, 0, 0);
       }
       25% { 
-        transform: rotateX(-10deg) rotateY(90deg) translateY(-10px);
+        transform: translate3d(8px, -12px, 15px);
       }
       50% { 
-        transform: rotateX(-20deg) rotateY(180deg) translateY(0px);
+        transform: translate3d(-5px, -8px, -10px);
       }
       75% { 
-        transform: rotateX(-10deg) rotateY(270deg) translateY(-10px);
+        transform: translate3d(-10px, -15px, 8px);
+      }
+    }
+    @keyframes spin {
+      0% { 
+        transform: rotateX(-15deg) rotateY(0deg) rotateZ(0deg);
+      }
+      25% { 
+        transform: rotateX(-8deg) rotateY(90deg) rotateZ(3deg);
+      }
+      50% { 
+        transform: rotateX(-20deg) rotateY(180deg) rotateZ(-2deg);
+      }
+      75% { 
+        transform: rotateX(-5deg) rotateY(270deg) rotateZ(4deg);
       }
       100% { 
-        transform: rotateX(-15deg) rotateY(360deg) translateY(0px);
+        transform: rotateX(-15deg) rotateY(360deg) rotateZ(0deg);
       }
+    }
+    .float-wrapper {
+      width: 100%;
+      height: 100%;
+      animation: float 8s infinite ease-in-out;
+    }
+    .spin-wrapper {
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      animation: spin 12s infinite linear;
     }
   </style>
 </head>
 <body>
   <div class="scene">
-    <div class="cube" id="cube">
+    <div class="float-wrapper">
+      <div class="spin-wrapper" id="spin-wrapper">
+        <div class="cube" id="cube">
       <div class="cube-face front" id="face-0"></div>
       <div class="cube-face back" id="face-1"></div>
       <div class="cube-face right" id="face-2"></div>
