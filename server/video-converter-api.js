@@ -6,8 +6,11 @@ const path = require('path');
 const fs = require('fs');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getStorage } = require('firebase-admin/storage');
+const { conversionQueue } = require('./conversion-queue');
 
 const app = express();
+
+const MAX_CONCURRENT_CONVERSIONS = parseInt(process.env.MAX_CONCURRENT_CONVERSIONS) || 3;
 const PORT = 3001;
 
 app.use(cors({
@@ -20,7 +23,7 @@ app.use(express.json());
 const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/converted'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -192,10 +195,17 @@ async function uploadToFirebase(filePath, storagePath) {
 }
 
 app.get('/health', (req, res) => {
+  const queueStatus = conversionQueue.getQueueStatus();
   res.json({ 
     status: 'ok', 
     firebase: bucket ? 'connected' : 'not configured',
-    ffmpeg: 'available'
+    ffmpeg: 'available',
+    queue: {
+      activeJobs: queueStatus.activeJobs,
+      queuedJobs: queueStatus.queueLength,
+      maxConcurrent: queueStatus.maxConcurrent,
+      stats: queueStatus.stats
+    }
   });
 });
 
@@ -748,8 +758,19 @@ app.get('/api/render-status/:jobId', (req, res) => {
   res.json(job);
 });
 
+app.get('/api/queue/status', (req, res) => {
+  const status = conversionQueue.getQueueStatus();
+  res.json(status);
+});
+
+app.get('/api/queue/job/:jobId', (req, res) => {
+  const { jobId } = req.params;
+  const status = conversionQueue.getJobStatus(jobId);
+  res.json(status);
+});
+
 app.post('/api/convert-url', async (req, res) => {
-  const { url } = req.body;
+  const { url, async: asyncMode } = req.body;
   
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
@@ -757,18 +778,20 @@ app.post('/api/convert-url', async (req, res) => {
   
   console.log('🔄 Converting URL:', url);
   
-  try {
+  const conversionProcessor = async (data, updateProgress) => {
     const https = require('https');
     const http = require('http');
-    const protocol = url.startsWith('https') ? https : http;
+    const protocol = data.url.startsWith('https') ? https : http;
     
     const timestamp = Date.now();
     const inputPath = path.join(tempDir, `input_${timestamp}.webm`);
     const outputPath = path.join(convertedDir, `output_${timestamp}.mp4`);
     
+    updateProgress(10);
+    
     await new Promise((resolve, reject) => {
       const file = fs.createWriteStream(inputPath);
-      protocol.get(url, (response) => {
+      protocol.get(data.url, (response) => {
         response.pipe(file);
         file.on('finish', () => {
           file.close();
@@ -781,22 +804,44 @@ app.post('/api/convert-url', async (req, res) => {
     });
     
     console.log('📥 Downloaded to:', inputPath);
+    updateProgress(30);
     
     await convertVideo(inputPath, outputPath);
+    updateProgress(70);
     
     fs.unlinkSync(inputPath);
     
+    let convertedUrl;
     if (bucket) {
       const storagePath = `converted/${timestamp}.mp4`;
-      const convertedUrl = await uploadToFirebase(outputPath, storagePath);
+      convertedUrl = await uploadToFirebase(outputPath, storagePath);
       fs.unlinkSync(outputPath);
       console.log('✅ Converted and uploaded:', convertedUrl);
-      return res.json({ success: true, convertedUrl });
     } else {
-      const localUrl = `http://localhost:${PORT}/converted/${timestamp}.mp4`;
-      console.log('✅ Converted locally:', localUrl);
-      return res.json({ success: true, convertedUrl: localUrl });
+      convertedUrl = `http://localhost:${PORT}/converted/${timestamp}.mp4`;
+      console.log('✅ Converted locally:', convertedUrl);
     }
+    
+    updateProgress(100);
+    return { convertedUrl };
+  };
+  
+  try {
+    const { jobId, promise } = await conversionQueue.addJob('convert-url', { url }, conversionProcessor);
+    
+    if (asyncMode) {
+      return res.json({ 
+        success: true, 
+        jobId, 
+        status: 'queued',
+        message: 'Job added to queue. Poll /api/queue/job/:jobId for status.',
+        queuePosition: conversionQueue.getJobStatus(jobId).position || 0
+      });
+    }
+    
+    const result = await promise;
+    return res.json({ success: true, ...result });
+    
   } catch (error) {
     console.error('❌ Conversion error:', error);
     return res.status(500).json({ error: error.message, originalUrl: url });
