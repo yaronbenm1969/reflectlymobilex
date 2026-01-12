@@ -162,7 +162,7 @@ const CubeWebView = ({
         }
         
         if (face.videoUrl) {
-          html += '<video src="' + face.videoUrl + '" muted loop playsinline preload="auto" autoplay style="' + (face.thumbnailUrl ? 'opacity:0' : '') + '"></video>';
+          html += '<video src="' + face.videoUrl + '" loop playsinline preload="auto" autoplay style="' + (face.thumbnailUrl ? 'opacity:0' : '') + '"></video>';
         }
         
         html += '<div class="player-badge">' + (face.playerName || 'סרטון') + '</div>';
