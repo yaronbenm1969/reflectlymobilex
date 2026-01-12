@@ -227,23 +227,32 @@ const CubeWebView = ({
       if (matrix === 'none') return 0;
       
       const values = matrix.match(/matrix3d\\((.+)\\)/);
-      if (!values) {
-        const values2d = matrix.match(/matrix\\((.+)\\)/);
-        if (values2d) return 0;
-        return 0;
-      }
+      if (!values) return 0;
       
       const m = values[1].split(',').map(parseFloat);
-      const rotY = Math.atan2(m[8], m[10]) * (180 / Math.PI);
-      const normalizedY = ((rotY % 360) + 360) % 360;
       
-      let frontFace = 0;
-      if (normalizedY >= 315 || normalizedY < 45) frontFace = 0;
-      else if (normalizedY >= 45 && normalizedY < 135) frontFace = 3;
-      else if (normalizedY >= 135 && normalizedY < 225) frontFace = 1;
-      else if (normalizedY >= 225 && normalizedY < 315) frontFace = 2;
+      const faceNormals = [
+        [0, 0, 1],
+        [0, 0, -1],
+        [1, 0, 0],
+        [-1, 0, 0],
+        [0, 1, 0],
+        [0, -1, 0]
+      ];
       
-      return frontFace;
+      let bestFace = 0;
+      let maxZ = -Infinity;
+      
+      for (let i = 0; i < 4; i++) {
+        const [nx, ny, nz] = faceNormals[i];
+        const tz = nx * m[2] + ny * m[6] + nz * m[10];
+        if (tz > maxZ) {
+          maxZ = tz;
+          bestFace = i;
+        }
+      }
+      
+      return bestFace;
     }
     
     function updateAudioForFrontFace() {
@@ -284,15 +293,17 @@ const CubeWebView = ({
     };
     
     window.pauseCube = function() {
-      document.getElementById('cube').style.animationPlayState = 'paused';
+      document.getElementById('spin-wrapper').style.animationPlayState = 'paused';
+      document.querySelector('.float-wrapper').style.animationPlayState = 'paused';
     };
     
     window.resumeCube = function() {
-      document.getElementById('cube').style.animationPlayState = 'running';
+      document.getElementById('spin-wrapper').style.animationPlayState = 'running';
+      document.querySelector('.float-wrapper').style.animationPlayState = 'running';
     };
     
     window.setRotationSpeed = function(ms) {
-      document.getElementById('cube').style.animationDuration = ms + 'ms';
+      document.getElementById('spin-wrapper').style.animationDuration = ms + 'ms';
     };
     
     init();
