@@ -128,9 +128,12 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
 
       let videoUrl = reflection.videoUrl;
       
-      if (needsConversion(videoUrl)) {
+      if (reflection.convertedUrl && reflection.conversionStatus === 'ready') {
+        console.log(`✅ Using pre-converted URL for video ${i + 1}/${total}`);
+        videoUrl = reflection.convertedUrl;
+      } else if (needsConversion(videoUrl)) {
         try {
-          console.log(`🔄 Pre-converting video ${i + 1}/${total}`);
+          console.log(`🔄 Converting video ${i + 1}/${total} on-demand`);
           videoUrl = await convertVideoUrl(videoUrl);
           console.log(`✅ Converted video ${i + 1}/${total}`);
         } catch (error) {

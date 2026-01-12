@@ -190,6 +190,13 @@ const CubeWebView = ({
       const el = document.getElementById('face-' + faceId);
       if (!el) return;
       
+      const existingVideo = el.querySelector('video');
+      if (existingVideo) {
+        existingVideo.pause();
+        existingVideo.src = '';
+        existingVideo.load();
+      }
+      
       if (face.thumbnailUrl || face.videoUrl) {
         let html = '';
         
@@ -198,26 +205,56 @@ const CubeWebView = ({
         }
         
         if (face.videoUrl) {
-          html += '<video src="' + face.videoUrl + '" muted loop playsinline preload="auto" autoplay style="' + (face.thumbnailUrl ? 'opacity:0' : '') + '"></video>';
+          html += '<video muted loop playsinline preload="auto" style="opacity:0"></video>';
         }
         
         html += '<div class="player-badge">' + (face.playerName || 'סרטון') + '</div>';
         el.innerHTML = html;
         
         const video = el.querySelector('video');
-        if (video) {
+        if (video && face.videoUrl) {
           videos.push({ element: video, faceId });
+          
+          let retryCount = 0;
+          const maxRetries = 3;
+          
+          function tryPlay() {
+            video.play().then(() => {
+              video.style.opacity = '1';
+            }).catch((e) => {
+              if (retryCount < maxRetries) {
+                retryCount++;
+                setTimeout(tryPlay, 500);
+              }
+            });
+          }
+          
           video.addEventListener('loadeddata', () => {
+            video.style.opacity = '1';
             postMessage('videoLoaded', { faceId });
+            tryPlay();
           });
+          
+          video.addEventListener('canplay', () => {
+            tryPlay();
+          });
+          
+          video.addEventListener('error', (e) => {
+            console.error('Video error on face ' + faceId + ':', e);
+            postMessage('videoError', { faceId, error: e.message });
+          });
+          
           video.addEventListener('play', () => {
             video.style.opacity = '1';
             postMessage('videoStart', { faceId });
           });
+          
           video.addEventListener('ended', () => {
             postMessage('videoEnd', { faceId });
           });
-          video.play().catch(() => {});
+          
+          video.src = face.videoUrl;
+          video.load();
         }
       } else {
         el.innerHTML = '<div class="placeholder"><span class="icon">🎬</span><span class="label">סרטון ' + (faceId + 1) + '</span></div>';
@@ -301,11 +338,13 @@ const CubeWebView = ({
     
     window.pauseCube = function() {
       document.getElementById('spin-wrapper').style.animationPlayState = 'paused';
+      document.getElementById('tilt-wrapper').style.animationPlayState = 'paused';
       document.querySelector('.float-wrapper').style.animationPlayState = 'paused';
     };
     
     window.resumeCube = function() {
       document.getElementById('spin-wrapper').style.animationPlayState = 'running';
+      document.getElementById('tilt-wrapper').style.animationPlayState = 'running';
       document.querySelector('.float-wrapper').style.animationPlayState = 'running';
     };
     

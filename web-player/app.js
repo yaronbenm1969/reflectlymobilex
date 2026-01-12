@@ -569,31 +569,85 @@ function updateClipsProgress() {
     }
 }
 
+async function convertVideoToMp4(webmUrl) {
+    try {
+        console.log('🔄 Starting video conversion for:', webmUrl.substring(0, 80));
+        const response = await fetch('/api/convert-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: webmUrl })
+        });
+        
+        if (!response.ok) {
+            console.warn('⚠️ Conversion failed, will use original');
+            return null;
+        }
+        
+        const data = await response.json();
+        const convertedUrl = data.convertedUrl || data.url || null;
+        console.log('✅ Video converted:', convertedUrl?.substring(0, 80));
+        return convertedUrl;
+    } catch (error) {
+        console.warn('⚠️ Conversion error:', error.message);
+        return null;
+    }
+}
+
 async function submitAllClips() {
     const submitBtn = document.getElementById('submit-all-btn');
     submitBtn.disabled = true;
     submitBtn.textContent = 'שולח...';
     
     try {
+        const uploadedClips = [];
+        
         for (let i = 1; i <= 3; i++) {
             if (clipRecordings[i]) {
+                submitBtn.textContent = `מעלה קליפ ${i}...`;
+                
                 const fileName = `reflections/${currentStory.id}/${Date.now()}_clip${i}.webm`;
                 const storageRef = ref(storage, fileName);
                 
                 await uploadBytes(storageRef, clipRecordings[i]);
                 const downloadUrl = await getDownloadURL(storageRef);
                 
-                await addDoc(collection(db, 'reflections'), {
+                const docRef = await addDoc(collection(db, 'reflections'), {
                     storyId: currentStory.id,
                     clipNumber: i,
                     videoUrl: downloadUrl,
+                    convertedUrl: null,
+                    conversionStatus: 'pending',
                     participantId: participantId,
                     participantName: participantName || `משתתף ${participantId.slice(-4)}`,
                     createdAt: serverTimestamp(),
                     status: 'pending'
                 });
                 
+                uploadedClips.push({ docId: docRef.id, webmUrl: downloadUrl, clipNumber: i });
                 console.log(`✅ Clip ${i} uploaded`);
+            }
+        }
+        
+        submitBtn.textContent = 'ממיר סרטונים...';
+        
+        const { updateDoc } = await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js');
+        
+        for (const clip of uploadedClips) {
+            submitBtn.textContent = `ממיר קליפ ${clip.clipNumber}...`;
+            const convertedUrl = await convertVideoToMp4(clip.webmUrl);
+            
+            const reflectionRef = doc(db, 'reflections', clip.docId);
+            if (convertedUrl) {
+                await updateDoc(reflectionRef, {
+                    convertedUrl: convertedUrl,
+                    conversionStatus: 'ready'
+                });
+                console.log(`✅ Clip ${clip.clipNumber} converted and updated`);
+            } else {
+                await updateDoc(reflectionRef, {
+                    conversionStatus: 'failed'
+                });
+                console.warn(`⚠️ Clip ${clip.clipNumber} conversion failed`);
             }
         }
         
