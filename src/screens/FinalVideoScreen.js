@@ -18,8 +18,7 @@ import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
 import { Video3DPlayer } from '../components/Video3DPlayer';
-import CubeProjectorView from '../components/cube3d/CubeProjectorView';
-import ProjectedVideoOverlay from '../components/cube3d/ProjectedVideoOverlay';
+import CubeWebView from '../components/cube3d/CubeWebView';
 import { useReflectionAssets } from '../hooks/useReflectionAssets';
 import theme from '../theme/theme';
 
@@ -382,14 +381,17 @@ export const FinalVideoScreen = () => {
         <View style={styles.videoContainer}>
           {isCube3D && (assetStatus !== 'idle' || cubeFaces.some(f => f !== null)) ? (
             <View style={styles.cubeContainer}>
-              <CubeProjectorView
-                ref={cubeRef}
+              <CubeWebView
                 faces={cubeFaces}
-                onFaceEnterFront={handleFaceEnterFront}
-                onFaceExitFront={handleFaceExitFront}
-                onFaceTransformUpdate={handleFaceTransformUpdate}
-                currentVideoDuration={currentVideoDuration}
-                isPlaying={isPlaying}
+                autoRotate={cubeStarted && assetsReady}
+                rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
+                onFaceChange={(faceIndex) => {
+                  if (cubeStarted && cubeFaces[faceIndex]?.videoUrl) {
+                    handleFaceEnterFront(faceIndex);
+                  }
+                }}
+                onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
+                onVideoEnd={handleVideoFinished}
                 currentPlayingFaceIndex={currentPlayingFaceIndex}
               />
               {!cubeStarted && !assetsReady && assetStatus === 'converting' && (
@@ -420,34 +422,11 @@ export const FinalVideoScreen = () => {
                   <Text style={styles.cubePlayText}>{conversionProgress}</Text>
                 </View>
               )}
-              {showVideoPlayer && activeVideoUrl && (
-                <>
-                  <ProjectedVideoOverlay
-                    key={`projected-${currentPlayingFaceIndex}-${activeVideoUrl}`}
-                    videoUri={activeVideoUrl}
-                    isActive={true}
-                    corners={faceTransform.corners}
-                    visibility={faceTransform.visibility}
-                    playerName={cubeFaces[currentPlayingFaceIndex]?.playerName || `סרטון ${currentPlayingFaceIndex + 1}`}
-                    onDurationKnown={(duration) => setCurrentVideoDuration(duration)}
-                    onVideoEnd={handleVideoFinished}
-                    onPlaybackStatusUpdate={(status) => {
-                      if (status.isPlaying && status.positionMillis > 100 && !videoHasPlayed) {
-                        setVideoHasPlayed(true);
-                      }
-                    }}
-                  />
-                  <View style={styles.videoProgressBadge}>
-                    <Text style={styles.videoProgressText}>
-                      {playedFaces.size}/{cubeFaces.filter(f => f?.videoUrl).length}
-                    </Text>
-                  </View>
-                </>
-              )}
-              {cubeStarted && !showVideoPlayer && !isConverting && (
+              {cubeStarted && (
                 <View style={styles.cubeStatusBadge}>
-                  <Ionicons name="sync" size={16} color="white" />
-                  <Text style={styles.cubeStatusText}>מסתובב...</Text>
+                  <Text style={styles.cubeStatusText}>
+                    {playedFaces.size}/{cubeFaces.filter(f => f?.videoUrl).length} סרטונים
+                  </Text>
                 </View>
               )}
             </View>
