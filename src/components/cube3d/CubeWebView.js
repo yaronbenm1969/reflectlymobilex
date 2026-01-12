@@ -1,9 +1,12 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
-import { View, StyleSheet, Dimensions, ActivityIndicator, Text } from 'react-native';
+import { View, StyleSheet, Dimensions, ActivityIndicator, Text, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
+import * as FileSystem from 'expo-file-system';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CUBE_SIZE = Math.min(SCREEN_WIDTH * 0.85, 340);
+
+const CUBE_HTML_DIR = FileSystem.cacheDirectory + 'cube/';
 
 const CubeWebView = ({
   faces = [],
@@ -17,6 +20,7 @@ const CubeWebView = ({
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [htmlFilePath, setHtmlFilePath] = useState(null);
 
   const cubeHTML = useMemo(() => {
     const facesJSON = JSON.stringify(faces.map((face, index) => ({
@@ -394,11 +398,49 @@ const CubeWebView = ({
     }
   }, [rotationSpeed]);
 
+  useEffect(() => {
+    const saveHtmlToFile = async () => {
+      if (Platform.OS === 'web') {
+        return;
+      }
+      
+      try {
+        const dirInfo = await FileSystem.getInfoAsync(CUBE_HTML_DIR);
+        if (!dirInfo.exists) {
+          await FileSystem.makeDirectoryAsync(CUBE_HTML_DIR, { intermediates: true });
+        }
+        
+        const htmlPath = CUBE_HTML_DIR + 'index.html';
+        await FileSystem.writeAsStringAsync(htmlPath, cubeHTML, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        
+        setHtmlFilePath(htmlPath);
+        console.log('📄 Cube HTML saved to:', htmlPath);
+      } catch (err) {
+        console.warn('Failed to save HTML to file:', err);
+      }
+    };
+    
+    if (cubeHTML && faces.some(f => f?.videoUrl)) {
+      saveHtmlToFile();
+    }
+  }, [cubeHTML, faces]);
+
+  const webViewSource = useMemo(() => {
+    if (Platform.OS === 'web' || !htmlFilePath) {
+      return { html: cubeHTML };
+    }
+    return { uri: htmlFilePath };
+  }, [cubeHTML, htmlFilePath]);
+
+  const baseUrl = Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined;
+
   return (
     <View style={styles.container}>
       <WebView
         ref={webViewRef}
-        source={{ html: cubeHTML }}
+        source={webViewSource}
         style={styles.webView}
         onMessage={onMessage}
         onError={(e) => setError(e.nativeEvent.description)}
@@ -407,7 +449,7 @@ const CubeWebView = ({
         domStorageEnabled={true}
         allowsInlineMediaPlayback={true}
         mediaPlaybackRequiresUserAction={false}
-        originWhitelist={['*']}
+        originWhitelist={['*', 'file://*']}
         scrollEnabled={false}
         bounces={false}
         showsHorizontalScrollIndicator={false}
@@ -418,6 +460,10 @@ const CubeWebView = ({
         allowsFullscreenVideo={false}
         mixedContentMode="always"
         cacheEnabled={false}
+        allowFileAccess={true}
+        allowFileAccessFromFileURLs={true}
+        allowUniversalAccessFromFileURLs={true}
+        allowingReadAccessToURL={baseUrl}
       />
       {isLoading && (
         <View style={styles.loadingOverlay}>

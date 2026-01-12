@@ -1,9 +1,60 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Image } from 'react-native';
+import { Image, Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system';
 
 const VIDEO_CONVERTER_URL = process.env.EXPO_PUBLIC_VIDEO_CONVERTER_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
 
 const convertedUrlCache = new Map();
+const localCacheDir = FileSystem.cacheDirectory + 'videos/';
+
+const ensureCacheDir = async () => {
+  const dirInfo = await FileSystem.getInfoAsync(localCacheDir);
+  if (!dirInfo.exists) {
+    await FileSystem.makeDirectoryAsync(localCacheDir, { intermediates: true });
+  }
+};
+
+const getLocalFileName = (url) => {
+  let filename = url.split('/').pop()?.split('?')[0] || `video_${Date.now()}`;
+  filename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  if (!filename.endsWith('.mp4') && !filename.endsWith('.webm')) {
+    filename += '.mp4';
+  }
+  return filename;
+};
+
+const downloadToCache = async (remoteUrl, onProgress) => {
+  if (Platform.OS === 'web') {
+    return remoteUrl;
+  }
+  
+  try {
+    await ensureCacheDir();
+    const localUri = localCacheDir + getLocalFileName(remoteUrl);
+    
+    const fileInfo = await FileSystem.getInfoAsync(localUri);
+    if (fileInfo.exists && fileInfo.size > 0) {
+      console.log('📁 Using cached video:', localUri);
+      return localUri;
+    }
+    
+    console.log('⬇️ Downloading video to cache...');
+    const downloadResult = await FileSystem.downloadAsync(remoteUrl, localUri, {
+      md5: false,
+    });
+    
+    if (downloadResult.status === 200) {
+      console.log('✅ Downloaded to cache:', localUri);
+      return localUri;
+    } else {
+      console.warn('⚠️ Download failed, using remote URL');
+      return remoteUrl;
+    }
+  } catch (error) {
+    console.warn('⚠️ Cache download error:', error.message);
+    return remoteUrl;
+  }
+};
 
 const needsConversion = (url) => {
   if (!url) return false;
@@ -140,6 +191,17 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
           console.log(`❌ Conversion failed for video ${i + 1}, using original`);
         }
       }
+
+      if (isMountedRef.current) {
+        setProgress({ 
+          converted: i, 
+          total, 
+          message: `מוריד סרטון ${i + 1} מתוך ${total}...` 
+        });
+      }
+      
+      const localVideoUrl = await downloadToCache(videoUrl);
+      videoUrl = localVideoUrl;
 
       if (reflection.thumbnailUrl) {
         try {
