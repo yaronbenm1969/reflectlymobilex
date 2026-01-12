@@ -196,27 +196,15 @@ const CubeWebView = ({
   </div>
   <script>
     const faces = ${facesJSON};
-    let currentFace = 0;
     let videos = [];
     let videoDurations = [];
     let animationStarted = false;
     let animationId = null;
-    
-    const faceRotations = [
-      { x: 0, y: 0, z: 0 },
-      { x: 0, y: 180, z: 0 },
-      { x: 0, y: -90, z: 0 },
-      { x: 0, y: 90, z: 0 },
-      { x: -90, y: 0, z: 0 },
-      { x: 90, y: 0, z: 0 }
-    ];
-    
-    const TRANSITION_DURATION = 1.2;
-    const DEFAULT_HOLD_DURATION = 5;
-    
-    let rotationSchedule = [];
-    let totalCycleDuration = 0;
+    let totalDuration = 0;
     let cycleStartTime = 0;
+    let lastFrontFace = -1;
+    
+    const DEFAULT_VIDEO_DURATION = 5;
     
     function postMessage(type, data) {
       if (window.ReactNativeWebView) {
@@ -224,157 +212,72 @@ const CubeWebView = ({
       }
     }
     
-    function buildRotationSchedule() {
-      rotationSchedule = [];
-      let time = 0;
+    function getFrontFaceFromRotation(rotX, rotY) {
+      const normY = ((rotY % 360) + 360) % 360;
+      const normX = ((rotX % 360) + 360) % 360;
       
-      const faceOrder = [0, 2, 1, 3, 4, 5];
+      if (normX > 45 && normX < 135) return 5;
+      if (normX > 225 && normX < 315) return 4;
       
-      for (let i = 0; i < faceOrder.length; i++) {
-        const faceIdx = faceOrder[i];
-        const holdDuration = videoDurations[faceIdx] || DEFAULT_HOLD_DURATION;
-        const nextFaceIdx = faceOrder[(i + 1) % faceOrder.length];
-        
-        rotationSchedule.push({
-          type: 'hold',
-          faceIndex: faceIdx,
-          startTime: time,
-          duration: holdDuration,
-          rotation: faceRotations[faceIdx]
-        });
-        time += holdDuration;
-        
-        rotationSchedule.push({
-          type: 'transition',
-          fromFace: faceIdx,
-          toFace: nextFaceIdx,
-          startTime: time,
-          duration: TRANSITION_DURATION,
-          fromRotation: faceRotations[faceIdx],
-          toRotation: faceRotations[nextFaceIdx]
-        });
-        time += TRANSITION_DURATION;
-      }
+      if (normY >= 315 || normY < 45) return 0;
+      if (normY >= 45 && normY < 135) return 3;
+      if (normY >= 135 && normY < 225) return 1;
+      if (normY >= 225 && normY < 315) return 2;
       
-      totalCycleDuration = time;
-      console.log('Rotation schedule built: ' + totalCycleDuration + 's cycle with ' + faceOrder.length + ' faces');
-      postMessage('scheduleBuilt', { cycleDuration: totalCycleDuration, faceCount: faceOrder.length });
+      return 0;
     }
-    
-    function easeInOutCubic(t) {
-      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-    }
-    
-    function lerp(a, b, t) {
-      return a + (b - a) * t;
-    }
-    
-    function shortestAngleDiff(from, to) {
-      let diff = ((to - from + 180) % 360) - 180;
-      return diff < -180 ? diff + 360 : diff;
-    }
-    
-    function lerpAngle(from, to, t) {
-      return from + shortestAngleDiff(from, to) * t;
-    }
-    
-    function getFloatOffset(time) {
-      const floatSpeed = 0.15;
-      const floatAmplitude = { x: 20, y: 25, z: 40 };
-      
-      return {
-        x: Math.sin(time * floatSpeed * 1.3) * floatAmplitude.x + 
-           Math.sin(time * floatSpeed * 0.7) * floatAmplitude.x * 0.5,
-        y: Math.sin(time * floatSpeed * 1.1 + 1) * floatAmplitude.y + 
-           Math.cos(time * floatSpeed * 0.5) * floatAmplitude.y * 0.3,
-        z: Math.sin(time * floatSpeed * 0.9 + 2) * floatAmplitude.z +
-           Math.cos(time * floatSpeed * 0.4) * floatAmplitude.z * 0.4
-      };
-    }
-    
-    function getWobble(time) {
-      const wobbleSpeed = 0.8;
-      const wobbleAmplitude = { x: 8, y: 5, z: 6 };
-      
-      return {
-        x: Math.sin(time * wobbleSpeed * 2.1) * wobbleAmplitude.x,
-        y: Math.sin(time * wobbleSpeed * 1.7 + 0.5) * wobbleAmplitude.y,
-        z: Math.sin(time * wobbleSpeed * 1.3 + 1) * wobbleAmplitude.z
-      };
-    }
-    
-    let lastFrontFace = -1;
     
     function animate(timestamp) {
       if (!cycleStartTime) cycleStartTime = timestamp;
       
       const elapsed = (timestamp - cycleStartTime) / 1000;
+      const progress = Math.min(elapsed / totalDuration, 1);
       
-      if (elapsed >= totalCycleDuration) {
+      if (progress >= 1) {
         console.log('All videos completed! Animation finished.');
         postMessage('allVideosComplete', {});
-        videos.forEach(v => {
-          v.element.pause();
-        });
+        videos.forEach(v => v.element.pause());
         return;
       }
       
-      const cycleTime = elapsed;
-      const globalTime = elapsed;
+      const baseSpeed = 2 * Math.PI / totalDuration;
       
-      let currentRotation = { x: 0, y: 0, z: 0 };
-      let activeFace = 0;
+      const rotY = elapsed * baseSpeed * 57.3 * 1.5 + 
+                   Math.sin(elapsed * 0.3) * 25 + 
+                   Math.sin(elapsed * 0.7) * 15;
       
-      for (const segment of rotationSchedule) {
-        const segmentEnd = segment.startTime + segment.duration;
-        
-        if (cycleTime >= segment.startTime && cycleTime < segmentEnd) {
-          const segmentProgress = (cycleTime - segment.startTime) / segment.duration;
-          
-          if (segment.type === 'hold') {
-            activeFace = segment.faceIndex;
-            currentRotation = { ...segment.rotation };
-          } else {
-            const easedProgress = easeInOutCubic(segmentProgress);
-            currentRotation = {
-              x: lerpAngle(segment.fromRotation.x, segment.toRotation.x, easedProgress),
-              y: lerpAngle(segment.fromRotation.y, segment.toRotation.y, easedProgress),
-              z: lerpAngle(segment.fromRotation.z, segment.toRotation.z, easedProgress)
-            };
-            activeFace = segmentProgress < 0.5 ? segment.fromFace : segment.toFace;
-          }
-          break;
-        }
-      }
+      const rotX = Math.sin(elapsed * 0.4) * 35 + 
+                   Math.sin(elapsed * 0.15) * 20 +
+                   Math.cos(elapsed * 0.25) * 10;
       
-      const wobble = getWobble(globalTime);
-      const floatOffset = getFloatOffset(globalTime);
+      const rotZ = Math.sin(elapsed * 0.2) * 12 + 
+                   Math.cos(elapsed * 0.35) * 8;
       
-      const finalRotation = {
-        x: currentRotation.x + wobble.x,
-        y: currentRotation.y + wobble.y,
-        z: currentRotation.z + wobble.z
-      };
+      const floatX = Math.sin(elapsed * 0.5) * 25 + 
+                     Math.sin(elapsed * 0.3) * 15;
+      const floatY = Math.sin(elapsed * 0.4 + 1) * 30 + 
+                     Math.cos(elapsed * 0.25) * 20;
+      const floatZ = Math.sin(elapsed * 0.35 + 2) * 45 + 
+                     Math.cos(elapsed * 0.2) * 25;
       
       const spinWrapper = document.getElementById('spin-wrapper');
       const floatWrapper = document.querySelector('.float-wrapper');
       
       if (spinWrapper) {
         spinWrapper.style.transform = 
-          'rotateX(' + finalRotation.x + 'deg) ' +
-          'rotateY(' + finalRotation.y + 'deg) ' +
-          'rotateZ(' + finalRotation.z + 'deg)';
+          'rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg) rotateZ(' + rotZ + 'deg)';
       }
       
       if (floatWrapper) {
         floatWrapper.style.transform = 
-          'translate3d(' + floatOffset.x + 'px, ' + floatOffset.y + 'px, ' + floatOffset.z + 'px)';
+          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + floatZ + 'px)';
       }
       
-      if (activeFace !== lastFrontFace) {
-        lastFrontFace = activeFace;
-        updateAudioForFace(activeFace);
-        postMessage('faceChanged', { faceIndex: activeFace });
+      const currentFrontFace = getFrontFaceFromRotation(rotX, rotY);
+      if (currentFrontFace !== lastFrontFace) {
+        lastFrontFace = currentFrontFace;
+        updateAudioForFace(currentFrontFace);
+        postMessage('faceChanged', { faceIndex: currentFrontFace });
       }
       
       animationId = requestAnimationFrame(animate);
@@ -394,11 +297,15 @@ const CubeWebView = ({
     function startAnimation() {
       if (animationStarted) return;
       
-      buildRotationSchedule();
+      totalDuration = videoDurations.reduce((sum, d) => sum + (d || DEFAULT_VIDEO_DURATION), 0);
+      if (totalDuration < 10) totalDuration = 30;
+      
+      console.log('Starting continuous animation. Total duration: ' + totalDuration + 's');
+      postMessage('animationStarted', { totalDuration });
+      
       animationStarted = true;
       cycleStartTime = 0;
       animationId = requestAnimationFrame(animate);
-      console.log('Animation started with video-synced rotation');
     }
     
     function tryStartAnimation() {
