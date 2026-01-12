@@ -21,8 +21,8 @@ Reflectly is a mobile journaling app built with React Native/Expo that enables u
     - AI-generated video titles.
     - ElevenLabs for AI-generated custom music options.
 - **Deep Linking & Social Sharing**: Supports deep links (`reflectly://`), universal links, and smart app banners for seamless app opening from WhatsApp. Open Graph tags ensure rich WhatsApp link previews.
-- **Video Conversion Service**: Server-side FFmpeg conversion handles HEVC to H.264 transcoding for iPhone compatibility.
-- **Local Video Caching**: Videos are downloaded to device cache (`expo-file-system`) before playback for instant, smooth cube performance. WebView HTML is also saved to file with file:// access enabled.
+- **Video Conversion Service**: Server-side FFmpeg conversion handles HEVC to H.264 transcoding for iPhone compatibility. Web-player calls converter API immediately after recording and stores `convertedUrl` in Firestore.
+- **Local Video Caching**: Videos are downloaded to device cache (`expo-file-system`) before playback for instant, smooth cube performance. The cube only renders after ALL videos are successfully cached locally. Failed downloads trigger an error screen with retry option. WebView HTML is also saved to file with file:// access enabled.
 
 ### Tech Stack
 - **Framework**: Expo SDK 54, React Native 0.81.5, React 19.1.0
