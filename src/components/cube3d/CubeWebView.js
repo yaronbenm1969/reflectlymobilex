@@ -383,6 +383,20 @@ const CubeWebView = ({
       const floatZ = Math.sin(elapsed * 0.35 + 2) * 45 + 
                      Math.cos(elapsed * 0.2) * 25;
       
+      // Z-depth movement - cube moves forward (closer/larger) and backward (farther/smaller)
+      // Using multiple sine waves with different frequencies for varied trajectories
+      const depthPhase1 = Math.sin(elapsed * 0.15) * 0.3;  // Slow deep wave
+      const depthPhase2 = Math.sin(elapsed * 0.4 + 1.5) * 0.15;  // Medium wave
+      const depthPhase3 = Math.cos(elapsed * 0.25 + 0.8) * 0.1;  // Subtle variation
+      
+      // Scale ranges from 0.6 (far away) to 1.3 (very close)
+      // Base scale is 0.95, depth adds variation of ±0.35
+      const depthScale = 0.95 + depthPhase1 + depthPhase2 + depthPhase3;
+      
+      // Additional Z translation for parallax depth effect (moves in 3D space)
+      const depthTranslateZ = Math.sin(elapsed * 0.18 + 2) * 150 + 
+                              Math.cos(elapsed * 0.12) * 100;
+      
       const spinWrapper = document.getElementById('spin-wrapper');
       const floatWrapper = document.querySelector('.float-wrapper');
       
@@ -393,7 +407,7 @@ const CubeWebView = ({
       
       if (floatWrapper) {
         floatWrapper.style.transform = 
-          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + floatZ + 'px)';
+          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + (floatZ + depthTranslateZ) + 'px) scale(' + depthScale + ')';
       }
       
       const currentFrontFace = getFrontFaceFromRotation(rotX, rotY);
