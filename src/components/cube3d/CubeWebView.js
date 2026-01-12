@@ -324,8 +324,13 @@ const CubeWebView = ({
     let totalDuration = 0;
     let cycleStartTime = 0;
     let lastFrontFace = -1;
-    let playedFaces = new Set(); // Track which faces have been played
     let currentlyPlayingFace = -1; // The face currently playing its video
+    
+    // Queue system - track all videos and which have been played
+    let videoQueue = []; // All videos waiting to be played
+    let playedVideoIndices = new Set(); // Track which video indices have been played
+    let faceToVideoMap = {}; // Maps face ID to current video queue index
+    let totalVideosToPlay = 0;
     
     const DEFAULT_VIDEO_DURATION = 5;
     
@@ -414,12 +419,14 @@ const CubeWebView = ({
     }
     
     function updateAudioForFace(faceIndex) {
-      // Only play video when face comes to front AND hasn't been played yet
+      // Get the video currently on this face
       const videoForFace = videos.find(v => v.faceId === faceIndex);
+      const videoQueueIndex = faceToVideoMap[faceIndex];
       
-      if (videoForFace && !playedFaces.has(faceIndex)) {
-        // This face hasn't been played yet - start playing it
-        playedFaces.add(faceIndex);
+      // Check if this face has a video that hasn't been played yet
+      if (videoForFace && videoQueueIndex !== undefined && !playedVideoIndices.has(videoQueueIndex)) {
+        // Mark this video as played
+        playedVideoIndices.add(videoQueueIndex);
         currentlyPlayingFace = faceIndex;
         
         // Pause all other videos
@@ -436,12 +443,11 @@ const CubeWebView = ({
         videoForFace.element.volume = 1;
         videoForFace.element.play().catch(() => {});
         
-        console.log('Playing face ' + faceIndex + ' (played: ' + playedFaces.size + '/' + videos.length + ')');
-        postMessage('videoStart', { faceId: faceIndex, playedCount: playedFaces.size, totalVideos: videos.length });
+        console.log('Playing video ' + videoQueueIndex + ' on face ' + faceIndex + ' (' + playedVideoIndices.size + '/' + totalVideosToPlay + ')');
+        postMessage('videoStart', { faceId: faceIndex, videoIndex: videoQueueIndex, playedCount: playedVideoIndices.size, totalVideos: totalVideosToPlay });
       } else if (currentlyPlayingFace >= 0 && currentlyPlayingFace !== faceIndex) {
         // Different face is in front but current video is still playing - just update audio
         videos.forEach(v => {
-          // Keep current playing video going but mute it when not in front
           if (v.faceId === currentlyPlayingFace) {
             v.element.muted = (faceIndex !== currentlyPlayingFace);
           }
@@ -449,14 +455,69 @@ const CubeWebView = ({
       }
     }
     
-    function onVideoEnded(faceId) {
-      console.log('Video ended on face ' + faceId + ' (played: ' + playedFaces.size + '/' + videos.length + ')');
+    function getNextUnplayedVideo() {
+      // Find the next video in the queue that hasn't been played
+      for (let i = 0; i < videoQueue.length; i++) {
+        if (!playedVideoIndices.has(i)) {
+          return { index: i, video: videoQueue[i] };
+        }
+      }
+      return null;
+    }
+    
+    function loadVideoOnFace(faceId, queueIndex, videoData) {
+      const el = document.getElementById('face-' + faceId);
+      if (!el) return;
+      
+      // Remove old video from videos array
+      videos = videos.filter(v => v.faceId !== faceId);
+      
+      // Clear old content
+      const oldVideo = el.querySelector('video');
+      if (oldVideo) {
+        oldVideo.pause();
+        oldVideo.src = '';
+      }
+      
+      // Build new content
+      let html = '';
+      if (videoData.thumbnailUrl) {
+        html += '<img src="' + videoData.thumbnailUrl + '" alt="Thumbnail" />';
+      }
+      html += '<video muted playsinline preload="auto" style="opacity:0"></video>';
+      html += '<div class="player-badge">' + (videoData.playerName || 'סרטון') + '</div>';
+      el.innerHTML = html;
+      
+      const video = el.querySelector('video');
+      if (video) {
+        // Update face to video mapping
+        faceToVideoMap[faceId] = queueIndex;
+        
+        videos.push({ element: video, faceId, duration: 0, queueIndex });
+        
+        video.addEventListener('loadeddata', () => {
+          video.style.opacity = '1';
+        });
+        
+        video.addEventListener('ended', () => {
+          postMessage('videoEnd', { faceId, videoIndex: queueIndex });
+          onVideoEnded(faceId, queueIndex);
+        });
+        
+        video.src = videoData.videoUrl;
+        video.load();
+        
+        console.log('Loaded video ' + queueIndex + ' onto face ' + faceId);
+      }
+    }
+    
+    function onVideoEnded(faceId, queueIndex) {
+      console.log('Video ' + queueIndex + ' ended on face ' + faceId + ' (' + playedVideoIndices.size + '/' + totalVideosToPlay + ')');
       currentlyPlayingFace = -1;
       
       // Check if all videos have been played
-      const videosWithContent = videos.filter(v => v.element.src && v.element.duration > 0);
-      if (playedFaces.size >= videosWithContent.length) {
-        console.log('All videos completed! Finishing animation.');
+      if (playedVideoIndices.size >= totalVideosToPlay) {
+        console.log('All ' + totalVideosToPlay + ' videos completed! Finishing animation.');
         postMessage('allVideosComplete', {});
         animationStarted = false;
         showPlayButton();
@@ -464,6 +525,14 @@ const CubeWebView = ({
           cancelAnimationFrame(animationId);
           animationId = null;
         }
+        return;
+      }
+      
+      // Load next unplayed video onto this face
+      const next = getNextUnplayedVideo();
+      if (next) {
+        loadVideoOnFace(faceId, next.index, next.video);
+        console.log('Queued video ' + next.index + ' for face ' + faceId);
       }
     }
     
@@ -498,7 +567,7 @@ const CubeWebView = ({
       hidePlayButton();
       
       // Reset tracking for new playback
-      playedFaces = new Set();
+      playedVideoIndices = new Set();
       currentlyPlayingFace = -1;
       
       // Don't auto-play all videos - they will play when their face comes to front
@@ -599,8 +668,9 @@ const CubeWebView = ({
           });
           
           video.addEventListener('ended', () => {
-            postMessage('videoEnd', { faceId });
-            onVideoEnded(faceId);
+            const queueIdx = faceToVideoMap[faceId];
+            postMessage('videoEnd', { faceId, videoIndex: queueIdx });
+            onVideoEnded(faceId, queueIdx);
           });
           
           video.src = face.videoUrl;
@@ -612,11 +682,32 @@ const CubeWebView = ({
     }
     
     function init() {
+      // Build the video queue from all faces with videos
+      videoQueue = faces.filter(f => f.videoUrl).map((face, idx) => ({
+        videoUrl: face.videoUrl,
+        thumbnailUrl: face.thumbnailUrl,
+        playerName: face.playerName,
+        originalIndex: idx
+      }));
+      totalVideosToPlay = videoQueue.length;
+      
+      console.log('Video queue initialized with ' + totalVideosToPlay + ' videos');
+      
+      // Load initial videos onto faces (up to 6)
       faces.forEach((face, index) => {
-        setFaceContent(index, face);
+        if (index < 6 && face.videoUrl) {
+          faceToVideoMap[index] = index; // Initial mapping: face 0 = video 0, etc.
+          setFaceContent(index, face);
+        } else if (index < 6) {
+          // Empty face placeholder
+          const el = document.getElementById('face-' + index);
+          if (el) {
+            el.innerHTML = '<div class="placeholder"><span class="icon">🎬</span><span class="label">סרטון ' + (index + 1) + '</span></div>';
+          }
+        }
       });
       
-      postMessage('cubeReady', { faceCount: faces.filter(f => f.videoUrl).length });
+      postMessage('cubeReady', { faceCount: totalVideosToPlay });
     }
     
     window.updateFaces = function(newFaces) {
