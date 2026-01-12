@@ -190,8 +190,17 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
 
       let videoUrl = reflection.videoUrl;
       
+      console.log(`🔍 Video ${i + 1}/${total} status:`, {
+        hasConvertedUrl: !!reflection.convertedUrl,
+        conversionStatus: reflection.conversionStatus,
+        originalUrl: videoUrl?.substring(0, 60)
+      });
+      
       if (reflection.convertedUrl && reflection.conversionStatus === 'ready') {
         console.log(`✅ Using pre-converted URL for video ${i + 1}/${total}`);
+        videoUrl = reflection.convertedUrl;
+      } else if (reflection.convertedUrl) {
+        console.log(`✅ Using convertedUrl (no status check) for video ${i + 1}/${total}`);
         videoUrl = reflection.convertedUrl;
       } else if (needsConversion(videoUrl)) {
         try {
