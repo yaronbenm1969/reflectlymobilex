@@ -61,7 +61,6 @@ const CubeWebView = ({
       height: 100%;
       position: relative;
       transform-style: preserve-3d;
-      animation: floatAndSpin 12s infinite ease-in-out;
     }
     .cube-face {
       position: absolute;
