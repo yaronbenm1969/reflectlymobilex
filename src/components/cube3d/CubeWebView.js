@@ -177,9 +177,48 @@ const CubeWebView = ({
       height: 100%;
       transform-style: preserve-3d;
     }
+    .play-button {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.95);
+      border: none;
+      cursor: pointer;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .play-button:hover {
+      transform: translate(-50%, -50%) scale(1.1);
+      box-shadow: 0 6px 25px rgba(0,0,0,0.4);
+    }
+    .play-button:active {
+      transform: translate(-50%, -50%) scale(0.95);
+    }
+    .play-button .play-icon {
+      width: 0;
+      height: 0;
+      border-left: 28px solid #FF6B9D;
+      border-top: 18px solid transparent;
+      border-bottom: 18px solid transparent;
+      margin-left: 6px;
+    }
+    .play-button.hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
+  <button class="play-button hidden" id="play-button" onclick="handlePlayClick()">
+    <div class="play-icon"></div>
+  </button>
   <div class="scene">
     <div class="float-wrapper">
       <div class="spin-wrapper" id="spin-wrapper">
@@ -237,6 +276,8 @@ const CubeWebView = ({
         console.log('All videos completed! Animation finished.');
         postMessage('allVideosComplete', {});
         videos.forEach(v => v.element.pause());
+        animationStarted = false;
+        showPlayButton();
         return;
       }
       
@@ -308,10 +349,37 @@ const CubeWebView = ({
       animationId = requestAnimationFrame(animate);
     }
     
+    let isReady = false;
+    
+    function showPlayButton() {
+      const btn = document.getElementById('play-button');
+      if (btn) btn.classList.remove('hidden');
+    }
+    
+    function hidePlayButton() {
+      const btn = document.getElementById('play-button');
+      if (btn) btn.classList.add('hidden');
+    }
+    
+    function handlePlayClick() {
+      if (!isReady) return;
+      hidePlayButton();
+      
+      videos.forEach(v => {
+        v.element.currentTime = 0;
+        v.element.play().catch(() => {});
+      });
+      
+      startAnimation();
+    }
+    
     function tryStartAnimation() {
       const validDurations = videoDurations.filter(d => d > 0);
       if (validDurations.length >= Math.min(faces.length, 4)) {
-        startAnimation();
+        isReady = true;
+        console.log('Videos ready! Waiting for play button click.');
+        postMessage('readyToPlay', { videoCount: validDurations.length });
+        showPlayButton();
       }
     }
     
@@ -371,11 +439,9 @@ const CubeWebView = ({
           video.addEventListener('loadeddata', () => {
             video.style.opacity = '1';
             postMessage('videoLoaded', { faceId });
-            tryPlay();
           });
           
           video.addEventListener('canplay', () => {
-            tryPlay();
           });
           
           video.addEventListener('error', (e) => {
