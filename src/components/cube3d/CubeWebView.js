@@ -162,7 +162,7 @@ const CubeWebView = ({
         }
         
         if (face.videoUrl) {
-          html += '<video src="' + face.videoUrl + '" loop playsinline preload="auto" autoplay style="' + (face.thumbnailUrl ? 'opacity:0' : '') + '"></video>';
+          html += '<video src="' + face.videoUrl + '" muted loop playsinline preload="auto" autoplay style="' + (face.thumbnailUrl ? 'opacity:0' : '') + '"></video>';
         }
         
         html += '<div class="player-badge">' + (face.playerName || 'סרטון') + '</div>';
@@ -188,10 +188,62 @@ const CubeWebView = ({
       }
     }
     
+    let lastFrontFace = -1;
+    
+    function detectFrontFace() {
+      const cube = document.getElementById('cube');
+      const style = window.getComputedStyle(cube);
+      const matrix = style.transform;
+      
+      if (matrix === 'none') return 0;
+      
+      const values = matrix.match(/matrix3d\\((.+)\\)/);
+      if (!values) {
+        const values2d = matrix.match(/matrix\\((.+)\\)/);
+        if (values2d) return 0;
+        return 0;
+      }
+      
+      const m = values[1].split(',').map(parseFloat);
+      const rotY = Math.atan2(m[8], m[10]) * (180 / Math.PI);
+      const normalizedY = ((rotY % 360) + 360) % 360;
+      
+      let frontFace = 0;
+      if (normalizedY >= 315 || normalizedY < 45) frontFace = 0;
+      else if (normalizedY >= 45 && normalizedY < 135) frontFace = 3;
+      else if (normalizedY >= 135 && normalizedY < 225) frontFace = 1;
+      else if (normalizedY >= 225 && normalizedY < 315) frontFace = 2;
+      
+      return frontFace;
+    }
+    
+    function updateAudioForFrontFace() {
+      const frontFace = detectFrontFace();
+      
+      if (frontFace !== lastFrontFace) {
+        lastFrontFace = frontFace;
+        
+        videos.forEach(v => {
+          if (v.faceId === frontFace) {
+            v.element.muted = false;
+            v.element.volume = 1.0;
+          } else {
+            v.element.muted = true;
+          }
+        });
+        
+        postMessage('faceChange', { faceId: frontFace });
+      }
+    }
+    
+    setInterval(updateAudioForFrontFace, 200);
+    
     function init() {
       faces.forEach((face, index) => {
         setFaceContent(index, face);
       });
+      
+      setTimeout(updateAudioForFrontFace, 500);
       
       postMessage('cubeReady', { faceCount: faces.filter(f => f.videoUrl).length });
     }
