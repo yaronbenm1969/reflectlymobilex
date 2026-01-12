@@ -176,11 +176,38 @@ const CubeWebView = ({
     const faces = ${facesJSON};
     let currentFace = 0;
     let videos = [];
+    let videoDurations = [];
+    let rotationSpeedCalculated = false;
     
     function postMessage(type, data) {
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type, ...data }));
       }
+    }
+    
+    function calculateRotationSpeed() {
+      if (rotationSpeedCalculated) return;
+      
+      const validDurations = videoDurations.filter(d => d > 0);
+      if (validDurations.length === 0) return;
+      
+      const avgDuration = validDurations.reduce((a, b) => a + b, 0) / validDurations.length;
+      const faceCount = 4;
+      const fullRotationTime = avgDuration * faceCount * 2;
+      
+      const spinWrapper = document.getElementById('spin-wrapper');
+      const floatWrapper = document.querySelector('.float-wrapper');
+      
+      if (spinWrapper) {
+        spinWrapper.style.animationDuration = fullRotationTime + 's';
+        console.log('Rotation speed set to: ' + fullRotationTime + 's based on avg video: ' + avgDuration + 's');
+      }
+      if (floatWrapper) {
+        floatWrapper.style.animationDuration = (fullRotationTime * 0.66) + 's';
+      }
+      
+      rotationSpeedCalculated = true;
+      postMessage('rotationCalculated', { duration: fullRotationTime, avgVideo: avgDuration });
     }
     
     function setFaceContent(faceId, face) {
@@ -202,7 +229,7 @@ const CubeWebView = ({
         }
         
         if (face.videoUrl) {
-          html += '<video muted loop playsinline preload="auto" style="opacity:0"></video>';
+          html += '<video muted playsinline preload="auto" style="opacity:0"></video>';
         }
         
         html += '<div class="player-badge">' + (face.playerName || 'סרטון') + '</div>';
@@ -210,7 +237,7 @@ const CubeWebView = ({
         
         const video = el.querySelector('video');
         if (video && face.videoUrl) {
-          videos.push({ element: video, faceId });
+          videos.push({ element: video, faceId, duration: 0 });
           
           let retryCount = 0;
           const maxRetries = 3;
@@ -225,6 +252,16 @@ const CubeWebView = ({
               }
             });
           }
+          
+          video.addEventListener('loadedmetadata', () => {
+            const duration = video.duration || 0;
+            videoDurations[faceId] = duration;
+            console.log('Video ' + faceId + ' duration: ' + duration + 's');
+            
+            if (videoDurations.filter(d => d > 0).length >= Math.min(faces.length, 4)) {
+              calculateRotationSpeed();
+            }
+          });
           
           video.addEventListener('loadeddata', () => {
             video.style.opacity = '1';
