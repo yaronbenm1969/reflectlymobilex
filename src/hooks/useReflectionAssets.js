@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Image, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 const VIDEO_CONVERTER_URL = process.env.EXPO_PUBLIC_VIDEO_CONVERTER_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
 
@@ -189,7 +191,7 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
       });
       
       // Check if already converted - use convertedUrl directly without re-converting
-      if (reflection.convertedUrl) {
+      if (reflection.convertedUrl && reflection.conversionStatus === 'ready') {
         console.log(`✅ Using pre-converted URL for video ${i + 1}/${total}`);
         videoUrl = reflection.convertedUrl;
         
@@ -212,7 +214,23 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
         
         try {
           console.log(`🔄 Converting video ${i + 1}/${total} on-demand`);
-          videoUrl = await convertVideoUrl(videoUrl);
+          const convertedUrl = await convertVideoUrl(videoUrl);
+          
+          // Save convertedUrl to Firestore so we don't reconvert next time
+          if (convertedUrl && convertedUrl !== videoUrl && reflection.id) {
+            try {
+              const reflectionRef = doc(db, 'reflections', reflection.id);
+              await updateDoc(reflectionRef, {
+                convertedUrl: convertedUrl,
+                conversionStatus: 'ready'
+              });
+              console.log(`💾 Saved convertedUrl to Firestore for ${reflection.id}`);
+            } catch (saveError) {
+              console.warn(`⚠️ Failed to save convertedUrl to Firestore:`, saveError.message);
+            }
+          }
+          
+          videoUrl = convertedUrl;
           console.log(`✅ Converted video ${i + 1}/${total}`);
         } catch (error) {
           console.log(`❌ Conversion failed for video ${i + 1}, using original`);

@@ -1,12 +1,16 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, ActivityIndicator, Text, Platform } from 'react-native';
-import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
+
+let WebView = null;
+if (Platform.OS !== 'web') {
+  WebView = require('react-native-webview').WebView;
+}
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CUBE_SIZE = Math.min(SCREEN_WIDTH * 0.85, 340);
 
-const CUBE_HTML_DIR = FileSystem.cacheDirectory + 'cube/';
+const CUBE_HTML_DIR = Platform.OS === 'web' ? '' : (FileSystem.cacheDirectory + 'cube/');
 
 const CubeWebView = ({
   faces = [],
@@ -882,6 +886,23 @@ const CubeWebView = ({
 
   const baseUrl = Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined;
 
+  // Web platform fallback - WebView not supported
+  if (Platform.OS === 'web' || !WebView) {
+    return (
+      <View style={[styles.container, isFullscreen && styles.fullscreenContainer]}>
+        <View style={styles.webFallback}>
+          <Text style={styles.webFallbackTitle}>הקוביה התלת-מימדית</Text>
+          <Text style={styles.webFallbackText}>
+            לצפייה בקוביה, פתח את האפליקציה במכשיר נייד
+          </Text>
+          <Text style={styles.webFallbackSubtext}>
+            ({faces.filter(f => f?.videoUrl).length} סרטונים מוכנים)
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, isFullscreen && styles.fullscreenContainer]}>
       <WebView
@@ -978,6 +999,36 @@ const styles = StyleSheet.create({
     color: '#E74C3C',
     fontSize: 16,
     fontWeight: '600',
+  },
+  webFallback: {
+    width: CUBE_SIZE,
+    height: CUBE_SIZE,
+    backgroundColor: 'rgba(255, 107, 157, 0.15)',
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 107, 157, 0.3)',
+  },
+  webFallbackTitle: {
+    color: '#FF6B9D',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  webFallbackText: {
+    color: '#666',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  webFallbackSubtext: {
+    color: '#999',
+    fontSize: 12,
+    marginTop: 10,
+    textAlign: 'center',
   },
 });
 
