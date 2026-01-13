@@ -419,6 +419,16 @@ const CubeWebView = ({
     }
     
     function updateAudioForFace(faceIndex) {
+      // If a video is currently playing, don't start a new one - let it finish
+      if (currentlyPlayingFace >= 0) {
+        const currentVideo = videos.find(v => v.faceId === currentlyPlayingFace);
+        if (currentVideo && !currentVideo.element.paused && !currentVideo.element.ended) {
+          // Current video still playing - just update audio based on face visibility
+          currentVideo.element.muted = (currentlyPlayingFace !== faceIndex);
+          return;
+        }
+      }
+      
       // Get the video currently on this face
       const videoForFace = videos.find(v => v.faceId === faceIndex);
       const videoQueueIndex = faceToVideoMap[faceIndex];
@@ -445,13 +455,6 @@ const CubeWebView = ({
         
         console.log('Playing video ' + videoQueueIndex + ' on face ' + faceIndex + ' (' + playedVideoIndices.size + '/' + totalVideosToPlay + ')');
         postMessage('videoStart', { faceId: faceIndex, videoIndex: videoQueueIndex, playedCount: playedVideoIndices.size, totalVideos: totalVideosToPlay });
-      } else if (currentlyPlayingFace >= 0 && currentlyPlayingFace !== faceIndex) {
-        // Different face is in front but current video is still playing - just update audio
-        videos.forEach(v => {
-          if (v.faceId === currentlyPlayingFace) {
-            v.element.muted = (faceIndex !== currentlyPlayingFace);
-          }
-        });
       }
     }
     
@@ -534,6 +537,30 @@ const CubeWebView = ({
         loadVideoOnFace(faceId, next.index, next.video);
         console.log('Queued video ' + next.index + ' for face ' + faceId);
       }
+      
+      // Try to play the next unplayed video immediately
+      setTimeout(() => {
+        // Find any face with an unplayed video
+        for (let i = 0; i < 6; i++) {
+          const videoQIdx = faceToVideoMap[i];
+          if (videoQIdx !== undefined && !playedVideoIndices.has(videoQIdx)) {
+            const videoForFace = videos.find(v => v.faceId === i);
+            if (videoForFace) {
+              playedVideoIndices.add(videoQIdx);
+              currentlyPlayingFace = i;
+              
+              videoForFace.element.currentTime = 0;
+              videoForFace.element.muted = false;
+              videoForFace.element.volume = 1;
+              videoForFace.element.play().catch(() => {});
+              
+              console.log('Auto-playing video ' + videoQIdx + ' on face ' + i);
+              postMessage('videoStart', { faceId: i, videoIndex: videoQIdx, playedCount: playedVideoIndices.size, totalVideos: totalVideosToPlay });
+              break;
+            }
+          }
+        }
+      }, 200);
     }
     
     function startAnimation() {
