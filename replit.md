@@ -7,6 +7,7 @@ Reflectly is a mobile journaling app built with React Native/Expo that enables u
 - User speaks Hebrew - prefer Hebrew communication when appropriate
 - User has existing project "רפלקטלי פלייבק 2" with all API keys configured
 - User wants complete social video journaling app with multi-user collaboration
+- **CRITICAL: DO NOT MODIFY the 3D Cube animation in CubeWebView.js** - The current animation (commit b3c61832) with multi-axis rotation, floating effects (forward/backward, up/down movement) is the approved final version. Never change the `@keyframes float`, `@keyframes spin`, or the `animate()` function.
 
 ## System Architecture
 
