@@ -322,33 +322,10 @@ const CubeWebView = ({
     let animationStarted = false;
     let animationId = null;
     let totalDuration = 0;
-    let currentlyPlayingFace = -1;
-    
-    // Queue system
-    let videoQueue = [];
-    let playedVideoIndices = new Set();
-    let faceToVideoMap = {};
-    let totalVideosToPlay = 0;
-    let currentVideoIndex = 0;
-    
-    // Synchronized rotation system
-    let videoStartTime = 0;
-    let currentVideoDuration = 5;
-    let startRotationY = 0;
-    let targetRotationY = 0;
-    let globalTime = 0;
+    let cycleStartTime = 0;
+    let lastFrontFace = -1;
     
     const DEFAULT_VIDEO_DURATION = 5;
-    
-    // Face rotation targets (Y rotation to show each face)
-    const FACE_ROTATIONS = {
-      0: 0,     // front
-      1: 180,   // back
-      2: -90,   // right
-      3: 90,    // left
-      4: 0,     // top (needs X rotation)
-      5: 0      // bottom (needs X rotation)
-    };
     
     function postMessage(type, data) {
       if (window.ReactNativeWebView) {
@@ -356,222 +333,102 @@ const CubeWebView = ({
       }
     }
     
-    function easeInOutCubic(t) {
-      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    function getFrontFaceFromRotation(rotX, rotY) {
+      const normY = ((rotY % 360) + 360) % 360;
+      const normX = ((rotX % 360) + 360) % 360;
+      
+      if (normX > 45 && normX < 135) return 5;
+      if (normX > 225 && normX < 315) return 4;
+      
+      if (normY >= 315 || normY < 45) return 0;
+      if (normY >= 45 && normY < 135) return 3;
+      if (normY >= 135 && normY < 225) return 1;
+      if (normY >= 225 && normY < 315) return 2;
+      
+      return 0;
     }
     
     function animate(timestamp) {
-      globalTime = timestamp / 1000;
+      if (!cycleStartTime) cycleStartTime = timestamp;
       
-      if (currentlyPlayingFace < 0) {
-        animationId = requestAnimationFrame(animate);
+      const elapsed = (timestamp - cycleStartTime) / 1000;
+      const progress = Math.min(elapsed / totalDuration, 1);
+      
+      if (progress >= 1) {
+        console.log('All videos completed! Animation finished.');
+        postMessage('allVideosComplete', {});
+        videos.forEach(v => v.element.pause());
+        animationStarted = false;
+        showPlayButton();
         return;
       }
       
-      const elapsed = (timestamp - videoStartTime) / 1000;
-      const progress = Math.min(elapsed / currentVideoDuration, 1);
+      const baseSpeed = 2 * Math.PI / totalDuration;
       
-      // Continuous smooth rotation throughout the entire video duration
-      // Uses easing for natural feel - starts slow, speeds up in middle, slows at end
-      const easedProgress = easeInOutCubic(progress);
+      const rotY = elapsed * baseSpeed * 57.3 * 1.5 + 
+                   Math.sin(elapsed * 0.3) * 25 + 
+                   Math.sin(elapsed * 0.7) * 15;
       
-      // Interpolate rotation continuously from start to target
-      let rotY = startRotationY + (targetRotationY - startRotationY) * easedProgress;
+      const rotX = Math.sin(elapsed * 0.4) * 35 + 
+                   Math.sin(elapsed * 0.15) * 20 +
+                   Math.cos(elapsed * 0.25) * 10;
       
-      // Add gentle floating motion on top of the main rotation
-      const wobbleY = Math.sin(globalTime * 0.8) * 6;
-      const wobbleX = Math.sin(globalTime * 0.5) * 10 + Math.cos(globalTime * 0.3) * 6;
-      const wobbleZ = Math.sin(globalTime * 0.4) * 5;
+      const rotZ = Math.sin(elapsed * 0.2) * 12 + 
+                   Math.cos(elapsed * 0.35) * 8;
       
-      // Floating position
-      const floatX = Math.sin(globalTime * 0.6) * 20;
-      const floatY = Math.sin(globalTime * 0.4) * 25;
-      const floatZ = Math.sin(globalTime * 0.3) * 40;
+      const floatX = Math.sin(elapsed * 0.5) * 25 + 
+                     Math.sin(elapsed * 0.3) * 15;
+      const floatY = Math.sin(elapsed * 0.4 + 1) * 30 + 
+                     Math.cos(elapsed * 0.25) * 20;
+      const floatZ = Math.sin(elapsed * 0.35 + 2) * 45 + 
+                     Math.cos(elapsed * 0.2) * 25;
       
-      // Depth scale variation
-      const depthScale = 0.95 + Math.sin(globalTime * 0.25) * 0.1;
+      // Z-depth movement - cube moves forward (closer/larger) and backward (farther/smaller)
+      // Using multiple sine waves with different frequencies for varied trajectories
+      const depthPhase1 = Math.sin(elapsed * 0.15) * 0.3;  // Slow deep wave
+      const depthPhase2 = Math.sin(elapsed * 0.4 + 1.5) * 0.15;  // Medium wave
+      const depthPhase3 = Math.cos(elapsed * 0.25 + 0.8) * 0.1;  // Subtle variation
+      
+      // Scale ranges from 0.6 (far away) to 1.3 (very close)
+      // Base scale is 0.95, depth adds variation of ±0.35
+      const depthScale = 0.95 + depthPhase1 + depthPhase2 + depthPhase3;
+      
+      // Additional Z translation for parallax depth effect (moves in 3D space)
+      const depthTranslateZ = Math.sin(elapsed * 0.18 + 2) * 150 + 
+                              Math.cos(elapsed * 0.12) * 100;
       
       const spinWrapper = document.getElementById('spin-wrapper');
       const floatWrapper = document.querySelector('.float-wrapper');
       
       if (spinWrapper) {
         spinWrapper.style.transform = 
-          'rotateX(' + wobbleX + 'deg) rotateY(' + (rotY + wobbleY) + 'deg) rotateZ(' + wobbleZ + 'deg)';
+          'rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg) rotateZ(' + rotZ + 'deg)';
       }
       
       if (floatWrapper) {
         floatWrapper.style.transform = 
-          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + floatZ + 'px) scale(' + depthScale + ')';
+          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + (floatZ + depthTranslateZ) + 'px) scale(' + depthScale + ')';
+      }
+      
+      const currentFrontFace = getFrontFaceFromRotation(rotX, rotY);
+      if (currentFrontFace !== lastFrontFace) {
+        lastFrontFace = currentFrontFace;
+        updateAudioForFace(currentFrontFace);
+        postMessage('faceChanged', { faceIndex: currentFrontFace });
       }
       
       animationId = requestAnimationFrame(animate);
     }
     
-    function getNextFaceInSequence() {
-      // Find next face with an unplayed video
-      for (let i = 0; i < 6; i++) {
-        const faceIdx = (currentlyPlayingFace + 1 + i) % 6;
-        const qIdx = faceToVideoMap[faceIdx];
-        if (qIdx !== undefined && !playedVideoIndices.has(qIdx)) {
-          return faceIdx;
-        }
-      }
-      return -1;
-    }
-    
-    function playVideoOnFace(faceIndex, isFirst) {
-      const videoForFace = videos.find(v => v.faceId === faceIndex);
-      const videoQueueIndex = faceToVideoMap[faceIndex];
-      
-      if (!videoForFace || videoQueueIndex === undefined) return false;
-      
-      // Mark as played
-      playedVideoIndices.add(videoQueueIndex);
-      
-      // Get video duration
-      const duration = videoForFace.element.duration || DEFAULT_VIDEO_DURATION;
-      currentVideoDuration = duration;
-      
-      // Calculate rotation
-      const currentFaceRotY = FACE_ROTATIONS[currentlyPlayingFace] || 0;
-      const targetFaceRotY = FACE_ROTATIONS[faceIndex] || 0;
-      
-      // Find next face for target rotation
-      const nextFace = getNextFaceAfter(faceIndex);
-      const nextFaceRotY = nextFace >= 0 ? FACE_ROTATIONS[nextFace] : targetFaceRotY + 90;
-      
-      if (isFirst) {
-        startRotationY = targetFaceRotY;
-        targetRotationY = nextFaceRotY;
-      } else {
-        startRotationY = targetRotationY;
-        // Ensure we rotate in consistent direction
-        let diff = nextFaceRotY - startRotationY;
-        while (diff > 180) diff -= 360;
-        while (diff < -180) diff += 360;
-        targetRotationY = startRotationY + diff;
-      }
-      
-      currentlyPlayingFace = faceIndex;
-      videoStartTime = performance.now();
-      
-      // Pause all other videos
+    function updateAudioForFace(faceIndex) {
       videos.forEach(v => {
-        if (v.faceId !== faceIndex) {
-          v.element.pause();
+        if (v.faceId === faceIndex) {
+          v.element.muted = false;
+          v.element.volume = 1;
+        } else {
           v.element.muted = true;
         }
       });
-      
-      // Play this video
-      videoForFace.element.currentTime = 0;
-      videoForFace.element.muted = false;
-      videoForFace.element.volume = 1;
-      videoForFace.element.play().catch(() => {});
-      
-      console.log('Playing video ' + videoQueueIndex + ' on face ' + faceIndex + ' (duration: ' + duration.toFixed(1) + 's)');
-      postMessage('videoStart', { faceId: faceIndex, videoIndex: videoQueueIndex, duration: duration });
-      
-      return true;
-    }
-    
-    function getNextFaceAfter(currentFace) {
-      for (let i = 1; i <= 6; i++) {
-        const faceIdx = (currentFace + i) % 6;
-        const qIdx = faceToVideoMap[faceIdx];
-        if (qIdx !== undefined && !playedVideoIndices.has(qIdx)) {
-          return faceIdx;
-        }
-      }
-      return -1;
-    }
-    
-    function getNextUnplayedVideo() {
-      // Find the next video in the queue that hasn't been played
-      for (let i = 0; i < videoQueue.length; i++) {
-        if (!playedVideoIndices.has(i)) {
-          return { index: i, video: videoQueue[i] };
-        }
-      }
-      return null;
-    }
-    
-    function loadVideoOnFace(faceId, queueIndex, videoData) {
-      const el = document.getElementById('face-' + faceId);
-      if (!el) return;
-      
-      // Remove old video from videos array
-      videos = videos.filter(v => v.faceId !== faceId);
-      
-      // Clear old content
-      const oldVideo = el.querySelector('video');
-      if (oldVideo) {
-        oldVideo.pause();
-        oldVideo.src = '';
-      }
-      
-      // Build new content
-      let html = '';
-      if (videoData.thumbnailUrl) {
-        html += '<img src="' + videoData.thumbnailUrl + '" alt="Thumbnail" />';
-      }
-      html += '<video muted playsinline preload="auto" style="opacity:0"></video>';
-      html += '<div class="player-badge">' + (videoData.playerName || 'סרטון') + '</div>';
-      el.innerHTML = html;
-      
-      const video = el.querySelector('video');
-      if (video) {
-        // Update face to video mapping
-        faceToVideoMap[faceId] = queueIndex;
-        
-        videos.push({ element: video, faceId, duration: 0, queueIndex });
-        
-        video.addEventListener('loadeddata', () => {
-          video.style.opacity = '1';
-        });
-        
-        video.addEventListener('ended', () => {
-          postMessage('videoEnd', { faceId, videoIndex: queueIndex });
-          onVideoEnded(faceId, queueIndex);
-        });
-        
-        video.src = videoData.videoUrl;
-        video.load();
-        
-        console.log('Loaded video ' + queueIndex + ' onto face ' + faceId);
-      }
-    }
-    
-    function onVideoEnded(faceId, queueIndex) {
-      console.log('Video ' + queueIndex + ' ended on face ' + faceId + ' (' + playedVideoIndices.size + '/' + totalVideosToPlay + ')');
-      
-      // Check if all videos have been played
-      if (playedVideoIndices.size >= totalVideosToPlay) {
-        console.log('All ' + totalVideosToPlay + ' videos completed!');
-        currentlyPlayingFace = -1;
-        postMessage('allVideosComplete', {});
-        animationStarted = false;
-        showPlayButton();
-        if (animationId) {
-          cancelAnimationFrame(animationId);
-          animationId = null;
-        }
-        return;
-      }
-      
-      // Load next unplayed video onto this face for future use
-      const next = getNextUnplayedVideo();
-      if (next) {
-        loadVideoOnFace(faceId, next.index, next.video);
-      }
-      
-      // Play next video immediately
-      const nextFace = getNextFaceAfter(faceId);
-      if (nextFace >= 0) {
-        playVideoOnFace(nextFace, false);
-      } else {
-        currentlyPlayingFace = -1;
-      }
     }
     
     function startAnimation() {
@@ -580,11 +437,11 @@ const CubeWebView = ({
       totalDuration = videoDurations.reduce((sum, d) => sum + (d || DEFAULT_VIDEO_DURATION), 0);
       if (totalDuration < 10) totalDuration = 30;
       
-      console.log('Starting synchronized animation. Total duration: ' + totalDuration + 's');
+      console.log('Starting continuous animation. Total duration: ' + totalDuration + 's');
       postMessage('animationStarted', { totalDuration });
       
       animationStarted = true;
-      videoStartTime = performance.now();
+      cycleStartTime = 0;
       animationId = requestAnimationFrame(animate);
     }
     
@@ -604,31 +461,12 @@ const CubeWebView = ({
       if (!isReady) return;
       hidePlayButton();
       
-      // Reset tracking for new playback
-      playedVideoIndices = new Set();
-      currentlyPlayingFace = -1;
-      startRotationY = 0;
-      targetRotationY = 0;
-      
-      // Pause all videos
       videos.forEach(v => {
-        v.element.pause();
         v.element.currentTime = 0;
-        v.element.muted = true;
+        v.element.play().catch(() => {});
       });
       
       startAnimation();
-      
-      // Start with the first face that has a video
-      setTimeout(() => {
-        for (let i = 0; i < 6; i++) {
-          const qIdx = faceToVideoMap[i];
-          if (qIdx !== undefined && !playedVideoIndices.has(qIdx)) {
-            playVideoOnFace(i, true);
-            break;
-          }
-        }
-      }, 100);
     }
     
     function tryStartAnimation() {
@@ -660,7 +498,7 @@ const CubeWebView = ({
         }
         
         if (face.videoUrl) {
-          html += '<video muted playsinline preload="auto" style="opacity:0"></video>';
+          html += '<video muted loop playsinline preload="auto" style="opacity:0"></video>';
         }
         
         html += '<div class="player-badge">' + (face.playerName || 'סרטון') + '</div>';
@@ -713,9 +551,7 @@ const CubeWebView = ({
           });
           
           video.addEventListener('ended', () => {
-            const queueIdx = faceToVideoMap[faceId];
-            postMessage('videoEnd', { faceId, videoIndex: queueIdx });
-            onVideoEnded(faceId, queueIdx);
+            postMessage('videoEnd', { faceId });
           });
           
           video.src = face.videoUrl;
@@ -727,32 +563,11 @@ const CubeWebView = ({
     }
     
     function init() {
-      // Build the video queue from all faces with videos
-      videoQueue = faces.filter(f => f.videoUrl).map((face, idx) => ({
-        videoUrl: face.videoUrl,
-        thumbnailUrl: face.thumbnailUrl,
-        playerName: face.playerName,
-        originalIndex: idx
-      }));
-      totalVideosToPlay = videoQueue.length;
-      
-      console.log('Video queue initialized with ' + totalVideosToPlay + ' videos');
-      
-      // Load initial videos onto faces (up to 6)
       faces.forEach((face, index) => {
-        if (index < 6 && face.videoUrl) {
-          faceToVideoMap[index] = index; // Initial mapping: face 0 = video 0, etc.
-          setFaceContent(index, face);
-        } else if (index < 6) {
-          // Empty face placeholder
-          const el = document.getElementById('face-' + index);
-          if (el) {
-            el.innerHTML = '<div class="placeholder"><span class="icon">🎬</span><span class="label">סרטון ' + (index + 1) + '</span></div>';
-          }
-        }
+        setFaceContent(index, face);
       });
       
-      postMessage('cubeReady', { faceCount: totalVideosToPlay });
+      postMessage('cubeReady', { faceCount: faces.filter(f => f.videoUrl).length });
     }
     
     window.updateFaces = function(newFaces) {
