@@ -1,16 +1,12 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, ActivityIndicator, Text, Platform } from 'react-native';
+import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
-
-let WebView = null;
-if (Platform.OS !== 'web') {
-  WebView = require('react-native-webview').WebView;
-}
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CUBE_SIZE = Math.min(SCREEN_WIDTH * 0.85, 340);
 
-const CUBE_HTML_DIR = Platform.OS === 'web' ? '' : (FileSystem.cacheDirectory + 'cube/');
+const CUBE_HTML_DIR = FileSystem.cacheDirectory + 'cube/';
 
 const CubeWebView = ({
   faces = [],
@@ -252,9 +248,10 @@ const CubeWebView = ({
       height: 100%;
       transform-style: preserve-3d;
     }
-    .cube {
+    .spin-wrapper {
+      width: 100%;
+      height: 100%;
       transform-style: preserve-3d;
-      transition: none;
     }
     .play-button {
       position: absolute;
@@ -306,13 +303,15 @@ const CubeWebView = ({
   </button>
   <div class="scene">
     <div class="float-wrapper">
-      <div class="cube" id="cube">
-        <div class="cube-face front" id="face-0"></div>
-        <div class="cube-face back" id="face-1"></div>
-        <div class="cube-face right" id="face-2"></div>
-        <div class="cube-face left" id="face-3"></div>
-        <div class="cube-face top" id="face-4"></div>
-        <div class="cube-face bottom" id="face-5"></div>
+      <div class="spin-wrapper" id="spin-wrapper">
+        <div class="cube" id="cube">
+          <div class="cube-face front" id="face-0"></div>
+          <div class="cube-face back" id="face-1"></div>
+          <div class="cube-face right" id="face-2"></div>
+          <div class="cube-face left" id="face-3"></div>
+          <div class="cube-face top" id="face-4"></div>
+          <div class="cube-face bottom" id="face-5"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -364,29 +363,7 @@ const CubeWebView = ({
     function animate(timestamp) {
       globalTime = timestamp / 1000;
       
-      const cube = document.getElementById('cube');
-      if (!cube) {
-        animationId = requestAnimationFrame(animate);
-        return;
-      }
-      
-      // Add gentle floating motion always (even before video starts)
-      const floatX = Math.sin(globalTime * 0.6) * 15;
-      const floatY = Math.sin(globalTime * 0.4) * 20;
-      const floatZ = Math.sin(globalTime * 0.3) * 30;
-      const depthScale = 0.97 + Math.sin(globalTime * 0.25) * 0.05;
-      
-      const floatWrapper = document.querySelector('.float-wrapper');
-      if (floatWrapper) {
-        floatWrapper.style.transform = 
-          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + floatZ + 'px) scale(' + depthScale + ')';
-      }
-      
-      // If no video is playing, just show idle rotation
       if (currentlyPlayingFace < 0) {
-        const idleRotY = globalTime * 15;
-        const idleRotX = Math.sin(globalTime * 0.3) * 10;
-        cube.style.transform = 'rotateX(' + idleRotX + 'deg) rotateY(' + idleRotY + 'deg)';
         animationId = requestAnimationFrame(animate);
         return;
       }
@@ -395,16 +372,37 @@ const CubeWebView = ({
       const progress = Math.min(elapsed / currentVideoDuration, 1);
       
       // Continuous smooth rotation throughout the entire video duration
+      // Uses easing for natural feel - starts slow, speeds up in middle, slows at end
       const easedProgress = easeInOutCubic(progress);
       
       // Interpolate rotation continuously from start to target
       let rotY = startRotationY + (targetRotationY - startRotationY) * easedProgress;
       
-      // Subtle tilt for visual interest
-      const tiltX = Math.sin(globalTime * 0.4) * 8;
-      const tiltZ = Math.sin(globalTime * 0.3) * 4;
+      // Add gentle floating motion on top of the main rotation
+      const wobbleY = Math.sin(globalTime * 0.8) * 6;
+      const wobbleX = Math.sin(globalTime * 0.5) * 10 + Math.cos(globalTime * 0.3) * 6;
+      const wobbleZ = Math.sin(globalTime * 0.4) * 5;
       
-      cube.style.transform = 'rotateX(' + tiltX + 'deg) rotateY(' + rotY + 'deg) rotateZ(' + tiltZ + 'deg)';
+      // Floating position
+      const floatX = Math.sin(globalTime * 0.6) * 20;
+      const floatY = Math.sin(globalTime * 0.4) * 25;
+      const floatZ = Math.sin(globalTime * 0.3) * 40;
+      
+      // Depth scale variation
+      const depthScale = 0.95 + Math.sin(globalTime * 0.25) * 0.1;
+      
+      const spinWrapper = document.getElementById('spin-wrapper');
+      const floatWrapper = document.querySelector('.float-wrapper');
+      
+      if (spinWrapper) {
+        spinWrapper.style.transform = 
+          'rotateX(' + wobbleX + 'deg) rotateY(' + (rotY + wobbleY) + 'deg) rotateZ(' + wobbleZ + 'deg)';
+      }
+      
+      if (floatWrapper) {
+        floatWrapper.style.transform = 
+          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + floatZ + 'px) scale(' + depthScale + ')';
+      }
       
       animationId = requestAnimationFrame(animate);
     }
@@ -884,23 +882,6 @@ const CubeWebView = ({
 
   const baseUrl = Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined;
 
-  // Web platform fallback - WebView not supported
-  if (Platform.OS === 'web' || !WebView) {
-    return (
-      <View style={[styles.container, isFullscreen && styles.fullscreenContainer]}>
-        <View style={styles.webFallback}>
-          <Text style={styles.webFallbackTitle}>הקוביה התלת-מימדית</Text>
-          <Text style={styles.webFallbackText}>
-            לצפייה בקוביה, פתח את האפליקציה במכשיר נייד
-          </Text>
-          <Text style={styles.webFallbackSubtext}>
-            ({faces.filter(f => f?.videoUrl).length} סרטונים מוכנים)
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={[styles.container, isFullscreen && styles.fullscreenContainer]}>
       <WebView
@@ -997,36 +978,6 @@ const styles = StyleSheet.create({
     color: '#E74C3C',
     fontSize: 16,
     fontWeight: '600',
-  },
-  webFallback: {
-    width: CUBE_SIZE,
-    height: CUBE_SIZE,
-    backgroundColor: 'rgba(255, 107, 157, 0.15)',
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 107, 157, 0.3)',
-  },
-  webFallbackTitle: {
-    color: '#FF6B9D',
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  webFallbackText: {
-    color: '#666',
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  webFallbackSubtext: {
-    color: '#999',
-    fontSize: 12,
-    marginTop: 10,
-    textAlign: 'center',
   },
 });
 
