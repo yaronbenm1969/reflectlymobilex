@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getStorage } = require('firebase-admin/storage');
+const { getFirestore } = require('firebase-admin/firestore');
 const { ConversionQueue } = require('./conversion-queue');
 
 const app = express();
@@ -115,6 +116,14 @@ try {
   }
 } catch (error) {
   console.log('Firebase initialization failed:', error.message);
+}
+
+let firestoreDb = null;
+try {
+  firestoreDb = getFirestore();
+  console.log('Firestore initialized for video converter');
+} catch (error) {
+  console.log('Firestore initialization skipped:', error.message);
 }
 
 function needsConversion(mimeType, filename) {
@@ -795,13 +804,16 @@ app.get('/api/queue/job/:jobId', (req, res) => {
 });
 
 app.post('/api/convert-url', async (req, res) => {
-  const { url, async: asyncMode } = req.body;
+  const { url, async: asyncMode, reflectionId } = req.body;
   
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
   }
   
   console.log('🔄 Converting URL:', url);
+  if (reflectionId) {
+    console.log('📝 Will update reflectionId:', reflectionId);
+  }
   
   const conversionProcessor = async (data, updateProgress) => {
     const https = require('https');
@@ -847,12 +859,24 @@ app.post('/api/convert-url', async (req, res) => {
       console.log('✅ Converted locally:', convertedUrl);
     }
     
+    if (data.reflectionId && firestoreDb && convertedUrl) {
+      try {
+        await firestoreDb.collection('reflections').doc(data.reflectionId).update({
+          convertedUrl: convertedUrl,
+          conversionStatus: 'ready'
+        });
+        console.log('💾 Saved convertedUrl to Firestore for:', data.reflectionId);
+      } catch (firestoreError) {
+        console.warn('⚠️ Failed to save to Firestore:', firestoreError.message);
+      }
+    }
+    
     updateProgress(100);
     return { convertedUrl };
   };
   
   try {
-    const { jobId, promise } = await conversionQueue.addJob('convert-url', { url }, conversionProcessor);
+    const { jobId, promise } = await conversionQueue.addJob('convert-url', { url, reflectionId }, conversionProcessor);
     
     if (asyncMode) {
       return res.json({ 
