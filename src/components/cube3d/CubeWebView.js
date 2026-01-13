@@ -322,17 +322,33 @@ const CubeWebView = ({
     let animationStarted = false;
     let animationId = null;
     let totalDuration = 0;
-    let cycleStartTime = 0;
-    let lastFrontFace = -1;
-    let currentlyPlayingFace = -1; // The face currently playing its video
+    let currentlyPlayingFace = -1;
     
-    // Queue system - track all videos and which have been played
-    let videoQueue = []; // All videos waiting to be played
-    let playedVideoIndices = new Set(); // Track which video indices have been played
-    let faceToVideoMap = {}; // Maps face ID to current video queue index
+    // Queue system
+    let videoQueue = [];
+    let playedVideoIndices = new Set();
+    let faceToVideoMap = {};
     let totalVideosToPlay = 0;
+    let currentVideoIndex = 0;
+    
+    // Synchronized rotation system
+    let videoStartTime = 0;
+    let currentVideoDuration = 5;
+    let startRotationY = 0;
+    let targetRotationY = 0;
+    let globalTime = 0;
     
     const DEFAULT_VIDEO_DURATION = 5;
+    
+    // Face rotation targets (Y rotation to show each face)
+    const FACE_ROTATIONS = {
+      0: 0,     // front
+      1: 180,   // back
+      2: -90,   // right
+      3: 90,    // left
+      4: 0,     // top (needs X rotation)
+      5: 0      // bottom (needs X rotation)
+    };
     
     function postMessage(type, data) {
       if (window.ReactNativeWebView) {
@@ -340,122 +356,131 @@ const CubeWebView = ({
       }
     }
     
-    function getFrontFaceFromRotation(rotX, rotY) {
-      const normY = ((rotY % 360) + 360) % 360;
-      const normX = ((rotX % 360) + 360) % 360;
-      
-      if (normX > 45 && normX < 135) return 5;
-      if (normX > 225 && normX < 315) return 4;
-      
-      if (normY >= 315 || normY < 45) return 0;
-      if (normY >= 45 && normY < 135) return 3;
-      if (normY >= 135 && normY < 225) return 1;
-      if (normY >= 225 && normY < 315) return 2;
-      
-      return 0;
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     }
     
     function animate(timestamp) {
-      if (!cycleStartTime) cycleStartTime = timestamp;
+      globalTime = timestamp / 1000;
       
-      const elapsed = (timestamp - cycleStartTime) / 1000;
+      if (currentlyPlayingFace < 0) {
+        animationId = requestAnimationFrame(animate);
+        return;
+      }
       
-      // Animation continues until all videos have been played (checked in onVideoEnded)
-      const baseSpeed = 2 * Math.PI / totalDuration;
+      const elapsed = (timestamp - videoStartTime) / 1000;
+      const progress = Math.min(elapsed / currentVideoDuration, 1);
+      const easedProgress = easeInOutCubic(progress);
       
-      const rotY = elapsed * baseSpeed * 57.3 * 1.5 + 
-                   Math.sin(elapsed * 0.3) * 25 + 
-                   Math.sin(elapsed * 0.7) * 15;
+      // Interpolate rotation from start to target
+      let rotY = startRotationY + (targetRotationY - startRotationY) * easedProgress;
       
-      const rotX = Math.sin(elapsed * 0.4) * 35 + 
-                   Math.sin(elapsed * 0.15) * 20 +
-                   Math.cos(elapsed * 0.25) * 10;
+      // Add gentle floating motion (doesn't affect which face is front)
+      const wobbleY = Math.sin(globalTime * 0.8) * 8;
+      const wobbleX = Math.sin(globalTime * 0.5) * 12 + Math.cos(globalTime * 0.3) * 8;
+      const wobbleZ = Math.sin(globalTime * 0.4) * 6;
       
-      const rotZ = Math.sin(elapsed * 0.2) * 12 + 
-                   Math.cos(elapsed * 0.35) * 8;
+      // Floating position
+      const floatX = Math.sin(globalTime * 0.6) * 20;
+      const floatY = Math.sin(globalTime * 0.4) * 25;
+      const floatZ = Math.sin(globalTime * 0.3) * 40;
       
-      const floatX = Math.sin(elapsed * 0.5) * 25 + 
-                     Math.sin(elapsed * 0.3) * 15;
-      const floatY = Math.sin(elapsed * 0.4 + 1) * 30 + 
-                     Math.cos(elapsed * 0.25) * 20;
-      const floatZ = Math.sin(elapsed * 0.35 + 2) * 45 + 
-                     Math.cos(elapsed * 0.2) * 25;
-      
-      // Z-depth movement - cube moves forward (closer/larger) and backward (farther/smaller)
-      // Using multiple sine waves with different frequencies for varied trajectories
-      const depthPhase1 = Math.sin(elapsed * 0.15) * 0.3;  // Slow deep wave
-      const depthPhase2 = Math.sin(elapsed * 0.4 + 1.5) * 0.15;  // Medium wave
-      const depthPhase3 = Math.cos(elapsed * 0.25 + 0.8) * 0.1;  // Subtle variation
-      
-      // Scale ranges from 0.6 (far away) to 1.3 (very close)
-      // Base scale is 0.95, depth adds variation of ±0.35
-      const depthScale = 0.95 + depthPhase1 + depthPhase2 + depthPhase3;
-      
-      // Additional Z translation for parallax depth effect (moves in 3D space)
-      const depthTranslateZ = Math.sin(elapsed * 0.18 + 2) * 150 + 
-                              Math.cos(elapsed * 0.12) * 100;
+      // Depth scale variation
+      const depthScale = 0.95 + Math.sin(globalTime * 0.25) * 0.15;
       
       const spinWrapper = document.getElementById('spin-wrapper');
       const floatWrapper = document.querySelector('.float-wrapper');
       
       if (spinWrapper) {
         spinWrapper.style.transform = 
-          'rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg) rotateZ(' + rotZ + 'deg)';
+          'rotateX(' + wobbleX + 'deg) rotateY(' + (rotY + wobbleY) + 'deg) rotateZ(' + wobbleZ + 'deg)';
       }
       
       if (floatWrapper) {
         floatWrapper.style.transform = 
-          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + (floatZ + depthTranslateZ) + 'px) scale(' + depthScale + ')';
-      }
-      
-      const currentFrontFace = getFrontFaceFromRotation(rotX, rotY);
-      if (currentFrontFace !== lastFrontFace) {
-        lastFrontFace = currentFrontFace;
-        updateAudioForFace(currentFrontFace);
-        postMessage('faceChanged', { faceIndex: currentFrontFace });
+          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + floatZ + 'px) scale(' + depthScale + ')';
       }
       
       animationId = requestAnimationFrame(animate);
     }
     
-    function updateAudioForFace(faceIndex) {
-      // If a video is currently playing, don't start a new one - let it finish
-      if (currentlyPlayingFace >= 0) {
-        const currentVideo = videos.find(v => v.faceId === currentlyPlayingFace);
-        if (currentVideo && !currentVideo.element.paused && !currentVideo.element.ended) {
-          // Current video still playing - just update audio based on face visibility
-          currentVideo.element.muted = (currentlyPlayingFace !== faceIndex);
-          return;
+    function getNextFaceInSequence() {
+      // Find next face with an unplayed video
+      for (let i = 0; i < 6; i++) {
+        const faceIdx = (currentlyPlayingFace + 1 + i) % 6;
+        const qIdx = faceToVideoMap[faceIdx];
+        if (qIdx !== undefined && !playedVideoIndices.has(qIdx)) {
+          return faceIdx;
         }
       }
-      
-      // Get the video currently on this face
+      return -1;
+    }
+    
+    function playVideoOnFace(faceIndex, isFirst) {
       const videoForFace = videos.find(v => v.faceId === faceIndex);
       const videoQueueIndex = faceToVideoMap[faceIndex];
       
-      // Check if this face has a video that hasn't been played yet
-      if (videoForFace && videoQueueIndex !== undefined && !playedVideoIndices.has(videoQueueIndex)) {
-        // Mark this video as played
-        playedVideoIndices.add(videoQueueIndex);
-        currentlyPlayingFace = faceIndex;
-        
-        // Pause all other videos
-        videos.forEach(v => {
-          if (v.faceId !== faceIndex) {
-            v.element.pause();
-            v.element.muted = true;
-          }
-        });
-        
-        // Play this video with audio
-        videoForFace.element.currentTime = 0;
-        videoForFace.element.muted = false;
-        videoForFace.element.volume = 1;
-        videoForFace.element.play().catch(() => {});
-        
-        console.log('Playing video ' + videoQueueIndex + ' on face ' + faceIndex + ' (' + playedVideoIndices.size + '/' + totalVideosToPlay + ')');
-        postMessage('videoStart', { faceId: faceIndex, videoIndex: videoQueueIndex, playedCount: playedVideoIndices.size, totalVideos: totalVideosToPlay });
+      if (!videoForFace || videoQueueIndex === undefined) return false;
+      
+      // Mark as played
+      playedVideoIndices.add(videoQueueIndex);
+      
+      // Get video duration
+      const duration = videoForFace.element.duration || DEFAULT_VIDEO_DURATION;
+      currentVideoDuration = duration;
+      
+      // Calculate rotation
+      const currentFaceRotY = FACE_ROTATIONS[currentlyPlayingFace] || 0;
+      const targetFaceRotY = FACE_ROTATIONS[faceIndex] || 0;
+      
+      // Find next face for target rotation
+      const nextFace = getNextFaceAfter(faceIndex);
+      const nextFaceRotY = nextFace >= 0 ? FACE_ROTATIONS[nextFace] : targetFaceRotY + 90;
+      
+      if (isFirst) {
+        startRotationY = targetFaceRotY;
+        targetRotationY = nextFaceRotY;
+      } else {
+        startRotationY = targetRotationY;
+        // Ensure we rotate in consistent direction
+        let diff = nextFaceRotY - startRotationY;
+        while (diff > 180) diff -= 360;
+        while (diff < -180) diff += 360;
+        targetRotationY = startRotationY + diff;
       }
+      
+      currentlyPlayingFace = faceIndex;
+      videoStartTime = performance.now();
+      
+      // Pause all other videos
+      videos.forEach(v => {
+        if (v.faceId !== faceIndex) {
+          v.element.pause();
+          v.element.muted = true;
+        }
+      });
+      
+      // Play this video
+      videoForFace.element.currentTime = 0;
+      videoForFace.element.muted = false;
+      videoForFace.element.volume = 1;
+      videoForFace.element.play().catch(() => {});
+      
+      console.log('Playing video ' + videoQueueIndex + ' on face ' + faceIndex + ' (duration: ' + duration.toFixed(1) + 's)');
+      postMessage('videoStart', { faceId: faceIndex, videoIndex: videoQueueIndex, duration: duration });
+      
+      return true;
+    }
+    
+    function getNextFaceAfter(currentFace) {
+      for (let i = 1; i <= 6; i++) {
+        const faceIdx = (currentFace + i) % 6;
+        const qIdx = faceToVideoMap[faceIdx];
+        if (qIdx !== undefined && !playedVideoIndices.has(qIdx)) {
+          return faceIdx;
+        }
+      }
+      return -1;
     }
     
     function getNextUnplayedVideo() {
@@ -516,11 +541,11 @@ const CubeWebView = ({
     
     function onVideoEnded(faceId, queueIndex) {
       console.log('Video ' + queueIndex + ' ended on face ' + faceId + ' (' + playedVideoIndices.size + '/' + totalVideosToPlay + ')');
-      currentlyPlayingFace = -1;
       
       // Check if all videos have been played
       if (playedVideoIndices.size >= totalVideosToPlay) {
-        console.log('All ' + totalVideosToPlay + ' videos completed! Finishing animation.');
+        console.log('All ' + totalVideosToPlay + ' videos completed!');
+        currentlyPlayingFace = -1;
         postMessage('allVideosComplete', {});
         animationStarted = false;
         showPlayButton();
@@ -531,36 +556,19 @@ const CubeWebView = ({
         return;
       }
       
-      // Load next unplayed video onto this face
+      // Load next unplayed video onto this face for future use
       const next = getNextUnplayedVideo();
       if (next) {
         loadVideoOnFace(faceId, next.index, next.video);
-        console.log('Queued video ' + next.index + ' for face ' + faceId);
       }
       
-      // Try to play the next unplayed video immediately
-      setTimeout(() => {
-        // Find any face with an unplayed video
-        for (let i = 0; i < 6; i++) {
-          const videoQIdx = faceToVideoMap[i];
-          if (videoQIdx !== undefined && !playedVideoIndices.has(videoQIdx)) {
-            const videoForFace = videos.find(v => v.faceId === i);
-            if (videoForFace) {
-              playedVideoIndices.add(videoQIdx);
-              currentlyPlayingFace = i;
-              
-              videoForFace.element.currentTime = 0;
-              videoForFace.element.muted = false;
-              videoForFace.element.volume = 1;
-              videoForFace.element.play().catch(() => {});
-              
-              console.log('Auto-playing video ' + videoQIdx + ' on face ' + i);
-              postMessage('videoStart', { faceId: i, videoIndex: videoQIdx, playedCount: playedVideoIndices.size, totalVideos: totalVideosToPlay });
-              break;
-            }
-          }
-        }
-      }, 200);
+      // Play next video immediately
+      const nextFace = getNextFaceAfter(faceId);
+      if (nextFace >= 0) {
+        playVideoOnFace(nextFace, false);
+      } else {
+        currentlyPlayingFace = -1;
+      }
     }
     
     function startAnimation() {
@@ -569,11 +577,11 @@ const CubeWebView = ({
       totalDuration = videoDurations.reduce((sum, d) => sum + (d || DEFAULT_VIDEO_DURATION), 0);
       if (totalDuration < 10) totalDuration = 30;
       
-      console.log('Starting continuous animation. Total duration: ' + totalDuration + 's');
+      console.log('Starting synchronized animation. Total duration: ' + totalDuration + 's');
       postMessage('animationStarted', { totalDuration });
       
       animationStarted = true;
-      cycleStartTime = 0;
+      videoStartTime = performance.now();
       animationId = requestAnimationFrame(animate);
     }
     
@@ -596,8 +604,10 @@ const CubeWebView = ({
       // Reset tracking for new playback
       playedVideoIndices = new Set();
       currentlyPlayingFace = -1;
+      startRotationY = 0;
+      targetRotationY = 0;
       
-      // Don't auto-play all videos - they will play when their face comes to front
+      // Pause all videos
       videos.forEach(v => {
         v.element.pause();
         v.element.currentTime = 0;
@@ -606,10 +616,15 @@ const CubeWebView = ({
       
       startAnimation();
       
-      // Start with the first front-facing video
+      // Start with the first face that has a video
       setTimeout(() => {
-        const currentFront = getFrontFaceFromRotation(0, 0);
-        updateAudioForFace(currentFront);
+        for (let i = 0; i < 6; i++) {
+          const qIdx = faceToVideoMap[i];
+          if (qIdx !== undefined && !playedVideoIndices.has(qIdx)) {
+            playVideoOnFace(i, true);
+            break;
+          }
+        }
       }, 100);
     }
     
