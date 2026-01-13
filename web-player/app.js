@@ -88,7 +88,6 @@ const screens = {
     loading: document.getElementById('loading-screen'),
     maintenance: document.getElementById('maintenance-screen'),
     accessGate: document.getElementById('access-gate-screen'),
-    code: document.getElementById('code-screen'),
     watch: document.getElementById('watch-screen'),
     record3clips: document.getElementById('record-3clips-screen'),
     recordSingle: document.getElementById('record-single-screen'),
@@ -314,7 +313,7 @@ async function loadStory(code) {
     const story = await findStoryByCode(code);
     
     if (!story) {
-        document.getElementById('code-error').textContent = 'קוד לא נמצא. בדוק ונסה שוב.';
+        console.log('⚠️ Story not found for code:', code);
         return false;
     }
     
