@@ -252,10 +252,9 @@ const CubeWebView = ({
       height: 100%;
       transform-style: preserve-3d;
     }
-    .spin-wrapper {
-      width: 100%;
-      height: 100%;
+    .cube {
       transform-style: preserve-3d;
+      transition: none;
     }
     .play-button {
       position: absolute;
@@ -307,15 +306,13 @@ const CubeWebView = ({
   </button>
   <div class="scene">
     <div class="float-wrapper">
-      <div class="spin-wrapper" id="spin-wrapper">
-        <div class="cube" id="cube">
-          <div class="cube-face front" id="face-0"></div>
-          <div class="cube-face back" id="face-1"></div>
-          <div class="cube-face right" id="face-2"></div>
-          <div class="cube-face left" id="face-3"></div>
-          <div class="cube-face top" id="face-4"></div>
-          <div class="cube-face bottom" id="face-5"></div>
-        </div>
+      <div class="cube" id="cube">
+        <div class="cube-face front" id="face-0"></div>
+        <div class="cube-face back" id="face-1"></div>
+        <div class="cube-face right" id="face-2"></div>
+        <div class="cube-face left" id="face-3"></div>
+        <div class="cube-face top" id="face-4"></div>
+        <div class="cube-face bottom" id="face-5"></div>
       </div>
     </div>
   </div>
@@ -367,7 +364,29 @@ const CubeWebView = ({
     function animate(timestamp) {
       globalTime = timestamp / 1000;
       
+      const cube = document.getElementById('cube');
+      if (!cube) {
+        animationId = requestAnimationFrame(animate);
+        return;
+      }
+      
+      // Add gentle floating motion always (even before video starts)
+      const floatX = Math.sin(globalTime * 0.6) * 15;
+      const floatY = Math.sin(globalTime * 0.4) * 20;
+      const floatZ = Math.sin(globalTime * 0.3) * 30;
+      const depthScale = 0.97 + Math.sin(globalTime * 0.25) * 0.05;
+      
+      const floatWrapper = document.querySelector('.float-wrapper');
+      if (floatWrapper) {
+        floatWrapper.style.transform = 
+          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + floatZ + 'px) scale(' + depthScale + ')';
+      }
+      
+      // If no video is playing, just show idle rotation
       if (currentlyPlayingFace < 0) {
+        const idleRotY = globalTime * 15;
+        const idleRotX = Math.sin(globalTime * 0.3) * 10;
+        cube.style.transform = 'rotateX(' + idleRotX + 'deg) rotateY(' + idleRotY + 'deg)';
         animationId = requestAnimationFrame(animate);
         return;
       }
@@ -376,37 +395,16 @@ const CubeWebView = ({
       const progress = Math.min(elapsed / currentVideoDuration, 1);
       
       // Continuous smooth rotation throughout the entire video duration
-      // Uses easing for natural feel - starts slow, speeds up in middle, slows at end
       const easedProgress = easeInOutCubic(progress);
       
       // Interpolate rotation continuously from start to target
       let rotY = startRotationY + (targetRotationY - startRotationY) * easedProgress;
       
-      // Add gentle floating motion on top of the main rotation
-      const wobbleY = Math.sin(globalTime * 0.8) * 6;
-      const wobbleX = Math.sin(globalTime * 0.5) * 10 + Math.cos(globalTime * 0.3) * 6;
-      const wobbleZ = Math.sin(globalTime * 0.4) * 5;
+      // Subtle tilt for visual interest
+      const tiltX = Math.sin(globalTime * 0.4) * 8;
+      const tiltZ = Math.sin(globalTime * 0.3) * 4;
       
-      // Floating position
-      const floatX = Math.sin(globalTime * 0.6) * 20;
-      const floatY = Math.sin(globalTime * 0.4) * 25;
-      const floatZ = Math.sin(globalTime * 0.3) * 40;
-      
-      // Depth scale variation
-      const depthScale = 0.95 + Math.sin(globalTime * 0.25) * 0.1;
-      
-      const spinWrapper = document.getElementById('spin-wrapper');
-      const floatWrapper = document.querySelector('.float-wrapper');
-      
-      if (spinWrapper) {
-        spinWrapper.style.transform = 
-          'rotateX(' + wobbleX + 'deg) rotateY(' + (rotY + wobbleY) + 'deg) rotateZ(' + wobbleZ + 'deg)';
-      }
-      
-      if (floatWrapper) {
-        floatWrapper.style.transform = 
-          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + floatZ + 'px) scale(' + depthScale + ')';
-      }
+      cube.style.transform = 'rotateX(' + tiltX + 'deg) rotateY(' + rotY + 'deg) rotateZ(' + tiltZ + 'deg)';
       
       animationId = requestAnimationFrame(animate);
     }
