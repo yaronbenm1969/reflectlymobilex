@@ -146,10 +146,11 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
     hasStartedRef.current = true;
     
     if (isMountedRef.current) {
-      setStatus('converting');
+      setStatus('loading');
     }
 
-    const validReflections = reflections.filter(r => r.videoUrl).slice(0, maxFaces);
+    // Load ALL valid reflections, not limited by maxFaces
+    const validReflections = reflections.filter(r => r.videoUrl);
     
     if (!shuffledOrderRef.current) {
       shuffledOrderRef.current = shuffleArray(validReflections);
@@ -158,7 +159,7 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
 
     const total = shuffledReflections.length;
     if (isMountedRef.current) {
-      setProgress({ converted: 0, total, message: 'מכין סרטונים...' });
+      setProgress({ converted: 0, total, message: `טוען ${total} סרטונים...` });
     }
 
     const initialFaces = shuffledReflections.map((reflection, i) => ({
@@ -172,10 +173,6 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
       isReady: false,
       status: 'converting',
     }));
-    
-    while (initialFaces.length < maxFaces) {
-      initialFaces.push(null);
-    }
     if (isMountedRef.current) {
       setPreparedFaces([...initialFaces]);
     }

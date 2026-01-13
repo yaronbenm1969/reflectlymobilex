@@ -89,11 +89,26 @@ export const FinalVideoScreen = () => {
     }
   };
 
-  const participantCount = new Set(reflections.map(r => r.recipientId || r.participantId || 'anonymous')).size;
+  // Count unique participants by playerName/participantName
+  const participantCount = useMemo(() => {
+    const uniqueParticipants = new Set();
+    reflections.forEach(r => {
+      const name = r.playerName || r.participantName || r.recipientId || r.participantId;
+      if (name) {
+        uniqueParticipants.add(name);
+      }
+    });
+    // If we have clips but no unique names, count by groups of 3 (each participant records 3 clips)
+    if (uniqueParticipants.size === 0 && reflections.length > 0) {
+      return Math.ceil(reflections.length / 3);
+    }
+    return uniqueParticipants.size || 1;
+  }, [reflections]);
 
   const is3DFormat = videoFormat && videoFormat !== 'standard';
   const isCube3D = videoFormat === 'cube-3d';
 
+  // Load all reflections (not limited to 6) for proper progress display
   const { 
     status: assetStatus, 
     progress: assetProgress, 
@@ -101,7 +116,7 @@ export const FinalVideoScreen = () => {
     isReady: assetsReady,
     reset: resetAssets,
     prepareAllAssets 
-  } = useReflectionAssets(isCube3D ? reflections : [], 6);
+  } = useReflectionAssets(isCube3D ? reflections : [], reflections.length || 9);
 
   const cubeFaces = preparedFaces;
 
@@ -436,8 +451,8 @@ export const FinalVideoScreen = () => {
                 </TouchableOpacity>
               </View>
             </View>
-          ) : isCube3D && (assetStatus === 'converting' || (assetStatus === 'idle' && reflections.length > 0)) && !assetsReady ? (
-            /* Show loading screen while downloading/converting ALL videos */
+          ) : isCube3D && (assetStatus === 'loading' || assetStatus === 'converting' || (assetStatus === 'idle' && reflections.length > 0)) && !assetsReady ? (
+            /* Show loading screen while downloading ALL videos */
             <View style={styles.cubeContainer}>
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={theme.colors.primary} />
