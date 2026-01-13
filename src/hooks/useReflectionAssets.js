@@ -251,11 +251,13 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
         setPreparedFaces(prev => {
           const updated = [...prev];
           if (downloadFailed) {
+            console.log(`⚠️ Falling back to remote URL for video ${i + 1}`);
             updated[i] = {
               ...updated[i],
-              videoUrl: null,
-              isReady: false,
-              status: 'failed',
+              videoUrl: videoUrl,
+              isReady: true,
+              status: 'ready',
+              usedFallback: true,
             };
           } else {
             updated[i] = {
@@ -280,25 +282,17 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
 
     if (isMountedRef.current) {
       setPreparedFaces(currentFaces => {
-        const failedCount = currentFaces.filter(f => f?.status === 'failed').length;
         const readyCount = currentFaces.filter(f => f?.status === 'ready').length;
+        const fallbackCount = currentFaces.filter(f => f?.usedFallback).length;
         
-        if (failedCount > 0) {
-          console.log(`❌ ${failedCount} videos failed to download`);
-          setStatus('error');
-          setIsReady(false);
-          setProgress({ 
-            converted: readyCount, 
-            total, 
-            message: `${failedCount} סרטונים נכשלו בהורדה`,
-            failedCount: failedCount
-          });
-        } else {
-          console.log(`🎬 All ${total} videos prepared and cached locally`);
-          setStatus('ready');
-          setIsReady(true);
-          setProgress({ converted: total, total, message: 'הכל מוכן!', failedCount: 0 });
+        if (fallbackCount > 0) {
+          console.log(`⚠️ ${fallbackCount} videos using remote URLs (cache failed)`);
         }
+        
+        console.log(`🎬 All ${total} videos prepared (${readyCount - fallbackCount} cached, ${fallbackCount} remote)`);
+        setStatus('ready');
+        setIsReady(true);
+        setProgress({ converted: total, total, message: 'הכל מוכן!', failedCount: 0 });
         
         return currentFaces;
       });
