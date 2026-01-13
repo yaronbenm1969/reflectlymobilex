@@ -371,19 +371,14 @@ const CubeWebView = ({
       const elapsed = (timestamp - videoStartTime) / 1000;
       const progress = Math.min(elapsed / currentVideoDuration, 1);
       
-      // Keep face in front for 80% of video, then rotate in last 20%
-      // This ensures the video is visible throughout playback
-      let rotationProgress = 0;
-      if (progress > 0.8) {
-        // Only rotate in the last 20% of the video
-        rotationProgress = (progress - 0.8) / 0.2;
-        rotationProgress = easeInOutCubic(rotationProgress);
-      }
+      // Continuous smooth rotation throughout the entire video duration
+      // Uses easing for natural feel - starts slow, speeds up in middle, slows at end
+      const easedProgress = easeInOutCubic(progress);
       
-      // Interpolate rotation - stays at start for 80%, then moves to target in last 20%
-      let rotY = startRotationY + (targetRotationY - startRotationY) * rotationProgress;
+      // Interpolate rotation continuously from start to target
+      let rotY = startRotationY + (targetRotationY - startRotationY) * easedProgress;
       
-      // Add gentle floating motion (doesn't affect which face is front)
+      // Add gentle floating motion on top of the main rotation
       const wobbleY = Math.sin(globalTime * 0.8) * 6;
       const wobbleX = Math.sin(globalTime * 0.5) * 10 + Math.cos(globalTime * 0.3) * 6;
       const wobbleZ = Math.sin(globalTime * 0.4) * 5;
