@@ -17,8 +17,9 @@ import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 import { reflectionsService } from '../services/reflectionsService';
+import { storiesService } from '../services/storiesService';
 import { db } from '../services/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 
 export const EditRoomScreen = () => {
   const { go, back } = useNav();
@@ -45,8 +46,12 @@ export const EditRoomScreen = () => {
   const [approvedClips, setApprovedClips] = useState({});
   const [storyVideoUrl, setStoryVideoUrl] = useState(null);
   const [isConverting, setIsConverting] = useState(false);
+  const [rejectionData, setRejectionData] = useState(null);
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
   
+  const setPrivacySettings = useAppState((state) => state.setPrivacySettings);
   const unsubscribeRef = useRef(null);
+  const storyUnsubscribeRef = useRef(null);
 
   useEffect(() => {
     const loadStoryDetails = async () => {
@@ -72,6 +77,18 @@ export const EditRoomScreen = () => {
               setBackgroundStyle(storyData.backgroundStyle);
               console.log('🖼️ Loaded backgroundStyle from Firebase:', storyData.backgroundStyle);
             }
+            
+            if (storyData.hasRejections && storyData.participantApprovals) {
+              const rejections = Object.entries(storyData.participantApprovals)
+                .filter(([_, status]) => status === 'rejected');
+              if (rejections.length > 0) {
+                setRejectionData({
+                  count: rejections.length,
+                  approvalHistory: storyData.approvalHistory || []
+                });
+                setShowRejectionModal(true);
+              }
+            }
           }
         } catch (error) {
           console.error('Error loading story:', error);
@@ -91,11 +108,34 @@ export const EditRoomScreen = () => {
           setReflectionsLoading(false);
         }
       );
+      
+      storyUnsubscribeRef.current = onSnapshot(
+        doc(db, 'stories', currentStoryId),
+        (docSnap) => {
+          if (docSnap.exists()) {
+            const storyData = docSnap.data();
+            if (storyData.hasRejections && storyData.participantApprovals) {
+              const rejections = Object.entries(storyData.participantApprovals)
+                .filter(([_, status]) => status === 'rejected');
+              if (rejections.length > 0 && !showRejectionModal) {
+                setRejectionData({
+                  count: rejections.length,
+                  approvalHistory: storyData.approvalHistory || []
+                });
+                setShowRejectionModal(true);
+              }
+            }
+          }
+        }
+      );
     }
     
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
+      }
+      if (storyUnsubscribeRef.current) {
+        storyUnsubscribeRef.current();
       }
     };
   }, [currentStoryId]);
@@ -524,6 +564,65 @@ export const EditRoomScreen = () => {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={showRejectionModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRejectionModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.rejectionModal]}>
+            <Text style={styles.rejectionIcon}>⚠️</Text>
+            <Text style={styles.rejectionTitle}>יש משתתפים שדחו את הפרסום</Text>
+            <Text style={styles.rejectionText}>
+              {rejectionData?.count} משתתפ/ים לא אישרו את פרסום הסרטון הסופי.
+            </Text>
+            <Text style={styles.rejectionSubtext}>מה תרצה לעשות?</Text>
+            <View style={styles.rejectionActions}>
+              <TouchableOpacity
+                style={[styles.rejectionButton, styles.rejectionButtonPrivate]}
+                onPress={async () => {
+                  try {
+                    const updatedPrivacy = { 
+                      ...privacySettings, 
+                      publishingEnabled: false 
+                    };
+                    await storiesService.updateStory(currentStoryId, {
+                      privacySettings: updatedPrivacy,
+                      hasRejections: false
+                    });
+                    setPrivacySettings(updatedPrivacy);
+                    Alert.alert('עודכן', 'הסיפור הפך לפרויקט אישי ללא פרסום');
+                  } catch (e) {
+                    console.error(e);
+                  }
+                  setShowRejectionModal(false);
+                }}
+              >
+                <Ionicons name="lock-closed" size={20} color="white" />
+                <Text style={styles.rejectionButtonText}>הפוך לפרויקט אישי</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.rejectionButton, styles.rejectionButtonContinue]}
+                onPress={() => {
+                  setShowRejectionModal(false);
+                  go('WhatsAppShare');
+                }}
+              >
+                <Ionicons name="person-add" size={20} color="white" />
+                <Text style={styles.rejectionButtonText}>הזמן שחקנים אחרים</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.rejectionDismiss}
+                onPress={() => setShowRejectionModal(false)}
+              >
+                <Text style={styles.rejectionDismissText}>סגור</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -893,5 +992,64 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 12,
+  },
+  rejectionModal: {
+    height: 'auto',
+    backgroundColor: 'white',
+    padding: theme.spacing[6],
+    alignItems: 'center',
+  },
+  rejectionIcon: {
+    fontSize: 48,
+    marginBottom: theme.spacing[3],
+  },
+  rejectionTitle: {
+    ...theme.typography.h2,
+    color: '#e74c3c',
+    textAlign: 'center',
+    marginBottom: theme.spacing[2],
+  },
+  rejectionText: {
+    ...theme.typography.body,
+    color: theme.colors.text,
+    textAlign: 'center',
+    marginBottom: theme.spacing[2],
+  },
+  rejectionSubtext: {
+    ...theme.typography.body,
+    color: theme.colors.subtext,
+    textAlign: 'center',
+    marginBottom: theme.spacing[4],
+  },
+  rejectionActions: {
+    width: '100%',
+    gap: theme.spacing[3],
+  },
+  rejectionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing[4],
+    borderRadius: theme.radii.lg,
+    gap: theme.spacing[2],
+  },
+  rejectionButtonPrivate: {
+    backgroundColor: theme.colors.primary,
+  },
+  rejectionButtonContinue: {
+    backgroundColor: '#4CAF50',
+  },
+  rejectionButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  rejectionDismiss: {
+    padding: theme.spacing[3],
+    alignItems: 'center',
+  },
+  rejectionDismissText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
   },
 });

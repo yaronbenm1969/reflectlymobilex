@@ -89,6 +89,9 @@ const screens = {
     maintenance: document.getElementById('maintenance-screen'),
     accessGate: document.getElementById('access-gate-screen'),
     watch: document.getElementById('watch-screen'),
+    publishingApproval: document.getElementById('publishing-approval-screen'),
+    rejectionConfirm: document.getElementById('rejection-confirm-screen'),
+    rejectionFinal: document.getElementById('rejection-final-screen'),
     record3clips: document.getElementById('record-3clips-screen'),
     recordSingle: document.getElementById('record-single-screen'),
     reviewSingle: document.getElementById('review-single-screen'),
@@ -435,6 +438,96 @@ async function loadStory(code) {
     return true;
 }
 
+function handleStartRecording() {
+    if (!currentStory) {
+        console.log('⚠️ No story loaded');
+        return;
+    }
+    
+    const publishingEnabled = currentStory.privacySettings?.publishingEnabled;
+    const existingApproval = localStorage.getItem(`publishing_approval_${currentStory.id}_${participantId}`);
+    
+    console.log('📢 Publishing enabled:', publishingEnabled);
+    console.log('📋 Existing approval:', existingApproval);
+    
+    if (!publishingEnabled) {
+        console.log('📢 Publishing disabled, skipping approval');
+        localStorage.removeItem(`publishing_approval_${currentStory.id}_${participantId}`);
+        showScreen('record3clips');
+        return;
+    }
+    
+    if (existingApproval === 'rejected') {
+        console.log('❌ Previously rejected, showing rejection screen');
+        showScreen('rejectionFinal');
+        return;
+    }
+    
+    if (existingApproval === 'approved') {
+        console.log('✅ Previously approved, proceeding to recording');
+        showScreen('record3clips');
+        return;
+    }
+    
+    const creatorName = currentStory.creatorName || currentStory.creatorEmail || 'היוצר';
+    const approvalTitle = document.getElementById('approval-creator-name');
+    if (approvalTitle) {
+        approvalTitle.textContent = `${creatorName} רוצה לפרסם את הסרטון`;
+    }
+    showScreen('publishingApproval');
+}
+
+async function handlePublishingApproval(approved) {
+    if (!currentStory || !participantId) {
+        console.log('⚠️ No story or participant');
+        return;
+    }
+    
+    console.log(`📢 Publishing approval: ${approved ? 'approved' : 'rejected'}`);
+    
+    try {
+        const { doc, updateDoc, arrayUnion, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        
+        const approvalData = {
+            participantId,
+            participantName: participantName || 'אנונימי',
+            approved,
+            timestamp: new Date().toISOString()
+        };
+        
+        const storyRef = doc(db, 'stories', currentStory.id);
+        
+        if (approved) {
+            await updateDoc(storyRef, {
+                [`participantApprovals.${participantId}`]: 'approved',
+                approvalHistory: arrayUnion(approvalData)
+            });
+            
+            localStorage.setItem(`publishing_approval_${currentStory.id}_${participantId}`, 'approved');
+            console.log('✅ Approval saved, proceeding to recording');
+            showScreen('record3clips');
+        } else {
+            await updateDoc(storyRef, {
+                [`participantApprovals.${participantId}`]: 'rejected',
+                approvalHistory: arrayUnion(approvalData),
+                hasRejections: true
+            });
+            
+            localStorage.setItem(`publishing_approval_${currentStory.id}_${participantId}`, 'rejected');
+            console.log('❌ Rejection saved');
+            showScreen('rejectionFinal');
+        }
+    } catch (error) {
+        console.error('❌ Error saving approval:', error);
+        if (approved) {
+            localStorage.setItem(`publishing_approval_${currentStory.id}_${participantId}`, 'approved');
+            showScreen('record3clips');
+        } else {
+            showScreen('rejectionFinal');
+        }
+    }
+}
+
 async function startCamera() {
     try {
         cameraStream = await navigator.mediaDevices.getUserMedia({
@@ -743,12 +836,48 @@ function setupVideoControls() {
 
 function setupEventListeners() {
     document.getElementById('start-record-btn').addEventListener('click', () => {
-        showScreen('record3clips');
+        handleStartRecording();
     });
     
     document.getElementById('back-to-watch-from-3clips').addEventListener('click', () => {
         showScreen('watch');
     });
+    
+    // Publishing approval flow
+    const backToWatchFromApproval = document.getElementById('back-to-watch-from-approval');
+    if (backToWatchFromApproval) {
+        backToWatchFromApproval.addEventListener('click', () => showScreen('watch'));
+    }
+    
+    const approvePublishingBtn = document.getElementById('approve-publishing-btn');
+    if (approvePublishingBtn) {
+        approvePublishingBtn.addEventListener('click', () => handlePublishingApproval(true));
+    }
+    
+    const rejectPublishingBtn = document.getElementById('reject-publishing-btn');
+    if (rejectPublishingBtn) {
+        rejectPublishingBtn.addEventListener('click', () => showScreen('rejectionConfirm'));
+    }
+    
+    const backToApproval = document.getElementById('back-to-approval');
+    if (backToApproval) {
+        backToApproval.addEventListener('click', () => showScreen('publishingApproval'));
+    }
+    
+    const confirmRejectionBtn = document.getElementById('confirm-rejection-btn');
+    if (confirmRejectionBtn) {
+        confirmRejectionBtn.addEventListener('click', () => handlePublishingApproval(false));
+    }
+    
+    const cancelRejectionBtn = document.getElementById('cancel-rejection-btn');
+    if (cancelRejectionBtn) {
+        cancelRejectionBtn.addEventListener('click', () => handlePublishingApproval(true));
+    }
+    
+    const backToWatchFinalBtn = document.getElementById('back-to-watch-final-btn');
+    if (backToWatchFinalBtn) {
+        backToWatchFinalBtn.addEventListener('click', () => showScreen('watch'));
+    }
     
     for (let i = 1; i <= 3; i++) {
         document.getElementById(`clip${i}-btn`).addEventListener('click', async () => {

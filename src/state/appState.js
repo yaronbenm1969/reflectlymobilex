@@ -38,6 +38,7 @@ export const useAppState = create((set, get) => ({
   privacySettings: {
     allowSocialMedia: false,
     privateOnly: true,
+    publishingEnabled: true,
   },
   
   // Participants (friends who received invitation)
@@ -183,6 +184,7 @@ export const useAppState = create((set, get) => ({
     privacySettings: {
       allowSocialMedia: false,
       privateOnly: true,
+      publishingEnabled: true,
     },
     participants: [],
     receivedVideos: [],

@@ -34,6 +34,7 @@ export const InstructionsScreen = () => {
   const [video2Time, setVideo2Time] = useState(playerInstructions.video2Time || 30);
   const [video3Time, setVideo3Time] = useState(playerInstructions.video3Time || 30);
   const [allowSocialMedia, setAllowSocialMedia] = useState(privacySettings.allowSocialMedia);
+  const [publishingEnabled, setPublishingEnabled] = useState(privacySettings.publishingEnabled ?? true);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
@@ -47,6 +48,7 @@ export const InstructionsScreen = () => {
     setPrivacySettings({
       allowSocialMedia,
       privateOnly: !allowSocialMedia,
+      publishingEnabled,
     });
     
     if (lastRecordingUri && currentStoryId) {
@@ -63,7 +65,7 @@ export const InstructionsScreen = () => {
             videoUri: uploadResult.url,
             instructions: genericInstructions,
             videoTimings: { video1: video1Time, video2: video2Time, video3: video3Time },
-            privacySettings: { allowSocialMedia, privateOnly: !allowSocialMedia },
+            privacySettings: { allowSocialMedia, privateOnly: !allowSocialMedia, publishingEnabled },
           });
           
           if (updateResult.success) {
@@ -173,9 +175,25 @@ export const InstructionsScreen = () => {
         </Card>
 
         <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>הגדרות פרטיות</Text>
+          <Text style={styles.sectionTitle}>הגדרות פרסום ופרטיות</Text>
+          
           <View style={styles.privacyRow}>
-            <Text style={styles.privacyLabel}>אפשר פרסום ברשתות חברתיות</Text>
+            <Text style={styles.privacyLabel}>אפשר פרסום הסרטון הסופי</Text>
+            <Switch
+              value={publishingEnabled}
+              onValueChange={setPublishingEnabled}
+              trackColor={{ false: '#ddd', true: theme.colors.primary }}
+              thumbColor={publishingEnabled ? theme.colors.white : '#f4f3f4'}
+            />
+          </View>
+          <Text style={styles.privacyDescription}>
+            {publishingEnabled
+              ? 'המשתתפים יתבקשו לאשר פרסום לפני ההקלטה'
+              : 'הסרטון יהיה לצפייה פרטית בלבד - ללא בקשת אישור'}
+          </Text>
+          
+          <View style={[styles.privacyRow, { marginTop: theme.spacing[4] }]}>
+            <Text style={styles.privacyLabel}>אפשר שיתוף ברשתות חברתיות</Text>
             <Switch
               value={allowSocialMedia}
               onValueChange={setAllowSocialMedia}

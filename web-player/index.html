@@ -128,6 +128,68 @@
             </button>
         </div>
 
+        <div id="publishing-approval-screen" class="screen">
+            <div class="header">
+                <button class="btn-back" id="back-to-watch-from-approval">←</button>
+                <h1>אישור פרסום</h1>
+            </div>
+            <div class="card" style="text-align: center; padding: 30px; margin: 20px;">
+                <div style="font-size: 48px; margin-bottom: 20px;">📢</div>
+                <h2 id="approval-creator-name" style="margin-bottom: 15px; color: #FF6B9D;">היוצר רוצה לפרסם</h2>
+                <p style="margin-bottom: 25px; color: #666; font-size: 16px; line-height: 1.6;">
+                    הסרטון הסופי עשוי להתפרסם ברשתות חברתיות.<br>
+                    <strong>האם אתה מאשר להשתתף?</strong>
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <button id="approve-publishing-btn" class="btn-primary" style="width: 100%; padding: 15px; font-size: 18px;">
+                        ✓ מאשר להשתתף ולפרסם
+                    </button>
+                    <button id="reject-publishing-btn" class="btn-secondary" style="width: 100%; padding: 15px; font-size: 16px; background: #f0f0f0; border: none; border-radius: 12px; cursor: pointer;">
+                        ✗ לא מאשר פרסום
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="rejection-confirm-screen" class="screen">
+            <div class="header">
+                <button class="btn-back" id="back-to-approval">←</button>
+                <h1>אישור דחייה</h1>
+            </div>
+            <div class="card" style="text-align: center; padding: 30px; margin: 20px;">
+                <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                <h2 style="margin-bottom: 15px; color: #e74c3c;">בטוח שלא לאשר?</h2>
+                <p style="margin-bottom: 25px; color: #666; font-size: 16px; line-height: 1.6;">
+                    בלי אישור פרסום לא תוכל להקליט שיקופים לסיפור הזה.
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <button id="confirm-rejection-btn" class="btn-secondary" style="width: 100%; padding: 15px; font-size: 16px; background: #e74c3c; color: white; border: none; border-radius: 12px; cursor: pointer;">
+                        כן, לא מעוניין להשתתף
+                    </button>
+                    <button id="cancel-rejection-btn" class="btn-primary" style="width: 100%; padding: 15px; font-size: 18px;">
+                        רגע, אני מאשר!
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="rejection-final-screen" class="screen">
+            <div class="header">
+                <h1>תודה על התעניינות</h1>
+            </div>
+            <div class="card" style="text-align: center; padding: 30px; margin: 20px;">
+                <div style="font-size: 48px; margin-bottom: 20px;">👋</div>
+                <h2 style="margin-bottom: 15px;">הבחירה שלך נשמרה</h2>
+                <p style="margin-bottom: 25px; color: #666; font-size: 16px; line-height: 1.6;">
+                    עדכנו את היוצר שלא אישרת פרסום.<br>
+                    תמיד אפשר לחזור ולצפות בסיפור.
+                </p>
+                <button id="back-to-watch-final-btn" class="btn-primary" style="width: 100%; padding: 15px; font-size: 18px;">
+                    ← חזרה לצפייה בסיפור
+                </button>
+            </div>
+        </div>
+
         <div id="record-3clips-screen" class="screen">
             <div class="header dark">
                 <button class="btn-back light" id="back-to-watch-from-3clips">←</button>
