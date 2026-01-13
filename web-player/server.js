@@ -156,8 +156,8 @@ setTimeout(()=>location.href='/cube3d-v2.html?v=${Date.now()}',500);
     if (req.url === '/api/maintenance-status') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ 
-            maintenance: false,
-            requiresCode: false
+            maintenance: MAINTENANCE_MODE === 'true',
+            requiresCode: !!ACCESS_CODE
         }));
         return;
     }
