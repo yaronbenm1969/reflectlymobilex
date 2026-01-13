@@ -743,28 +743,6 @@ function setupVideoControls() {
 }
 
 function setupEventListeners() {
-    const codeInput = document.getElementById('invite-code-input');
-    const joinBtn = document.getElementById('join-btn');
-    
-    codeInput.addEventListener('input', (e) => {
-        joinBtn.disabled = e.target.value.trim().length < 1;
-        document.getElementById('code-error').textContent = '';
-    });
-    
-    joinBtn.addEventListener('click', async () => {
-        joinBtn.disabled = true;
-        joinBtn.textContent = 'מחפש...';
-        const success = await loadStory(codeInput.value);
-        if (!success) {
-            joinBtn.disabled = false;
-            joinBtn.textContent = 'הצטרף לסיפור';
-        }
-    });
-    
-    document.getElementById('back-to-code').addEventListener('click', () => {
-        showScreen('code');
-    });
-    
     document.getElementById('start-record-btn').addEventListener('click', () => {
         showScreen('record3clips');
     });
@@ -888,8 +866,11 @@ function showWelcomeMessage() {
             </div>
         `;
     }
-    const recordBtn = document.getElementById('continue-to-record');
+    const recordBtn = document.getElementById('start-record-btn');
     if (recordBtn) recordBtn.style.display = 'none';
+    
+    const instructionsCard = document.querySelector('#watch-screen .card');
+    if (instructionsCard) instructionsCard.style.display = 'none';
 }
 
 function addInAppBrowserBanner() {
