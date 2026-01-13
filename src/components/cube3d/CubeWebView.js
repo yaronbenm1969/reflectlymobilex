@@ -327,6 +327,19 @@ const CubeWebView = ({
     
     const DEFAULT_VIDEO_DURATION = 5;
     
+    // Video queue system - tracks all videos and which have been played
+    let videoQueue = [...faces]; // All videos in order
+    let playedVideoIndices = new Set(); // Which video indices have been played
+    let faceToVideoIndex = {}; // Maps face ID to current video index
+    let totalVideosToPlay = faces.filter(f => f && f.videoUrl).length;
+    
+    // Initialize face to video mapping (first 6 videos on 6 faces)
+    faces.forEach((face, i) => {
+      if (i < 6 && face && face.videoUrl) {
+        faceToVideoIndex[i] = i;
+      }
+    });
+    
     function postMessage(type, data) {
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type, ...data }));
@@ -498,7 +511,7 @@ const CubeWebView = ({
         }
         
         if (face.videoUrl) {
-          html += '<video muted loop playsinline preload="auto" style="opacity:0"></video>';
+          html += '<video muted playsinline preload="auto" style="opacity:0"></video>';
         }
         
         html += '<div class="player-badge">' + (face.playerName || 'סרטון') + '</div>';
@@ -551,7 +564,41 @@ const CubeWebView = ({
           });
           
           video.addEventListener('ended', () => {
-            postMessage('videoEnd', { faceId });
+            const videoIndex = faceToVideoIndex[faceId];
+            console.log('Video ended on face ' + faceId + ', video index: ' + videoIndex);
+            
+            // Mark this video as played
+            if (videoIndex !== undefined) {
+              playedVideoIndices.add(videoIndex);
+            }
+            
+            postMessage('videoEnd', { faceId, videoIndex, playedCount: playedVideoIndices.size, totalVideos: totalVideosToPlay });
+            
+            // Check if all videos have been played
+            if (playedVideoIndices.size >= totalVideosToPlay) {
+              console.log('All ' + totalVideosToPlay + ' videos have been played!');
+              postMessage('allVideosComplete', { playedCount: playedVideoIndices.size });
+              return;
+            }
+            
+            // Find next unplayed video from queue
+            let nextVideoIndex = -1;
+            for (let i = 0; i < videoQueue.length; i++) {
+              if (!playedVideoIndices.has(i) && videoQueue[i] && videoQueue[i].videoUrl) {
+                nextVideoIndex = i;
+                break;
+              }
+            }
+            
+            // Load next video onto this face
+            if (nextVideoIndex >= 0) {
+              console.log('Loading video ' + nextVideoIndex + ' onto face ' + faceId);
+              const nextVideo = videoQueue[nextVideoIndex];
+              faceToVideoIndex[faceId] = nextVideoIndex;
+              
+              // Update face content with new video
+              loadNewVideoOnFace(faceId, nextVideo, nextVideoIndex);
+            }
           });
           
           video.src = face.videoUrl;
@@ -559,6 +606,67 @@ const CubeWebView = ({
         }
       } else {
         el.innerHTML = '<div class="placeholder"><span class="icon">🎬</span><span class="label">סרטון ' + (faceId + 1) + '</span></div>';
+      }
+    }
+    
+    function loadNewVideoOnFace(faceId, videoData, videoIndex) {
+      const el = document.getElementById('face-' + faceId);
+      if (!el || !videoData || !videoData.videoUrl) return;
+      
+      // Remove old video from videos array
+      videos = videos.filter(v => v.faceId !== faceId);
+      
+      let html = '';
+      if (videoData.thumbnailUrl) {
+        html += '<img src="' + videoData.thumbnailUrl + '" alt="Thumbnail" />';
+      }
+      html += '<video muted playsinline preload="auto" style="opacity:0"></video>';
+      html += '<div class="player-badge">' + (videoData.playerName || 'סרטון') + '</div>';
+      el.innerHTML = html;
+      
+      const video = el.querySelector('video');
+      if (video) {
+        videos.push({ element: video, faceId, duration: 0, videoIndex });
+        
+        video.addEventListener('loadeddata', () => {
+          video.style.opacity = '1';
+          video.play().catch(() => {});
+        });
+        
+        video.addEventListener('ended', () => {
+          const vIdx = faceToVideoIndex[faceId];
+          console.log('Video ended on face ' + faceId + ', video index: ' + vIdx);
+          
+          if (vIdx !== undefined) {
+            playedVideoIndices.add(vIdx);
+          }
+          
+          postMessage('videoEnd', { faceId, videoIndex: vIdx, playedCount: playedVideoIndices.size, totalVideos: totalVideosToPlay });
+          
+          if (playedVideoIndices.size >= totalVideosToPlay) {
+            console.log('All ' + totalVideosToPlay + ' videos have been played!');
+            postMessage('allVideosComplete', { playedCount: playedVideoIndices.size });
+            return;
+          }
+          
+          // Find next unplayed video
+          let nextIdx = -1;
+          for (let i = 0; i < videoQueue.length; i++) {
+            if (!playedVideoIndices.has(i) && videoQueue[i] && videoQueue[i].videoUrl) {
+              nextIdx = i;
+              break;
+            }
+          }
+          
+          if (nextIdx >= 0) {
+            console.log('Loading video ' + nextIdx + ' onto face ' + faceId);
+            faceToVideoIndex[faceId] = nextIdx;
+            loadNewVideoOnFace(faceId, videoQueue[nextIdx], nextIdx);
+          }
+        });
+        
+        video.src = videoData.videoUrl;
+        video.load();
       }
     }
     
