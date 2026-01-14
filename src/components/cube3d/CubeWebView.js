@@ -418,20 +418,29 @@ const CubeWebView = ({
       const currentFrontFace = getFrontFaceFromRotation(rotX, rotY);
       if (currentFrontFace !== lastFrontFace) {
         lastFrontFace = currentFrontFace;
-        updateAudioForFace(currentFrontFace);
+        updatePlaybackForFace(currentFrontFace);
         postMessage('faceChanged', { faceIndex: currentFrontFace });
       }
       
       animationId = requestAnimationFrame(animate);
     }
     
-    function updateAudioForFace(faceIndex) {
+    // Play ONLY the visible face, pause all others
+    function updatePlaybackForFace(faceIndex) {
       videos.forEach(v => {
         if (v.faceId === faceIndex) {
+          // This face is visible - play and unmute
           v.element.muted = false;
           v.element.volume = 1;
+          if (v.element.paused && !v.element.ended) {
+            v.element.play().catch(() => {});
+          }
         } else {
+          // This face is hidden - pause and mute
           v.element.muted = true;
+          if (!v.element.paused && !v.element.ended) {
+            v.element.pause();
+          }
         }
       });
     }
@@ -466,11 +475,19 @@ const CubeWebView = ({
       if (!isReady) return;
       hidePlayButton();
       
+      // Reset all videos to start, but only play the front face (0)
       videos.forEach(v => {
         v.element.currentTime = 0;
-        v.element.play().catch(() => {});
+        if (v.faceId === 0) {
+          v.element.muted = false;
+          v.element.play().catch(() => {});
+        } else {
+          v.element.muted = true;
+          // Keep paused until face becomes visible
+        }
       });
       
+      lastFrontFace = 0; // Start with face 0 as front
       startAnimation();
     }
     
