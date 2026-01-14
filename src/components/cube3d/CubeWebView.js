@@ -364,6 +364,95 @@ const CubeWebView = ({
       return 0;
     }
     
+    // Calculate visibility percentage for each face (0-1)
+    // Uses dot product of face normal with camera direction
+    function calculateFaceVisibilities(rotXDeg, rotYDeg, rotZDeg) {
+      const toRad = Math.PI / 180;
+      const rx = rotXDeg * toRad;
+      const ry = rotYDeg * toRad;
+      const rz = rotZDeg * toRad;
+      
+      // Face normals in local space (before rotation)
+      const faceNormals = [
+        [0, 0, 1],   // Face 0: front (+Z)
+        [0, 0, -1],  // Face 1: back (-Z)
+        [1, 0, 0],   // Face 2: right (+X)
+        [-1, 0, 0],  // Face 3: left (-X)
+        [0, 1, 0],   // Face 4: top (+Y)
+        [0, -1, 0]   // Face 5: bottom (-Y)
+      ];
+      
+      // Rotation matrix components
+      const cx = Math.cos(rx), sx = Math.sin(rx);
+      const cy = Math.cos(ry), sy = Math.sin(ry);
+      const cz = Math.cos(rz), sz = Math.sin(rz);
+      
+      // Apply rotation to each normal and get Z component (visibility)
+      const visibilities = faceNormals.map(n => {
+        // Rotate around Y (ry)
+        let x1 = n[0] * cy + n[2] * sy;
+        let y1 = n[1];
+        let z1 = -n[0] * sy + n[2] * cy;
+        
+        // Rotate around X (rx)
+        let x2 = x1;
+        let y2 = y1 * cx - z1 * sx;
+        let z2 = y1 * sx + z1 * cx;
+        
+        // Rotate around Z (rz)
+        let x3 = x2 * cz - y2 * sz;
+        let y3 = x2 * sz + y2 * cz;
+        let z3 = z2;
+        
+        // Z component = dot product with camera (0,0,1)
+        // Convert from [-1,1] to [0,1] visibility
+        return (z3 + 1) / 2;
+      });
+      
+      return visibilities;
+    }
+    
+    // Track face states for 70/30 thresholds
+    let faceStates = {}; // { faceId: { wasVisible: bool, isPlaying: bool } }
+    const VISIBILITY_START = 0.7; // Start video at 70% visibility
+    const VISIBILITY_STOP = 0.3;  // Stop video at 30% visibility
+    
+    // Update video playback based on visibility thresholds
+    function updateVideoPlayback(visibilities) {
+      visibilities.forEach((visibility, faceId) => {
+        if (!faceStates[faceId]) {
+          faceStates[faceId] = { wasVisible: false, isPlaying: false };
+        }
+        
+        const state = faceStates[faceId];
+        const video = videos.find(v => v.faceId === faceId);
+        if (!video) return;
+        
+        // Start: visibility crosses above 70%
+        if (visibility >= VISIBILITY_START && !state.isPlaying) {
+          state.isPlaying = true;
+          video.element.muted = false;
+          video.element.volume = 1;
+          if (video.element.paused && !video.element.ended) {
+            video.element.play().catch(() => {});
+            console.log('Face ' + faceId + ' started at ' + Math.round(visibility * 100) + '% visibility');
+          }
+        }
+        
+        // Stop: visibility drops below 30%
+        if (visibility < VISIBILITY_STOP && state.isPlaying) {
+          state.isPlaying = false;
+          video.element.muted = true;
+          if (!video.element.paused) {
+            video.element.pause();
+            console.log('Face ' + faceId + ' stopped at ' + Math.round(visibility * 100) + '% visibility');
+          }
+        }
+        
+        state.wasVisible = visibility >= VISIBILITY_START;
+      });
+    }
+    
     // ORIGINAL ANIMATION - DO NOT MODIFY
     // Rotation speed synced with totalDuration (sum of all video durations)
     // Each video plays while its face transitions from front to 70% gone
@@ -425,36 +514,21 @@ const CubeWebView = ({
           'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + (floatZ + depthTranslateZ) + 'px) scale(' + depthScale + ')';
       }
       
-      // Track which face is front and control video playback
+      // Calculate visibility for all faces and update video playback
+      const visibilities = calculateFaceVisibilities(rotX, rotY, rotZ);
+      updateVideoPlayback(visibilities);
+      
+      // Track front face for logging
       const currentFrontFace = getFrontFaceFromRotation(rotX, rotY);
       if (currentFrontFace !== lastFrontFace) {
         lastFrontFace = currentFrontFace;
-        // Play only front face video, pause others
-        playOnlyFrontFace(currentFrontFace);
         postMessage('faceChanged', { faceIndex: currentFrontFace });
       }
       
       animationId = requestAnimationFrame(animate);
     }
     
-    // Play video on front face, pause all others
-    function playOnlyFrontFace(faceIndex) {
-      videos.forEach(v => {
-        if (v.faceId === faceIndex) {
-          v.element.muted = false;
-          v.element.volume = 1;
-          if (v.element.paused && !v.element.ended) {
-            v.element.play().catch(() => {});
-          }
-        } else {
-          v.element.muted = true;
-          if (!v.element.paused) {
-            v.element.pause();
-          }
-        }
-      });
-    }
-    
+        
     function startAnimation() {
       if (animationStarted) return;
       
