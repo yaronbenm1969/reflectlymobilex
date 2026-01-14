@@ -367,16 +367,6 @@ const CubeWebView = ({
       if (!cycleStartTime) cycleStartTime = timestamp;
       
       const elapsed = (timestamp - cycleStartTime) / 1000;
-      const progress = Math.min(elapsed / totalDuration, 1);
-      
-      if (progress >= 1) {
-        console.log('All videos completed! Animation finished.');
-        postMessage('allVideosComplete', {});
-        videos.forEach(v => v.element.pause());
-        animationStarted = false;
-        showPlayButton();
-        return;
-      }
       
       const baseSpeed = 2 * Math.PI / totalDuration;
       
@@ -685,8 +675,27 @@ const CubeWebView = ({
     }
     
     window.updateFaces = function(newFaces) {
+      // Update videoQueue with new face data
       newFaces.forEach((face, index) => {
-        setFaceContent(index, face);
+        if (face && face.videoUrl && (!videoQueue[index] || !videoQueue[index].videoUrl)) {
+          videoQueue[index] = face;
+          console.log('Updated queue index ' + index + ' with new video');
+        }
+      });
+      
+      // Recalculate total videos to play
+      totalVideosToPlay = videoQueue.filter(f => f && f.videoUrl).length;
+      console.log('Updated totalVideosToPlay: ' + totalVideosToPlay);
+      
+      // Only update faces that need updating (have video and are on cube faces 0-5)
+      newFaces.forEach((face, index) => {
+        if (index < 6) {
+          const existingEl = document.getElementById('face-' + index);
+          const hasExistingVideo = existingEl && existingEl.querySelector('video[src]');
+          if (!hasExistingVideo && face && face.videoUrl) {
+            setFaceContent(index, face);
+          }
+        }
       });
     };
     
