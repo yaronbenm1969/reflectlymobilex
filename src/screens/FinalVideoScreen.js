@@ -166,59 +166,18 @@ export const FinalVideoScreen = () => {
   const [currentPlayingFaceIndex, setCurrentPlayingFaceIndex] = useState(-1);
   const [currentVideoDuration, setCurrentVideoDuration] = useState(5000);
   const [cubeStarted, setCubeStarted] = useState(false);
-  const [playedFaces, setPlayedFaces] = useState(new Set());
-  const [faceTransform, setFaceTransform] = useState({
-    center: { x: 0, y: 0 },
-    width: 160,
-    height: 160,
-    visibility: 1,
-    corners: null,
-  });
 
   const [videoUrls, setVideoUrls] = useState([]);
   const [convertedUrls, setConvertedUrls] = useState([]);
 
-  const handleFaceEnterFront = (faceIndex) => {
-    if (!cubeStarted) return;
-    if (playedFaces.has(faceIndex)) return;
-    
-    const face = cubeFaces[faceIndex];
-    if (!face || !face.videoUrl) return;
-
-    console.log(`🎲 Face ${faceIndex} entered front, playing pre-loaded video`);
-    setPlayedFaces(prev => new Set([...prev, faceIndex]));
-    
-    setCurrentPlayingFaceIndex(faceIndex);
-    setActiveVideoUrl(face.videoUrl);
-    setShowVideoPlayer(true);
-    setIsPlaying(true);
-    setVideoHasPlayed(false);
-  };
-
-  const handleFaceExitFront = (faceIndex) => {
-    if (currentPlayingFaceIndex === faceIndex) {
-      console.log(`🎲 Face ${faceIndex} exiting front`);
+  const handleFaceChange = (faceIndex) => {
+    if (cubeStarted) {
+      setCurrentPlayingFaceIndex(faceIndex);
     }
   };
 
-  const handleFaceTransformUpdate = (transform) => {
-    setFaceTransform(transform);
-  };
-
-  const handleVideoFinished = () => {
-    console.log(`🏁 Video finished on face ${currentPlayingFaceIndex}`);
-    setShowVideoPlayer(false);
-    setActiveVideoUrl(null);
-    setIsPlaying(false);
-    setCurrentPlayingFaceIndex(-1);
-    
-    const totalFaces = cubeFaces.filter(f => f?.videoUrl).length;
-    if (playedFaces.size >= totalFaces) {
-      console.log('✅ All cube videos played');
-      setPlaybackComplete(true);
-      setCubeStarted(false);
-      setPlayedFaces(new Set());
-    }
+  const handleVideoEnd = (faceId) => {
+    console.log(`🎲 Video ended on face ${faceId}`);
   };
 
   const startCubePlayback = () => {
@@ -228,7 +187,6 @@ export const FinalVideoScreen = () => {
     }
     console.log(`▶️ Starting cube rotation with ${cubeFaces.filter(f => f).length} pre-loaded videos`);
     setCubeStarted(true);
-    setPlayedFaces(new Set());
     setPlaybackComplete(false);
   };
 
@@ -388,13 +346,9 @@ export const FinalVideoScreen = () => {
             autoRotate={cubeStarted}
             rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
             isFullscreen={true}
-            onFaceChange={(faceIndex) => {
-              if (cubeStarted && cubeFaces[faceIndex]?.videoUrl) {
-                handleFaceEnterFront(faceIndex);
-              }
-            }}
+            onFaceChange={handleFaceChange}
             onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
-            onVideoEnd={handleVideoFinished}
+            onVideoEnd={handleVideoEnd}
             onPlaybackStart={() => {
               console.log('🚀 Cube fullscreen mode ON');
               setIsCubeFullscreen(true);
@@ -503,13 +457,9 @@ export const FinalVideoScreen = () => {
                 autoRotate={cubeStarted}
                 rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
                 isFullscreen={isCubeFullscreen}
-                onFaceChange={(faceIndex) => {
-                  if (cubeStarted && cubeFaces[faceIndex]?.videoUrl) {
-                    handleFaceEnterFront(faceIndex);
-                  }
-                }}
+                onFaceChange={handleFaceChange}
                 onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
-                onVideoEnd={handleVideoFinished}
+                onVideoEnd={handleVideoEnd}
                 onPlaybackStart={() => {
                   console.log('🚀 Cube fullscreen mode ON');
                   setIsCubeFullscreen(true);
