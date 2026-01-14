@@ -364,96 +364,93 @@ const CubeWebView = ({
       return 0;
     }
     
+    // ORIGINAL ANIMATION - DO NOT MODIFY
+    // Rotation speed synced with totalDuration (sum of all video durations)
+    // Each video plays while its face transitions from front to 70% gone
     function animate(timestamp) {
       if (!cycleStartTime) cycleStartTime = timestamp;
       
       const elapsed = (timestamp - cycleStartTime) / 1000;
+      const progress = Math.min(elapsed / totalDuration, 1);
       
-      // Get current front face video element
-      const currentFace = faceOrder[currentFaceIndex % faceOrder.length];
-      const frontVideo = videos.find(v => v.faceId === currentFace);
-      
-      // Calculate video progress (0 to 1)
-      if (frontVideo && frontVideo.element && !frontVideo.element.paused) {
-        const videoDur = frontVideo.element.duration || DEFAULT_VIDEO_DURATION;
-        const videoTime = frontVideo.element.currentTime || 0;
-        currentVideoProgress = videoTime / videoDur;
-        
-        // In the last 15% of the video, start transitioning
-        if (currentVideoProgress > 0.85 && !isTransitioning) {
-          isTransitioning = true;
-          console.log('Starting transition at ' + Math.round(currentVideoProgress * 100) + '% progress');
-        }
+      // Animation ends when total duration reached
+      if (progress >= 1) {
+        console.log('All videos completed! Animation finished.');
+        postMessage('allVideosComplete', {});
+        videos.forEach(v => v.element.pause());
+        animationStarted = false;
+        return;
       }
       
-      // Calculate target rotation based on which face should be front
-      targetRotationY = faceRotations[currentFaceIndex % faceRotations.length];
+      // Rotation speed based on total duration - face changes every ~videoDuration seconds
+      const baseSpeed = 2 * Math.PI / totalDuration;
       
-      // Smooth rotation toward target
-      if (isTransitioning) {
-        // Easing function for smooth transition
-        const rotationSpeed = 3; // degrees per frame
-        const diff = targetRotationY - currentRotationY;
-        if (Math.abs(diff) > 1) {
-          currentRotationY += diff * 0.08; // Smooth easing
-        } else {
-          currentRotationY = targetRotationY;
-        }
-      }
+      const rotY = elapsed * baseSpeed * 57.3 * 1.5 + 
+                   Math.sin(elapsed * 0.3) * 25 + 
+                   Math.sin(elapsed * 0.7) * 15;
       
-      // Gentle floating movement (keeps the magic feel)
-      const floatX = Math.sin(elapsed * 0.3) * 15;
-      const floatY = Math.sin(elapsed * 0.25 + 1) * 20;
-      const floatZ = Math.sin(elapsed * 0.2 + 2) * 30;
+      const rotX = Math.sin(elapsed * 0.4) * 35 + 
+                   Math.sin(elapsed * 0.15) * 20 +
+                   Math.cos(elapsed * 0.25) * 10;
       
-      // Subtle rotation wobble during video playback
-      const wobbleX = isTransitioning ? 0 : Math.sin(elapsed * 0.15) * 8;
-      const wobbleZ = isTransitioning ? 0 : Math.cos(elapsed * 0.2) * 5;
+      const rotZ = Math.sin(elapsed * 0.2) * 12 + 
+                   Math.cos(elapsed * 0.35) * 8;
       
-      // Depth/scale effect
-      const depthScale = 0.95 + Math.sin(elapsed * 0.1) * 0.1;
+      const floatX = Math.sin(elapsed * 0.5) * 25 + 
+                     Math.sin(elapsed * 0.3) * 15;
+      const floatY = Math.sin(elapsed * 0.4 + 1) * 30 + 
+                     Math.cos(elapsed * 0.25) * 20;
+      const floatZ = Math.sin(elapsed * 0.35 + 2) * 45 + 
+                     Math.cos(elapsed * 0.2) * 25;
+      
+      // Z-depth movement
+      const depthPhase1 = Math.sin(elapsed * 0.15) * 0.3;
+      const depthPhase2 = Math.sin(elapsed * 0.4 + 1.5) * 0.15;
+      const depthPhase3 = Math.cos(elapsed * 0.25 + 0.8) * 0.1;
+      const depthScale = 0.95 + depthPhase1 + depthPhase2 + depthPhase3;
+      
+      const depthTranslateZ = Math.sin(elapsed * 0.18 + 2) * 150 + 
+                              Math.cos(elapsed * 0.12) * 100;
       
       const spinWrapper = document.getElementById('spin-wrapper');
       const floatWrapper = document.querySelector('.float-wrapper');
       
       if (spinWrapper) {
         spinWrapper.style.transform = 
-          'rotateX(' + wobbleX + 'deg) rotateY(' + currentRotationY + 'deg) rotateZ(' + wobbleZ + 'deg)';
+          'rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg) rotateZ(' + rotZ + 'deg)';
       }
       
       if (floatWrapper) {
         floatWrapper.style.transform = 
-          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + floatZ + 'px) scale(' + depthScale + ')';
+          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + (floatZ + depthTranslateZ) + 'px) scale(' + depthScale + ')';
+      }
+      
+      // Track which face is front and control video playback
+      const currentFrontFace = getFrontFaceFromRotation(rotX, rotY);
+      if (currentFrontFace !== lastFrontFace) {
+        lastFrontFace = currentFrontFace;
+        // Play only front face video, pause others
+        playOnlyFrontFace(currentFrontFace);
+        postMessage('faceChanged', { faceIndex: currentFrontFace });
       }
       
       animationId = requestAnimationFrame(animate);
     }
     
-    // Called when a video ends - move to next face
-    function onVideoEnded(faceId) {
-      console.log('Video ended on face ' + faceId + ', moving to next');
-      
-      // Complete the transition
-      currentFaceIndex++;
-      targetRotationY = faceRotations[currentFaceIndex % faceRotations.length];
-      isTransitioning = false;
-      
-      // Start video on the new front face
-      const newFrontFace = faceOrder[currentFaceIndex % faceOrder.length];
-      startVideoOnFace(newFrontFace);
-    }
-    
-    // Start playing video on a specific face
-    function startVideoOnFace(faceId) {
+    // Play video on front face, pause all others
+    function playOnlyFrontFace(faceIndex) {
       videos.forEach(v => {
-        if (v.faceId === faceId) {
+        if (v.faceId === faceIndex) {
           v.element.muted = false;
-          v.element.currentTime = 0;
-          v.element.play().catch(() => {});
-          console.log('Started video on face ' + faceId);
+          v.element.volume = 1;
+          if (v.element.paused && !v.element.ended) {
+            v.element.play().catch(() => {});
+          }
         } else {
           v.element.muted = true;
-          v.element.pause();
+          if (!v.element.paused) {
+            v.element.pause();
+          }
         }
       });
     }
@@ -488,14 +485,18 @@ const CubeWebView = ({
       if (!isReady) return;
       hidePlayButton();
       
-      // Start ONLY the first face video (sequential playback)
-      currentFaceIndex = 0;
-      currentRotationY = 0;
-      targetRotationY = 0;
-      isTransitioning = false;
-      
-      const firstFace = faceOrder[0]; // Face 0 (front)
-      startVideoOnFace(firstFace);
+      // Reset all videos to start, only first face (0) plays
+      lastFrontFace = 0;
+      videos.forEach(v => {
+        v.element.currentTime = 0;
+        if (v.faceId === 0) {
+          v.element.muted = false;
+          v.element.play().catch(() => {});
+        } else {
+          v.element.muted = true;
+          // Don't start - will play when face becomes front
+        }
+      });
       
       startAnimation();
     }
