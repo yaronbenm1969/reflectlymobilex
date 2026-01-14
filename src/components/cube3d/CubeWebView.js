@@ -789,10 +789,13 @@ const CubeWebView = ({
           onVideoEnded(faceId);
         });
         
-        // Force play after a short delay
+        // Only play if this is the current segment's video
         setTimeout(() => {
-          if (video.paused) {
-            video.play().catch(e => console.log('Force play failed: ' + e.message));
+          const myIndex = videos.findIndex(v => v.element === video);
+          if (myIndex === currentSegmentIndex && video.paused && animationStarted) {
+            video.muted = false;
+            video.volume = 1;
+            video.play().catch(e => console.log('Play failed: ' + e.message));
           }
         }, 200);
       }
