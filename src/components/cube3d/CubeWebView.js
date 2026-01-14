@@ -412,94 +412,107 @@ const CubeWebView = ({
       return visibilities;
     }
     
-    // Track face states for 70/30 thresholds
-    let faceStates = {}; // { faceId: { wasVisible: bool, isPlaying: bool } }
-    const VISIBILITY_START = 0.7; // Start video at 70% visibility
-    const VISIBILITY_STOP = 0.3;  // Stop video at 30% visibility
+    // Segment-based playback: each video controls rotation for its duration
+    // Face enters at 50% visibility (-45°), exits at 50% (after 90° rotation)
+    let currentSegmentIndex = 0;
+    let segmentStartTime = 0;
+    let cumulativeAngle = -45; // Start offset so face 0 enters at 50% visibility
     
-    // Update video playback based on visibility thresholds
-    function updateVideoPlayback(visibilities) {
-      visibilities.forEach((visibility, faceId) => {
-        if (!faceStates[faceId]) {
-          faceStates[faceId] = { wasVisible: false, isPlaying: false };
-        }
-        
-        const state = faceStates[faceId];
-        const video = videos.find(v => v.faceId === faceId);
-        if (!video) return;
-        
-        // Start: visibility crosses above 70%
-        if (visibility >= VISIBILITY_START && !state.isPlaying) {
-          state.isPlaying = true;
-          video.element.muted = false;
-          video.element.volume = 1;
-          if (video.element.paused && !video.element.ended) {
-            video.element.play().catch(() => {});
-            console.log('Face ' + faceId + ' started at ' + Math.round(visibility * 100) + '% visibility');
-          }
-        }
-        
-        // Stop: visibility drops below 30%
-        if (visibility < VISIBILITY_STOP && state.isPlaying) {
-          state.isPlaying = false;
-          video.element.muted = true;
-          if (!video.element.paused) {
-            video.element.pause();
-            console.log('Face ' + faceId + ' stopped at ' + Math.round(visibility * 100) + '% visibility');
-          }
-        }
-        
-        state.wasVisible = visibility >= VISIBILITY_START;
-      });
+    // Get duration of video at segment index
+    function getSegmentDuration(index) {
+      if (index >= videos.length) return DEFAULT_VIDEO_DURATION;
+      const video = videos[index];
+      if (video && video.duration > 0) return video.duration;
+      if (videoDurations[index] > 0) return videoDurations[index];
+      return DEFAULT_VIDEO_DURATION;
     }
     
-    // ORIGINAL ANIMATION - DO NOT MODIFY
-    // Rotation speed synced with totalDuration (sum of all video durations)
-    // Each video plays while its face transitions from front to 70% gone
-    function animate(timestamp) {
-      if (!cycleStartTime) cycleStartTime = timestamp;
-      
-      const elapsed = (timestamp - cycleStartTime) / 1000;
-      const progress = Math.min(elapsed / totalDuration, 1);
-      
-      // Animation ends when total duration reached
-      if (progress >= 1) {
-        console.log('All videos completed! Animation finished.');
+    // Start video at segment
+    function startSegmentVideo(index) {
+      if (index >= videos.length) {
+        console.log('All videos completed!');
         postMessage('allVideosComplete', {});
         videos.forEach(v => v.element.pause());
         animationStarted = false;
-        return;
+        return false;
       }
       
-      // Rotation speed based on total duration - face changes every ~videoDuration seconds
-      const baseSpeed = 2 * Math.PI / totalDuration;
+      currentSegmentIndex = index;
+      const video = videos[index];
       
-      const rotY = elapsed * baseSpeed * 57.3 * 1.5 + 
-                   Math.sin(elapsed * 0.3) * 25 + 
-                   Math.sin(elapsed * 0.7) * 15;
+      videos.forEach((v, i) => {
+        if (i === index) {
+          v.element.muted = false;
+          v.element.volume = 1;
+          v.element.currentTime = 0;
+          v.element.play().catch(() => {});
+          console.log('Segment ' + index + ': Started video on face ' + v.faceId + ' (duration: ' + getSegmentDuration(index).toFixed(1) + 's)');
+        } else {
+          v.element.muted = true;
+          v.element.pause();
+        }
+      });
       
-      const rotX = Math.sin(elapsed * 0.4) * 35 + 
-                   Math.sin(elapsed * 0.15) * 20 +
-                   Math.cos(elapsed * 0.25) * 10;
+      return true;
+    }
+    
+    // ANIMATION: Rotation speed controlled by current video duration
+    // Each segment = 90° rotation over video duration (50% in to 50% out)
+    function animate(timestamp) {
+      if (!cycleStartTime) {
+        cycleStartTime = timestamp;
+        segmentStartTime = timestamp;
+      }
       
-      const rotZ = Math.sin(elapsed * 0.2) * 12 + 
-                   Math.cos(elapsed * 0.35) * 8;
+      const elapsed = (timestamp - cycleStartTime) / 1000;
+      const segmentElapsed = (timestamp - segmentStartTime) / 1000;
+      const segmentDuration = getSegmentDuration(currentSegmentIndex);
       
-      const floatX = Math.sin(elapsed * 0.5) * 25 + 
-                     Math.sin(elapsed * 0.3) * 15;
-      const floatY = Math.sin(elapsed * 0.4 + 1) * 30 + 
-                     Math.cos(elapsed * 0.25) * 20;
-      const floatZ = Math.sin(elapsed * 0.35 + 2) * 45 + 
-                     Math.cos(elapsed * 0.2) * 25;
+      // Progress through current segment (0 to 1)
+      const segmentProgress = Math.min(segmentElapsed / segmentDuration, 1);
       
-      // Z-depth movement
-      const depthPhase1 = Math.sin(elapsed * 0.15) * 0.3;
-      const depthPhase2 = Math.sin(elapsed * 0.4 + 1.5) * 0.15;
-      const depthPhase3 = Math.cos(elapsed * 0.25 + 0.8) * 0.1;
-      const depthScale = 0.95 + depthPhase1 + depthPhase2 + depthPhase3;
+      // Check if segment (video) finished
+      if (segmentProgress >= 1) {
+        // Advance to next segment
+        cumulativeAngle += 90;
+        segmentStartTime = timestamp;
+        
+        if (!startSegmentVideo(currentSegmentIndex + 1)) {
+          return; // All done
+        }
+      }
       
-      const depthTranslateZ = Math.sin(elapsed * 0.18 + 2) * 150 + 
-                              Math.cos(elapsed * 0.12) * 100;
+      // Calculate primary rotation: cumulative angle + progress through current 90° segment
+      // Start at -45° so face enters at 50% visibility
+      const baseRotY = cumulativeAngle + (segmentProgress * 90);
+      
+      // Add wobble/organic motion effects (original animation)
+      const rotY = baseRotY + 
+                   Math.sin(elapsed * 0.3) * 18 + 
+                   Math.sin(elapsed * 0.7) * 10;
+      
+      const rotX = Math.sin(elapsed * 0.4) * 28 + 
+                   Math.sin(elapsed * 0.15) * 16 +
+                   Math.cos(elapsed * 0.25) * 9;
+      
+      const rotZ = Math.sin(elapsed * 0.2) * 10 + 
+                   Math.cos(elapsed * 0.35) * 6;
+      
+      // Float effects (original animation)
+      const floatX = Math.sin(elapsed * 0.5) * 22 + 
+                     Math.sin(elapsed * 0.3) * 13;
+      const floatY = Math.sin(elapsed * 0.4 + 1) * 26 + 
+                     Math.cos(elapsed * 0.25) * 16;
+      const floatZ = Math.sin(elapsed * 0.35 + 2) * 38 + 
+                     Math.cos(elapsed * 0.2) * 20;
+      
+      // Depth effects (original animation)
+      const depthPhase1 = Math.sin(elapsed * 0.15) * 0.22;
+      const depthPhase2 = Math.sin(elapsed * 0.4 + 1.5) * 0.11;
+      const depthScale = 0.95 + depthPhase1 + depthPhase2;
+      
+      const depthTranslateZ = Math.sin(elapsed * 0.18 + 2) * 110 + 
+                              Math.cos(elapsed * 0.12) * 70;
       
       const spinWrapper = document.getElementById('spin-wrapper');
       const floatWrapper = document.querySelector('.float-wrapper');
@@ -514,15 +527,11 @@ const CubeWebView = ({
           'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + (floatZ + depthTranslateZ) + 'px) scale(' + depthScale + ')';
       }
       
-      // Calculate visibility for all faces and update video playback
-      const visibilities = calculateFaceVisibilities(rotX, rotY, rotZ);
-      updateVideoPlayback(visibilities);
-      
       // Track front face for logging
-      const currentFrontFace = getFrontFaceFromRotation(rotX, rotY);
-      if (currentFrontFace !== lastFrontFace) {
-        lastFrontFace = currentFrontFace;
-        postMessage('faceChanged', { faceIndex: currentFrontFace });
+      const frontFace = getFrontFaceFromRotation(rotX, rotY);
+      if (frontFace !== lastFrontFace) {
+        lastFrontFace = frontFace;
+        postMessage('faceChanged', { faceIndex: frontFace, segment: currentSegmentIndex });
       }
       
       animationId = requestAnimationFrame(animate);
@@ -559,18 +568,14 @@ const CubeWebView = ({
       if (!isReady) return;
       hidePlayButton();
       
-      // Reset all videos to start, only first face (0) plays
-      lastFrontFace = 0;
-      videos.forEach(v => {
-        v.element.currentTime = 0;
-        if (v.faceId === 0) {
-          v.element.muted = false;
-          v.element.play().catch(() => {});
-        } else {
-          v.element.muted = true;
-          // Don't start - will play when face becomes front
-        }
-      });
+      // Reset segment state
+      currentSegmentIndex = 0;
+      segmentStartTime = 0;
+      cumulativeAngle = -45; // Start at -45 so face enters at 50% visibility
+      lastFrontFace = -1;
+      
+      // Start first video
+      startSegmentVideo(0);
       
       startAnimation();
     }
