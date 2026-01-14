@@ -329,7 +329,8 @@ const CubeWebView = ({
     
     // Video queue system - tracks all videos and which have been played
     let videoQueue = [...faces]; // All videos in order
-    let playedVideoIndices = new Set(); // Which video indices have been played
+    let playedVideoIndices = new Set(); // Which video indices have finished playing
+    let currentlyPlayingIndices = new Set(); // Which video indices are currently playing
     let faceToVideoIndex = {}; // Maps face ID to current video index
     let totalVideosToPlay = faces.filter(f => f && f.videoUrl).length;
     
@@ -337,6 +338,7 @@ const CubeWebView = ({
     faces.forEach((face, i) => {
       if (i < 6 && face && face.videoUrl) {
         faceToVideoIndex[i] = i;
+        currentlyPlayingIndices.add(i); // Mark initial videos as "in use"
       }
     });
     
@@ -567,9 +569,10 @@ const CubeWebView = ({
             const videoIndex = faceToVideoIndex[faceId];
             console.log('Video ended on face ' + faceId + ', video index: ' + videoIndex);
             
-            // Mark this video as played
+            // Mark this video as played and no longer playing
             if (videoIndex !== undefined) {
               playedVideoIndices.add(videoIndex);
+              currentlyPlayingIndices.delete(videoIndex);
             }
             
             postMessage('videoEnd', { faceId, videoIndex, playedCount: playedVideoIndices.size, totalVideos: totalVideosToPlay });
@@ -581,10 +584,10 @@ const CubeWebView = ({
               return;
             }
             
-            // Find next unplayed video from queue
+            // Find next video that's not played AND not currently playing
             let nextVideoIndex = -1;
             for (let i = 0; i < videoQueue.length; i++) {
-              if (!playedVideoIndices.has(i) && videoQueue[i] && videoQueue[i].videoUrl) {
+              if (!playedVideoIndices.has(i) && !currentlyPlayingIndices.has(i) && videoQueue[i] && videoQueue[i].videoUrl) {
                 nextVideoIndex = i;
                 break;
               }
@@ -595,6 +598,7 @@ const CubeWebView = ({
               console.log('Loading video ' + nextVideoIndex + ' onto face ' + faceId);
               const nextVideo = videoQueue[nextVideoIndex];
               faceToVideoIndex[faceId] = nextVideoIndex;
+              currentlyPlayingIndices.add(nextVideoIndex);
               
               // Update face content with new video
               loadNewVideoOnFace(faceId, nextVideo, nextVideoIndex);
@@ -639,6 +643,7 @@ const CubeWebView = ({
           
           if (vIdx !== undefined) {
             playedVideoIndices.add(vIdx);
+            currentlyPlayingIndices.delete(vIdx);
           }
           
           postMessage('videoEnd', { faceId, videoIndex: vIdx, playedCount: playedVideoIndices.size, totalVideos: totalVideosToPlay });
@@ -649,10 +654,10 @@ const CubeWebView = ({
             return;
           }
           
-          // Find next unplayed video
+          // Find next video that's not played AND not currently playing
           let nextIdx = -1;
           for (let i = 0; i < videoQueue.length; i++) {
-            if (!playedVideoIndices.has(i) && videoQueue[i] && videoQueue[i].videoUrl) {
+            if (!playedVideoIndices.has(i) && !currentlyPlayingIndices.has(i) && videoQueue[i] && videoQueue[i].videoUrl) {
               nextIdx = i;
               break;
             }
@@ -661,6 +666,7 @@ const CubeWebView = ({
           if (nextIdx >= 0) {
             console.log('Loading video ' + nextIdx + ' onto face ' + faceId);
             faceToVideoIndex[faceId] = nextIdx;
+            currentlyPlayingIndices.add(nextIdx);
             loadNewVideoOnFace(faceId, videoQueue[nextIdx], nextIdx);
           }
         });
