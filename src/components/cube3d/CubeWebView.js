@@ -418,12 +418,29 @@ const CubeWebView = ({
     let segmentStartTime = 0;
     let cumulativeAngle = -45; // Start offset so face 0 enters at 50% visibility
     
-    // Get duration of video at segment index
-    function getSegmentDuration(index) {
-      if (index >= videos.length) return DEFAULT_VIDEO_DURATION;
-      const video = videos[index];
+    // Face rotation order: front(0) → right(2) → back(1) → left(3) → top(4) → bottom(5)
+    // This is the order faces become visible when rotating around Y axis
+    const FACE_ROTATION_ORDER = [0, 2, 1, 3, 4, 5];
+    
+    // Get the faceId for a given segment index
+    function getFaceForSegment(segmentIndex) {
+      return FACE_ROTATION_ORDER[segmentIndex % FACE_ROTATION_ORDER.length];
+    }
+    
+    // Find video element by faceId
+    function getVideoByFaceId(faceId) {
+      return videos.find(v => v.faceId === faceId);
+    }
+    
+    // Get duration of video at segment index (by face, not array position)
+    function getSegmentDuration(segmentIndex) {
+      const faceId = getFaceForSegment(segmentIndex);
+      const video = getVideoByFaceId(faceId);
       if (video && video.duration > 0) return video.duration;
-      if (videoDurations[index] > 0) return videoDurations[index];
+      if (video && video.element) {
+        const dur = video.element.duration;
+        if (dur && dur > 0 && isFinite(dur)) return dur;
+      }
       return DEFAULT_VIDEO_DURATION;
     }
     
@@ -436,39 +453,51 @@ const CubeWebView = ({
       });
     }
     
-    // Start video at segment - ONLY this video plays
-    function startSegmentVideo(index) {
-      if (index >= videos.length) {
-        console.log('All videos completed!');
-        postMessage('allVideosComplete', {});
-        stopAllVideos();
-        animationStarted = false;
-        return false;
+    // Get current playing face ID
+    function getCurrentFaceId() {
+      return getFaceForSegment(currentSegmentIndex);
+    }
+    
+    // Start video at segment - find by faceId, not array index
+    function startSegmentVideo(segmentIndex) {
+      const faceId = getFaceForSegment(segmentIndex);
+      const video = getVideoByFaceId(faceId);
+      
+      if (!video) {
+        // No video on this face, check if we've gone through all segments
+        if (segmentIndex >= videos.length) {
+          console.log('All videos completed!');
+          postMessage('allVideosComplete', {});
+          stopAllVideos();
+          animationStarted = false;
+          return false;
+        }
+        // Skip to next segment if no video on this face
+        console.log('No video on face ' + faceId + ', skipping to next segment');
+        return startSegmentVideo(segmentIndex + 1);
       }
       
       // FIRST: Stop ALL videos completely
       stopAllVideos();
       
-      currentSegmentIndex = index;
+      currentSegmentIndex = segmentIndex;
       
-      // THEN: Start only the current video
-      const currentVideo = videos[index];
-      if (currentVideo) {
-        currentVideo.element.muted = false;
-        currentVideo.element.volume = 1;
-        currentVideo.element.currentTime = 0;
-        currentVideo.element.play().catch(() => {});
-        console.log('Segment ' + index + ': Playing video on face ' + currentVideo.faceId + ' (duration: ' + getSegmentDuration(index).toFixed(1) + 's)');
-      }
+      // THEN: Start only the video on the correct face
+      video.element.muted = false;
+      video.element.volume = 1;
+      video.element.currentTime = 0;
+      video.element.play().catch(() => {});
+      console.log('Segment ' + segmentIndex + ': Playing video on FACE ' + faceId + ' (duration: ' + getSegmentDuration(segmentIndex).toFixed(1) + 's)');
       
       return true;
     }
     
-    // Enforce that only current segment video is playing (called every frame)
+    // Enforce that only current face's video is playing (called every frame)
     function enforceCurrentVideoOnly() {
-      videos.forEach((v, i) => {
-        if (i === currentSegmentIndex) {
-          // Current video should be unmuted
+      const currentFaceId = getCurrentFaceId();
+      videos.forEach(v => {
+        if (v.faceId === currentFaceId) {
+          // Current face's video should be unmuted
           if (v.element.muted) {
             v.element.muted = false;
             v.element.volume = 1;
@@ -599,23 +628,16 @@ const CubeWebView = ({
       if (!isReady) return;
       hidePlayButton();
       
-      // Sort videos by face rotation order (0→2→1→3 for Y-axis rotation)
-      // Face 0 (front) → Face 2 (right) → Face 1 (back) → Face 3 (left)
-      const faceRotationOrder = [0, 2, 1, 3, 4, 5];
-      videos.sort((a, b) => {
-        const orderA = faceRotationOrder.indexOf(a.faceId);
-        const orderB = faceRotationOrder.indexOf(b.faceId);
-        return orderA - orderB;
-      });
-      console.log('Videos sorted by rotation order: ' + videos.map(v => 'face' + v.faceId).join(', '));
+      console.log('Starting playback. Videos on faces: ' + videos.map(v => v.faceId).join(', '));
+      console.log('Rotation order will be: ' + FACE_ROTATION_ORDER.join(' → '));
       
       // Reset segment state
       currentSegmentIndex = 0;
       segmentStartTime = 0;
-      cumulativeAngle = -45; // Start at -45 so face enters at 50% visibility
+      cumulativeAngle = -45; // Start at -45 so face 0 enters at 50% visibility
       lastFrontFace = -1;
       
-      // Start first video (should be on face 0)
+      // Start first video (on face 0 - front face)
       startSegmentVideo(0);
       
       startAnimation();
@@ -766,9 +788,9 @@ const CubeWebView = ({
         });
         
         video.addEventListener('canplay', () => {
-          // Only play if this is the current segment's video
-          const myIndex = videos.findIndex(v => v.element === video);
-          if (myIndex === currentSegmentIndex && video.paused && animationStarted) {
+          // Only play if this video is on the current segment's face
+          const currentFaceId = getFaceForSegment(currentSegmentIndex);
+          if (faceId === currentFaceId && video.paused && animationStarted) {
             video.muted = false;
             video.volume = 1;
             video.play().catch(() => {});
@@ -799,10 +821,10 @@ const CubeWebView = ({
           onVideoEnded(faceId);
         });
         
-        // Only play if this is the current segment's video
+        // Only play if this video is on the current segment's face
         setTimeout(() => {
-          const myIndex = videos.findIndex(v => v.element === video);
-          if (myIndex === currentSegmentIndex && video.paused && animationStarted) {
+          const currentFaceId = getFaceForSegment(currentSegmentIndex);
+          if (faceId === currentFaceId && video.paused && animationStarted) {
             video.muted = false;
             video.volume = 1;
             video.play().catch(e => console.log('Play failed: ' + e.message));
