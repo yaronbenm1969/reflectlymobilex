@@ -427,33 +427,61 @@ const CubeWebView = ({
       return DEFAULT_VIDEO_DURATION;
     }
     
-    // Start video at segment
+    // FORCE stop all videos - called before starting new one
+    function stopAllVideos() {
+      videos.forEach(v => {
+        v.element.pause();
+        v.element.muted = true;
+        v.element.volume = 0;
+      });
+    }
+    
+    // Start video at segment - ONLY this video plays
     function startSegmentVideo(index) {
       if (index >= videos.length) {
         console.log('All videos completed!');
         postMessage('allVideosComplete', {});
-        videos.forEach(v => v.element.pause());
+        stopAllVideos();
         animationStarted = false;
         return false;
       }
       
-      currentSegmentIndex = index;
-      const video = videos[index];
+      // FIRST: Stop ALL videos completely
+      stopAllVideos();
       
-      videos.forEach((v, i) => {
-        if (i === index) {
-          v.element.muted = false;
-          v.element.volume = 1;
-          v.element.currentTime = 0;
-          v.element.play().catch(() => {});
-          console.log('Segment ' + index + ': Started video on face ' + v.faceId + ' (duration: ' + getSegmentDuration(index).toFixed(1) + 's)');
-        } else {
-          v.element.muted = true;
-          v.element.pause();
-        }
-      });
+      currentSegmentIndex = index;
+      
+      // THEN: Start only the current video
+      const currentVideo = videos[index];
+      if (currentVideo) {
+        currentVideo.element.muted = false;
+        currentVideo.element.volume = 1;
+        currentVideo.element.currentTime = 0;
+        currentVideo.element.play().catch(() => {});
+        console.log('Segment ' + index + ': Playing video on face ' + currentVideo.faceId + ' (duration: ' + getSegmentDuration(index).toFixed(1) + 's)');
+      }
       
       return true;
+    }
+    
+    // Enforce that only current segment video is playing (called every frame)
+    function enforceCurrentVideoOnly() {
+      videos.forEach((v, i) => {
+        if (i === currentSegmentIndex) {
+          // Current video should be unmuted
+          if (v.element.muted) {
+            v.element.muted = false;
+            v.element.volume = 1;
+          }
+        } else {
+          // All other videos MUST be muted and paused
+          if (!v.element.muted || !v.element.paused) {
+            v.element.muted = true;
+            v.element.volume = 0;
+            v.element.pause();
+          }
+        }
+      });
     }
     
     // ANIMATION: Rotation speed controlled by current video duration
@@ -526,6 +554,9 @@ const CubeWebView = ({
         floatWrapper.style.transform = 
           'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + (floatZ + depthTranslateZ) + 'px) scale(' + depthScale + ')';
       }
+      
+      // ENFORCE: Only current segment video plays (check every frame)
+      enforceCurrentVideoOnly();
       
       // Track front face for logging
       const frontFace = getFrontFaceFromRotation(rotX, rotY);
@@ -706,7 +737,7 @@ const CubeWebView = ({
       
       // Clear face and create new video element with src in HTML
       let html = '';
-      html += '<video muted playsinline autoplay preload="auto" src="' + videoData.videoUrl + '"></video>';
+      html += '<video muted playsinline preload="auto" src="' + videoData.videoUrl + '"></video>';
       html += '<div class="player-badge">' + (videoData.playerName || 'סרטון') + '</div>';
       el.innerHTML = html;
       
@@ -725,8 +756,11 @@ const CubeWebView = ({
         });
         
         video.addEventListener('canplay', () => {
-          // Ensure video plays when ready
-          if (video.paused && animationStarted) {
+          // Only play if this is the current segment's video
+          const myIndex = videos.findIndex(v => v.element === video);
+          if (myIndex === currentSegmentIndex && video.paused && animationStarted) {
+            video.muted = false;
+            video.volume = 1;
             video.play().catch(() => {});
           }
         });
