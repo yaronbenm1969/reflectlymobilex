@@ -599,13 +599,23 @@ const CubeWebView = ({
       if (!isReady) return;
       hidePlayButton();
       
+      // Sort videos by face rotation order (0→2→1→3 for Y-axis rotation)
+      // Face 0 (front) → Face 2 (right) → Face 1 (back) → Face 3 (left)
+      const faceRotationOrder = [0, 2, 1, 3, 4, 5];
+      videos.sort((a, b) => {
+        const orderA = faceRotationOrder.indexOf(a.faceId);
+        const orderB = faceRotationOrder.indexOf(b.faceId);
+        return orderA - orderB;
+      });
+      console.log('Videos sorted by rotation order: ' + videos.map(v => 'face' + v.faceId).join(', '));
+      
       // Reset segment state
       currentSegmentIndex = 0;
       segmentStartTime = 0;
       cumulativeAngle = -45; // Start at -45 so face enters at 50% visibility
       lastFrontFace = -1;
       
-      // Start first video
+      // Start first video (should be on face 0)
       startSegmentVideo(0);
       
       startAnimation();
