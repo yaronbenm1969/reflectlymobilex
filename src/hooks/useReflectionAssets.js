@@ -171,7 +171,7 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
       playerName: reflection.playerName || reflection.participantName || `משתתף ${Math.floor(i / 3) + 1}`,
       clipNumber: reflection.clipNumber,
       isReady: false,
-      status: 'converting',
+      status: 'loading',
     }));
     if (isMountedRef.current) {
       setPreparedFaces([...initialFaces]);

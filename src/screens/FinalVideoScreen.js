@@ -47,6 +47,7 @@ export const FinalVideoScreen = () => {
   const [conversionProgress, setConversionProgress] = useState('');
   const [videoHasPlayed, setVideoHasPlayed] = useState(false);
   const [isCubeFullscreen, setIsCubeFullscreen] = useState(false);
+  const [showEndScreen, setShowEndScreen] = useState(false);
   const videoRef = useRef(null);
   const cubeRef = useRef(null);
 
@@ -400,16 +401,39 @@ export const FinalVideoScreen = () => {
               setCubeStarted(true);
             }}
             onPlaybackComplete={() => {
-              console.log('✅ Cube fullscreen mode OFF');
+              console.log('✅ All videos finished - showing end screen');
               setIsCubeFullscreen(false);
               setVideoHasPlayed(true);
+              setShowEndScreen(true);
             }}
             currentPlayingFaceIndex={currentPlayingFaceIndex}
           />
         </View>
       )}
 
-      {!isCubeFullscreen && (
+      {/* End Screen Overlay */}
+      {showEndScreen && (
+        <View style={styles.endScreenOverlay}>
+          <LinearGradient
+            colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
+            style={styles.endScreenGradient}
+          >
+            <Text style={styles.endScreenText}>סוף</Text>
+            <Text style={styles.endScreenSubtext}>{storyName}</Text>
+            <TouchableOpacity 
+              style={styles.endScreenButton}
+              onPress={() => {
+                setShowEndScreen(false);
+                setPlaybackComplete(true);
+              }}
+            >
+              <Text style={styles.endScreenButtonText}>המשך</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+      )}
+
+      {!isCubeFullscreen && !showEndScreen && (
         <>
           <LinearGradient
             colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
@@ -492,9 +516,10 @@ export const FinalVideoScreen = () => {
                   setCubeStarted(true);
                 }}
                 onPlaybackComplete={() => {
-                  console.log('✅ Cube fullscreen mode OFF');
+                  console.log('✅ All videos finished - showing end screen');
                   setIsCubeFullscreen(false);
                   setVideoHasPlayed(true);
+                  setShowEndScreen(true);
                 }}
                 currentPlayingFaceIndex={currentPlayingFaceIndex}
               />
@@ -1040,5 +1065,49 @@ const styles = StyleSheet.create({
   homeButtonText: {
     ...theme.typography.body,
     color: theme.colors.primary,
+  },
+  endScreenOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  endScreenGradient: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  endScreenText: {
+    fontSize: 72,
+    fontWeight: 'bold',
+    color: 'white',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 10,
+  },
+  endScreenSubtext: {
+    fontSize: 24,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 20,
+    fontWeight: '500',
+  },
+  endScreenButton: {
+    marginTop: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: 40,
+    paddingVertical: 15,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  endScreenButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
