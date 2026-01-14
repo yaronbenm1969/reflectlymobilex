@@ -7,6 +7,9 @@ const VIDEO_CONVERTER_URL = process.env.EXPO_PUBLIC_VIDEO_CONVERTER_URL || 'http
 const convertedUrlCache = new Map();
 const localCacheDir = FileSystem.cacheDirectory + 'videos/';
 
+const PARALLEL_DOWNLOADS = 4;
+const MIN_FACES_FOR_READY = 6;
+
 const ensureCacheDir = async () => {
   const dirInfo = await FileSystem.getInfoAsync(localCacheDir);
   if (!dirInfo.exists) {
@@ -23,12 +26,12 @@ const getLocalFileName = (url) => {
   return filename;
 };
 
-const MAX_DOWNLOAD_RETRIES = 3;
-const RETRY_DELAY_MS = 1000;
+const MAX_DOWNLOAD_RETRIES = 2;
+const RETRY_DELAY_MS = 500;
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const downloadToCache = async (remoteUrl, onProgress) => {
+const downloadToCache = async (remoteUrl) => {
   if (Platform.OS === 'web') {
     return remoteUrl;
   }
@@ -44,7 +47,6 @@ const downloadToCache = async (remoteUrl, onProgress) => {
   
   for (let attempt = 1; attempt <= MAX_DOWNLOAD_RETRIES; attempt++) {
     try {
-      console.log(`⬇️ Downloading video to cache (attempt ${attempt}/${MAX_DOWNLOAD_RETRIES})...`);
       const downloadResult = await FileSystem.downloadAsync(remoteUrl, localUri, {
         md5: false,
       });
@@ -52,19 +54,17 @@ const downloadToCache = async (remoteUrl, onProgress) => {
       if (downloadResult.status === 200) {
         console.log('✅ Downloaded to cache:', localUri);
         return localUri;
-      } else {
-        console.warn(`⚠️ Download attempt ${attempt} failed with status ${downloadResult.status}`);
       }
     } catch (error) {
       console.warn(`⚠️ Download attempt ${attempt} error:`, error.message);
     }
     
     if (attempt < MAX_DOWNLOAD_RETRIES) {
-      await sleep(RETRY_DELAY_MS * attempt);
+      await sleep(RETRY_DELAY_MS);
     }
   }
   
-  throw new Error(`Failed to download video after ${MAX_DOWNLOAD_RETRIES} attempts`);
+  return null;
 };
 
 const needsConversion = (url) => {
@@ -114,6 +114,8 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
   const shuffledOrderRef = useRef(null);
   const isMountedRef = useRef(true);
   const reflectionsKeyRef = useRef(null);
+  const readyCountRef = useRef(0);
+  const hasSetReadyRef = useRef(false);
 
   const shuffleArray = useCallback((array) => {
     const shuffled = [...array];
@@ -122,6 +124,34 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled;
+  }, []);
+
+  const processSingleVideo = useCallback(async (reflection, index, total) => {
+    let videoUrl = reflection.videoUrl;
+    
+    if (reflection.convertedUrl && reflection.conversionStatus === 'ready') {
+      console.log(`✅ Using pre-converted URL for video ${index + 1}/${total}`);
+      videoUrl = reflection.convertedUrl;
+    } else if (needsConversion(videoUrl)) {
+      try {
+        console.log(`🔄 Converting video ${index + 1}/${total}`);
+        videoUrl = await convertVideoUrl(videoUrl, reflection.id);
+      } catch (error) {
+        console.log(`❌ Conversion failed for video ${index + 1}`);
+      }
+    }
+    
+    let localVideoUrl = await downloadToCache(videoUrl);
+    
+    if (reflection.thumbnailUrl) {
+      Image.prefetch(reflection.thumbnailUrl).catch(() => {});
+    }
+
+    return {
+      index,
+      videoUrl: localVideoUrl || videoUrl,
+      usedFallback: !localVideoUrl,
+    };
   }, []);
 
   const prepareAllAssets = useCallback(async () => {
@@ -138,6 +168,8 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
     if (reflectionsKeyRef.current !== currentKey) {
       hasStartedRef.current = false;
       shuffledOrderRef.current = null;
+      hasSetReadyRef.current = false;
+      readyCountRef.current = 0;
     }
     
     if (hasStartedRef.current) return;
@@ -149,7 +181,6 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
       setStatus('loading');
     }
 
-    // Load ALL valid reflections, not limited by maxFaces
     const validReflections = reflections.filter(r => r.videoUrl);
     
     if (!shuffledOrderRef.current) {
@@ -158,6 +189,8 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
     const shuffledReflections = shuffledOrderRef.current;
 
     const total = shuffledReflections.length;
+    const minReady = Math.min(MIN_FACES_FOR_READY, total);
+    
     if (isMountedRef.current) {
       setProgress({ converted: 0, total, message: `טוען ${total} סרטונים...` });
     }
@@ -173,134 +206,74 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
       isReady: false,
       status: 'loading',
     }));
+    
     if (isMountedRef.current) {
       setPreparedFaces([...initialFaces]);
     }
-    
-    for (let i = 0; i < shuffledReflections.length; i++) {
-      if (!isMountedRef.current) break;
+
+    const updateFace = (index, videoUrl, usedFallback) => {
+      if (!isMountedRef.current) return;
       
-      const reflection = shuffledReflections[i];
+      readyCountRef.current++;
+      const readyCount = readyCountRef.current;
       
-      let videoUrl = reflection.videoUrl;
-      
-      console.log(`🔍 Video ${i + 1}/${total} status:`, {
-        hasConvertedUrl: !!reflection.convertedUrl,
-        conversionStatus: reflection.conversionStatus,
-        originalUrl: videoUrl?.substring(0, 60)
+      setPreparedFaces(prev => {
+        const updated = [...prev];
+        updated[index] = {
+          ...updated[index],
+          videoUrl,
+          isReady: true,
+          status: 'ready',
+          usedFallback,
+        };
+        return updated;
       });
       
-      // Check if already converted - use convertedUrl directly without re-converting
-      if (reflection.convertedUrl && reflection.conversionStatus === 'ready') {
-        console.log(`✅ Using pre-converted URL for video ${i + 1}/${total}`);
-        videoUrl = reflection.convertedUrl;
-        
-        if (isMountedRef.current) {
-          setProgress({ 
-            converted: i, 
-            total, 
-            message: `מוריד סרטון ${i + 1} מתוך ${total}...` 
-          });
-        }
-      } else if (needsConversion(videoUrl)) {
-        // Only convert if no convertedUrl exists
-        if (isMountedRef.current) {
-          setProgress({ 
-            converted: i, 
-            total, 
-            message: `ממיר סרטון ${i + 1} מתוך ${total}...` 
-          });
-        }
-        
-        try {
-          console.log(`🔄 Converting video ${i + 1}/${total} on-demand`);
-          const convertedUrl = await convertVideoUrl(videoUrl, reflection.id);
-          videoUrl = convertedUrl;
-          console.log(`✅ Converted video ${i + 1}/${total}`);
-        } catch (error) {
-          console.log(`❌ Conversion failed for video ${i + 1}, using original`);
-        }
-      } else {
-        // MP4 file, no conversion needed
-        if (isMountedRef.current) {
-          setProgress({ 
-            converted: i, 
-            total, 
-            message: `מוריד סרטון ${i + 1} מתוך ${total}...` 
-          });
-        }
-      }
+      setProgress({ 
+        converted: readyCount, 
+        total, 
+        message: readyCount >= total ? 'הכל מוכן!' : `טוען סרטון ${readyCount} מתוך ${total}...`
+      });
       
-      let localVideoUrl = null;
-      let downloadFailed = false;
-      
-      try {
-        localVideoUrl = await downloadToCache(videoUrl);
-      } catch (downloadError) {
-        console.error(`❌ Failed to cache video ${i + 1}:`, downloadError.message);
-        downloadFailed = true;
-      }
-
-      if (reflection.thumbnailUrl) {
-        try {
-          await Image.prefetch(reflection.thumbnailUrl);
-          console.log(`📷 Prefetched thumbnail for face ${i}`);
-        } catch (e) {
-          console.log(`📷 Failed to prefetch thumbnail for face ${i}`);
-        }
-      }
-
-      if (isMountedRef.current) {
-        setPreparedFaces(prev => {
-          const updated = [...prev];
-          if (downloadFailed) {
-            console.log(`⚠️ Falling back to remote URL for video ${i + 1}`);
-            updated[i] = {
-              ...updated[i],
-              videoUrl: videoUrl,
-              isReady: true,
-              status: 'ready',
-              usedFallback: true,
-            };
-          } else {
-            updated[i] = {
-              ...updated[i],
-              videoUrl: localVideoUrl,
-              isReady: true,
-              status: 'ready',
-            };
-          }
-          return updated;
-        });
-        
-        setProgress({ 
-          converted: i + 1, 
-          total, 
-          message: downloadFailed 
-            ? `שגיאה בסרטון ${i + 1} מתוך ${total}` 
-            : `הוכן סרטון ${i + 1} מתוך ${total}` 
-        });
-      }
-    }
-
-    if (isMountedRef.current) {
-      setPreparedFaces(currentFaces => {
-        const readyCount = currentFaces.filter(f => f?.status === 'ready').length;
-        const fallbackCount = currentFaces.filter(f => f?.usedFallback).length;
-        
-        if (fallbackCount > 0) {
-          console.log(`⚠️ ${fallbackCount} videos using remote URLs (cache failed)`);
-        }
-        
-        console.log(`🎬 All ${total} videos prepared (${readyCount - fallbackCount} cached, ${fallbackCount} remote)`);
-        setStatus('ready');
+      if (!hasSetReadyRef.current && readyCount >= minReady) {
+        console.log(`🚀 ${minReady} videos ready - showing cube!`);
+        hasSetReadyRef.current = true;
         setIsReady(true);
-        setProgress({ converted: total, total, message: 'הכל מוכן!', failedCount: 0 });
+        setStatus('ready');
+      }
+      
+      if (readyCount >= total) {
+        console.log(`🎬 All ${total} videos loaded`);
+        setStatus('ready');
+      }
+    };
+
+    const queue = shuffledReflections.map((r, i) => ({ reflection: r, index: i }));
+    let activeCount = 0;
+    let queueIndex = 0;
+
+    const processNext = async () => {
+      while (queueIndex < queue.length && activeCount < PARALLEL_DOWNLOADS) {
+        const item = queue[queueIndex++];
+        activeCount++;
         
-        return currentFaces;
-      });
-    }
-  }, [reflections, maxFaces, shuffleArray]);
+        processSingleVideo(item.reflection, item.index, total)
+          .then(result => {
+            updateFace(result.index, result.videoUrl, result.usedFallback);
+            activeCount--;
+            processNext();
+          })
+          .catch(error => {
+            console.error(`Error processing video ${item.index}:`, error);
+            updateFace(item.index, item.reflection.videoUrl, true);
+            activeCount--;
+            processNext();
+          });
+      }
+    };
+
+    processNext();
+  }, [reflections, maxFaces, shuffleArray, processSingleVideo]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -320,6 +293,8 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
     hasStartedRef.current = false;
     shuffledOrderRef.current = null;
     reflectionsKeyRef.current = null;
+    hasSetReadyRef.current = false;
+    readyCountRef.current = 0;
     setStatus('idle');
     setProgress({ converted: 0, total: 0, message: '' });
     setPreparedFaces([]);
