@@ -610,14 +610,14 @@ const CubeWebView = ({
         return;
       }
       
-      console.log('loadNewVideoOnFace: face=' + faceId + ', videoIndex=' + videoIndex);
+      console.log('loadNewVideoOnFace: face=' + faceId + ', videoIndex=' + videoIndex + ', url=' + videoData.videoUrl.substring(0, 60));
       
       // Remove old video from videos array
       videos = videos.filter(v => v.faceId !== faceId);
       
-      // Clear face and create new video element with autoplay
+      // Clear face and create new video element with src in HTML
       let html = '';
-      html += '<video muted playsinline autoplay preload="auto"></video>';
+      html += '<video muted playsinline autoplay preload="auto" src="' + videoData.videoUrl + '"></video>';
       html += '<div class="player-badge">' + (videoData.playerName || 'סרטון') + '</div>';
       el.innerHTML = html;
       
@@ -628,11 +628,18 @@ const CubeWebView = ({
         let hasEnded = false; // Prevent double-firing of ended
         
         video.addEventListener('error', (e) => {
-          console.log('Video ERROR on face ' + faceId + ': ' + (e.message || 'unknown'));
+          console.log('Video ERROR on face ' + faceId + ': ' + (video.error ? video.error.message : 'unknown'));
         });
         
         video.addEventListener('playing', () => {
           console.log('Video PLAYING on face ' + faceId + ', index ' + videoIndex);
+        });
+        
+        video.addEventListener('canplay', () => {
+          // Ensure video plays when ready
+          if (video.paused && animationStarted) {
+            video.play().catch(() => {});
+          }
         });
         
         video.addEventListener('ended', () => {
@@ -671,12 +678,16 @@ const CubeWebView = ({
             // Small delay to prevent race conditions
             setTimeout(() => {
               loadNewVideoOnFace(faceId, videoQueue[nextIdx], nextIdx);
-            }, 50);
+            }, 100);
           }
         });
         
-        video.src = videoData.videoUrl;
-        video.load();
+        // Force play after a short delay
+        setTimeout(() => {
+          if (video.paused) {
+            video.play().catch(e => console.log('Force play failed: ' + e.message));
+          }
+        }, 200);
       }
     }
     
