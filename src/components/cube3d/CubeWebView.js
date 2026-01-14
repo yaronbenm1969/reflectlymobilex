@@ -607,6 +607,8 @@ const CubeWebView = ({
       const el = document.getElementById('face-' + faceId);
       if (!el || !videoData || !videoData.videoUrl) return;
       
+      console.log('loadNewVideoOnFace: face=' + faceId + ', videoIndex=' + videoIndex + ', url=' + videoData.videoUrl.substring(0, 50));
+      
       // Remove old video from videos array
       videos = videos.filter(v => v.faceId !== faceId);
       
@@ -614,7 +616,7 @@ const CubeWebView = ({
       if (videoData.thumbnailUrl) {
         html += '<img src="' + videoData.thumbnailUrl + '" alt="Thumbnail" />';
       }
-      html += '<video muted playsinline preload="auto" style="opacity:0"></video>';
+      html += '<video muted playsinline preload="auto"></video>';
       html += '<div class="player-badge">' + (videoData.playerName || 'סרטון') + '</div>';
       el.innerHTML = html;
       
@@ -622,9 +624,31 @@ const CubeWebView = ({
       if (video) {
         videos.push({ element: video, faceId, duration: 0, videoIndex });
         
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        function tryPlayNewVideo() {
+          video.play().then(() => {
+            console.log('New video playing on face ' + faceId);
+          }).catch((e) => {
+            console.log('Play failed on face ' + faceId + ', retry ' + retryCount);
+            if (retryCount < maxRetries) {
+              retryCount++;
+              setTimeout(tryPlayNewVideo, 300);
+            }
+          });
+        }
+        
         video.addEventListener('loadeddata', () => {
-          video.style.opacity = '1';
-          video.play().catch(() => {});
+          console.log('Video loadeddata on face ' + faceId);
+          tryPlayNewVideo();
+        });
+        
+        video.addEventListener('canplay', () => {
+          // Also try to play on canplay as backup
+          if (video.paused) {
+            tryPlayNewVideo();
+          }
         });
         
         video.addEventListener('ended', () => {
