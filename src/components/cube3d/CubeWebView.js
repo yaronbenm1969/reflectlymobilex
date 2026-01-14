@@ -332,6 +332,7 @@ const CubeWebView = ({
     let playedVideoIndices = new Set(); // Which video indices have finished playing
     let currentlyPlayingIndices = new Set(); // Which video indices are currently playing
     let faceToVideoIndex = {}; // Maps face ID to current video index
+    let pendingFaces = new Set(); // Faces waiting for a video to become available
     let totalVideosToPlay = faces.filter(f => f && f.videoUrl).length;
     
     // Initialize face to video mapping (first 6 videos on 6 faces)
@@ -418,29 +419,21 @@ const CubeWebView = ({
       const currentFrontFace = getFrontFaceFromRotation(rotX, rotY);
       if (currentFrontFace !== lastFrontFace) {
         lastFrontFace = currentFrontFace;
-        updatePlaybackForFace(currentFrontFace);
+        updateAudioForFace(currentFrontFace);
         postMessage('faceChanged', { faceIndex: currentFrontFace });
       }
       
       animationId = requestAnimationFrame(animate);
     }
     
-    // Play ONLY the visible face, pause all others
-    function updatePlaybackForFace(faceIndex) {
+    // Only mute/unmute audio, keep ALL videos playing in parallel
+    function updateAudioForFace(faceIndex) {
       videos.forEach(v => {
         if (v.faceId === faceIndex) {
-          // This face is visible - play and unmute
           v.element.muted = false;
           v.element.volume = 1;
-          if (v.element.paused && !v.element.ended) {
-            v.element.play().catch(() => {});
-          }
         } else {
-          // This face is hidden - pause and mute
           v.element.muted = true;
-          if (!v.element.paused && !v.element.ended) {
-            v.element.pause();
-          }
         }
       });
     }
@@ -475,19 +468,13 @@ const CubeWebView = ({
       if (!isReady) return;
       hidePlayButton();
       
-      // Reset all videos to start, but only play the front face (0)
+      // Start ALL videos in parallel (only front face unmuted)
       videos.forEach(v => {
         v.element.currentTime = 0;
-        if (v.faceId === 0) {
-          v.element.muted = false;
-          v.element.play().catch(() => {});
-        } else {
-          v.element.muted = true;
-          // Keep paused until face becomes visible
-        }
+        v.element.muted = (v.faceId !== 0);
+        v.element.play().catch(() => {});
       });
       
-      lastFrontFace = 0; // Start with face 0 as front
       startAnimation();
     }
     
@@ -606,9 +593,14 @@ const CubeWebView = ({
               const nextVideo = videoQueue[nextVideoIndex];
               faceToVideoIndex[faceId] = nextVideoIndex;
               currentlyPlayingIndices.add(nextVideoIndex);
+              pendingFaces.delete(faceId);
               
               // Update face content with new video
               loadNewVideoOnFace(faceId, nextVideo, nextVideoIndex);
+            } else {
+              // No video available yet, mark face as pending
+              console.log('No video available for face ' + faceId + ', adding to pendingFaces');
+              pendingFaces.add(faceId);
             }
           });
           
