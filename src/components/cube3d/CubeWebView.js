@@ -335,19 +335,6 @@ const CubeWebView = ({
     let pendingFaces = new Set(); // Faces waiting for a video to become available
     let totalVideosToPlay = faces.filter(f => f && f.videoUrl).length;
     
-    // Video-synchronized rotation system
-    let currentFaceIndex = 0; // Which face (0-5) is currently front
-    let targetRotationY = 0; // Target Y rotation for current face
-    let currentRotationY = 0; // Actual Y rotation (animates toward target)
-    let isTransitioning = false; // True when rotating between faces
-    let currentVideoProgress = 0; // 0-1 progress of current video
-    let currentVideoDuration = 0; // Duration of current video in seconds
-    let videoStartTime = 0; // When current video started
-    
-    // Face order for rotation (front, right, back, left, top, bottom could be added)
-    const faceRotations = [0, 90, 180, 270]; // Y rotation for faces 0, 2, 1, 3
-    const faceOrder = [0, 2, 1, 3]; // Cycle through these faces
-    
     // Initialize face to video mapping (first 6 videos on 6 faces)
     faces.forEach((face, i) => {
       if (i < 6 && face && face.videoUrl) {
