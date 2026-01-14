@@ -605,18 +605,19 @@ const CubeWebView = ({
     
     function loadNewVideoOnFace(faceId, videoData, videoIndex) {
       const el = document.getElementById('face-' + faceId);
-      if (!el || !videoData || !videoData.videoUrl) return;
+      if (!el || !videoData || !videoData.videoUrl) {
+        console.log('loadNewVideoOnFace SKIPPED: face=' + faceId + ', no data');
+        return;
+      }
       
-      console.log('loadNewVideoOnFace: face=' + faceId + ', videoIndex=' + videoIndex + ', url=' + videoData.videoUrl.substring(0, 50));
+      console.log('loadNewVideoOnFace: face=' + faceId + ', videoIndex=' + videoIndex);
       
       // Remove old video from videos array
       videos = videos.filter(v => v.faceId !== faceId);
       
+      // Clear face and create new video element with autoplay
       let html = '';
-      if (videoData.thumbnailUrl) {
-        html += '<img src="' + videoData.thumbnailUrl + '" alt="Thumbnail" />';
-      }
-      html += '<video muted playsinline preload="auto"></video>';
+      html += '<video muted playsinline autoplay preload="auto"></video>';
       html += '<div class="player-badge">' + (videoData.playerName || 'סרטון') + '</div>';
       el.innerHTML = html;
       
@@ -624,36 +625,22 @@ const CubeWebView = ({
       if (video) {
         videos.push({ element: video, faceId, duration: 0, videoIndex });
         
-        let retryCount = 0;
-        const maxRetries = 3;
+        let hasEnded = false; // Prevent double-firing of ended
         
-        function tryPlayNewVideo() {
-          video.play().then(() => {
-            console.log('New video playing on face ' + faceId);
-          }).catch((e) => {
-            console.log('Play failed on face ' + faceId + ', retry ' + retryCount);
-            if (retryCount < maxRetries) {
-              retryCount++;
-              setTimeout(tryPlayNewVideo, 300);
-            }
-          });
-        }
-        
-        video.addEventListener('loadeddata', () => {
-          console.log('Video loadeddata on face ' + faceId);
-          tryPlayNewVideo();
+        video.addEventListener('error', (e) => {
+          console.log('Video ERROR on face ' + faceId + ': ' + (e.message || 'unknown'));
         });
         
-        video.addEventListener('canplay', () => {
-          // Also try to play on canplay as backup
-          if (video.paused) {
-            tryPlayNewVideo();
-          }
+        video.addEventListener('playing', () => {
+          console.log('Video PLAYING on face ' + faceId + ', index ' + videoIndex);
         });
         
         video.addEventListener('ended', () => {
+          if (hasEnded) return; // Prevent double-fire
+          hasEnded = true;
+          
           const vIdx = faceToVideoIndex[faceId];
-          console.log('Video ended on face ' + faceId + ', video index: ' + vIdx);
+          console.log('Video ENDED on face ' + faceId + ', video index: ' + vIdx);
           
           if (vIdx !== undefined) {
             playedVideoIndices.add(vIdx);
@@ -678,10 +665,13 @@ const CubeWebView = ({
           }
           
           if (nextIdx >= 0) {
-            console.log('Loading video ' + nextIdx + ' onto face ' + faceId);
+            console.log('Loading next video ' + nextIdx + ' onto face ' + faceId);
             faceToVideoIndex[faceId] = nextIdx;
             currentlyPlayingIndices.add(nextIdx);
-            loadNewVideoOnFace(faceId, videoQueue[nextIdx], nextIdx);
+            // Small delay to prevent race conditions
+            setTimeout(() => {
+              loadNewVideoOnFace(faceId, videoQueue[nextIdx], nextIdx);
+            }, 50);
           }
         });
         
@@ -700,9 +690,11 @@ const CubeWebView = ({
     
     window.updateFaces = function(newFaces) {
       // Update videoQueue with new face data
+      let newVideosAdded = [];
       newFaces.forEach((face, index) => {
         if (face && face.videoUrl && (!videoQueue[index] || !videoQueue[index].videoUrl)) {
           videoQueue[index] = face;
+          newVideosAdded.push(index);
           console.log('Updated queue index ' + index + ' with new video');
         }
       });
@@ -721,6 +713,40 @@ const CubeWebView = ({
           }
         }
       });
+      
+      // NEW: If animation started and new videos added, check for idle faces that need videos
+      if (animationStarted && newVideosAdded.length > 0) {
+        console.log('Checking for idle faces after new videos added: ' + newVideosAdded.join(', '));
+        
+        // Find faces that have finished playing and are now idle (no video playing)
+        for (let faceId = 0; faceId < 6; faceId++) {
+          const el = document.getElementById('face-' + faceId);
+          const videoEl = el ? el.querySelector('video') : null;
+          const currentVideoIdx = faceToVideoIndex[faceId];
+          
+          // Check if this face is idle (video ended or no src)
+          const isIdle = !videoEl || !videoEl.src || videoEl.ended || 
+                         (currentVideoIdx !== undefined && playedVideoIndices.has(currentVideoIdx));
+          
+          if (isIdle) {
+            // Find next unplayed video for this face
+            let nextIdx = -1;
+            for (let i = 0; i < videoQueue.length; i++) {
+              if (!playedVideoIndices.has(i) && !currentlyPlayingIndices.has(i) && videoQueue[i] && videoQueue[i].videoUrl) {
+                nextIdx = i;
+                break;
+              }
+            }
+            
+            if (nextIdx >= 0) {
+              console.log('Assigning newly ready video ' + nextIdx + ' to idle face ' + faceId);
+              faceToVideoIndex[faceId] = nextIdx;
+              currentlyPlayingIndices.add(nextIdx);
+              loadNewVideoOnFace(faceId, videoQueue[nextIdx], nextIdx);
+            }
+          }
+        }
+      }
     };
     
     window.pauseCube = function() {
