@@ -422,9 +422,27 @@ const CubeWebView = ({
     // This is the order faces become visible when rotating around Y axis
     const FACE_ROTATION_ORDER = [0, 2, 1, 3, 4, 5];
     
-    // Get the faceId for a given segment index
+    // Build list of available faceIds that have videos, in rotation order
+    let availableFaces = [];
+    
+    function buildAvailableFaces() {
+      // Get faceIds that have videos, in rotation order
+      const faceIdsWithVideos = videos.map(v => v.faceId);
+      availableFaces = FACE_ROTATION_ORDER.filter(faceId => faceIdsWithVideos.includes(faceId));
+      // Add any faces not in rotation order (shouldn't happen, but safe)
+      faceIdsWithVideos.forEach(faceId => {
+        if (!availableFaces.includes(faceId)) {
+          availableFaces.push(faceId);
+        }
+      });
+      console.log('Available faces in rotation order: ' + availableFaces.join(', '));
+    }
+    
+    // Get the faceId for a given segment index (only from available faces)
     function getFaceForSegment(segmentIndex) {
-      return FACE_ROTATION_ORDER[segmentIndex % FACE_ROTATION_ORDER.length];
+      if (availableFaces.length === 0) buildAvailableFaces();
+      if (segmentIndex >= availableFaces.length) return -1; // No more faces
+      return availableFaces[segmentIndex];
     }
     
     // Find video element by faceId
@@ -458,22 +476,22 @@ const CubeWebView = ({
       return getFaceForSegment(currentSegmentIndex);
     }
     
-    // Start video at segment - find by faceId, not array index
+    // Start video at segment - find by faceId from available faces
     function startSegmentVideo(segmentIndex) {
       const faceId = getFaceForSegment(segmentIndex);
+      
+      if (faceId === -1 || segmentIndex >= availableFaces.length) {
+        console.log('All ' + availableFaces.length + ' videos completed!');
+        postMessage('allVideosComplete', {});
+        stopAllVideos();
+        animationStarted = false;
+        return false;
+      }
+      
       const video = getVideoByFaceId(faceId);
       
       if (!video) {
-        // No video on this face, check if we've gone through all segments
-        if (segmentIndex >= videos.length) {
-          console.log('All videos completed!');
-          postMessage('allVideosComplete', {});
-          stopAllVideos();
-          animationStarted = false;
-          return false;
-        }
-        // Skip to next segment if no video on this face
-        console.log('No video on face ' + faceId + ', skipping to next segment');
+        console.log('No video on face ' + faceId + ', this should not happen');
         return startSegmentVideo(segmentIndex + 1);
       }
       
@@ -487,7 +505,7 @@ const CubeWebView = ({
       video.element.volume = 1;
       video.element.currentTime = 0;
       video.element.play().catch(() => {});
-      console.log('Segment ' + segmentIndex + ': Playing video on FACE ' + faceId + ' (duration: ' + getSegmentDuration(segmentIndex).toFixed(1) + 's)');
+      console.log('Segment ' + segmentIndex + '/' + availableFaces.length + ': Playing video on FACE ' + faceId + ' (duration: ' + getSegmentDuration(segmentIndex).toFixed(1) + 's)');
       
       return true;
     }
@@ -628,16 +646,19 @@ const CubeWebView = ({
       if (!isReady) return;
       hidePlayButton();
       
+      // Build available faces list from loaded videos
+      buildAvailableFaces();
+      
       console.log('Starting playback. Videos on faces: ' + videos.map(v => v.faceId).join(', '));
-      console.log('Rotation order will be: ' + FACE_ROTATION_ORDER.join(' → '));
+      console.log('Playback order: ' + availableFaces.join(' → '));
       
       // Reset segment state
       currentSegmentIndex = 0;
       segmentStartTime = 0;
-      cumulativeAngle = -45; // Start at -45 so face 0 enters at 50% visibility
+      cumulativeAngle = -45; // Start at -45 so first face enters at 50% visibility
       lastFrontFace = -1;
       
-      // Start first video (on face 0 - front face)
+      // Start first video (first available face in rotation order)
       startSegmentVideo(0);
       
       startAnimation();
