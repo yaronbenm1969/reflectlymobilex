@@ -418,24 +418,18 @@ const CubeWebView = ({
     let segmentStartTime = 0;
     let cumulativeAngle = -45; // Start offset so face 0 enters at 50% visibility
     
-    // Face rotation order: front(0) → right(2) → back(1) → left(3) → top(4) → bottom(5)
-    // This is the order faces become visible when rotating around Y axis
-    const FACE_ROTATION_ORDER = [0, 2, 1, 3, 4, 5];
+    // Face rotation order: front(0) → right(2) → back(1) → left(3)
+    // ONLY Y-axis faces - top(4) and bottom(5) never become front with Y rotation
+    const FACE_ROTATION_ORDER = [0, 2, 1, 3];
     
     // Build list of available faceIds that have videos, in rotation order
     let availableFaces = [];
     
     function buildAvailableFaces() {
-      // Get faceIds that have videos, in rotation order
+      // Get faceIds that have videos, only from Y-axis faces
       const faceIdsWithVideos = videos.map(v => v.faceId);
       availableFaces = FACE_ROTATION_ORDER.filter(faceId => faceIdsWithVideos.includes(faceId));
-      // Add any faces not in rotation order (shouldn't happen, but safe)
-      faceIdsWithVideos.forEach(faceId => {
-        if (!availableFaces.includes(faceId)) {
-          availableFaces.push(faceId);
-        }
-      });
-      console.log('Available faces in rotation order: ' + availableFaces.join(', '));
+      console.log('Available faces (Y-axis only): ' + availableFaces.join(', '));
     }
     
     // Get the faceId for a given segment index (only from available faces)
@@ -504,7 +498,16 @@ const CubeWebView = ({
       video.element.muted = false;
       video.element.volume = 1;
       video.element.currentTime = 0;
+      video.element.style.opacity = '1'; // Ensure video is visible
       video.element.play().catch(() => {});
+      
+      // Hide any thumbnail on this face
+      const faceEl = document.getElementById('face-' + faceId);
+      if (faceEl) {
+        const img = faceEl.querySelector('img');
+        if (img) img.style.opacity = '0';
+      }
+      
       console.log('Segment ' + segmentIndex + '/' + availableFaces.length + ': Playing video on FACE ' + faceId + ' (duration: ' + getSegmentDuration(segmentIndex).toFixed(1) + 's)');
       
       return true;
@@ -531,30 +534,48 @@ const CubeWebView = ({
       });
     }
     
-    // ANIMATION: Rotation speed controlled by current video duration
-    // Each segment = 90° rotation over video duration (50% in to 50% out)
+    // ANIMATION: Rotation synced to actual video playback
+    // Each segment = 90° rotation synced to video currentTime/duration
+    let segmentVideoEnded = false;
+    
     function animate(timestamp) {
       if (!cycleStartTime) {
         cycleStartTime = timestamp;
-        segmentStartTime = timestamp;
       }
       
       const elapsed = (timestamp - cycleStartTime) / 1000;
-      const segmentElapsed = (timestamp - segmentStartTime) / 1000;
-      const segmentDuration = getSegmentDuration(currentSegmentIndex);
       
-      // Progress through current segment (0 to 1)
-      const segmentProgress = Math.min(segmentElapsed / segmentDuration, 1);
+      // Get current video's actual playback progress
+      const currentFaceId = getCurrentFaceId();
+      const currentVideo = getVideoByFaceId(currentFaceId);
       
-      // Check if segment (video) finished
-      if (segmentProgress >= 1) {
-        // Advance to next segment
+      let segmentProgress = 0;
+      let videoDuration = DEFAULT_VIDEO_DURATION;
+      
+      if (currentVideo && currentVideo.element) {
+        const vid = currentVideo.element;
+        videoDuration = vid.duration || DEFAULT_VIDEO_DURATION;
+        if (videoDuration > 0 && isFinite(videoDuration)) {
+          // Use actual video currentTime for progress
+          segmentProgress = Math.min(vid.currentTime / videoDuration, 1);
+        }
+        
+        // Check if video ended (more reliable than progress >= 1)
+        if (vid.ended || segmentProgress >= 0.99) {
+          segmentVideoEnded = true;
+        }
+      }
+      
+      // Check if segment (video) finished - advance to next
+      if (segmentVideoEnded) {
+        segmentVideoEnded = false;
         cumulativeAngle += 90;
-        segmentStartTime = timestamp;
         
         if (!startSegmentVideo(currentSegmentIndex + 1)) {
           return; // All done
         }
+        // Reset progress for new segment
+        segmentProgress = 0;
       }
       
       // Calculate primary rotation: cumulative angle + progress through current 90° segment
