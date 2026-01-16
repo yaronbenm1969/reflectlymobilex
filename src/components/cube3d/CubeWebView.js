@@ -597,17 +597,19 @@ const CubeWebView = ({
       // Start at -45° so face enters at 50% visibility
       const baseRotY = cumulativeAngle + (segmentProgress * 90);
       
-      // Add wobble/organic motion effects (original animation)
+      // Add wobble/organic motion effects (REDUCED X tilt to keep Y-axis faces visible)
       const rotY = baseRotY + 
-                   Math.sin(elapsed * 0.3) * 18 + 
-                   Math.sin(elapsed * 0.7) * 10;
+                   Math.sin(elapsed * 0.3) * 8 + 
+                   Math.sin(elapsed * 0.7) * 5;
       
-      const rotX = Math.sin(elapsed * 0.4) * 28 + 
-                   Math.sin(elapsed * 0.15) * 16 +
-                   Math.cos(elapsed * 0.25) * 9;
+      // CRITICAL: Keep rotX small (<30°) so top/bottom faces don't become front
+      // Max rotX = 12 + 8 + 5 = 25° (safe - Y-axis faces stay visible)
+      const rotX = Math.sin(elapsed * 0.4) * 12 + 
+                   Math.sin(elapsed * 0.15) * 8 +
+                   Math.cos(elapsed * 0.25) * 5;
       
-      const rotZ = Math.sin(elapsed * 0.2) * 10 + 
-                   Math.cos(elapsed * 0.35) * 6;
+      const rotZ = Math.sin(elapsed * 0.2) * 5 + 
+                   Math.cos(elapsed * 0.35) * 3;
       
       // Float effects (original animation)
       const floatX = Math.sin(elapsed * 0.5) * 22 + 
