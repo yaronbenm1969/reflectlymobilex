@@ -413,14 +413,22 @@ const CubeWebView = ({
     }
     
     // Segment-based playback: each video controls rotation for its duration
-    // Face enters at 50% visibility (-45°), exits at 50% (after 90° rotation)
+    // Face enters at 50% visibility, exits at 50% (90° rotation per segment)
     let currentSegmentIndex = 0;
     let segmentStartTime = 0;
-    let cumulativeAngle = -45; // Start offset so face 0 enters at 50% visibility
+    let cumulativeAngle = -45; // Will be adjusted based on first available face
     
     // Face rotation order: front(0) → right(2) → back(1) → left(3)
     // ONLY Y-axis faces - top(4) and bottom(5) never become front with Y rotation
     const FACE_ROTATION_ORDER = [0, 2, 1, 3];
+    
+    // Starting angles for each face (50% visibility entry point)
+    const FACE_START_ANGLES = {
+      0: -45,   // Face 0 (front) visible from -45 to 45
+      2: 45,    // Face 2 (right) visible from 45 to 135
+      1: 135,   // Face 1 (back) visible from 135 to 225
+      3: 225    // Face 3 (left) visible from 225 to 315
+    };
     
     // Build list of available faceIds that have videos, in rotation order
     let availableFaces = [];
@@ -430,6 +438,13 @@ const CubeWebView = ({
       const faceIdsWithVideos = videos.map(v => v.faceId);
       availableFaces = FACE_ROTATION_ORDER.filter(faceId => faceIdsWithVideos.includes(faceId));
       console.log('Available faces (Y-axis only): ' + availableFaces.join(', '));
+      
+      // Set starting angle based on first available face
+      if (availableFaces.length > 0) {
+        const firstFace = availableFaces[0];
+        cumulativeAngle = FACE_START_ANGLES[firstFace];
+        console.log('Starting angle adjusted for face ' + firstFace + ': ' + cumulativeAngle + '°');
+      }
     }
     
     // Get the faceId for a given segment index (only from available faces)
