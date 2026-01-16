@@ -459,6 +459,9 @@ const CubeWebView = ({
       return getFaceForQueueIndex(currentQueueIndex);
     }
     
+    // Track video readiness per face
+    let faceVideoReady = {}; // faceId -> { queueIndex, ready: boolean }
+    
     // Load a video from queue onto a specific face
     function loadVideoOnFace(faceId, queueIdx) {
       const videoData = getQueueVideo(queueIdx);
@@ -469,6 +472,9 @@ const CubeWebView = ({
       
       const el = document.getElementById('face-' + faceId);
       if (!el) return false;
+      
+      // Mark as not ready until loadedmetadata fires
+      faceVideoReady[faceId] = { queueIndex: queueIdx, ready: false };
       
       // Create video element
       let html = '';
@@ -482,15 +488,39 @@ const CubeWebView = ({
       const video = el.querySelector('video');
       if (video) {
         faceVideoElements[faceId] = { element: video, queueIndex: queueIdx };
-        console.log('Loaded queue[' + queueIdx + '] onto face ' + faceId + ': ' + (videoData.playerName || 'סרטון'));
+        
+        // Set ready flag when metadata is loaded
+        video.addEventListener('loadedmetadata', function() {
+          if (faceVideoReady[faceId] && faceVideoReady[faceId].queueIndex === queueIdx) {
+            faceVideoReady[faceId].ready = true;
+            console.log('Video ready: face ' + faceId + ' queue[' + queueIdx + '] dur=' + video.duration.toFixed(1) + 's');
+          }
+        });
+        
+        console.log('Loading queue[' + queueIdx + '] onto face ' + faceId + ': ' + (videoData.playerName || 'סרטון'));
         return true;
       }
       return false;
     }
     
+    // Check if video is ready for a specific face and queue index
+    function isVideoReadyOnFace(faceId, queueIdx) {
+      const readyInfo = faceVideoReady[faceId];
+      if (!readyInfo || readyInfo.queueIndex !== queueIdx || !readyInfo.ready) {
+        return false;
+      }
+      const faceVideo = faceVideoElements[faceId];
+      if (!faceVideo || faceVideo.queueIndex !== queueIdx || !faceVideo.element) {
+        return false;
+      }
+      const dur = faceVideo.element.duration;
+      return dur && isFinite(dur) && dur > 0;
+    }
+    
     // Start playing the current queue video
-    let videoLoadRetries = 0;
-    const MAX_LOAD_RETRIES = 3;
+    // Called ONLY when segment starts AND video is already confirmed ready
+    // IMPORTANT: Do NOT reload or change face content here - readiness already confirmed
+    let videoPlaybackStarted = false;
     
     function startCurrentVideo() {
       if (currentQueueIndex >= fullVideoQueue.length) {
@@ -502,29 +532,13 @@ const CubeWebView = ({
       }
       
       const faceId = getFaceForQueueIndex(currentQueueIndex);
-      let faceVideo = faceVideoElements[faceId];
+      const faceVideo = faceVideoElements[faceId];
       
-      // Check if correct video is on this face
-      if (!faceVideo || faceVideo.queueIndex !== currentQueueIndex) {
-        console.log('Loading queue[' + currentQueueIndex + '] onto face ' + faceId);
-        const loaded = loadVideoOnFace(faceId, currentQueueIndex);
-        if (!loaded) {
-          // Retry with delay instead of skipping
-          if (videoLoadRetries < MAX_LOAD_RETRIES) {
-            videoLoadRetries++;
-            console.log('Load failed, retry ' + videoLoadRetries + '/' + MAX_LOAD_RETRIES);
-            setTimeout(() => startCurrentVideo(), 200);
-            return true; // Still attempting
-          }
-          console.error('Failed to load video after ' + MAX_LOAD_RETRIES + ' retries, skipping');
-          currentQueueIndex++;
-          videoLoadRetries = 0;
-          return startCurrentVideo();
-        }
-        faceVideo = faceVideoElements[faceId];
+      // CRITICAL: Do NOT reload here - readiness must be confirmed BEFORE calling this
+      if (!faceVideo || !faceVideo.element || faceVideo.queueIndex !== currentQueueIndex) {
+        console.error('startCurrentVideo called without confirmed ready state');
+        return false;
       }
-      
-      videoLoadRetries = 0;
       
       // Stop all other videos
       stopAllVideos();
@@ -544,6 +558,7 @@ const CubeWebView = ({
         if (img) img.style.opacity = '0';
       }
       
+      videoPlaybackStarted = true;
       console.log('Playing queue[' + currentQueueIndex + '/' + fullVideoQueue.length + '] on face ' + faceId);
       postMessage('videoStart', { faceId, queueIndex: currentQueueIndex });
       return true;
@@ -554,25 +569,36 @@ const CubeWebView = ({
     
     // Advance to next video in queue - called when segment completes 90° rotation
     function advanceToNextVideo() {
-      const oldIndex = currentQueueIndex;
       currentQueueIndex++;
       
-      // Update rotation tracking
+      // Update rotation tracking for next segment
       segmentRotationStart += 90;
-      cumulativeAngle = segmentRotationStart;
       
-      console.log('Advancing to queue[' + currentQueueIndex + '], angle now ' + cumulativeAngle + '°');
+      // Reset playback started flag - next segment needs to start video
+      videoPlaybackStarted = false;
       
-      // Preload next+1 video on the face that will be needed after current
-      const preloadFaceId = getFaceForQueueIndex(currentQueueIndex + 1);
-      if (currentQueueIndex + 1 < fullVideoQueue.length) {
-        const existing = faceVideoElements[preloadFaceId];
-        if (!existing || existing.queueIndex !== currentQueueIndex + 1) {
-          loadVideoOnFace(preloadFaceId, currentQueueIndex + 1);
-        }
+      console.log('Advancing to queue[' + currentQueueIndex + '], rotation starts at ' + segmentRotationStart + '°');
+      
+      // Check if all videos done
+      if (currentQueueIndex >= fullVideoQueue.length) {
+        console.log('All ' + fullVideoQueue.length + ' videos completed!');
+        postMessage('allVideosComplete', { playedCount: fullVideoQueue.length });
+        stopAllVideos();
+        animationStarted = false;
+        return false;
       }
       
-      return startCurrentVideo();
+      // Load video for this segment NOW (deterministic)
+      const faceId = getFaceForQueueIndex(currentQueueIndex);
+      loadVideoOnFace(faceId, currentQueueIndex);
+      
+      // Also preload the next video
+      if (currentQueueIndex + 1 < fullVideoQueue.length) {
+        const nextFaceId = getFaceForQueueIndex(currentQueueIndex + 1);
+        loadVideoOnFace(nextFaceId, currentQueueIndex + 1);
+      }
+      
+      return true; // Video will be started by animate() at segment start
     }
     
     // Enforce that only current face's video is playing (called every frame)
@@ -602,41 +628,79 @@ const CubeWebView = ({
     // ANIMATION: Time-based rotation with video sync
     // Rotation driven by segment timer, video plays alongside
     // Each segment = 90° rotation over video duration
+    // Segment starts ONLY when video is confirmed ready (loadedmetadata fired)
     let segmentStartTimestamp = 0;
     let currentSegmentDuration = DEFAULT_VIDEO_DURATION;
+    let segmentDurationLocked = false;
+    let waitingForVideo = true;
+    let waitingStartTime = 0;
+    const MAX_WAIT_TIME = 10000; // 10 second timeout for video to be ready
     
     function animate(timestamp) {
       if (!cycleStartTime) {
         cycleStartTime = timestamp;
-        segmentStartTimestamp = timestamp;
+        waitingStartTime = timestamp;
       }
       
       const elapsed = (timestamp - cycleStartTime) / 1000;
-      
-      // Get current video's actual playback progress
       const currentFaceId = getCurrentFaceId();
-      let faceVideo = faceVideoElements[currentFaceId];
       
-      // Verify correct video is on this face - reload if mismatch
-      if (!faceVideo || faceVideo.queueIndex !== currentQueueIndex) {
-        console.log('Face ' + currentFaceId + ' mismatch, loading queue[' + currentQueueIndex + ']');
-        loadVideoOnFace(currentFaceId, currentQueueIndex);
-        faceVideo = faceVideoElements[currentFaceId];
-        if (faceVideo && faceVideo.element) {
-          faceVideo.element.play().catch(() => {});
+      // STATE: Waiting for video to be ready before segment starts
+      if (waitingForVideo) {
+        let faceVideo = faceVideoElements[currentFaceId];
+        
+        // Ensure correct video is loaded on face (only if not already loading correct one)
+        if (!faceVideo || faceVideo.queueIndex !== currentQueueIndex) {
+          loadVideoOnFace(currentFaceId, currentQueueIndex);
+          waitingStartTime = timestamp; // Reset wait timer
+          faceVideo = faceVideoElements[currentFaceId];
         }
-      }
-      
-      // Get video duration for this segment
-      if (faceVideo && faceVideo.element) {
-        const vid = faceVideo.element;
-        const dur = vid.duration;
-        if (dur && isFinite(dur) && dur > 0) {
+        
+        // Check if video is ready using explicit confirmation from loadedmetadata
+        const isReady = isVideoReadyOnFace(currentFaceId, currentQueueIndex);
+        const waitTime = timestamp - waitingStartTime;
+        
+        if (isReady) {
+          // Video confirmed ready via loadedmetadata - lock duration and start segment
+          const dur = faceVideo.element.duration;
           currentSegmentDuration = dur;
+          segmentDurationLocked = true;
+          segmentStartTimestamp = timestamp; // Segment starts NOW at 50% entry
+          waitingForVideo = false;
+          
+          // Start video playback exactly at segment start
+          startCurrentVideo();
+          console.log('Segment started: queue[' + currentQueueIndex + '] duration=' + dur.toFixed(1) + 's');
+        } else if (waitTime > MAX_WAIT_TIME) {
+          // Timeout - NEVER start segment without confirmed loadedmetadata
+          // Skip this video and try next one
+          console.error('Video load timeout for queue[' + currentQueueIndex + '] on face ' + currentFaceId + ', skipping');
+          postMessage('videoError', { queueIndex: currentQueueIndex, faceId: currentFaceId, error: 'load_timeout' });
+          
+          // Advance to next video (keeps rotation paused until next video ready)
+          if (!advanceToNextVideo()) {
+            return; // All done or all failed
+          }
+          waitingStartTime = timestamp; // Reset wait timer for next video
         }
+        
+        // While waiting, hold rotation at segment start (face at 50% entry)
+        const baseRotY = segmentRotationStart;
+        const rotY = baseRotY + Math.sin(elapsed * 0.3) * 8 + Math.sin(elapsed * 0.17) * 5;
+        const rotX = Math.sin(elapsed * 0.23) * 15 + Math.sin(elapsed * 0.11) * 10;
+        const rotZ = Math.sin(elapsed * 0.19) * 5 + Math.sin(elapsed * 0.07) * 3;
+        
+        const cube = document.getElementById('cube');
+        if (cube) {
+          cube.style.transform = 'rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg) rotateZ(' + rotZ + 'deg)';
+        }
+        
+        enforceCurrentVideoOnly();
+        animationId = requestAnimationFrame(animate);
+        return;
       }
       
-      // Calculate segment progress based on TIME (independent of video currentTime)
+      // STATE: Segment is running - calculate progress based on TIME
       const segmentElapsed = (timestamp - segmentStartTimestamp) / 1000;
       let segmentProgress = Math.min(segmentElapsed / currentSegmentDuration, 1);
       
@@ -649,8 +713,9 @@ const CubeWebView = ({
           return; // All done
         }
         
-        // Reset segment timer
-        segmentStartTimestamp = timestamp;
+        // Reset for next segment - will wait for video
+        waitingForVideo = true;
+        segmentDurationLocked = false;
         currentSegmentDuration = DEFAULT_VIDEO_DURATION;
         segmentProgress = 0;
       }
@@ -743,29 +808,30 @@ const CubeWebView = ({
       if (!isReady) return;
       hidePlayButton();
       
-      // Reset queue state
+      // Reset all queue state
       currentQueueIndex = 0;
       segmentRotationStart = -45;
-      cumulativeAngle = -45; // Start so face 0 enters at 50% visibility
       lastFrontFace = -1;
-      segmentVideoEnded = false;
-      videoLoadRetries = 0;
+      videoPlaybackStarted = false;
+      waitingForVideo = true;
+      waitingStartTime = 0;
+      segmentDurationLocked = false;
+      currentSegmentDuration = DEFAULT_VIDEO_DURATION;
       
-      // Clear any existing face video elements
+      // Clear any existing face video elements and ready state
       faceVideoElements = {};
+      faceVideoReady = {};
       
       console.log('Starting queue playback: ' + fullVideoQueue.length + ' videos');
       console.log('Face order (cycling): ' + VISIBLE_FACES.join(' → '));
       
-      // Load first 4 videos onto the 4 visible faces
+      // Preload first 4 videos onto the 4 visible faces
       for (let i = 0; i < Math.min(fullVideoQueue.length, VISIBLE_FACES.length); i++) {
         const faceId = VISIBLE_FACES[i];
         loadVideoOnFace(faceId, i);
       }
       
-      // Start first video
-      startCurrentVideo();
-      
+      // Start animation - video will start when ready in animate()
       startAnimation();
     }
     
