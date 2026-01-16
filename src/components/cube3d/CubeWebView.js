@@ -818,6 +818,12 @@ const CubeWebView = ({
         return;
       }
       
+      // LOCKED: Don't replace videos during animation - breaks sync
+      if (animationStarted) {
+        console.log('loadNewVideoOnFace BLOCKED during animation: face=' + faceId);
+        return;
+      }
+      
       console.log('loadNewVideoOnFace: face=' + faceId + ', videoIndex=' + videoIndex + ', url=' + videoData.videoUrl.substring(0, 60));
       
       // Remove old video from videos array
@@ -923,22 +929,26 @@ const CubeWebView = ({
         }
       });
       
-      // NEW: If animation started and new videos added, check for idle faces that need videos
-      if (animationStarted && newVideosAdded.length > 0) {
-        console.log('Checking for idle faces after new videos added: ' + newVideosAdded.join(', '));
+      // LOCKED: Do NOT reassign videos during animation - this causes sync issues
+      // The videos[] array and availableFaces are immutable once playback starts
+      if (animationStarted) {
+        console.log('Animation running - skipping dynamic face reassignment to prevent sync issues');
+        return;
+      }
+      
+      // Only assign new videos when NOT animating
+      if (newVideosAdded.length > 0) {
+        console.log('Assigning new videos to faces: ' + newVideosAdded.join(', '));
         
-        // Find faces that have finished playing and are now idle (no video playing)
         for (let faceId = 0; faceId < 6; faceId++) {
           const el = document.getElementById('face-' + faceId);
           const videoEl = el ? el.querySelector('video') : null;
           const currentVideoIdx = faceToVideoIndex[faceId];
           
-          // Check if this face is idle (video ended or no src)
           const isIdle = !videoEl || !videoEl.src || videoEl.ended || 
                          (currentVideoIdx !== undefined && playedVideoIndices.has(currentVideoIdx));
           
           if (isIdle) {
-            // Find next unplayed video for this face
             let nextIdx = -1;
             for (let i = 0; i < videoQueue.length; i++) {
               if (!playedVideoIndices.has(i) && !currentlyPlayingIndices.has(i) && videoQueue[i] && videoQueue[i].videoUrl) {
@@ -948,7 +958,7 @@ const CubeWebView = ({
             }
             
             if (nextIdx >= 0) {
-              console.log('Assigning newly ready video ' + nextIdx + ' to idle face ' + faceId);
+              console.log('Assigning video ' + nextIdx + ' to face ' + faceId);
               faceToVideoIndex[faceId] = nextIdx;
               currentlyPlayingIndices.add(nextIdx);
               loadNewVideoOnFace(faceId, videoQueue[nextIdx], nextIdx);
