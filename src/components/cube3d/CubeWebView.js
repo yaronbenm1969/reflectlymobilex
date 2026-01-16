@@ -682,17 +682,16 @@ const CubeWebView = ({
       if (!isReady) return;
       hidePlayButton();
       
-      // Build available faces list from loaded videos
+      // Reset segment state FIRST
+      currentSegmentIndex = 0;
+      segmentStartTime = 0;
+      lastFrontFace = -1;
+      
+      // Build available faces list - this sets cumulativeAngle based on first face
       buildAvailableFaces();
       
       console.log('Starting playback. Videos on faces: ' + videos.map(v => v.faceId).join(', '));
-      console.log('Playback order: ' + availableFaces.join(' → '));
-      
-      // Reset segment state
-      currentSegmentIndex = 0;
-      segmentStartTime = 0;
-      cumulativeAngle = -45; // Start at -45 so first face enters at 50% visibility
-      lastFrontFace = -1;
+      console.log('Playback order: ' + availableFaces.join(' → ') + ' (starting angle: ' + cumulativeAngle + '°)');
       
       // Start first video (first available face in rotation order)
       startSegmentVideo(0);
