@@ -336,15 +336,18 @@ const CubeWebView = ({
     // ========== NEW QUEUE SYSTEM ==========
     // All 6 faces in fixed rotation order with target angles
     // Each entry: { faceId, rotX, rotY } - the rotation that makes this face front
+    // 7-step rotation path visiting all 6 faces with smooth ~90° transitions
+    // Each step rotates to show the next face, then returns to front
     const ROTATION_PATH = [
-      { faceId: 0, rotX: 0, rotY: 0 },      // front
-      { faceId: 2, rotX: 0, rotY: -90 },    // right
-      { faceId: 1, rotX: 0, rotY: -180 },   // back
-      { faceId: 3, rotX: 0, rotY: -270 },   // left
-      { faceId: 4, rotX: 90, rotY: -270 },  // top
-      { faceId: 5, rotX: -90, rotY: -270 }  // bottom
+      { faceId: 0, rotX: 0, rotY: 0 },       // 0: Front
+      { faceId: 2, rotX: 0, rotY: -90 },     // 1: Right (90° Y)
+      { faceId: 1, rotX: 0, rotY: -180 },    // 2: Back (90° Y)
+      { faceId: 3, rotX: 0, rotY: -270 },    // 3: Left (90° Y)
+      { faceId: 4, rotX: 90, rotY: -270 },   // 4: Top (90° X tilt up)
+      { faceId: 5, rotX: -90, rotY: -270 },  // 5: Bottom (180° X flip)
+      { faceId: 0, rotX: 0, rotY: -360 },    // 6: Front again (closes loop)
     ];
-    const VISIBLE_FACES = [0, 2, 1, 3, 4, 5]; // All 6 faces
+    const VISIBLE_FACES = [0, 2, 1, 3, 4, 5]; // All 6 unique faces for video loading
     
     // Full video queue - all videos to play
     let fullVideoQueue = faces.filter(f => f && f.videoUrl);
@@ -436,7 +439,9 @@ const CubeWebView = ({
     // Get which visible face should be "front" for a given queue index
     // Cycles through [0, 2, 1, 3] repeatedly
     function getFaceForQueueIndex(queueIdx) {
-      return VISIBLE_FACES[queueIdx % VISIBLE_FACES.length];
+      // Use ROTATION_PATH to determine which face shows this video
+      const pathIndex = queueIdx % ROTATION_PATH.length;
+      return ROTATION_PATH[pathIndex].faceId;
     }
     
     // Get video data from queue
@@ -634,9 +639,9 @@ const CubeWebView = ({
     // Advance to next video in queue - called when segment completes
     function advanceToNextVideo() {
       // The face that just finished should get its NEXT video (if any)
-      // It will get queue[currentQueueIndex + 6] (cycles through 6 faces)
+      // It will get queue[currentQueueIndex + 7] (7-step cycle)
       const completedFaceId = getFaceForQueueIndex(currentQueueIndex);
-      const nextVideoForThisFace = currentQueueIndex + 6; // 6 faces
+      const nextVideoForThisFace = currentQueueIndex + ROTATION_PATH.length;
       
       if (nextVideoForThisFace < fullVideoQueue.length) {
         // Load the next video onto this face
@@ -746,11 +751,12 @@ const CubeWebView = ({
           waitingStartTime = timestamp; // Reset wait timer for next video
         }
         
-        // While waiting, hold at current target rotation
+        // While waiting, hold at current target rotation (with cycle offset)
+        const cycleNumber = Math.floor(currentQueueIndex / ROTATION_PATH.length);
         const pathIndex = currentQueueIndex % ROTATION_PATH.length;
         const currentTarget = ROTATION_PATH[pathIndex];
         const rotX = currentTarget.rotX;
-        const rotY = currentTarget.rotY;
+        const rotY = currentTarget.rotY - (cycleNumber * 360);
         const rotZ = 0;
         
         const spinWrapper = document.getElementById('spin-wrapper');
@@ -783,17 +789,27 @@ const CubeWebView = ({
         segmentProgress = 0;
       }
       
-      // ========== FIXED ROTATION PATH ==========
-      // Get current and next rotation targets
+      // ========== FIXED ROTATION PATH WITH CYCLE OFFSET ==========
+      // Calculate which cycle we're in (7 videos per cycle)
+      const cycleNumber = Math.floor(currentQueueIndex / ROTATION_PATH.length);
       const pathIndex = currentQueueIndex % ROTATION_PATH.length;
-      const nextPathIndex = (pathIndex + 1) % ROTATION_PATH.length;
-      const currentTarget = ROTATION_PATH[pathIndex];
-      const nextTarget = ROTATION_PATH[nextPathIndex];
+      const nextCycleNumber = Math.floor((currentQueueIndex + 1) / ROTATION_PATH.length);
+      const nextPathIndex = (currentQueueIndex + 1) % ROTATION_PATH.length;
+      
+      // Get base rotations from path
+      const currentBase = ROTATION_PATH[pathIndex];
+      const nextBase = ROTATION_PATH[nextPathIndex];
+      
+      // Apply cycle offset: each complete cycle adds 360° to Y rotation
+      // This ensures smooth continuation when looping back to front
+      const currentRotX = currentBase.rotX;
+      const currentRotY = currentBase.rotY - (cycleNumber * 360);
+      const nextRotX = nextBase.rotX;
+      const nextRotY = nextBase.rotY - (nextCycleNumber * 360);
       
       // Interpolate between current and next rotation
-      // Progress 0 = at current target, Progress 1 = at next target
-      const rotX = currentTarget.rotX + (nextTarget.rotX - currentTarget.rotX) * segmentProgress;
-      const rotY = currentTarget.rotY + (nextTarget.rotY - currentTarget.rotY) * segmentProgress;
+      const rotX = currentRotX + (nextRotX - currentRotX) * segmentProgress;
+      const rotY = currentRotY + (nextRotY - currentRotY) * segmentProgress;
       const rotZ = 0; // No Z rotation in fixed path
       
       // Float effects (original animation)
@@ -885,9 +901,9 @@ const CubeWebView = ({
       console.log('Starting queue playback: ' + fullVideoQueue.length + ' videos');
       console.log('Face order (cycling): ' + VISIBLE_FACES.join(' → '));
       
-      // Load first 6 videos onto all 6 faces
-      for (let i = 0; i < Math.min(fullVideoQueue.length, 6); i++) {
-        const faceId = VISIBLE_FACES[i];
+      // Load first 7 videos onto faces (7-step path, face 0 may get 2 videos)
+      for (let i = 0; i < Math.min(fullVideoQueue.length, ROTATION_PATH.length); i++) {
+        const faceId = getFaceForQueueIndex(i);
         loadVideoOnFace(faceId, i);
       }
       
