@@ -933,12 +933,16 @@ const CubeWebView = ({
     }
     
     function init() {
-      // Set up initial face content (thumbnails only, videos load on play)
-      faces.forEach((face, index) => {
-        if (index < 6) {
-          setFaceContent(index, face);
+      // Set up initial face content using ROTATION_PATH order
+      // Each queue index maps to a specific physical face via getFaceForQueueIndex
+      for (let queueIdx = 0; queueIdx < Math.min(fullVideoQueue.length, ROTATION_PATH.length); queueIdx++) {
+        const faceId = getFaceForQueueIndex(queueIdx);
+        const video = getQueueVideo(queueIdx);
+        if (video) {
+          setFaceContent(faceId, video);
+          console.log('Init: queue[' + queueIdx + '] thumbnail on face ' + faceId);
         }
-      });
+      }
       
       postMessage('cubeReady', { faceCount: fullVideoQueue.length });
       
