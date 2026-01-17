@@ -1016,14 +1016,17 @@ const CubeWebView = ({
     }
   }, [cubeHTML, faces]);
 
+  // Use html content with baseUrl for iOS to allow file:// video access
   const webViewSource = useMemo(() => {
-    if (Platform.OS === 'web' || !htmlFilePath) {
-      return { html: cubeHTML };
+    // Always use html content with baseUrl - this allows file:// video access on iOS
+    if (cubeHTML) {
+      return { 
+        html: cubeHTML, 
+        baseUrl: Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined 
+      };
     }
-    return { uri: htmlFilePath };
-  }, [cubeHTML, htmlFilePath]);
-
-  const baseUrl = Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined;
+    return { html: '<html><body></body></html>' };
+  }, [cubeHTML]);
 
   return (
     <View style={[styles.container, isFullscreen && styles.fullscreenContainer]}>
