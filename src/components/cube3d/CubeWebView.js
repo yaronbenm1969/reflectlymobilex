@@ -508,15 +508,9 @@ const CubeWebView = ({
       if (video) {
         faceVideoElements[faceId] = { element: video, queueIndex: queueIdx, token: thisToken };
         
-        // Set ready flag when metadata is loaded - verify token matches
+        // Log when metadata is loaded (readiness checked directly via readyState)
         video.addEventListener('loadedmetadata', function() {
-          // Only set ready if this is still the current segment's expected element
-          if (currentSegmentState.faceId === faceId && 
-              currentSegmentState.queueIndex === queueIdx && 
-              currentSegmentState.elementToken === thisToken) {
-            currentSegmentState.ready = true;
-            console.log('Video ready: face ' + faceId + ' queue[' + queueIdx + '] token=' + thisToken + ' dur=' + video.duration.toFixed(1) + 's');
-          }
+          console.log('Metadata loaded: face ' + faceId + ' queue[' + queueIdx + '] dur=' + video.duration.toFixed(1) + 's');
         });
         
         console.log('Loaded queue[' + queueIdx + '] onto face ' + faceId + ' token=' + thisToken);
@@ -853,9 +847,6 @@ const CubeWebView = ({
         const faceId = getFaceForQueueIndex(i);
         loadVideoOnFace(faceId, i);
       }
-      
-      // Prepare first segment state
-      prepareCurrentSegment();
       
       // Start animation - video will start when ready in animate()
       startAnimation();
