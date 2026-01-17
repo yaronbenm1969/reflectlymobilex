@@ -765,6 +765,17 @@ const CubeWebView = ({
         const isReady = isCurrentSegmentReady();
         const waitTime = timestamp - waitingStartTime;
         
+        // Debug: Log state every 2 seconds while waiting
+        if (Math.floor(waitTime / 2000) !== Math.floor((waitTime - 16) / 2000)) {
+          const faceId = getFaceForQueueIndex(currentQueueIndex);
+          const fv = faceVideoElements[faceId];
+          console.log('DEBUG wait: queue[' + currentQueueIndex + '] face=' + faceId + 
+            ' fvExists=' + !!fv + 
+            ' fvQueue=' + (fv ? fv.queueIndex : 'N/A') +
+            ' readyState=' + (fv && fv.element ? fv.element.readyState : 'N/A') +
+            ' dur=' + (fv && fv.element ? fv.element.duration : 'N/A'));
+        }
+        
         if (isReady) {
           // Video confirmed ready via loadedmetadata with correct token
           const faceVideo = faceVideoElements[currentSegmentState.faceId];
@@ -814,7 +825,13 @@ const CubeWebView = ({
       
       // Check if segment completed
       if (segmentProgress >= 1) {
-        console.log('Segment complete: queue[' + currentQueueIndex + '] after ' + segmentElapsed.toFixed(1) + 's');
+        // Log all face states for debugging
+        console.log('=== SEGMENT COMPLETE: queue[' + currentQueueIndex + '] ===');
+        for (let f = 0; f < 6; f++) {
+          const fv = faceVideoElements[f];
+          console.log('  Face ' + f + ': queue=' + (fv ? fv.queueIndex : 'empty') + 
+            ', ready=' + (fv && fv.element ? fv.element.readyState : 'N/A'));
+        }
         
         // Move to next segment
         if (!advanceToNextVideo()) {
