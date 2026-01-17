@@ -25,9 +25,17 @@ const CubeWebView = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [htmlFilePath, setHtmlFilePath] = useState(null);
+  
+  // Store initial faces to prevent HTML regeneration on updates
+  const initialFacesRef = useRef(null);
+  if (initialFacesRef.current === null && faces.length > 0) {
+    initialFacesRef.current = faces.slice(0, 6); // Only first 6 for initial HTML
+  }
 
+  // Use initial faces for HTML generation - prevents WebView reload on face updates
   const cubeHTML = useMemo(() => {
-    const facesJSON = JSON.stringify(faces.map((face, index) => ({
+    const initialFaces = initialFacesRef.current || [];
+    const facesJSON = JSON.stringify(initialFaces.map((face, index) => ({
       index,
       videoUrl: face?.videoUrl || null,
       thumbnailUrl: face?.thumbnailUrl || face?.posterThumbUri || null,
@@ -941,7 +949,7 @@ const CubeWebView = ({
 </body>
 </html>
     `;
-  }, [faces]);
+  }, []); // Empty dependency - HTML is generated once with initial faces, updates via JS injection
 
   const onMessage = useCallback((event) => {
     try {
@@ -1006,6 +1014,7 @@ const CubeWebView = ({
     }
   }, [faces]);
 
+  // Save HTML to file only once when cubeHTML is generated
   useEffect(() => {
     const saveHtmlToFile = async () => {
       if (Platform.OS === 'web') {
@@ -1030,10 +1039,10 @@ const CubeWebView = ({
       }
     };
     
-    if (cubeHTML && faces.some(f => f?.videoUrl)) {
+    if (cubeHTML) {
       saveHtmlToFile();
     }
-  }, [cubeHTML, faces]);
+  }, [cubeHTML]); // Only depends on cubeHTML, not faces
 
   // Use html content with baseUrl for iOS to allow file:// video access
   const webViewSource = useMemo(() => {
