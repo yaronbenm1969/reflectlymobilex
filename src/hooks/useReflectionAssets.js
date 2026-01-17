@@ -141,7 +141,14 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
       }
     }
     
-    let localVideoUrl = await downloadToCache(videoUrl);
+    // TEMP: Skip local caching, use https URLs directly for iOS WebView compatibility
+    // iOS WebView blocks file:// URLs even with baseUrl set
+    const useLocalCache = false; // Platform.OS !== 'ios';
+    let finalVideoUrl = videoUrl;
+    
+    if (useLocalCache) {
+      finalVideoUrl = await downloadToCache(videoUrl);
+    }
     
     if (reflection.thumbnailUrl) {
       Image.prefetch(reflection.thumbnailUrl).catch(() => {});
@@ -149,8 +156,8 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
 
     return {
       index,
-      videoUrl: localVideoUrl || videoUrl,
-      usedFallback: !localVideoUrl,
+      videoUrl: finalVideoUrl || videoUrl,
+      usedFallback: !finalVideoUrl,
     };
   }, []);
 

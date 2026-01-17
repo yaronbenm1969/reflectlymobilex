@@ -1055,7 +1055,7 @@ const CubeWebView = ({
         allowFileAccess={true}
         allowFileAccessFromFileURLs={true}
         allowUniversalAccessFromFileURLs={true}
-        allowingReadAccessToURL={baseUrl}
+        allowingReadAccessToURL={Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined}
       />
       {isLoading && (
         <View style={styles.loadingOverlay}>
