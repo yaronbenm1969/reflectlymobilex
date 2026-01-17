@@ -26,15 +26,22 @@ const CubeWebView = ({
   const [error, setError] = useState(null);
   const [htmlFilePath, setHtmlFilePath] = useState(null);
   
-  // Store initial faces to prevent HTML regeneration on updates
-  const initialFacesRef = useRef(null);
-  if (initialFacesRef.current === null && faces.length > 0) {
-    initialFacesRef.current = faces.slice(0, 6); // Only first 6 for initial HTML
-  }
+  // Track if initial faces have been captured (to prevent WebView reloads)
+  const [initialFaces, setInitialFaces] = useState(null);
+  const hasInitializedRef = useRef(false);
+  
+  // Capture initial faces once when first faces with videos arrive
+  useEffect(() => {
+    if (!hasInitializedRef.current && faces.length > 0 && faces.some(f => f?.videoUrl)) {
+      hasInitializedRef.current = true;
+      setInitialFaces(faces.slice(0, 6));
+    }
+  }, [faces]);
 
   // Use initial faces for HTML generation - prevents WebView reload on face updates
   const cubeHTML = useMemo(() => {
-    const initialFaces = initialFacesRef.current || [];
+    if (!initialFaces || initialFaces.length === 0) return null;
+    
     const facesJSON = JSON.stringify(initialFaces.map((face, index) => ({
       index,
       videoUrl: face?.videoUrl || null,
@@ -949,7 +956,7 @@ const CubeWebView = ({
 </body>
 </html>
     `;
-  }, []); // Empty dependency - HTML is generated once with initial faces, updates via JS injection
+  }, [initialFaces]); // Only regenerate when initialFaces is first set
 
   const onMessage = useCallback((event) => {
     try {
@@ -1055,6 +1062,18 @@ const CubeWebView = ({
     }
     return { html: '<html><body></body></html>' };
   }, [cubeHTML]);
+
+  // Show loading while waiting for initial faces or cubeHTML
+  if (!cubeHTML) {
+    return (
+      <View style={[styles.container, isFullscreen && styles.fullscreenContainer]}>
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#FF6B9D" />
+          <Text style={styles.loadingText}>טוען סרטונים...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, isFullscreen && styles.fullscreenContainer]}>
