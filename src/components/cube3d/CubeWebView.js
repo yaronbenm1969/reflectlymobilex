@@ -496,17 +496,31 @@ const CubeWebView = ({
       // Generate unique token for this load
       const thisToken = ++loadToken;
       
-      // Create video element
+      // Create video element with thumbnail that hides when video plays
       let html = '';
       if (videoData.thumbnailUrl) {
-        html += '<img src="' + videoData.thumbnailUrl + '" alt="Thumbnail" />';
+        html += '<img id="thumb-' + faceId + '" src="' + videoData.thumbnailUrl + '" alt="Thumbnail" style="position:absolute;width:100%;height:100%;object-fit:cover;z-index:2;" />';
       }
-      html += '<video muted playsinline preload="auto" src="' + videoData.videoUrl + '" style="opacity:1"></video>';
+      html += '<video muted playsinline preload="auto" src="' + videoData.videoUrl + '" style="opacity:1;z-index:1;"></video>';
       el.innerHTML = html;
       
       const video = el.querySelector('video');
+      const thumb = el.querySelector('img');
       if (video) {
-        faceVideoElements[faceId] = { element: video, queueIndex: queueIdx, token: thisToken };
+        faceVideoElements[faceId] = { element: video, queueIndex: queueIdx, token: thisToken, thumbnail: thumb };
+        
+        // Hide thumbnail when video starts playing
+        video.addEventListener('playing', function() {
+          if (thumb) thumb.style.display = 'none';
+        });
+        
+        // Show thumbnail when video is paused/stopped (only if not at beginning of playback)
+        video.addEventListener('pause', function() {
+          // Don't show thumbnail if video has played past start
+          if (thumb && video.currentTime < 0.1) {
+            thumb.style.display = 'block';
+          }
+        });
         
         // Log when metadata is loaded (readiness checked directly via readyState)
         video.addEventListener('loadedmetadata', function() {
@@ -657,6 +671,10 @@ const CubeWebView = ({
           // Current face's video should play with sound
           fv.element.muted = false;
           fv.element.volume = 1;
+          // Hide thumbnail when video is playing on front face
+          if (fv.thumbnail) {
+            fv.thumbnail.style.display = 'none';
+          }
           // Make sure it's playing
           if (fv.element.paused && videoPlaybackStarted) {
             fv.element.play().catch(() => {});
