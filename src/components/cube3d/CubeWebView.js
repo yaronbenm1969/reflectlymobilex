@@ -901,7 +901,7 @@ const CubeWebView = ({
         const video = getQueueVideo(queueIdx);
         if (video) {
           setFaceContent(faceId, video);
-          console.log('Init: queue[' + queueIdx + '] thumbnail on face ' + faceId);
+          console.log('Init: queue[' + queueIdx + '] video on face ' + faceId);
         }
       }
       
