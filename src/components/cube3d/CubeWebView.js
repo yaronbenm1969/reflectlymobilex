@@ -323,16 +323,14 @@ const CubeWebView = ({
     // All 6 faces in fixed rotation order with target angles
     // Each entry: { faceId, rotX, rotY } - the rotation that makes this face front
     // 6-step rotation path visiting all 6 faces - optimized order to avoid 180° transitions
-    // Top and Bottom are separated by side faces for smooth ~90° transitions
-    // Transitions: Front→Right(90°Y), Right→Top(90°X), Top→Back(diagonal 90°X+90°Y),
-    //              Back→Left(90°Y), Left→Bottom(90°X), Bottom→Front(diagonal 90°X+90°Y)
+    // Experimentally verified: rotX=+90 shows TOP, rotX=-90 shows BOTTOM
     const ROTATION_PATH = [
       { faceId: 0, rotX: 0, rotY: 0 },       // 0: Front
       { faceId: 2, rotX: 0, rotY: -90 },     // 1: Right
-      { faceId: 4, rotX: 90, rotY: -90 },    // 2: Top (tilted up from right position)
-      { faceId: 1, rotX: 0, rotY: -180 },    // 3: Back (diagonal down + rotate)
+      { faceId: 4, rotX: 90, rotY: -90 },    // 2: Top
+      { faceId: 1, rotX: 0, rotY: -180 },    // 3: Back
       { faceId: 3, rotX: 0, rotY: -270 },    // 4: Left
-      { faceId: 5, rotX: -90, rotY: -270 },  // 5: Bottom (tilted down from left position)
+      { faceId: 5, rotX: -90, rotY: -270 },  // 5: Bottom
     ];
     const VISIBLE_FACES = [0, 2, 1, 3, 4, 5]; // All 6 unique faces for video loading
     
@@ -359,8 +357,10 @@ const CubeWebView = ({
       const normY = ((rotY % 360) + 360) % 360;
       const normX = ((rotX % 360) + 360) % 360;
       
-      if (normX > 45 && normX < 135) return 5;
-      if (normX > 225 && normX < 315) return 4;
+      // rotX=+90 (normX 45-135) tilts cube forward → shows TOP face (4)
+      // rotX=-90 (normX 225-315) tilts cube backward → shows BOTTOM face (5)
+      if (normX > 45 && normX < 135) return 4;  // TOP
+      if (normX > 225 && normX < 315) return 5; // BOTTOM
       
       if (normY >= 315 || normY < 45) return 0;
       if (normY >= 45 && normY < 135) return 3;
