@@ -181,11 +181,6 @@ const CubeWebView = ({
       position: absolute;
       top: 0;
       left: 0;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-    }
-    .cube-face video.playing {
-      opacity: 1;
     }
     /* Fix video orientation on top/bottom faces so they appear upright */
     .top video {
@@ -488,7 +483,6 @@ const CubeWebView = ({
           fv.element.pause();
           fv.element.muted = true;
           fv.element.volume = 0;
-          fv.element.classList.remove('playing');
         }
       });
     }
@@ -612,7 +606,6 @@ const CubeWebView = ({
       video.muted = false;
       video.volume = 1;
       video.currentTime = 0;
-      video.classList.add('playing');
       video.play().catch(e => console.log('Play error: ' + e.message));
       
             
