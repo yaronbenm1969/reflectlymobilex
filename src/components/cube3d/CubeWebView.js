@@ -623,6 +623,9 @@ const CubeWebView = ({
     // Track rotation progress for segment completion
     let segmentRotationStart = -45;
     
+    // Pending preloads - deferred until face is safely out of view
+    let pendingPreloads = [];
+    
     // Advance to next video in queue - called when segment completes
     function advanceToNextVideo() {
       // The face that just finished should get its NEXT video (if any)
@@ -630,10 +633,16 @@ const CubeWebView = ({
       const completedFaceId = getFaceForQueueIndex(currentQueueIndex);
       const nextVideoForThisFace = currentQueueIndex + ROTATION_PATH.length;
       
+      // CRITICAL: Don't preload immediately - defer until face is safely out of view
+      // The completed face is still visible during the transition, so we schedule
+      // the preload for later (after 2 segments have passed)
       if (nextVideoForThisFace < fullVideoQueue.length) {
-        // Load the next video onto this face
-        loadVideoOnFace(completedFaceId, nextVideoForThisFace);
-        console.log('Face ' + completedFaceId + ' will get queue[' + nextVideoForThisFace + '] next time');
+        pendingPreloads.push({
+          faceId: completedFaceId,
+          queueIndex: nextVideoForThisFace,
+          triggerAfterSegment: currentQueueIndex + 2 // Wait for 2 more segments
+        });
+        console.log('Scheduled preload: queue[' + nextVideoForThisFace + '] on face ' + completedFaceId + ' after segment ' + (currentQueueIndex + 2));
       }
       
       // Move to next segment
@@ -641,6 +650,9 @@ const CubeWebView = ({
       videoPlaybackStarted = false;
       
       console.log('Advancing to queue[' + currentQueueIndex + '], rotation starts at ' + segmentRotationStart + '°');
+      
+      // Process any pending preloads that are now safe
+      processPendingPreloads();
       
       // Check if all videos done
       if (currentQueueIndex >= fullVideoQueue.length) {
@@ -655,6 +667,30 @@ const CubeWebView = ({
       prepareCurrentSegment();
       
       return true; // Video will be started by animate() when ready
+    }
+    
+    // Process deferred preloads - only when face is safely not in view
+    function processPendingPreloads() {
+      const currentFaceId = getFaceForQueueIndex(currentQueueIndex);
+      const nextFaceId = getFaceForQueueIndex(currentQueueIndex + 1);
+      
+      const stillPending = [];
+      for (const preload of pendingPreloads) {
+        // Don't load if this face is current or next (still visible/transitioning)
+        if (preload.faceId === currentFaceId || preload.faceId === nextFaceId) {
+          stillPending.push(preload);
+          continue;
+        }
+        
+        // Only load if we've passed the trigger segment
+        if (currentQueueIndex >= preload.triggerAfterSegment) {
+          loadVideoOnFace(preload.faceId, preload.queueIndex);
+          console.log('Executed preload: queue[' + preload.queueIndex + '] on face ' + preload.faceId);
+        } else {
+          stillPending.push(preload);
+        }
+      }
+      pendingPreloads = stillPending;
     }
     
     // Enforce that only current face's video is playing (called every frame)
