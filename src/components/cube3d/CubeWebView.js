@@ -557,15 +557,10 @@ const CubeWebView = ({
       const faceId = getFaceForQueueIndex(currentQueueIndex);
       let faceVideo = faceVideoElements[faceId];
       
-      // Check if correct video is loaded, if not try to load it
-      if (!faceVideo || !faceVideo.element || faceVideo.queueIndex !== currentQueueIndex) {
-        console.log('Video not ready on face ' + faceId + ' for queue[' + currentQueueIndex + '], loading now');
-        loadVideoOnFace(faceId, currentQueueIndex);
-        faceVideo = faceVideoElements[faceId];
-        if (!faceVideo || !faceVideo.element) {
-          console.error('Failed to load video for queue[' + currentQueueIndex + ']');
-          return false;
-        }
+      // SIMPLIFIED: Just use the existing element - ensureCurrentVideoReady() already loaded it
+      if (!faceVideo || !faceVideo.element) {
+        console.error('No video element on face ' + faceId + ' for queue[' + currentQueueIndex + ']');
+        return false;
       }
       
       // Stop all other videos
@@ -908,6 +903,15 @@ const CubeWebView = ({
         fullVideoQueue = validFaces;
         totalVideosToPlay = fullVideoQueue.length;
         console.log('Queue updated: ' + totalVideosToPlay + ' videos');
+        
+        // Re-init thumbnails with new faces
+        for (let queueIdx = 0; queueIdx < Math.min(fullVideoQueue.length, ROTATION_PATH.length); queueIdx++) {
+          const faceId = getFaceForQueueIndex(queueIdx);
+          const video = getQueueVideo(queueIdx);
+          if (video) {
+            setFaceContent(faceId, video);
+          }
+        }
       }
       
       // Check if we can start now
