@@ -900,15 +900,11 @@ const CubeWebView = ({
     }
     
     function init() {
-      // Set up initial face content using ROTATION_PATH order
-      // Each queue index maps to a specific physical face via getFaceForQueueIndex
+      // Set up initial face content using loadVideoOnFace (with correct queueIndex)
       for (let queueIdx = 0; queueIdx < Math.min(fullVideoQueue.length, ROTATION_PATH.length); queueIdx++) {
         const faceId = getFaceForQueueIndex(queueIdx);
-        const video = getQueueVideo(queueIdx);
-        if (video) {
-          setFaceContent(faceId, video);
-          console.log('Init: queue[' + queueIdx + '] video on face ' + faceId);
-        }
+        loadVideoOnFace(faceId, queueIdx);
+        console.log('Init: queue[' + queueIdx + '] video on face ' + faceId);
       }
       
       postMessage('cubeReady', { faceCount: fullVideoQueue.length });
@@ -927,20 +923,15 @@ const CubeWebView = ({
         totalVideosToPlay = fullVideoQueue.length;
         console.log('Queue updated: ' + previousLength + ' → ' + totalVideosToPlay + ' videos');
         
-        // Update ALL faces that don't have a video loaded yet
+        // Update ALL faces that don't have the correct video loaded
         for (let queueIdx = 0; queueIdx < Math.min(fullVideoQueue.length, ROTATION_PATH.length); queueIdx++) {
           const faceId = getFaceForQueueIndex(queueIdx);
-          const video = getQueueVideo(queueIdx);
-          const faceEl = document.getElementById('face-' + faceId);
+          const existing = faceVideoElements[faceId];
           
-          if (video && faceEl) {
-            // Check if face currently has a video
-            const hasVideo = faceEl.querySelector('video') !== null;
-            
-            if (!hasVideo) {
-              console.log('Loading video on face ' + faceId + ' (queue[' + queueIdx + '])');
-              setFaceContent(faceId, video);
-            }
+          // Load if face doesn't have the correct queueIndex
+          if (!existing || existing.queueIndex !== queueIdx) {
+            console.log('Loading video on face ' + faceId + ' (queue[' + queueIdx + '])');
+            loadVideoOnFace(faceId, queueIdx);
           }
         }
       }
