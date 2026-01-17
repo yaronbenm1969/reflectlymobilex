@@ -606,9 +606,15 @@ const CubeWebView = ({
       video.muted = false;
       video.volume = 1;
       video.currentTime = 0;
-      video.play().catch(e => console.log('Play error: ' + e.message));
       
-            
+      console.log('▶️ Starting video queue[' + currentQueueIndex + '] on face ' + faceId + ' readyState=' + video.readyState + ' dur=' + video.duration);
+      
+      video.play().then(() => {
+        console.log('✅ Play success: queue[' + currentQueueIndex + '] on face ' + faceId);
+      }).catch(e => {
+        console.log('❌ Play error: queue[' + currentQueueIndex + '] on face ' + faceId + ' - ' + e.message);
+      });
+      
       videoPlaybackStarted = true;
       console.log('Playing queue[' + currentQueueIndex + '/' + fullVideoQueue.length + '] on face ' + faceId);
       postMessage('videoStart', { faceId, queueIndex: currentQueueIndex });
@@ -727,7 +733,7 @@ const CubeWebView = ({
       
       // Check if segment completed
       if (segmentProgress >= 1) {
-        console.log('Segment complete: queue[' + currentQueueIndex + ']');
+        console.log('⏭️ Segment complete: queue[' + currentQueueIndex + '] dur=' + currentSegmentDuration.toFixed(1) + 's elapsed=' + segmentElapsed.toFixed(1) + 's');
         
         // Move to next segment
         if (!advanceToNextVideo()) {
