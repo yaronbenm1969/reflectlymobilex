@@ -635,10 +635,20 @@ const CubeWebView = ({
       return startCurrentVideo();
     }
     
+    // Track which face was last active to avoid per-frame resets
+    let lastActiveFaceId = -1;
+    
     // Enforce that only current face's video is playing (called every frame)
     // All other videos are PAUSED completely - they don't play until reaching front
     function enforceCurrentVideoOnly() {
       const currentFaceId = getCurrentFaceId();
+      
+      // Only reset videos when the active face CHANGES (not every frame)
+      const faceChanged = currentFaceId !== lastActiveFaceId;
+      if (faceChanged) {
+        lastActiveFaceId = currentFaceId;
+      }
+      
       VISIBLE_FACES.forEach(faceId => {
         const fv = faceVideoElements[faceId];
         if (!fv || !fv.element) return;
@@ -652,12 +662,16 @@ const CubeWebView = ({
             fv.element.play().catch(() => {});
           }
         } else {
-          // All other videos are PAUSED completely (not just muted)
-          // They don't start playing until their face is in front
-          fv.element.pause();
+          // Pause non-front videos (only reset currentTime when face changes)
+          if (!fv.element.paused) {
+            fv.element.pause();
+          }
           fv.element.muted = true;
           fv.element.volume = 0;
-          fv.element.currentTime = 0; // Reset to start so it plays from beginning when it's their turn
+          // Only reset to start when this face just lost focus (not every frame)
+          if (faceChanged && fv.element.currentTime > 0.1) {
+            fv.element.currentTime = 0;
+          }
         }
       });
     }
