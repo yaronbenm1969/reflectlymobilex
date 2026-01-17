@@ -488,6 +488,7 @@ const CubeWebView = ({
           fv.element.pause();
           fv.element.muted = true;
           fv.element.volume = 0;
+          fv.element.classList.remove('playing');
         }
       });
     }
@@ -524,8 +525,8 @@ const CubeWebView = ({
       // Generate unique token for this load
       const thisToken = ++loadToken;
       
-      // Create video element - no separate thumbnail needed, video shows first frame when paused
-      const html = '<video muted playsinline preload="auto" src="' + videoData.videoUrl + '" style="opacity:1;"></video>';
+      // Create video element - hidden until it plays (CSS handles opacity)
+      const html = '<video muted playsinline preload="auto" src="' + videoData.videoUrl + '"></video>';
       el.innerHTML = html;
       
       const video = el.querySelector('video');
