@@ -336,16 +336,17 @@ const CubeWebView = ({
     // ========== NEW QUEUE SYSTEM ==========
     // All 6 faces in fixed rotation order with target angles
     // Each entry: { faceId, rotX, rotY } - the rotation that makes this face front
-    // 7-step rotation path visiting all 6 faces with smooth ~90° transitions
-    // Each step rotates to show the next face, then returns to front
+    // 6-step rotation path visiting all 6 faces
+    // Cycle offset ensures smooth continuation: after bottom, wraps to front with rotY-=360
+    // Transitions: Front→Right(90°Y), Right→Back(90°Y), Back→Left(90°Y), 
+    //              Left→Top(90°X), Top→Bottom(180°X), Bottom→Front(cycle wrap: 90°X + 90°Y diagonal)
     const ROTATION_PATH = [
       { faceId: 0, rotX: 0, rotY: 0 },       // 0: Front
-      { faceId: 2, rotX: 0, rotY: -90 },     // 1: Right (90° Y)
-      { faceId: 1, rotX: 0, rotY: -180 },    // 2: Back (90° Y)
-      { faceId: 3, rotX: 0, rotY: -270 },    // 3: Left (90° Y)
-      { faceId: 4, rotX: 90, rotY: -270 },   // 4: Top (90° X tilt up)
-      { faceId: 5, rotX: -90, rotY: -270 },  // 5: Bottom (180° X flip)
-      { faceId: 0, rotX: 0, rotY: -360 },    // 6: Front again (closes loop)
+      { faceId: 2, rotX: 0, rotY: -90 },     // 1: Right
+      { faceId: 1, rotX: 0, rotY: -180 },    // 2: Back
+      { faceId: 3, rotX: 0, rotY: -270 },    // 3: Left
+      { faceId: 4, rotX: 90, rotY: -270 },   // 4: Top
+      { faceId: 5, rotX: -90, rotY: -270 },  // 5: Bottom
     ];
     const VISIBLE_FACES = [0, 2, 1, 3, 4, 5]; // All 6 unique faces for video loading
     
