@@ -35,7 +35,6 @@ export const useCubeVideoTextures = (preparedFaces, isReady) => {
     const data = validFaces.map((face, index) => ({
       index,
       videoUrl: face.videoUrl,
-      thumbnailUrl: face.thumbnailUrl || face.posterThumbUri,
       playerName: face.playerName,
       duration: 5000,
       isLoaded: false,
