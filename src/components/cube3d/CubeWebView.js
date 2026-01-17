@@ -159,6 +159,13 @@ const CubeWebView = ({
       top: 0;
       left: 0;
     }
+    /* Fix video orientation on top/bottom faces so they appear upright */
+    .top video, .top img {
+      transform: rotateZ(180deg);
+    }
+    .bottom video, .bottom img {
+      transform: rotateZ(180deg);
+    }
     .cube-face .placeholder {
       display: flex; 
       flex-direction: column;
