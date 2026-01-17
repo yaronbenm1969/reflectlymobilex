@@ -141,7 +141,6 @@ export const FinalVideoScreen = () => {
           videoUrl: reflection.videoUrl,
           playerName: reflection.playerName || reflection.participantName || `משתתף ${index + 1}`,
           participantId: reflection.recipientId || reflection.participantId,
-          thumbnail: reflection.thumbnailUrl || null,
           clipNumber: reflection.clipNumber,
         });
       }

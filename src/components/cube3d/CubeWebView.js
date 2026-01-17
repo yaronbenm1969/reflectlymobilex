@@ -55,7 +55,6 @@ const CubeWebView = ({
     const facesJSON = JSON.stringify(initialFaces.map((face, index) => ({
       index,
       videoUrl: face?.videoUrl || null,
-      thumbnailUrl: face?.thumbnailUrl || face?.posterThumbUri || null,
       playerName: face?.playerName || `סרטון ${index + 1}`,
     })));
 
@@ -175,8 +174,7 @@ const CubeWebView = ({
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
     }
-    .cube-face video,
-    .cube-face img {
+    .cube-face video {
       width: 100%; 
       height: 100%;
       object-fit: cover;
@@ -185,10 +183,10 @@ const CubeWebView = ({
       left: 0;
     }
     /* Fix video orientation on top/bottom faces so they appear upright */
-    .top video, .top img {
+    .top video {
       transform: rotateZ(180deg);
     }
-    .bottom video, .bottom img {
+    .bottom video {
       transform: rotateZ(180deg);
     }
     .cube-face .placeholder {
@@ -611,13 +609,7 @@ const CubeWebView = ({
       video.style.opacity = '1';
       video.play().catch(e => console.log('Play error: ' + e.message));
       
-      // Hide thumbnail
-      const faceEl = document.getElementById('face-' + faceId);
-      if (faceEl) {
-        const img = faceEl.querySelector('img');
-        if (img) img.style.opacity = '0';
-      }
-      
+            
       videoPlaybackStarted = true;
       console.log('Playing queue[' + currentQueueIndex + '/' + fullVideoQueue.length + '] on face ' + faceId);
       postMessage('videoStart', { faceId, queueIndex: currentQueueIndex });
@@ -1028,7 +1020,6 @@ const CubeWebView = ({
       const facesData = faces.map((face, index) => ({
         index,
         videoUrl: face?.videoUrl || null,
-        thumbnailUrl: face?.thumbnailUrl || face?.posterThumbUri || null,
         playerName: face?.playerName || `סרטון ${index + 1}`,
       }));
       const js = `window.updateFaces && window.updateFaces(${JSON.stringify(facesData)}); true;`;
