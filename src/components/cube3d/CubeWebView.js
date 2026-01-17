@@ -914,18 +914,26 @@ const CubeWebView = ({
     window.updateFaces = function(newFaces) {
       // Update fullVideoQueue with new faces that have videos
       const validFaces = newFaces.filter(f => f && f.videoUrl);
-      if (validFaces.length > fullVideoQueue.length) {
+      const previousLength = fullVideoQueue.length;
+      
+      if (validFaces.length > previousLength) {
         fullVideoQueue = validFaces;
         totalVideosToPlay = fullVideoQueue.length;
-        console.log('Queue updated: ' + totalVideosToPlay + ' videos');
+        console.log('Queue updated: ' + previousLength + ' → ' + totalVideosToPlay + ' videos');
         
-        // Only set thumbnails if playback hasn't started yet
-        // During playback, videos are managed by loadVideoOnFace
-        if (!videoPlaybackStarted) {
-          for (let queueIdx = 0; queueIdx < Math.min(fullVideoQueue.length, ROTATION_PATH.length); queueIdx++) {
-            const faceId = getFaceForQueueIndex(queueIdx);
-            const video = getQueueVideo(queueIdx);
-            if (video) {
+        // Update ALL faces that currently show placeholders (no video loaded)
+        for (let queueIdx = 0; queueIdx < Math.min(fullVideoQueue.length, ROTATION_PATH.length); queueIdx++) {
+          const faceId = getFaceForQueueIndex(queueIdx);
+          const video = getQueueVideo(queueIdx);
+          const faceEl = document.getElementById('face-' + faceId);
+          
+          if (video && faceEl) {
+            // Check if face currently shows a placeholder (not a video)
+            const hasPlaceholder = faceEl.querySelector('.placeholder') !== null;
+            const hasVideo = faceEl.querySelector('video') !== null;
+            
+            if (hasPlaceholder || !hasVideo) {
+              console.log('Updating face ' + faceId + ' from placeholder to video (queue[' + queueIdx + '])');
               setFaceContent(faceId, video);
             }
           }
