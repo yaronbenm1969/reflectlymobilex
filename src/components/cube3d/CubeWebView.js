@@ -540,10 +540,10 @@ const CubeWebView = ({
       return vid.readyState >= 1 && dur && isFinite(dur) && dur > 0;
     }
     
-    // Start playing the current queue video
-    // Called ONLY when segment starts AND video is already confirmed ready
-    // IMPORTANT: Do NOT reload or change face content here - readiness already confirmed
+    // Start playing the current queue video with retry logic
     let videoPlaybackStarted = false;
+    let videoLoadRetries = 0;
+    const MAX_LOAD_RETRIES = 3;
     
     function startCurrentVideo() {
       if (currentQueueIndex >= fullVideoQueue.length) {
@@ -557,11 +557,27 @@ const CubeWebView = ({
       const faceId = getFaceForQueueIndex(currentQueueIndex);
       let faceVideo = faceVideoElements[faceId];
       
-      // SIMPLIFIED: Just use the existing element - ensureCurrentVideoReady() already loaded it
-      if (!faceVideo || !faceVideo.element) {
-        console.error('No video element on face ' + faceId + ' for queue[' + currentQueueIndex + ']');
-        return false;
+      // Check if correct video is on this face - load if needed
+      if (!faceVideo || faceVideo.queueIndex !== currentQueueIndex) {
+        console.log('Loading queue[' + currentQueueIndex + '] onto face ' + faceId);
+        const loaded = loadVideoOnFace(faceId, currentQueueIndex);
+        if (!loaded || loaded === -1) {
+          // Retry with delay instead of failing immediately
+          if (videoLoadRetries < MAX_LOAD_RETRIES) {
+            videoLoadRetries++;
+            console.log('Load failed, retry ' + videoLoadRetries + '/' + MAX_LOAD_RETRIES);
+            setTimeout(() => startCurrentVideo(), 200);
+            return true; // Still attempting
+          }
+          console.error('Failed to load video after ' + MAX_LOAD_RETRIES + ' retries, skipping');
+          currentQueueIndex++;
+          videoLoadRetries = 0;
+          return startCurrentVideo();
+        }
+        faceVideo = faceVideoElements[faceId];
       }
+      
+      videoLoadRetries = 0;
       
       // Stop all other videos
       stopAllVideos();
@@ -590,9 +606,8 @@ const CubeWebView = ({
     // Track rotation progress for segment completion
     let segmentRotationStart = -45;
     
-    // SIMPLIFIED: Advance to next video in queue
+    // Advance to next video in queue
     function advanceToNextVideo() {
-      // Move to next segment
       currentQueueIndex++;
       videoPlaybackStarted = false;
       
@@ -607,11 +622,17 @@ const CubeWebView = ({
         return false;
       }
       
-      // SIMPLIFIED: Just load the next video directly onto its face
-      const nextFaceId = getFaceForQueueIndex(currentQueueIndex);
-      loadVideoOnFace(nextFaceId, currentQueueIndex);
+      // Preload next+1 video on the face that will be needed after current
+      const preloadFaceId = getFaceForQueueIndex(currentQueueIndex + 1);
+      if (currentQueueIndex + 1 < fullVideoQueue.length) {
+        const existing = faceVideoElements[preloadFaceId];
+        if (!existing || existing.queueIndex !== currentQueueIndex + 1) {
+          loadVideoOnFace(preloadFaceId, currentQueueIndex + 1);
+        }
+      }
       
-      return true;
+      // Start current video
+      return startCurrentVideo();
     }
     
     // Enforce that only current face's video is playing (called every frame)
@@ -638,73 +659,40 @@ const CubeWebView = ({
       });
     }
     
-    // ANIMATION: Time-based rotation with video sync
-    // Rotation driven by segment timer, video plays alongside
-    // Each segment = 90° rotation over video duration
-    // Segment starts ONLY when video is confirmed ready (loadedmetadata fired)
+    // ANIMATION: Time-based rotation with video sync (SIMPLIFIED - no waiting state)
     let segmentStartTimestamp = 0;
     let currentSegmentDuration = DEFAULT_VIDEO_DURATION;
-    let segmentDurationLocked = false;
-    let waitingForVideo = true;
-    let waitingStartTime = 0;
-    const MAX_WAIT_TIME = 10000; // 10 second timeout for video to be ready
     
     function animate(timestamp) {
       if (!cycleStartTime) {
         cycleStartTime = timestamp;
-        waitingStartTime = timestamp;
+        segmentStartTimestamp = timestamp;
       }
       
       const elapsed = (timestamp - cycleStartTime) / 1000;
       const currentFaceId = getCurrentFaceId();
       
-      // STATE: Waiting for video to be ready before segment starts
-      if (waitingForVideo) {
-        const waitTime = timestamp - waitingStartTime;
-        
-        // SIMPLIFIED: Check and load video if needed
-        const isReady = ensureCurrentVideoReady();
-        
-        if (isReady) {
-          const faceId = getFaceForQueueIndex(currentQueueIndex);
-          const faceVideo = faceVideoElements[faceId];
-          const dur = faceVideo.element.duration;
-          currentSegmentDuration = dur;
-          segmentDurationLocked = true;
-          segmentStartTimestamp = timestamp;
-          waitingForVideo = false;
-          
-          // Start video playback
-          startCurrentVideo();
-          console.log('Segment started: queue[' + currentQueueIndex + '] on face ' + faceId + ' duration=' + dur.toFixed(1) + 's');
-        } else if (waitTime > MAX_WAIT_TIME) {
-          // Timeout - skip this video
-          console.error('Video load timeout for queue[' + currentQueueIndex + '], skipping');
-          if (!advanceToNextVideo()) {
-            return;
-          }
-          waitingStartTime = timestamp;
+      // Get current video - reload if mismatch
+      let faceVideo = faceVideoElements[currentFaceId];
+      if (!faceVideo || faceVideo.queueIndex !== currentQueueIndex) {
+        console.log('Face ' + currentFaceId + ' mismatch, loading queue[' + currentQueueIndex + ']');
+        loadVideoOnFace(currentFaceId, currentQueueIndex);
+        faceVideo = faceVideoElements[currentFaceId];
+        if (faceVideo && faceVideo.element) {
+          faceVideo.element.play().catch(() => {});
         }
-        
-        // While waiting, hold at current target rotation (with cycle offset)
-        const cycleNumber = Math.floor(currentQueueIndex / ROTATION_PATH.length);
-        const pathIndex = currentQueueIndex % ROTATION_PATH.length;
-        const currentTarget = ROTATION_PATH[pathIndex];
-        const rotX = currentTarget.rotX;
-        const rotY = currentTarget.rotY - (cycleNumber * 360);
-        const rotZ = 0;
-        
-        const spinWrapper = document.getElementById('spin-wrapper');
-        if (spinWrapper) {
-          spinWrapper.style.transform = 'rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg) rotateZ(' + rotZ + 'deg)';
-        }
-        
-        enforceCurrentVideoOnly();
-        animationId = requestAnimationFrame(animate);
-        return;
       }
       
-      // STATE: Segment is running - calculate progress based on TIME
+      // Get video duration for this segment
+      if (faceVideo && faceVideo.element) {
+        const vid = faceVideo.element;
+        const dur = vid.duration;
+        if (dur && isFinite(dur) && dur > 0) {
+          currentSegmentDuration = dur;
+        }
+      }
+      
+      // Calculate segment progress based on TIME
       const segmentElapsed = (timestamp - segmentStartTimestamp) / 1000;
       let segmentProgress = Math.min(segmentElapsed / currentSegmentDuration, 1);
       
@@ -717,10 +705,8 @@ const CubeWebView = ({
           return; // All done
         }
         
-        // Reset for next segment
-        waitingForVideo = true;
-        waitingStartTime = timestamp;
-        segmentDurationLocked = false;
+        // Reset segment timer
+        segmentStartTimestamp = timestamp;
         currentSegmentDuration = DEFAULT_VIDEO_DURATION;
         segmentProgress = 0;
       }
@@ -819,20 +805,15 @@ const CubeWebView = ({
       if (!isReady) return;
       hidePlayButton();
       
-      // Reset all queue state
+      // Reset queue state
       currentQueueIndex = 0;
       segmentRotationStart = -45;
       lastFrontFace = -1;
       videoPlaybackStarted = false;
-      waitingForVideo = true;
-      waitingStartTime = 0;
-      segmentDurationLocked = false;
-      currentSegmentDuration = DEFAULT_VIDEO_DURATION;
       loadToken = 0;
       
       // Clear any existing face video elements
       faceVideoElements = {};
-      currentSegmentState = { queueIndex: -1, faceId: -1, elementToken: -1, ready: false };
       
       console.log('Starting queue playback: ' + fullVideoQueue.length + ' videos');
       console.log('Face order (cycling): ' + VISIBLE_FACES.join(' → '));
@@ -843,7 +824,10 @@ const CubeWebView = ({
         loadVideoOnFace(faceId, i);
       }
       
-      // Start animation - video will start when ready in animate()
+      // Start first video immediately
+      startCurrentVideo();
+      
+      // Start animation
       startAnimation();
     }
     
