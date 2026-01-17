@@ -30,11 +30,21 @@ const CubeWebView = ({
   const [initialFaces, setInitialFaces] = useState(null);
   const hasInitializedRef = useRef(false);
   
-  // Capture initial faces once when first faces with videos arrive
+  // Capture initial faces once when first 6 faces ALL have videos ready
   useEffect(() => {
-    if (!hasInitializedRef.current && faces.length > 0 && faces.some(f => f?.videoUrl)) {
+    if (hasInitializedRef.current) return;
+    
+    // Get first 6 faces
+    const first6 = faces.slice(0, 6);
+    
+    // Check if ALL 6 have videoUrl (or less if total is under 6)
+    const minRequired = Math.min(6, faces.length);
+    const readyCount = first6.filter(f => f?.videoUrl).length;
+    
+    if (minRequired > 0 && readyCount >= minRequired) {
+      console.log(`🎲 All ${minRequired} initial videos ready - initializing cube`);
       hasInitializedRef.current = true;
-      setInitialFaces(faces.slice(0, 6));
+      setInitialFaces(first6);
     }
   }, [faces]);
 
@@ -883,9 +893,8 @@ const CubeWebView = ({
           // Store reference for queue system
           faceVideoElements[faceId] = { element: video, queueIndex: -1, token: -1 };
         }
-      } else {
-        el.innerHTML = '<div class="placeholder"><span class="icon">🎬</span><span class="label">סרטון ' + (faceId + 1) + '</span></div>';
       }
+      // No placeholder - faces stay empty until video is ready
     }
     
     // Legacy function - kept for compatibility, but queue system handles loading now
@@ -921,19 +930,18 @@ const CubeWebView = ({
         totalVideosToPlay = fullVideoQueue.length;
         console.log('Queue updated: ' + previousLength + ' → ' + totalVideosToPlay + ' videos');
         
-        // Update ALL faces that currently show placeholders (no video loaded)
+        // Update ALL faces that don't have a video loaded yet
         for (let queueIdx = 0; queueIdx < Math.min(fullVideoQueue.length, ROTATION_PATH.length); queueIdx++) {
           const faceId = getFaceForQueueIndex(queueIdx);
           const video = getQueueVideo(queueIdx);
           const faceEl = document.getElementById('face-' + faceId);
           
           if (video && faceEl) {
-            // Check if face currently shows a placeholder (not a video)
-            const hasPlaceholder = faceEl.querySelector('.placeholder') !== null;
+            // Check if face currently has a video
             const hasVideo = faceEl.querySelector('video') !== null;
             
-            if (hasPlaceholder || !hasVideo) {
-              console.log('Updating face ' + faceId + ' from placeholder to video (queue[' + queueIdx + '])');
+            if (!hasVideo) {
+              console.log('Loading video on face ' + faceId + ' (queue[' + queueIdx + '])');
               setFaceContent(faceId, video);
             }
           }
