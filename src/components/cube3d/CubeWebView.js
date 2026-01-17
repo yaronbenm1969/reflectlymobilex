@@ -525,63 +525,25 @@ const CubeWebView = ({
       return -1;
     }
     
-    // Prepare the current segment - load video and set state
-    function prepareCurrentSegment() {
+    // SIMPLIFIED: Check if current video is ready and load if needed
+    function ensureCurrentVideoReady() {
       const faceId = getFaceForQueueIndex(currentQueueIndex);
-      const existingFace = faceVideoElements[faceId];
+      let faceVideo = faceVideoElements[faceId];
       
-      // Check if correct video is already loaded on this face
-      if (existingFace && existingFace.queueIndex === currentQueueIndex) {
-        // Already loaded - just update segment state
-        currentSegmentState = {
-          queueIndex: currentQueueIndex,
-          faceId: faceId,
-          elementToken: existingFace.token,
-          ready: false // Will be set by loadedmetadata if already fired
-        };
-        
-        // Check if already ready
-        const vid = existingFace.element;
-        if (vid && vid.readyState >= 1 && vid.duration > 0 && isFinite(vid.duration)) {
-          currentSegmentState.ready = true;
-        }
-      } else {
-        // Need to load new video
-        const token = loadVideoOnFace(faceId, currentQueueIndex);
-        currentSegmentState = {
-          queueIndex: currentQueueIndex,
-          faceId: faceId,
-          elementToken: token,
-          ready: false
-        };
+      // If wrong video on face, load the correct one
+      if (!faceVideo || faceVideo.queueIndex !== currentQueueIndex) {
+        console.log('Loading queue[' + currentQueueIndex + '] onto face ' + faceId);
+        loadVideoOnFace(faceId, currentQueueIndex);
+        faceVideo = faceVideoElements[faceId];
       }
       
-      console.log('Prepared segment: queue[' + currentQueueIndex + '] face=' + faceId + ' token=' + currentSegmentState.elementToken);
-    }
-    
-    // Check if current segment is ready to play
-    // CRITICAL: Check video element directly, don't rely only on ready flag
-    function isCurrentSegmentReady() {
-      const faceId = getFaceForQueueIndex(currentQueueIndex);
-      const faceVideo = faceVideoElements[faceId];
-      
-      if (!faceVideo) return false;
-      if (faceVideo.queueIndex !== currentQueueIndex) return false;
-      if (!faceVideo.element) return false;
+      if (!faceVideo || !faceVideo.element) return false;
       
       const vid = faceVideo.element;
       const dur = vid.duration;
       
-      // Video is ready if metadata is loaded (readyState >= 1) and duration is valid
-      if (vid.readyState >= 1 && dur && isFinite(dur) && dur > 0) {
-        // Update the ready flag for consistency
-        if (currentSegmentState.queueIndex === currentQueueIndex) {
-          currentSegmentState.ready = true;
-        }
-        return true;
-      }
-      
-      return false;
+      // Ready if metadata loaded and duration valid
+      return vid.readyState >= 1 && dur && isFinite(dur) && dur > 0;
     }
     
     // Start playing the current queue video
@@ -639,36 +601,13 @@ const CubeWebView = ({
     // Track rotation progress for segment completion
     let segmentRotationStart = -45;
     
-    // Pending preloads - deferred until face is safely out of view
-    let pendingPreloads = [];
-    
-    // Advance to next video in queue - called when segment completes
+    // SIMPLIFIED: Advance to next video in queue
     function advanceToNextVideo() {
-      // The face that just finished should get its NEXT video (if any)
-      // It will get queue[currentQueueIndex + 6] (6-step cycle)
-      const completedFaceId = getFaceForQueueIndex(currentQueueIndex);
-      const nextVideoForThisFace = currentQueueIndex + ROTATION_PATH.length;
-      
-      // CRITICAL: Don't preload immediately - defer until face is safely out of view
-      // The completed face is still visible during the transition, so we schedule
-      // the preload for later (after 2 segments have passed)
-      if (nextVideoForThisFace < fullVideoQueue.length) {
-        pendingPreloads.push({
-          faceId: completedFaceId,
-          queueIndex: nextVideoForThisFace,
-          triggerAfterSegment: currentQueueIndex + 2 // Wait for 2 more segments
-        });
-        console.log('Scheduled preload: queue[' + nextVideoForThisFace + '] on face ' + completedFaceId + ' after segment ' + (currentQueueIndex + 2));
-      }
-      
       // Move to next segment
       currentQueueIndex++;
       videoPlaybackStarted = false;
       
-      console.log('Advancing to queue[' + currentQueueIndex + '], rotation starts at ' + segmentRotationStart + '°');
-      
-      // Process any pending preloads that are now safe
-      processPendingPreloads();
+      console.log('Advancing to queue[' + currentQueueIndex + ']');
       
       // Check if all videos done
       if (currentQueueIndex >= fullVideoQueue.length) {
@@ -679,34 +618,11 @@ const CubeWebView = ({
         return false;
       }
       
-      // Prepare the next segment (load if needed, set state)
-      prepareCurrentSegment();
+      // SIMPLIFIED: Just load the next video directly onto its face
+      const nextFaceId = getFaceForQueueIndex(currentQueueIndex);
+      loadVideoOnFace(nextFaceId, currentQueueIndex);
       
-      return true; // Video will be started by animate() when ready
-    }
-    
-    // Process deferred preloads - only when face is safely not in view
-    function processPendingPreloads() {
-      const currentFaceId = getFaceForQueueIndex(currentQueueIndex);
-      const nextFaceId = getFaceForQueueIndex(currentQueueIndex + 1);
-      
-      const stillPending = [];
-      for (const preload of pendingPreloads) {
-        // Don't load if this face is current or next (still visible/transitioning)
-        if (preload.faceId === currentFaceId || preload.faceId === nextFaceId) {
-          stillPending.push(preload);
-          continue;
-        }
-        
-        // Only load if we've passed the trigger segment
-        if (currentQueueIndex >= preload.triggerAfterSegment) {
-          loadVideoOnFace(preload.faceId, preload.queueIndex);
-          console.log('Executed preload: queue[' + preload.queueIndex + '] on face ' + preload.faceId);
-        } else {
-          stillPending.push(preload);
-        }
-      }
-      pendingPreloads = stillPending;
+      return true;
     }
     
     // Enforce that only current face's video is playing (called every frame)
@@ -755,50 +671,30 @@ const CubeWebView = ({
       
       // STATE: Waiting for video to be ready before segment starts
       if (waitingForVideo) {
-        // Ensure segment is prepared (sets currentSegmentState)
-        if (currentSegmentState.queueIndex !== currentQueueIndex) {
-          prepareCurrentSegment();
-          waitingStartTime = timestamp;
-        }
-        
-        // Check if video is ready using token-verified state
-        const isReady = isCurrentSegmentReady();
         const waitTime = timestamp - waitingStartTime;
         
-        // Debug: Log state every 2 seconds while waiting
-        if (Math.floor(waitTime / 2000) !== Math.floor((waitTime - 16) / 2000)) {
-          const faceId = getFaceForQueueIndex(currentQueueIndex);
-          const fv = faceVideoElements[faceId];
-          console.log('DEBUG wait: queue[' + currentQueueIndex + '] face=' + faceId + 
-            ' fvExists=' + !!fv + 
-            ' fvQueue=' + (fv ? fv.queueIndex : 'N/A') +
-            ' readyState=' + (fv && fv.element ? fv.element.readyState : 'N/A') +
-            ' dur=' + (fv && fv.element ? fv.element.duration : 'N/A'));
-        }
+        // SIMPLIFIED: Check and load video if needed
+        const isReady = ensureCurrentVideoReady();
         
         if (isReady) {
-          // Video confirmed ready via loadedmetadata with correct token
-          const faceVideo = faceVideoElements[currentSegmentState.faceId];
+          const faceId = getFaceForQueueIndex(currentQueueIndex);
+          const faceVideo = faceVideoElements[faceId];
           const dur = faceVideo.element.duration;
           currentSegmentDuration = dur;
           segmentDurationLocked = true;
-          segmentStartTimestamp = timestamp; // Segment starts NOW at 50% entry
+          segmentStartTimestamp = timestamp;
           waitingForVideo = false;
           
-          // Start video playback exactly at segment start
+          // Start video playback
           startCurrentVideo();
-          console.log('Segment started: queue[' + currentQueueIndex + '] duration=' + dur.toFixed(1) + 's');
+          console.log('Segment started: queue[' + currentQueueIndex + '] on face ' + faceId + ' duration=' + dur.toFixed(1) + 's');
         } else if (waitTime > MAX_WAIT_TIME) {
-          // Timeout - NEVER start segment without confirmed loadedmetadata
-          // Skip this video and try next one
-          console.error('Video load timeout for queue[' + currentQueueIndex + '] on face ' + currentFaceId + ', skipping');
-          postMessage('videoError', { queueIndex: currentQueueIndex, faceId: currentFaceId, error: 'load_timeout' });
-          
-          // Advance to next video (keeps rotation paused until next video ready)
+          // Timeout - skip this video
+          console.error('Video load timeout for queue[' + currentQueueIndex + '], skipping');
           if (!advanceToNextVideo()) {
-            return; // All done or all failed
+            return;
           }
-          waitingStartTime = timestamp; // Reset wait timer for next video
+          waitingStartTime = timestamp;
         }
         
         // While waiting, hold at current target rotation (with cycle offset)
@@ -825,21 +721,16 @@ const CubeWebView = ({
       
       // Check if segment completed
       if (segmentProgress >= 1) {
-        // Log all face states for debugging
-        console.log('=== SEGMENT COMPLETE: queue[' + currentQueueIndex + '] ===');
-        for (let f = 0; f < 6; f++) {
-          const fv = faceVideoElements[f];
-          console.log('  Face ' + f + ': queue=' + (fv ? fv.queueIndex : 'empty') + 
-            ', ready=' + (fv && fv.element ? fv.element.readyState : 'N/A'));
-        }
+        console.log('Segment complete: queue[' + currentQueueIndex + ']');
         
         // Move to next segment
         if (!advanceToNextVideo()) {
           return; // All done
         }
         
-        // Reset for next segment - will wait for video
+        // Reset for next segment
         waitingForVideo = true;
+        waitingStartTime = timestamp;
         segmentDurationLocked = false;
         currentSegmentDuration = DEFAULT_VIDEO_DURATION;
         segmentProgress = 0;
