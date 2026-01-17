@@ -181,6 +181,11 @@ const CubeWebView = ({
       position: absolute;
       top: 0;
       left: 0;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .cube-face video.playing {
+      opacity: 1;
     }
     /* Fix video orientation on top/bottom faces so they appear upright */
     .top video {
@@ -606,7 +611,7 @@ const CubeWebView = ({
       video.muted = false;
       video.volume = 1;
       video.currentTime = 0;
-      video.style.opacity = '1';
+      video.classList.add('playing');
       video.play().catch(e => console.log('Play error: ' + e.message));
       
             
@@ -875,18 +880,18 @@ const CubeWebView = ({
       const el = document.getElementById('face-' + faceId);
       if (!el) return;
       
-      // For queue system: show video element with first frame as preview (no separate thumbnail)
-      // Videos are loaded paused - they show first frame automatically
+      // For queue system: create video element hidden until it plays
+      // Videos start with opacity:0 and get 'playing' class when they play
       if (face && face.videoUrl) {
-        // Create paused video that shows first frame as preview
-        el.innerHTML = '<video muted playsinline preload="auto" src="' + face.videoUrl + '" style="opacity:1;"></video>';
+        // Create hidden video - will show when it starts playing
+        el.innerHTML = '<video muted playsinline preload="auto" src="' + face.videoUrl + '"></video>';
         const video = el.querySelector('video');
         if (video) {
           // Store reference for queue system
           faceVideoElements[faceId] = { element: video, queueIndex: -1, token: -1 };
         }
       }
-      // No placeholder - faces stay empty until video is ready
+      // No placeholder - faces show gradient background until video plays
     }
     
     // Legacy function - kept for compatibility, but queue system handles loading now
