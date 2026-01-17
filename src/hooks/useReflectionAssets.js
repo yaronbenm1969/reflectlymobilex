@@ -149,10 +149,6 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
     if (useLocalCache) {
       finalVideoUrl = await downloadToCache(videoUrl);
     }
-    
-    if (reflection.thumbnailUrl) {
-      Image.prefetch(reflection.thumbnailUrl).catch(() => {});
-    }
 
     return {
       index,
@@ -206,8 +202,8 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
       index: i,
       originalUrl: reflection.videoUrl,
       videoUrl: null,
-      thumbnailUrl: reflection.thumbnailUrl || null,
-      posterThumbUri: reflection.thumbnailUrl || null,
+      thumbnailUrl: null,
+      posterThumbUri: null,
       playerName: reflection.playerName || reflection.participantName || `משתתף ${Math.floor(i / 3) + 1}`,
       clipNumber: reflection.clipNumber,
       isReady: false,
