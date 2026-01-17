@@ -177,20 +177,6 @@ const CubeWebView = ({
     }
     .cube-face .placeholder .icon { font-size: 60px; margin-bottom: 12px; }
     .cube-face .placeholder .label { font-size: 18px; opacity: 0.9; font-weight: 600; }
-    .player-badge {
-      position: absolute;
-      bottom: 12px;
-      left: 12px;
-      right: 12px;
-      background: rgba(0,0,0,0.65);
-      padding: 8px 12px;
-      border-radius: 10px;
-      color: white;
-      font-size: 14px;
-      font-weight: 600;
-      text-align: center;
-      z-index: 10;
-    }
     .front  { transform: rotateY(0deg) translateZ(${CUBE_SIZE/2}px); }
     .back   { transform: rotateY(180deg) translateZ(${CUBE_SIZE/2}px); }
     .right  { transform: rotateY(90deg) translateZ(${CUBE_SIZE/2}px); }
@@ -932,12 +918,10 @@ const CubeWebView = ({
       // For queue system: only show thumbnails initially, no video preload
       // Videos are loaded via loadVideoOnFace when playback starts
       if (face && face.thumbnailUrl) {
-        let html = '<img src="' + face.thumbnailUrl + '" alt="Thumbnail" />';
-        html += '<div class="player-badge">' + (face.playerName || 'סרטון') + '</div>';
-        el.innerHTML = html;
+        el.innerHTML = '<img src="' + face.thumbnailUrl + '" alt="Thumbnail" />';
       } else if (face && face.videoUrl) {
-        // Just show placeholder with player name
-        el.innerHTML = '<div class="player-badge">' + (face.playerName || 'סרטון') + '</div>';
+        // Just show gradient placeholder (no badge)
+        el.innerHTML = '';
       } else {
         el.innerHTML = '<div class="placeholder"><span class="icon">🎬</span><span class="label">סרטון ' + (faceId + 1) + '</span></div>';
       }
