@@ -858,13 +858,16 @@ const CubeWebView = ({
       const el = document.getElementById('face-' + faceId);
       if (!el) return;
       
-      // For queue system: only show thumbnails initially, no video preload
-      // Videos are loaded via loadVideoOnFace when playback starts
-      if (face && face.thumbnailUrl) {
-        el.innerHTML = '<img src="' + face.thumbnailUrl + '" alt="Thumbnail" />';
-      } else if (face && face.videoUrl) {
-        // Just show gradient placeholder (no badge)
-        el.innerHTML = '';
+      // For queue system: show video element with first frame as preview (no separate thumbnail)
+      // Videos are loaded paused - they show first frame automatically
+      if (face && face.videoUrl) {
+        // Create paused video that shows first frame as preview
+        el.innerHTML = '<video muted playsinline preload="auto" src="' + face.videoUrl + '" style="opacity:1;"></video>';
+        const video = el.querySelector('video');
+        if (video) {
+          // Store reference for queue system
+          faceVideoElements[faceId] = { element: video, queueIndex: -1, token: -1 };
+        }
       } else {
         el.innerHTML = '<div class="placeholder"><span class="icon">🎬</span><span class="label">סרטון ' + (faceId + 1) + '</span></div>';
       }
@@ -901,12 +904,15 @@ const CubeWebView = ({
         totalVideosToPlay = fullVideoQueue.length;
         console.log('Queue updated: ' + totalVideosToPlay + ' videos');
         
-        // Re-init thumbnails with new faces
-        for (let queueIdx = 0; queueIdx < Math.min(fullVideoQueue.length, ROTATION_PATH.length); queueIdx++) {
-          const faceId = getFaceForQueueIndex(queueIdx);
-          const video = getQueueVideo(queueIdx);
-          if (video) {
-            setFaceContent(faceId, video);
+        // Only set thumbnails if playback hasn't started yet
+        // During playback, videos are managed by loadVideoOnFace
+        if (!videoPlaybackStarted) {
+          for (let queueIdx = 0; queueIdx < Math.min(fullVideoQueue.length, ROTATION_PATH.length); queueIdx++) {
+            const faceId = getFaceForQueueIndex(queueIdx);
+            const video = getQueueVideo(queueIdx);
+            if (video) {
+              setFaceContent(faceId, video);
+            }
           }
         }
       }
