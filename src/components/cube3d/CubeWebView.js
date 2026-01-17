@@ -334,8 +334,17 @@ const CubeWebView = ({
     const DEFAULT_VIDEO_DURATION = 5;
     
     // ========== NEW QUEUE SYSTEM ==========
-    // Only 4 visible faces in Y-axis rotation order
-    const VISIBLE_FACES = [0, 2, 1, 3]; // front → right → back → left
+    // All 6 faces in fixed rotation order with target angles
+    // Each entry: { faceId, rotX, rotY } - the rotation that makes this face front
+    const ROTATION_PATH = [
+      { faceId: 0, rotX: 0, rotY: 0 },      // front
+      { faceId: 2, rotX: 0, rotY: -90 },    // right
+      { faceId: 1, rotX: 0, rotY: -180 },   // back
+      { faceId: 3, rotX: 0, rotY: -270 },   // left
+      { faceId: 4, rotX: 90, rotY: -270 },  // top
+      { faceId: 5, rotX: -90, rotY: -270 }  // bottom
+    ];
+    const VISIBLE_FACES = [0, 2, 1, 3, 4, 5]; // All 6 faces
     
     // Full video queue - all videos to play
     let fullVideoQueue = faces.filter(f => f && f.videoUrl);
@@ -501,7 +510,6 @@ const CubeWebView = ({
         html += '<img src="' + videoData.thumbnailUrl + '" alt="Thumbnail" />';
       }
       html += '<video muted playsinline preload="auto" src="' + videoData.videoUrl + '" style="opacity:1"></video>';
-      html += '<div class="player-badge">' + (videoData.playerName || 'סרטון') + '</div>';
       el.innerHTML = html;
       
       const video = el.querySelector('video');
@@ -623,23 +631,21 @@ const CubeWebView = ({
     // Track rotation progress for segment completion
     let segmentRotationStart = -45;
     
-    // Advance to next video in queue - called when segment completes 90° rotation
+    // Advance to next video in queue - called when segment completes
     function advanceToNextVideo() {
       // The face that just finished should get its NEXT video (if any)
-      // Current face just completed queue[currentQueueIndex]
-      // It should get queue[currentQueueIndex + 4] (cycles through 4 faces)
+      // It will get queue[currentQueueIndex + 6] (cycles through 6 faces)
       const completedFaceId = getFaceForQueueIndex(currentQueueIndex);
-      const nextVideoForThisFace = currentQueueIndex + VISIBLE_FACES.length;
+      const nextVideoForThisFace = currentQueueIndex + 6; // 6 faces
       
       if (nextVideoForThisFace < fullVideoQueue.length) {
-        // Load the next video onto this face (it won't be front for 4 more segments)
+        // Load the next video onto this face
         loadVideoOnFace(completedFaceId, nextVideoForThisFace);
         console.log('Face ' + completedFaceId + ' will get queue[' + nextVideoForThisFace + '] next time');
       }
       
       // Move to next segment
       currentQueueIndex++;
-      segmentRotationStart += 90;
       videoPlaybackStarted = false;
       
       console.log('Advancing to queue[' + currentQueueIndex + '], rotation starts at ' + segmentRotationStart + '°');
@@ -740,15 +746,16 @@ const CubeWebView = ({
           waitingStartTime = timestamp; // Reset wait timer for next video
         }
         
-        // While waiting, hold rotation at segment start (face at 50% entry)
-        const baseRotY = segmentRotationStart;
-        const rotY = baseRotY + Math.sin(elapsed * 0.3) * 8 + Math.sin(elapsed * 0.17) * 5;
-        const rotX = Math.sin(elapsed * 0.23) * 15 + Math.sin(elapsed * 0.11) * 10;
-        const rotZ = Math.sin(elapsed * 0.19) * 5 + Math.sin(elapsed * 0.07) * 3;
+        // While waiting, hold at current target rotation
+        const pathIndex = currentQueueIndex % ROTATION_PATH.length;
+        const currentTarget = ROTATION_PATH[pathIndex];
+        const rotX = currentTarget.rotX;
+        const rotY = currentTarget.rotY;
+        const rotZ = 0;
         
-        const cube = document.getElementById('cube');
-        if (cube) {
-          cube.style.transform = 'rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg) rotateZ(' + rotZ + 'deg)';
+        const spinWrapper = document.getElementById('spin-wrapper');
+        if (spinWrapper) {
+          spinWrapper.style.transform = 'rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg) rotateZ(' + rotZ + 'deg)';
         }
         
         enforceCurrentVideoOnly();
@@ -760,7 +767,7 @@ const CubeWebView = ({
       const segmentElapsed = (timestamp - segmentStartTimestamp) / 1000;
       let segmentProgress = Math.min(segmentElapsed / currentSegmentDuration, 1);
       
-      // Check if segment completed (90° rotation finished)
+      // Check if segment completed
       if (segmentProgress >= 1) {
         console.log('Segment complete: queue[' + currentQueueIndex + '] after ' + segmentElapsed.toFixed(1) + 's');
         
@@ -776,22 +783,18 @@ const CubeWebView = ({
         segmentProgress = 0;
       }
       
-      // Calculate primary rotation: segment start + progress through current 90° segment
-      const baseRotY = segmentRotationStart + (segmentProgress * 90);
+      // ========== FIXED ROTATION PATH ==========
+      // Get current and next rotation targets
+      const pathIndex = currentQueueIndex % ROTATION_PATH.length;
+      const nextPathIndex = (pathIndex + 1) % ROTATION_PATH.length;
+      const currentTarget = ROTATION_PATH[pathIndex];
+      const nextTarget = ROTATION_PATH[nextPathIndex];
       
-      // Add wobble/organic motion effects (REDUCED X tilt to keep Y-axis faces visible)
-      const rotY = baseRotY + 
-                   Math.sin(elapsed * 0.3) * 8 + 
-                   Math.sin(elapsed * 0.7) * 5;
-      
-      // CRITICAL: Keep rotX small (<30°) so top/bottom faces don't become front
-      // Max rotX = 12 + 8 + 5 = 25° (safe - Y-axis faces stay visible)
-      const rotX = Math.sin(elapsed * 0.4) * 12 + 
-                   Math.sin(elapsed * 0.15) * 8 +
-                   Math.cos(elapsed * 0.25) * 5;
-      
-      const rotZ = Math.sin(elapsed * 0.2) * 5 + 
-                   Math.cos(elapsed * 0.35) * 3;
+      // Interpolate between current and next rotation
+      // Progress 0 = at current target, Progress 1 = at next target
+      const rotX = currentTarget.rotX + (nextTarget.rotX - currentTarget.rotX) * segmentProgress;
+      const rotY = currentTarget.rotY + (nextTarget.rotY - currentTarget.rotY) * segmentProgress;
+      const rotZ = 0; // No Z rotation in fixed path
       
       // Float effects (original animation)
       const floatX = Math.sin(elapsed * 0.5) * 22 + 
@@ -882,8 +885,8 @@ const CubeWebView = ({
       console.log('Starting queue playback: ' + fullVideoQueue.length + ' videos');
       console.log('Face order (cycling): ' + VISIBLE_FACES.join(' → '));
       
-      // Load first 4 videos onto the 4 visible faces
-      for (let i = 0; i < Math.min(fullVideoQueue.length, VISIBLE_FACES.length); i++) {
+      // Load first 6 videos onto all 6 faces
+      for (let i = 0; i < Math.min(fullVideoQueue.length, 6); i++) {
         const faceId = VISIBLE_FACES[i];
         loadVideoOnFace(faceId, i);
       }
