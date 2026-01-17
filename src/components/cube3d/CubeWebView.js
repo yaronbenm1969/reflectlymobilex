@@ -147,6 +147,8 @@ const CubeWebView = ({
       overflow: hidden;
       background: linear-gradient(145deg, rgba(255,107,157,0.95), rgba(192,111,187,0.95));
       box-shadow: 0 0 30px rgba(0,0,0,0.3);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
     }
     .cube-face video,
     .cube-face img {
