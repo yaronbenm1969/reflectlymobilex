@@ -560,17 +560,28 @@ const CubeWebView = ({
     }
     
     // Check if current segment is ready to play
+    // CRITICAL: Check video element directly, don't rely only on ready flag
     function isCurrentSegmentReady() {
-      if (!currentSegmentState.ready) return false;
+      const faceId = getFaceForQueueIndex(currentQueueIndex);
+      const faceVideo = faceVideoElements[faceId];
       
-      const faceVideo = faceVideoElements[currentSegmentState.faceId];
       if (!faceVideo) return false;
-      if (faceVideo.queueIndex !== currentSegmentState.queueIndex) return false;
-      if (faceVideo.token !== currentSegmentState.elementToken) return false;
+      if (faceVideo.queueIndex !== currentQueueIndex) return false;
       if (!faceVideo.element) return false;
       
-      const dur = faceVideo.element.duration;
-      return dur && isFinite(dur) && dur > 0;
+      const vid = faceVideo.element;
+      const dur = vid.duration;
+      
+      // Video is ready if metadata is loaded (readyState >= 1) and duration is valid
+      if (vid.readyState >= 1 && dur && isFinite(dur) && dur > 0) {
+        // Update the ready flag for consistency
+        if (currentSegmentState.queueIndex === currentQueueIndex) {
+          currentSegmentState.ready = true;
+        }
+        return true;
+      }
+      
+      return false;
     }
     
     // Start playing the current queue video
@@ -588,12 +599,17 @@ const CubeWebView = ({
       }
       
       const faceId = getFaceForQueueIndex(currentQueueIndex);
-      const faceVideo = faceVideoElements[faceId];
+      let faceVideo = faceVideoElements[faceId];
       
-      // CRITICAL: Do NOT reload here - readiness must be confirmed BEFORE calling this
+      // Check if correct video is loaded, if not try to load it
       if (!faceVideo || !faceVideo.element || faceVideo.queueIndex !== currentQueueIndex) {
-        console.error('startCurrentVideo called without confirmed ready state');
-        return false;
+        console.log('Video not ready on face ' + faceId + ' for queue[' + currentQueueIndex + '], loading now');
+        loadVideoOnFace(faceId, currentQueueIndex);
+        faceVideo = faceVideoElements[faceId];
+        if (!faceVideo || !faceVideo.element) {
+          console.error('Failed to load video for queue[' + currentQueueIndex + ']');
+          return false;
+        }
       }
       
       // Stop all other videos
