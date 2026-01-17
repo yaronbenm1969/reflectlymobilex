@@ -636,6 +636,7 @@ const CubeWebView = ({
     }
     
     // Enforce that only current face's video is playing (called every frame)
+    // All other videos are PAUSED completely - they don't play until reaching front
     function enforceCurrentVideoOnly() {
       const currentFaceId = getCurrentFaceId();
       VISIBLE_FACES.forEach(faceId => {
@@ -643,18 +644,20 @@ const CubeWebView = ({
         if (!fv || !fv.element) return;
         
         if (faceId === currentFaceId) {
-          // Current face's video should be unmuted
-          if (fv.element.muted) {
-            fv.element.muted = false;
-            fv.element.volume = 1;
+          // Current face's video should play with sound
+          fv.element.muted = false;
+          fv.element.volume = 1;
+          // Make sure it's playing
+          if (fv.element.paused && videoPlaybackStarted) {
+            fv.element.play().catch(() => {});
           }
         } else {
-          // All other videos MUST be muted and paused
-          if (!fv.element.muted || !fv.element.paused) {
-            fv.element.muted = true;
-            fv.element.volume = 0;
-            fv.element.pause();
-          }
+          // All other videos are PAUSED completely (not just muted)
+          // They don't start playing until their face is in front
+          fv.element.pause();
+          fv.element.muted = true;
+          fv.element.volume = 0;
+          fv.element.currentTime = 0; // Reset to start so it plays from beginning when it's their turn
         }
       });
     }
