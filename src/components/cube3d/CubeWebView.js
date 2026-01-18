@@ -186,9 +186,17 @@ const CubeWebView = ({
       left: 0;
       background: #000;
     }
-    /* Top/bottom faces - no extra transform, let the video play normally */
+    /* Top/bottom faces - force GPU rendering on iOS */
     .top video, .bottom video {
-      /* Removed rotateZ(180deg) - was causing display issues on iOS */
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+      -webkit-backface-visibility: visible;
+      backface-visibility: visible;
+    }
+    /* Force redraw on top/bottom faces */
+    .top, .bottom {
+      -webkit-transform-style: flat;
+      transform-style: flat;
     }
     .cube-face .placeholder {
       display: flex; 
