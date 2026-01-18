@@ -350,14 +350,14 @@ const CubeWebView = ({
     const faces = ${facesJSON};
     let fullVideoQueue = faces.filter(f => f && f.videoUrl);
     
-    // Full 6-face rotation path - video swapping handles iOS WebView limitation
+    // 4-face rotation path with dynamic tilt for visual interest
+    // iOS WebView cannot render video on rotateX faces, so we use only side faces
+    // but add slight X rotation for depth effect while keeping video on working faces
     const ROTATION_PATH = [
-      { faceId: 0, rotX: 0, rotY: 0 },       // Front
-      { faceId: 2, rotX: 0, rotY: -90 },     // Right
-      { faceId: 4, rotX: -90, rotY: -90 },   // Top (rotX negative to show correctly)
-      { faceId: 1, rotX: 0, rotY: -180 },    // Back
-      { faceId: 3, rotX: 0, rotY: -270 },    // Left
-      { faceId: 5, rotX: 90, rotY: -270 },   // Bottom (rotX positive to show correctly)
+      { faceId: 0, rotX: 0, rotY: 0 },         // Front - straight
+      { faceId: 2, rotX: 15, rotY: -90 },      // Right - slight tilt up
+      { faceId: 1, rotX: -10, rotY: -180 },    // Back - slight tilt down
+      { faceId: 3, rotX: 12, rotY: -270 },     // Left - slight tilt up
     ];
     
     // STATE
@@ -382,13 +382,13 @@ const CubeWebView = ({
     
     // Get which physical face should show video at queueIdx
     function getFaceForIndex(queueIdx) {
-      return ROTATION_PATH[queueIdx % 6].faceId;
+      return ROTATION_PATH[queueIdx % 4].faceId;
     }
     
     // Get target rotation for queueIdx
     function getTargetRotation(queueIdx) {
-      const cycleNum = Math.floor(queueIdx / 6);
-      const step = ROTATION_PATH[queueIdx % 6];
+      const cycleNum = Math.floor(queueIdx / 4);
+      const step = ROTATION_PATH[queueIdx % 4];
       return {
         rotX: step.rotX,
         rotY: step.rotY - (cycleNum * 360)
