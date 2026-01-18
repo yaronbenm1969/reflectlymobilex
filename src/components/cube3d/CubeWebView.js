@@ -174,6 +174,9 @@ const CubeWebView = ({
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
     }
+    .cube-face {
+      background: #000;
+    }
     .cube-face video {
       width: 100%; 
       height: 100%;
@@ -181,6 +184,7 @@ const CubeWebView = ({
       position: absolute;
       top: 0;
       left: 0;
+      background: #000;
     }
     /* Fix video orientation on top/bottom faces so they appear upright */
     .top video {
