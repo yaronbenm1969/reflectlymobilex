@@ -544,10 +544,14 @@ const CubeWebView = ({
         videoTimeoutId = null;
       }
       
+      // iOS WebView workaround: ALWAYS reload video on Top (4) and Bottom (5) faces
+      // These faces have rotateX transforms that cause iOS to freeze video textures
+      const isProblematicFace = (faceId === 4 || faceId === 5);
+      
       // CRITICAL: Verify this face has the correct video loaded
-      // If not, reload it before playing
-      if (!fv || !fv.element || fv.queueIdx !== currentIndex) {
-        console.log('🔄 Face ' + faceId + ' has wrong video (has ' + (fv ? fv.queueIdx : 'none') + ', need ' + currentIndex + '), reloading...');
+      // For Top/Bottom faces, always force reload to fix iOS rendering
+      if (!fv || !fv.element || fv.queueIdx !== currentIndex || isProblematicFace) {
+        console.log('🔄 Face ' + faceId + ' reloading (problematic=' + isProblematicFace + ', has=' + (fv ? fv.queueIdx : 'none') + ', need=' + currentIndex + ')');
         try {
           await loadVideoOnFace(faceId, currentIndex);
           fv = faceVideos[faceId];
