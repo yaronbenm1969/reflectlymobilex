@@ -169,12 +169,13 @@ const CubeWebView = ({
       border: 4px solid rgba(255,255,255,0.7);
       border-radius: 16px;
       overflow: hidden;
-      background: #000;
+      background: linear-gradient(145deg, rgba(255,107,157,0.95), rgba(192,111,187,0.95));
       box-shadow: 0 0 30px rgba(0,0,0,0.3);
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
-      transform-style: preserve-3d;
-      -webkit-transform-style: preserve-3d;
+    }
+    .cube-face {
+      background: #000;
     }
     .cube-face video {
       width: 100%; 
@@ -184,8 +185,6 @@ const CubeWebView = ({
       top: 0;
       left: 0;
       background: #000;
-      backface-visibility: hidden;
-      -webkit-backface-visibility: hidden;
     }
     /* Top/bottom faces - force GPU rendering on iOS */
     .top video, .bottom video {
@@ -396,142 +395,85 @@ const CubeWebView = ({
       };
     }
     
-    // ============ VIDEO LOADING (DOUBLE-BUFFER SYSTEM) ============
-    // Each face has PRIMARY and BUFFER video elements
-    // PRIMARY = currently visible, BUFFER = preloading next video
-    let faceBuffers = {}; // faceId -> { primary: video, buffer: video, activeSlot: 'primary'|'buffer' }
+    // ============ VIDEO LOADING ============
+    // Persistent video elements - created once, src changed
+    let faceVideoElements = {}; // faceId -> video element (persistent)
     
-    // Create double-buffer video elements for each face
+    // Initialize video elements once on each face
     function initFaceVideoElements() {
       [0, 1, 2, 3].forEach(faceId => {
         const el = document.getElementById('face-' + faceId);
-        if (el && !faceBuffers[faceId]) {
-          // Create PRIMARY video element
-          const primary = document.createElement('video');
-          primary.muted = true;
-          primary.playsInline = true;
-          primary.setAttribute('playsinline', '');
-          primary.preload = 'auto';
-          primary.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:2;';
-          
-          // Create BUFFER video element (hidden, preloading)
-          const buffer = document.createElement('video');
-          buffer.muted = true;
-          buffer.playsInline = true;
-          buffer.setAttribute('playsinline', '');
-          buffer.preload = 'auto';
-          buffer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:1;opacity:0;';
-          
-          el.style.position = 'relative';
-          el.appendChild(buffer); // Buffer behind
-          el.appendChild(primary); // Primary in front
-          
-          faceBuffers[faceId] = { 
-            primary: primary, 
-            buffer: buffer, 
-            activeSlot: 'primary',
-            primaryIdx: -1,
-            bufferIdx: -1
-          };
-          console.log('📺 Created double-buffer on face ' + faceId);
+        if (el && !faceVideoElements[faceId]) {
+          const video = document.createElement('video');
+          video.muted = true;
+          video.playsInline = true;
+          video.setAttribute('playsinline', '');
+          video.preload = 'auto';
+          video.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+          el.appendChild(video);
+          faceVideoElements[faceId] = video;
+          console.log('📺 Created persistent video element on face ' + faceId);
         }
       });
     }
     
-    // Get the active (visible) video element for a face
-    function getActiveVideo(faceId) {
-      const fb = faceBuffers[faceId];
-      if (!fb) return null;
-      return fb.activeSlot === 'primary' ? fb.primary : fb.buffer;
-    }
-    
-    // Get the buffer (hidden) video element for a face
-    function getBufferVideo(faceId) {
-      const fb = faceBuffers[faceId];
-      if (!fb) return null;
-      return fb.activeSlot === 'primary' ? fb.buffer : fb.primary;
-    }
-    
-    // Swap active/buffer - makes buffer visible, hides primary
-    function swapBuffers(faceId) {
-      const fb = faceBuffers[faceId];
-      if (!fb) return;
-      
-      if (fb.activeSlot === 'primary') {
-        fb.primary.style.zIndex = '1';
-        fb.primary.style.opacity = '0';
-        fb.buffer.style.zIndex = '2';
-        fb.buffer.style.opacity = '1';
-        fb.activeSlot = 'buffer';
-      } else {
-        fb.buffer.style.zIndex = '1';
-        fb.buffer.style.opacity = '0';
-        fb.primary.style.zIndex = '2';
-        fb.primary.style.opacity = '1';
-        fb.activeSlot = 'primary';
-      }
-      console.log('🔄 Swapped buffers on face ' + faceId + ', active=' + fb.activeSlot);
-    }
-    
-    // Load video into the BUFFER slot (hidden), returns promise when ready
-    function preloadIntoBuffer(faceId, queueIdx) {
+    // Load video onto a face - reuses existing video element, waits for canplay
+    function loadVideoOnFace(faceId, queueIdx) {
       return new Promise((resolve, reject) => {
         if (queueIdx >= fullVideoQueue.length) {
           reject('No video at index ' + queueIdx);
           return;
         }
         
-        const fb = faceBuffers[faceId];
-        if (!fb) {
-          reject('No buffer on face ' + faceId);
+        const videoData = fullVideoQueue[queueIdx];
+        const video = faceVideoElements[faceId];
+        
+        if (!video) {
+          reject('No video element on face ' + faceId);
           return;
         }
         
-        const video = getBufferVideo(faceId);
-        const bufferSlot = fb.activeSlot === 'primary' ? 'buffer' : 'primary';
-        
-        // Check if already loaded
-        const currentIdx = bufferSlot === 'primary' ? fb.primaryIdx : fb.bufferIdx;
-        if (currentIdx === queueIdx && video.readyState >= 3) {
-          console.log('📹 Buffer on face ' + faceId + ' already has queue[' + queueIdx + ']');
+        // Check if already loaded with correct video
+        if (faceVideos[faceId] && faceVideos[faceId].queueIdx === queueIdx && video.readyState >= 2) {
+          console.log('📹 Face ' + faceId + ' already has queue[' + queueIdx + '] ready');
           resolve(video);
           return;
         }
         
-        const videoData = fullVideoQueue[queueIdx];
+        // Add cache-busting parameter
         const cacheBuster = '_t=' + Date.now() + '_' + queueIdx;
         const videoUrl = videoData.videoUrl + (videoData.videoUrl.includes('?') ? '&' + cacheBuster : '?' + cacheBuster);
         
         // Clean up old listeners
-        video.oncanplaythrough = null;
+        video.oncanplay = null;
         video.onerror = null;
+        video.onloadedmetadata = null;
         
         let resolved = false;
         
-        // Wait for canplaythrough (fully buffered)
-        video.oncanplaythrough = function() {
+        // Wait for canplay (video is ready to play without buffering)
+        video.oncanplay = function() {
           if (resolved) return;
           resolved = true;
-          video.oncanplaythrough = null;
+          video.oncanplay = null;
           video.onerror = null;
-          
-          // Update tracking
-          if (bufferSlot === 'primary') fb.primaryIdx = queueIdx;
-          else fb.bufferIdx = queueIdx;
-          
-          console.log('📹 Buffer READY on face ' + faceId + ': queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
+          console.log('📹 Face ' + faceId + ' READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
           resolve(video);
         };
         
         video.onerror = function() {
           if (resolved) return;
           resolved = true;
-          video.oncanplaythrough = null;
+          video.oncanplay = null;
           video.onerror = null;
-          console.log('❌ Buffer error on face ' + faceId + ' for queue[' + queueIdx + ']');
+          console.log('❌ Face ' + faceId + ' error loading queue[' + queueIdx + ']');
           reject('Video load error');
         };
         
+        // Update tracking
+        faceVideos[faceId] = { element: video, queueIdx: queueIdx };
+        
+        // Change source (doesn't recreate element)
         video.src = videoUrl;
         video.load();
         
@@ -539,84 +481,13 @@ const CubeWebView = ({
         setTimeout(() => {
           if (!resolved && video.readyState >= 2) {
             resolved = true;
-            video.oncanplaythrough = null;
+            video.oncanplay = null;
             video.onerror = null;
-            if (bufferSlot === 'primary') fb.primaryIdx = queueIdx;
-            else fb.bufferIdx = queueIdx;
-            console.log('📹 Buffer timeout-ready on face ' + faceId + ': queue[' + queueIdx + ']');
+            console.log('📹 Face ' + faceId + ' timeout-ready: queue[' + queueIdx + ']');
             resolve(video);
           }
-        }, 5000);
+        }, 4000);
       });
-    }
-    
-    // Load video directly into ACTIVE slot (for initial load)
-    function loadIntoActive(faceId, queueIdx) {
-      return new Promise((resolve, reject) => {
-        if (queueIdx >= fullVideoQueue.length) {
-          reject('No video at index ' + queueIdx);
-          return;
-        }
-        
-        const fb = faceBuffers[faceId];
-        if (!fb) {
-          reject('No buffer on face ' + faceId);
-          return;
-        }
-        
-        const video = getActiveVideo(faceId);
-        const activeSlot = fb.activeSlot;
-        
-        const videoData = fullVideoQueue[queueIdx];
-        const cacheBuster = '_t=' + Date.now() + '_' + queueIdx;
-        const videoUrl = videoData.videoUrl + (videoData.videoUrl.includes('?') ? '&' + cacheBuster : '?' + cacheBuster);
-        
-        video.oncanplaythrough = null;
-        video.onerror = null;
-        
-        let resolved = false;
-        
-        video.oncanplaythrough = function() {
-          if (resolved) return;
-          resolved = true;
-          video.oncanplaythrough = null;
-          video.onerror = null;
-          
-          if (activeSlot === 'primary') fb.primaryIdx = queueIdx;
-          else fb.bufferIdx = queueIdx;
-          
-          // Track for faceVideos compatibility
-          faceVideos[faceId] = { element: video, queueIdx: queueIdx };
-          
-          console.log('📹 Active READY on face ' + faceId + ': queue[' + queueIdx + ']');
-          resolve(video);
-        };
-        
-        video.onerror = function() {
-          if (resolved) return;
-          resolved = true;
-          console.log('❌ Active error on face ' + faceId);
-          reject('Video load error');
-        };
-        
-        video.src = videoUrl;
-        video.load();
-        
-        setTimeout(() => {
-          if (!resolved && video.readyState >= 2) {
-            resolved = true;
-            if (activeSlot === 'primary') fb.primaryIdx = queueIdx;
-            else fb.bufferIdx = queueIdx;
-            faceVideos[faceId] = { element: video, queueIdx: queueIdx };
-            resolve(video);
-          }
-        }, 5000);
-      });
-    }
-    
-    // Legacy compatibility wrapper
-    function loadVideoOnFace(faceId, queueIdx) {
-      return loadIntoActive(faceId, queueIdx);
     }
     
     // Pause all videos and reset to first frame
@@ -724,6 +595,7 @@ const CubeWebView = ({
     
     async function playCurrentVideo() {
       const faceId = getFaceForIndex(currentIndex);
+      let fv = faceVideos[faceId];
       
       // Clear any existing timeout
       if (videoTimeoutId) {
@@ -731,50 +603,35 @@ const CubeWebView = ({
         videoTimeoutId = null;
       }
       
-      // Get active video element from double-buffer
-      let video = getActiveVideo(faceId);
-      const fb = faceBuffers[faceId];
+      // CRITICAL: Verify this face has the correct video loaded
+      // If not, reload it before playing
+      if (!fv || !fv.element || fv.queueIdx !== currentIndex) {
+        console.log('🔄 Face ' + faceId + ' has wrong video (has ' + (fv ? fv.queueIdx : 'none') + ', need ' + currentIndex + '), reloading...');
+        try {
+          await loadVideoOnFace(faceId, currentIndex);
+          fv = faceVideos[faceId];
+        } catch (e) {
+          console.log('❌ Failed to load video for queue[' + currentIndex + ']: ' + e);
+          advanceToNext();
+          return;
+        }
+      }
       
-      if (!video || !fb) {
-        console.log('❌ No buffer on face ' + faceId);
+      if (!fv || !fv.element) {
+        console.log('❌ No video on face ' + faceId + ' for queue[' + currentIndex + ']');
         advanceToNext();
         return;
       }
       
-      // Check if active slot has correct video
-      const activeIdx = fb.activeSlot === 'primary' ? fb.primaryIdx : fb.bufferIdx;
-      const bufferIdx = fb.activeSlot === 'primary' ? fb.bufferIdx : fb.primaryIdx;
+      const video = fv.element;
+      const playingIndex = currentIndex; // Capture for closure
       
-      // If active doesn't have correct video, check buffer
-      if (activeIdx !== currentIndex) {
-        if (bufferIdx === currentIndex) {
-          // Buffer has it! Swap and use buffer
-          swapBuffers(faceId);
-          video = getActiveVideo(faceId);
-          console.log('🔄 Swapped to buffer for queue[' + currentIndex + '] on face ' + faceId);
-        } else {
-          // Neither has it - need to load (should be rare)
-          console.log('⚠️ Neither slot has queue[' + currentIndex + '], loading...');
-          try {
-            await loadIntoActive(faceId, currentIndex);
-            video = getActiveVideo(faceId);
-          } catch (e) {
-            console.log('❌ Failed to load queue[' + currentIndex + ']: ' + e);
-            advanceToNext();
-            return;
-          }
-        }
-      }
-      
-      const playingIndex = currentIndex;
-      
-      // Pause all other faces
-      [0, 1, 2, 3].forEach(id => {
-        if (id !== faceId && faceBuffers[id]) {
-          const primary = faceBuffers[id].primary;
-          const buffer = faceBuffers[id].buffer;
-          if (primary) { primary.pause(); primary.muted = true; }
-          if (buffer) { buffer.pause(); buffer.muted = true; }
+      // Pause all others, reset to first frame
+      Object.entries(faceVideos).forEach(([id, v]) => {
+        if (parseInt(id) !== faceId && v && v.element) {
+          v.element.pause();
+          v.element.muted = true;
+          v.element.currentTime = 0;
         }
       });
       
@@ -801,10 +658,7 @@ const CubeWebView = ({
         // Set up rotation sync based on video progress
         setupRotationSync(video, playingIndex);
         
-        // PRELOAD NEXT VIDEOS INTO BUFFERS
-        preloadNextVideos(playingIndex);
-        
-        // Set safety timeout
+        // Set safety timeout based on video duration (+ 2 sec buffer)
         const duration = video.duration;
         const timeout = (duration && isFinite(duration) && duration > 0) 
           ? (duration + 2) * 1000 
@@ -822,20 +676,6 @@ const CubeWebView = ({
       });
     }
     
-    // Preload next videos into buffer slots
-    function preloadNextVideos(fromIndex) {
-      // Preload next 4 videos into their respective face buffers
-      for (let i = 1; i <= 4; i++) {
-        const nextIdx = fromIndex + i;
-        if (nextIdx < fullVideoQueue.length) {
-          const nextFaceId = getFaceForIndex(nextIdx);
-          preloadIntoBuffer(nextFaceId, nextIdx).catch(() => {
-            console.log('⚠️ Failed to preload queue[' + nextIdx + ']');
-          });
-        }
-      }
-    }
-    
     function advanceToNext() {
       currentIndex++;
       console.log('⏭️ Advancing to queue[' + currentIndex + ']');
@@ -848,10 +688,32 @@ const CubeWebView = ({
         return;
       }
       
+      // Preload next video onto the face we're rotating to
+      const nextFaceId = getFaceForIndex(currentIndex);
+      const nextFv = faceVideos[nextFaceId];
+      if (!nextFv || nextFv.queueIdx !== currentIndex) {
+        console.log('🔮 Preloading queue[' + currentIndex + '] onto face ' + nextFaceId);
+        loadVideoOnFace(nextFaceId, currentIndex).catch(() => {});
+      }
+      
+      // Also preload 2 videos ahead for smoother transitions
+      const oldFaceId = getFaceForIndex(currentIndex - 1);
+      const nextToLoad = currentIndex + 3; // Preload 3 ahead (will land on the old face)
+      if (nextToLoad < fullVideoQueue.length) {
+        loadVideoOnFace(oldFaceId, nextToLoad).catch(() => {});
+      }
+      
+      // And preload one more step ahead
+      const nextToLoad2 = currentIndex + 4;
+      if (nextToLoad2 < fullVideoQueue.length) {
+        const faceForNext2 = getFaceForIndex(nextToLoad2);
+        loadVideoOnFace(faceForNext2, nextToLoad2).catch(() => {});
+      }
+      
       // Clear rotation sync before starting next video
       clearRotationSync();
       
-      // Play next video (buffers were preloaded, will swap if needed)
+      // Play next video (will set up new rotation sync)
       playCurrentVideo();
     }
     
