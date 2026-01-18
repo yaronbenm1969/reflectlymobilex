@@ -396,7 +396,28 @@ const CubeWebView = ({
     }
     
     // ============ VIDEO LOADING ============
-    // Load video onto a face, returns promise that resolves when metadata loaded
+    // Persistent video elements - created once, src changed
+    let faceVideoElements = {}; // faceId -> video element (persistent)
+    
+    // Initialize video elements once on each face
+    function initFaceVideoElements() {
+      [0, 1, 2, 3].forEach(faceId => {
+        const el = document.getElementById('face-' + faceId);
+        if (el && !faceVideoElements[faceId]) {
+          const video = document.createElement('video');
+          video.muted = true;
+          video.playsInline = true;
+          video.setAttribute('playsinline', '');
+          video.preload = 'auto';
+          video.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+          el.appendChild(video);
+          faceVideoElements[faceId] = video;
+          console.log('📺 Created persistent video element on face ' + faceId);
+        }
+      });
+    }
+    
+    // Load video onto a face - reuses existing video element, waits for canplay
     function loadVideoOnFace(faceId, queueIdx) {
       return new Promise((resolve, reject) => {
         if (queueIdx >= fullVideoQueue.length) {
@@ -405,44 +426,67 @@ const CubeWebView = ({
         }
         
         const videoData = fullVideoQueue[queueIdx];
-        const el = document.getElementById('face-' + faceId);
-        if (!el) {
-          reject('Face element not found: ' + faceId);
-          return;
-        }
-        
-        // Add cache-busting parameter to prevent iOS WebView caching issues
-        const cacheBuster = '&_t=' + Date.now() + '_' + queueIdx;
-        const videoUrl = videoData.videoUrl + (videoData.videoUrl.includes('?') ? cacheBuster : '?' + cacheBuster.substring(1));
-        
-        el.innerHTML = '<video muted playsinline preload="auto" src="' + videoUrl + '"></video>';
-        const video = el.querySelector('video');
+        const video = faceVideoElements[faceId];
         
         if (!video) {
-          reject('Failed to create video element');
+          reject('No video element on face ' + faceId);
           return;
         }
         
-        faceVideos[faceId] = { element: video, queueIdx: queueIdx };
-        
-        video.addEventListener('loadedmetadata', function onMeta() {
-          video.removeEventListener('loadedmetadata', onMeta);
-          console.log('📹 Face ' + faceId + ' loaded: queue[' + queueIdx + '] dur=' + video.duration.toFixed(1) + 's');
+        // Check if already loaded with correct video
+        if (faceVideos[faceId] && faceVideos[faceId].queueIdx === queueIdx && video.readyState >= 2) {
+          console.log('📹 Face ' + faceId + ' already has queue[' + queueIdx + '] ready');
           resolve(video);
-        });
+          return;
+        }
         
-        video.addEventListener('error', function onErr() {
-          video.removeEventListener('error', onErr);
+        // Add cache-busting parameter
+        const cacheBuster = '_t=' + Date.now() + '_' + queueIdx;
+        const videoUrl = videoData.videoUrl + (videoData.videoUrl.includes('?') ? '&' + cacheBuster : '?' + cacheBuster);
+        
+        // Clean up old listeners
+        video.oncanplay = null;
+        video.onerror = null;
+        video.onloadedmetadata = null;
+        
+        let resolved = false;
+        
+        // Wait for canplay (video is ready to play without buffering)
+        video.oncanplay = function() {
+          if (resolved) return;
+          resolved = true;
+          video.oncanplay = null;
+          video.onerror = null;
+          console.log('📹 Face ' + faceId + ' READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
+          resolve(video);
+        };
+        
+        video.onerror = function() {
+          if (resolved) return;
+          resolved = true;
+          video.oncanplay = null;
+          video.onerror = null;
           console.log('❌ Face ' + faceId + ' error loading queue[' + queueIdx + ']');
           reject('Video load error');
-        });
+        };
         
-        // Timeout fallback
+        // Update tracking
+        faceVideos[faceId] = { element: video, queueIdx: queueIdx };
+        
+        // Change source (doesn't recreate element)
+        video.src = videoUrl;
+        video.load();
+        
+        // Fallback timeout
         setTimeout(() => {
-          if (video.readyState >= 1) {
+          if (!resolved && video.readyState >= 2) {
+            resolved = true;
+            video.oncanplay = null;
+            video.onerror = null;
+            console.log('📹 Face ' + faceId + ' timeout-ready: queue[' + queueIdx + ']');
             resolve(video);
           }
-        }, 3000);
+        }, 4000);
       });
     }
     
@@ -692,6 +736,9 @@ const CubeWebView = ({
       
       console.log('🎬 Starting playback: ' + fullVideoQueue.length + ' videos');
       
+      // Ensure video elements exist
+      initFaceVideoElements();
+      
       // Reset state
       currentIndex = 0;
       isPlaying = true;
@@ -725,6 +772,9 @@ const CubeWebView = ({
     
     function init() {
       console.log('🎲 Cube init: ' + fullVideoQueue.length + ' videos');
+      
+      // Create persistent video elements on each face (once)
+      initFaceVideoElements();
       
       // Preload first 4 videos silently (4 side faces only)
       const preloadCount = Math.min(4, fullVideoQueue.length);
