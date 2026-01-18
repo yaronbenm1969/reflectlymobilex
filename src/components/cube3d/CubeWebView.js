@@ -737,7 +737,7 @@ const CubeWebView = ({
         
         // Force reload faces with new URLs
         if (!isPlaying) {
-          for (let i = 0; i < Math.min(fullVideoQueue.length, 4); i++) {
+          for (let i = 0; i < Math.min(fullVideoQueue.length, 6); i++) {
             const faceId = getFaceForIndex(i);
             loadVideoOnFace(faceId, i).catch(() => {});
           }
