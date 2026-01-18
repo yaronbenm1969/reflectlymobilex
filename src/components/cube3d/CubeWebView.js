@@ -532,7 +532,57 @@ const CubeWebView = ({
     
     // ============ PLAYBACK CONTROL ============
     let videoTimeoutId = null;
+    let playbackRotationId = null; // RAF for synced rotation during playback
     const MAX_VIDEO_DURATION = 60; // Safety timeout: max 60 seconds per video
+    
+    // Synchronized rotation loop - rotates cube slowly based on video progress
+    function startPlaybackRotation(video, fromIndex) {
+      if (playbackRotationId) {
+        cancelAnimationFrame(playbackRotationId);
+        playbackRotationId = null;
+      }
+      
+      const fromTarget = getTargetRotation(fromIndex);
+      const toTarget = getTargetRotation(fromIndex + 1);
+      
+      function rotationLoop() {
+        if (!isPlaying || currentIndex !== fromIndex) return;
+        
+        const duration = video.duration;
+        const currentTime = video.currentTime;
+        
+        if (!duration || duration <= 0 || !isFinite(duration)) {
+          playbackRotationId = requestAnimationFrame(rotationLoop);
+          return;
+        }
+        
+        // Calculate progress (0 to 1)
+        const progress = Math.min(currentTime / duration, 1);
+        
+        // Ease function for smooth rotation
+        const easeProgress = progress < 0.5 
+          ? 2 * progress * progress 
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        
+        // Interpolate rotation
+        currentRotX = fromTarget.rotX + (toTarget.rotX - fromTarget.rotX) * easeProgress;
+        currentRotY = fromTarget.rotY + (toTarget.rotY - fromTarget.rotY) * easeProgress;
+        
+        // Update transform (floatLoop also updates, but this ensures sync)
+        updateCubeTransform(performance.now());
+        
+        playbackRotationId = requestAnimationFrame(rotationLoop);
+      }
+      
+      playbackRotationId = requestAnimationFrame(rotationLoop);
+    }
+    
+    function stopPlaybackRotation() {
+      if (playbackRotationId) {
+        cancelAnimationFrame(playbackRotationId);
+        playbackRotationId = null;
+      }
+    }
     
     async function playCurrentVideo() {
       const faceId = getFaceForIndex(currentIndex);
@@ -585,6 +635,7 @@ const CubeWebView = ({
       video.onended = null;
       video.onended = function() {
         if (videoTimeoutId) clearTimeout(videoTimeoutId);
+        stopPlaybackRotation();
         console.log('🎬 Video ended: queue[' + playingIndex + ']');
         if (currentIndex === playingIndex) advanceToNext();
       };
@@ -595,6 +646,9 @@ const CubeWebView = ({
         console.log('✅ Play started: queue[' + currentIndex + ']');
         postMessage('videoStart', { faceId, queueIndex: currentIndex });
         
+        // Start synchronized rotation based on video progress
+        startPlaybackRotation(video, playingIndex);
+        
         // Set safety timeout based on video duration (+ 2 sec buffer)
         const duration = video.duration;
         const timeout = (duration && isFinite(duration) && duration > 0) 
@@ -603,6 +657,7 @@ const CubeWebView = ({
         
         videoTimeoutId = setTimeout(() => {
           console.log('⏰ Timeout: queue[' + playingIndex + '] - forcing advance');
+          stopPlaybackRotation();
           if (currentIndex === playingIndex) advanceToNext();
         }, timeout);
         
@@ -646,9 +701,14 @@ const CubeWebView = ({
         loadVideoOnFace(faceForNext2, nextToLoad2).catch(() => {});
       }
       
-      // Rotate to next face
+      // Snap to target rotation (in case playback rotation didn't complete)
       const target = getTargetRotation(currentIndex);
-      rotateTo(target.rotX, target.rotY);
+      currentRotX = target.rotX;
+      currentRotY = target.rotY;
+      updateCubeTransform(performance.now());
+      
+      // Play next video (will start new synced rotation)
+      playCurrentVideo();
     }
     
     // ============ INITIALIZATION ============
