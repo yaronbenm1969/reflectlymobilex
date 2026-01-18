@@ -406,7 +406,11 @@ const CubeWebView = ({
           return;
         }
         
-        el.innerHTML = '<video muted playsinline preload="auto" src="' + videoData.videoUrl + '"></video>';
+        // Add cache-busting parameter to prevent iOS WebView caching issues
+        const cacheBuster = '&_t=' + Date.now() + '_' + queueIdx;
+        const videoUrl = videoData.videoUrl + (videoData.videoUrl.includes('?') ? cacheBuster : '?' + cacheBuster.substring(1));
+        
+        el.innerHTML = '<video muted playsinline preload="auto" src="' + videoUrl + '"></video>';
         const video = el.querySelector('video');
         
         if (!video) {
