@@ -186,12 +186,9 @@ const CubeWebView = ({
       left: 0;
       background: #000;
     }
-    /* Fix video orientation on top/bottom faces so they appear upright */
-    .top video {
-      transform: rotateZ(180deg);
-    }
-    .bottom video {
-      transform: rotateZ(180deg);
+    /* Top/bottom faces - no extra transform, let the video play normally */
+    .top video, .bottom video {
+      /* Removed rotateZ(180deg) - was causing display issues on iOS */
     }
     .cube-face .placeholder {
       display: flex; 
