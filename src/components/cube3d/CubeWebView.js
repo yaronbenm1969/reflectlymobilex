@@ -714,17 +714,26 @@ const CubeWebView = ({
       const validFaces = newFaces.filter(f => f && f.videoUrl);
       const prevLen = fullVideoQueue.length;
       
-      // Always update the queue with ALL valid videos
-      if (validFaces.length !== prevLen) {
-        fullVideoQueue = validFaces;
-        console.log('📥 Queue updated: ' + prevLen + ' → ' + fullVideoQueue.length + ' videos');
+      // Check if any URLs changed (not just length)
+      let hasChanges = validFaces.length !== prevLen;
+      if (!hasChanges) {
+        for (let i = 0; i < validFaces.length; i++) {
+          if (!fullVideoQueue[i] || fullVideoQueue[i].videoUrl !== validFaces[i].videoUrl) {
+            hasChanges = true;
+            break;
+          }
+        }
       }
       
-      // Preload first 6 if not playing yet
-      if (!isPlaying) {
-        for (let i = 0; i < Math.min(fullVideoQueue.length, 6); i++) {
-          const faceId = getFaceForIndex(i);
-          if (!faceVideos[faceId] || faceVideos[faceId].queueIdx !== i) {
+      // Always update the queue when there are changes
+      if (hasChanges) {
+        fullVideoQueue = validFaces;
+        console.log('📥 Queue updated: ' + prevLen + ' → ' + fullVideoQueue.length + ' videos');
+        
+        // Force reload faces with new URLs
+        if (!isPlaying) {
+          for (let i = 0; i < Math.min(fullVideoQueue.length, 6); i++) {
+            const faceId = getFaceForIndex(i);
             loadVideoOnFace(faceId, i).catch(() => {});
           }
         }
