@@ -521,14 +521,28 @@ const CubeWebView = ({
     let videoTimeoutId = null;
     const MAX_VIDEO_DURATION = 60; // Safety timeout: max 60 seconds per video
     
-    function playCurrentVideo() {
+    async function playCurrentVideo() {
       const faceId = getFaceForIndex(currentIndex);
-      const fv = faceVideos[faceId];
+      let fv = faceVideos[faceId];
       
       // Clear any existing timeout
       if (videoTimeoutId) {
         clearTimeout(videoTimeoutId);
         videoTimeoutId = null;
+      }
+      
+      // CRITICAL: Verify this face has the correct video loaded
+      // If not, reload it before playing
+      if (!fv || !fv.element || fv.queueIdx !== currentIndex) {
+        console.log('🔄 Face ' + faceId + ' has wrong video (has ' + (fv ? fv.queueIdx : 'none') + ', need ' + currentIndex + '), reloading...');
+        try {
+          await loadVideoOnFace(faceId, currentIndex);
+          fv = faceVideos[faceId];
+        } catch (e) {
+          console.log('❌ Failed to load video for queue[' + currentIndex + ']: ' + e);
+          advanceToNext();
+          return;
+        }
       }
       
       if (!fv || !fv.element) {
@@ -597,9 +611,18 @@ const CubeWebView = ({
         return;
       }
       
-      // Load next video onto the face that just finished (for cycling 50+ videos)
+      // Preload next videos onto faces that are about to be used
+      // Load immediately the video for the next face we'll rotate to
+      const nextFaceId = getFaceForIndex(currentIndex);
+      const nextFv = faceVideos[nextFaceId];
+      if (!nextFv || nextFv.queueIdx !== currentIndex) {
+        console.log('🔮 Preloading queue[' + currentIndex + '] onto face ' + nextFaceId);
+        loadVideoOnFace(nextFaceId, currentIndex).catch(() => {});
+      }
+      
+      // Also preload further ahead onto the face that just finished
       const oldFaceId = getFaceForIndex(currentIndex - 1);
-      const nextToLoad = currentIndex + 5; // Preload 5 ahead
+      const nextToLoad = currentIndex + 5;
       if (nextToLoad < fullVideoQueue.length) {
         loadVideoOnFace(oldFaceId, nextToLoad).catch(() => {});
       }
@@ -681,15 +704,19 @@ const CubeWebView = ({
     
     window.updateFaces = function(newFaces) {
       const validFaces = newFaces.filter(f => f && f.videoUrl);
-      if (validFaces.length > fullVideoQueue.length) {
-        const prevLen = fullVideoQueue.length;
+      const prevLen = fullVideoQueue.length;
+      
+      // Always update the queue with ALL valid videos
+      if (validFaces.length !== prevLen) {
         fullVideoQueue = validFaces;
-        console.log('📥 Queue updated: ' + prevLen + ' → ' + fullVideoQueue.length);
-        
-        // Load new videos onto available faces
-        for (let i = prevLen; i < Math.min(fullVideoQueue.length, 6); i++) {
+        console.log('📥 Queue updated: ' + prevLen + ' → ' + fullVideoQueue.length + ' videos');
+      }
+      
+      // Preload first 6 if not playing yet
+      if (!isPlaying) {
+        for (let i = 0; i < Math.min(fullVideoQueue.length, 6); i++) {
           const faceId = getFaceForIndex(i);
-          if (!faceVideos[faceId]) {
+          if (!faceVideos[faceId] || faceVideos[faceId].queueIdx !== i) {
             loadVideoOnFace(faceId, i).catch(() => {});
           }
         }
@@ -697,6 +724,7 @@ const CubeWebView = ({
       
       if (!isReady && fullVideoQueue.length > 0) {
         isReady = true;
+        console.log('✅ Ready with ' + fullVideoQueue.length + ' videos total');
         postMessage('readyToPlay', { videoCount: fullVideoQueue.length });
         showPlayButton();
       }
