@@ -6,7 +6,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CUBE_SIZE = Math.min(SCREEN_WIDTH * 0.85, 340);
 
-const CUBE_HTML_DIR = FileSystem.cacheDirectory + 'cube_v3/';
+const CUBE_HTML_DIR = FileSystem.cacheDirectory + 'cube_v4/';
 
 const CubeWebView = ({
   faces = [],
