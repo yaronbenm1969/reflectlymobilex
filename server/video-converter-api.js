@@ -139,9 +139,43 @@ function needsConversion(mimeType, filename) {
   return incompatibleTypes.includes(mimeType) || incompatibleExtensions.includes(ext);
 }
 
+async function getVideoRotation(inputPath) {
+  return new Promise((resolve) => {
+    ffmpeg.ffprobe(inputPath, (err, metadata) => {
+      if (err || !metadata || !metadata.streams) {
+        resolve(0);
+        return;
+      }
+      const videoStream = metadata.streams.find(s => s.codec_type === 'video');
+      if (videoStream && videoStream.rotation) {
+        resolve(parseInt(videoStream.rotation) || 0);
+      } else if (videoStream && videoStream.tags && videoStream.tags.rotate) {
+        resolve(parseInt(videoStream.tags.rotate) || 0);
+      } else {
+        resolve(0);
+      }
+    });
+  });
+}
+
 async function convertVideo(inputPath, outputPath) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     console.log(`Converting: ${inputPath} -> ${outputPath}`);
+    
+    const rotation = await getVideoRotation(inputPath);
+    console.log(`Video rotation detected: ${rotation}°`);
+    
+    let vfFilters = 'scale=trunc(iw/2)*2:trunc(ih/2)*2';
+    
+    if (rotation === 90) {
+      vfFilters = 'transpose=1,' + vfFilters;
+    } else if (rotation === 180) {
+      vfFilters = 'transpose=1,transpose=1,' + vfFilters;
+    } else if (rotation === 270 || rotation === -90) {
+      vfFilters = 'transpose=2,' + vfFilters;
+    }
+    
+    console.log(`Using video filter: ${vfFilters}`);
     
     ffmpeg(inputPath)
       .outputOptions([
@@ -151,7 +185,8 @@ async function convertVideo(inputPath, outputPath) {
         '-crf', '23',
         '-movflags', '+faststart',
         '-pix_fmt', 'yuv420p',
-        '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2'
+        '-vf', vfFilters,
+        '-metadata:s:v:0', 'rotate=0'
       ])
       .output(outputPath)
       .on('start', (cmd) => console.log('FFmpeg started:', cmd))

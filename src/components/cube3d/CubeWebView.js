@@ -518,9 +518,18 @@ const CubeWebView = ({
     }
     
     // ============ PLAYBACK CONTROL ============
+    let videoTimeoutId = null;
+    const MAX_VIDEO_DURATION = 60; // Safety timeout: max 60 seconds per video
+    
     function playCurrentVideo() {
       const faceId = getFaceForIndex(currentIndex);
       const fv = faceVideos[faceId];
+      
+      // Clear any existing timeout
+      if (videoTimeoutId) {
+        clearTimeout(videoTimeoutId);
+        videoTimeoutId = null;
+      }
       
       if (!fv || !fv.element) {
         console.log('❌ No video on face ' + faceId + ' for queue[' + currentIndex + ']');
@@ -529,6 +538,7 @@ const CubeWebView = ({
       }
       
       const video = fv.element;
+      const playingIndex = currentIndex; // Capture for closure
       
       // Pause all others, reset to first frame
       Object.entries(faceVideos).forEach(([id, v]) => {
@@ -547,8 +557,9 @@ const CubeWebView = ({
       // Remove old ended listener, add new one
       video.onended = null;
       video.onended = function() {
-        console.log('🎬 Video ended: queue[' + currentIndex + ']');
-        advanceToNext();
+        if (videoTimeoutId) clearTimeout(videoTimeoutId);
+        console.log('🎬 Video ended: queue[' + playingIndex + ']');
+        if (currentIndex === playingIndex) advanceToNext();
       };
       
       console.log('▶️ Playing queue[' + currentIndex + '] on face ' + faceId);
@@ -556,6 +567,18 @@ const CubeWebView = ({
       video.play().then(() => {
         console.log('✅ Play started: queue[' + currentIndex + ']');
         postMessage('videoStart', { faceId, queueIndex: currentIndex });
+        
+        // Set safety timeout based on video duration (+ 2 sec buffer)
+        const duration = video.duration;
+        const timeout = (duration && isFinite(duration) && duration > 0) 
+          ? (duration + 2) * 1000 
+          : MAX_VIDEO_DURATION * 1000;
+        
+        videoTimeoutId = setTimeout(() => {
+          console.log('⏰ Timeout: queue[' + playingIndex + '] - forcing advance');
+          if (currentIndex === playingIndex) advanceToNext();
+        }, timeout);
+        
       }).catch(e => {
         console.log('❌ Play failed: ' + e.message + ', advancing...');
         setTimeout(() => advanceToNext(), 500);
