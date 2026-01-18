@@ -30,21 +30,22 @@ const CubeWebView = ({
   const [initialFaces, setInitialFaces] = useState(null);
   const hasInitializedRef = useRef(false);
   
-  // Capture initial faces once when first 6 faces ALL have videos ready
+  // Capture initial faces once when first 4 faces ALL have videos ready (iOS limitation)
   useEffect(() => {
     if (hasInitializedRef.current) return;
     
-    // Get first 6 faces
-    const first6 = faces.slice(0, 6);
+    // Get first 4 faces (only 4 side faces used due to iOS WebView limitation)
+    const first4 = faces.slice(0, 4);
     
-    // Check if ALL 6 have videoUrl (or less if total is under 6)
-    const minRequired = Math.min(6, faces.length);
-    const readyCount = first6.filter(f => f?.videoUrl).length;
+    // Check if ALL 4 have videoUrl (or less if total is under 4)
+    const minRequired = Math.min(4, faces.length);
+    const readyCount = first4.filter(f => f?.videoUrl).length;
     
     if (minRequired > 0 && readyCount >= minRequired) {
       console.log(`🎲 All ${minRequired} initial videos ready - initializing cube`);
       hasInitializedRef.current = true;
-      setInitialFaces(first6);
+      // Still pass all faces for the queue, but cube only uses 4 at a time
+      setInitialFaces(faces);
     }
   }, [faces]);
 
@@ -350,14 +351,13 @@ const CubeWebView = ({
     const faces = ${facesJSON};
     let fullVideoQueue = faces.filter(f => f && f.videoUrl);
     
-    // Rotation path: which face is front at each step
+    // Rotation path: only 4 side faces (iOS WebView can't render video on rotateX 90deg faces)
+    // Skipping Top (faceId 4) and Bottom (faceId 5) due to iOS WebView rendering limitation
     const ROTATION_PATH = [
       { faceId: 0, rotX: 0, rotY: 0 },       // Front
       { faceId: 2, rotX: 0, rotY: -90 },     // Right
-      { faceId: 4, rotX: 90, rotY: -90 },    // Top
       { faceId: 1, rotX: 0, rotY: -180 },    // Back
       { faceId: 3, rotX: 0, rotY: -270 },    // Left
-      { faceId: 5, rotX: -90, rotY: -270 },  // Bottom
     ];
     
     // STATE
@@ -675,15 +675,15 @@ const CubeWebView = ({
       currentRotY = initial.rotY;
       updateCubeTransform(performance.now());
       
-      // Load first 6 videos
+      // Load first 4 videos (only 4 side faces used due to iOS limitation)
       const loadPromises = [];
-      for (let i = 0; i < Math.min(6, fullVideoQueue.length); i++) {
+      for (let i = 0; i < Math.min(4, fullVideoQueue.length); i++) {
         const faceId = getFaceForIndex(i);
         loadPromises.push(loadVideoOnFace(faceId, i).catch(() => null));
       }
       
       await Promise.all(loadPromises);
-      console.log('📦 Initial 6 videos loaded');
+      console.log('📦 Initial 4 videos loaded');
       
       postMessage('animationStarted', { videoCount: fullVideoQueue.length });
       
@@ -698,8 +698,8 @@ const CubeWebView = ({
     function init() {
       console.log('🎲 Cube init: ' + fullVideoQueue.length + ' videos');
       
-      // Preload first 6 videos silently
-      const preloadCount = Math.min(6, fullVideoQueue.length);
+      // Preload first 4 videos silently (only 4 side faces used)
+      const preloadCount = Math.min(4, fullVideoQueue.length);
       for (let i = 0; i < preloadCount; i++) {
         const faceId = getFaceForIndex(i);
         loadVideoOnFace(faceId, i).catch(() => {});
@@ -737,7 +737,7 @@ const CubeWebView = ({
         
         // Force reload faces with new URLs
         if (!isPlaying) {
-          for (let i = 0; i < Math.min(fullVideoQueue.length, 6); i++) {
+          for (let i = 0; i < Math.min(fullVideoQueue.length, 4); i++) {
             const faceId = getFaceForIndex(i);
             loadVideoOnFace(faceId, i).catch(() => {});
           }
