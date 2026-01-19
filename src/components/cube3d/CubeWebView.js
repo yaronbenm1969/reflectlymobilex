@@ -613,27 +613,32 @@ const CubeWebView = ({
     let videoTimeoutId = null;
     const MAX_VIDEO_DURATION = 60; // Safety timeout: max 60 seconds per video
     
-    // Set up rotation sync for a video
+    // Set up rotation sync for a video - "HALF TO HALF" mode
+    // Video starts when face is at +45° (entering), ends when face is at -45° (exiting)
+    // This creates smooth overlap where next video starts as current exits
+    const HALF_ANGLE = 45; // Offset for half-to-half transitions
+    
     function setupRotationSync(video, videoIndex) {
-      // Get rotation targets
+      // Get rotation targets for current and next face
       const fromTarget = getTargetRotation(videoIndex);
       const toTarget = getTargetRotation(videoIndex + 1);
       
-      // Set rotation start point
+      // HALF-TO-HALF: Offset Y rotation by 45° so video plays from "entering" to "exiting"
+      // Instead of 0° to -90°, we do +45° to -45° (face enters from right, exits to left)
       rotationFromX = fromTarget.rotX;
-      rotationFromY = fromTarget.rotY;
+      rotationFromY = fromTarget.rotY + HALF_ANGLE; // Start 45° before center
       rotationToX = toTarget.rotX;
-      rotationToY = toTarget.rotY;
+      rotationToY = toTarget.rotY + HALF_ANGLE; // End 45° after center (same offset)
       
       // Set current position to start
-      currentRotX = fromTarget.rotX;
-      currentRotY = fromTarget.rotY;
+      currentRotX = rotationFromX;
+      currentRotY = rotationFromY;
       
       // Activate video for rotation sync
       activeVideo = video;
       activeVideoIndex = videoIndex;
       
-      console.log('🔄 Rotation sync: idx=' + videoIndex + ' from(' + fromTarget.rotX + ',' + fromTarget.rotY + ') to(' + toTarget.rotX + ',' + toTarget.rotY + ')');
+      console.log('🔄 Half-to-half sync: idx=' + videoIndex + ' from(' + rotationFromX + ',' + rotationFromY + ') to(' + rotationToX + ',' + rotationToY + ')');
     }
     
     function clearRotationSync() {
@@ -794,10 +799,10 @@ const CubeWebView = ({
       currentIndex = 0;
       isPlaying = true;
       
-      // Set initial rotation to face 0
+      // Set initial rotation to face 0 with half-to-half offset
       const initial = getTargetRotation(0);
       currentRotX = initial.rotX;
-      currentRotY = initial.rotY;
+      currentRotY = initial.rotY + HALF_ANGLE; // Start at +45° for half-to-half
       updateCubeTransform(performance.now());
       
       // Videos are already preloaded from init() - no need to reload!
