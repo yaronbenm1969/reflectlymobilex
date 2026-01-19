@@ -19,7 +19,6 @@ const CubeWebView = ({
   onPlaybackComplete,
   onReadyToPlay,
   isFullscreen = false,
-  autoPlay = false, // Auto-start playback when ready (for fullscreen mode)
   currentPlayingFaceIndex = -1,
 }) => {
   const webViewRef = useRef(null);
@@ -59,8 +58,6 @@ const CubeWebView = ({
       videoUrl: face?.videoUrl || null,
       playerName: face?.playerName || `סרטון ${index + 1}`,
     })));
-    
-    const autoPlayFlag = autoPlay ? 'true' : 'false';
 
     return `
 <!DOCTYPE html>
@@ -352,7 +349,6 @@ const CubeWebView = ({
     // Rotation only happens when video 'ended' fires
     
     const faces = ${facesJSON};
-    const shouldAutoPlay = ${autoPlayFlag};
     let fullVideoQueue = faces.filter(f => f && f.videoUrl);
     
     // 4-face rotation path with dynamic tilt for visual interest
@@ -414,7 +410,6 @@ const CubeWebView = ({
           video.playsInline = true;
           video.setAttribute('playsinline', '');
           video.preload = 'auto';
-          // Visible by default - first frame will show when loaded and paused
           video.style.cssText = 'width:100%;height:100%;object-fit:cover;';
           el.appendChild(video);
           faceVideoElements[faceId] = video;
@@ -423,7 +418,7 @@ const CubeWebView = ({
       });
     }
     
-    // Load video onto a face - uses canplay + optional pre-seek for first frame
+    // Load video onto a face - reuses existing video element, waits for canplay
     function loadVideoOnFace(faceId, queueIdx) {
       return new Promise((resolve, reject) => {
         if (queueIdx >= fullVideoQueue.length) {
@@ -446,45 +441,31 @@ const CubeWebView = ({
           return;
         }
         
-        // Use video URL directly (no cache-busting for better caching)
-        const videoUrl = videoData.videoUrl;
+        // Add cache-busting parameter
+        const cacheBuster = '_t=' + Date.now() + '_' + queueIdx;
+        const videoUrl = videoData.videoUrl + (videoData.videoUrl.includes('?') ? '&' + cacheBuster : '?' + cacheBuster);
         
         // Clean up old listeners
         video.oncanplay = null;
-        video.onloadeddata = null;
         video.onerror = null;
+        video.onloadedmetadata = null;
         
         let resolved = false;
         
-        function markReady() {
+        // Wait for canplay (video is ready to play without buffering)
+        video.oncanplay = function() {
           if (resolved) return;
           resolved = true;
           video.oncanplay = null;
-          video.onloadeddata = null;
           video.onerror = null;
-          // Pause to show first frame
-          video.pause();
-          // Try to seek to 0.001 to force first frame decode (but don't wait for it)
-          try {
-            if (video.readyState >= 2) {
-              video.currentTime = 0.001;
-            }
-          } catch(e) {}
           console.log('📹 Face ' + faceId + ' READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
           resolve(video);
-        }
-        
-        // Primary readiness: canplay or loadeddata
-        video.oncanplay = markReady;
-        video.onloadeddata = function() {
-          if (video.readyState >= 2) markReady();
         };
         
         video.onerror = function() {
           if (resolved) return;
           resolved = true;
           video.oncanplay = null;
-          video.onloadeddata = null;
           video.onerror = null;
           console.log('❌ Face ' + faceId + ' error loading queue[' + queueIdx + ']');
           reject('Video load error');
@@ -497,13 +478,16 @@ const CubeWebView = ({
         video.src = videoUrl;
         video.load();
         
-        // Short fallback timeout - accept if any data loaded
+        // Fallback timeout
         setTimeout(() => {
-          if (!resolved && video.readyState >= 1) {
-            console.log('📹 Face ' + faceId + ' timeout-ready: queue[' + queueIdx + '] rs=' + video.readyState);
-            markReady();
+          if (!resolved && video.readyState >= 2) {
+            resolved = true;
+            video.oncanplay = null;
+            video.onerror = null;
+            console.log('📹 Face ' + faceId + ' timeout-ready: queue[' + queueIdx + ']');
+            resolve(video);
           }
-        }, 3000);
+        }, 4000);
       });
     }
     
@@ -655,10 +639,7 @@ const CubeWebView = ({
       // Play current with sound
       video.muted = false;
       video.volume = 1;
-      // Only reset if video is past the first 0.1s (preserve pre-seeked first frame)
-      if (video.currentTime > 0.1) {
-        video.currentTime = 0;
-      }
+      video.currentTime = 0;
       
       // Remove old ended listener, add new one
       video.onended = null;
@@ -815,14 +796,7 @@ const CubeWebView = ({
         
         isReady = true;
         postMessage('readyToPlay', { videoCount: fullVideoQueue.length });
-        
-        // Auto-play if flag is set (for fullscreen mode)
-        if (shouldAutoPlay) {
-          console.log('🚀 Auto-starting playback');
-          handlePlayClick();
-        } else {
-          showPlayButton();
-        }
+        showPlayButton();
       }
     }
     
@@ -881,7 +855,7 @@ const CubeWebView = ({
 </body>
 </html>
     `;
-  }, [initialFaces, autoPlay]); // Only regenerate when initialFaces is first set or autoPlay changes
+  }, [initialFaces]); // Only regenerate when initialFaces is first set
 
   const onMessage = useCallback((event) => {
     try {
