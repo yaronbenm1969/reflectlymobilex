@@ -463,6 +463,8 @@ const FlipPagesWebView = ({
     );
   }
 
+  console.log('📖 FlipPagesWebView rendering, isFullscreen:', isFullscreen, 'htmlFilePath:', htmlFilePath ? 'exists' : 'null');
+  
   return (
     <View style={[styles.container, isFullscreen && styles.fullscreen]}>
       <WebView
@@ -494,6 +496,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a2e',
     justifyContent: 'center',
     alignItems: 'center',
+    minHeight: 400,
+    width: '100%',
   },
   fullscreen: {
     position: 'absolute',
