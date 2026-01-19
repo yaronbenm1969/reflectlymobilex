@@ -423,7 +423,7 @@ const CubeWebView = ({
       });
     }
     
-    // Load video onto a face - reuses existing video element, pre-seeks to force first frame decode
+    // Load video onto a face - uses canplay + optional pre-seek for first frame
     function loadVideoOnFace(faceId, queueIdx) {
       return new Promise((resolve, reject) => {
         if (queueIdx >= fullVideoQueue.length) {
@@ -450,8 +450,8 @@ const CubeWebView = ({
         const videoUrl = videoData.videoUrl;
         
         // Clean up old listeners
-        video.onloadedmetadata = null;
-        video.onseeked = null;
+        video.oncanplay = null;
+        video.onloadeddata = null;
         video.onerror = null;
         
         let resolved = false;
@@ -459,32 +459,32 @@ const CubeWebView = ({
         function markReady() {
           if (resolved) return;
           resolved = true;
-          video.onloadedmetadata = null;
-          video.onseeked = null;
+          video.oncanplay = null;
+          video.onloadeddata = null;
           video.onerror = null;
-          // Pause to show first frame (will be unpaused when playing)
+          // Pause to show first frame
           video.pause();
-          console.log('📹 Face ' + faceId + ' READY (first frame): queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
+          // Try to seek to 0.001 to force first frame decode (but don't wait for it)
+          try {
+            if (video.readyState >= 2) {
+              video.currentTime = 0.001;
+            }
+          } catch(e) {}
+          console.log('📹 Face ' + faceId + ' READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
           resolve(video);
         }
         
-        // After metadata loads, seek to 0.001 to force first frame decode on iOS
-        video.onloadedmetadata = function() {
-          console.log('📹 Face ' + faceId + ' metadata loaded, seeking to 0.001...');
-          video.currentTime = 0.001;
-        };
-        
-        // When seek completes, first frame is decoded and visible
-        video.onseeked = function() {
-          console.log('📹 Face ' + faceId + ' seeked - first frame visible');
-          markReady();
+        // Primary readiness: canplay or loadeddata
+        video.oncanplay = markReady;
+        video.onloadeddata = function() {
+          if (video.readyState >= 2) markReady();
         };
         
         video.onerror = function() {
           if (resolved) return;
           resolved = true;
-          video.onloadedmetadata = null;
-          video.onseeked = null;
+          video.oncanplay = null;
+          video.onloadeddata = null;
           video.onerror = null;
           console.log('❌ Face ' + faceId + ' error loading queue[' + queueIdx + ']');
           reject('Video load error');
@@ -497,13 +497,13 @@ const CubeWebView = ({
         video.src = videoUrl;
         video.load();
         
-        // Fallback timeout - accept even if seeked doesn't fire
+        // Short fallback timeout - accept if any data loaded
         setTimeout(() => {
-          if (!resolved && video.readyState >= 2) {
-            console.log('📹 Face ' + faceId + ' timeout-ready: queue[' + queueIdx + ']');
+          if (!resolved && video.readyState >= 1) {
+            console.log('📹 Face ' + faceId + ' timeout-ready: queue[' + queueIdx + '] rs=' + video.readyState);
             markReady();
           }
-        }, 5000);
+        }, 3000);
       });
     }
     
@@ -655,7 +655,10 @@ const CubeWebView = ({
       // Play current with sound
       video.muted = false;
       video.volume = 1;
-      video.currentTime = 0;
+      // Only reset if video is past the first 0.1s (preserve pre-seeked first frame)
+      if (video.currentTime > 0.1) {
+        video.currentTime = 0;
+      }
       
       // Remove old ended listener, add new one
       video.onended = null;
