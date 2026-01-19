@@ -345,6 +345,7 @@ export const FinalVideoScreen = () => {
             autoRotate={cubeStarted}
             rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
             isFullscreen={true}
+            autoPlay={true}
             onFaceChange={handleFaceChange}
             onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
             onVideoEnd={handleVideoEnd}

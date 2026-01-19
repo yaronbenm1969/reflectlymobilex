@@ -19,6 +19,7 @@ const CubeWebView = ({
   onPlaybackComplete,
   onReadyToPlay,
   isFullscreen = false,
+  autoPlay = false, // Auto-start playback when ready (for fullscreen mode)
   currentPlayingFaceIndex = -1,
 }) => {
   const webViewRef = useRef(null);
@@ -58,6 +59,8 @@ const CubeWebView = ({
       videoUrl: face?.videoUrl || null,
       playerName: face?.playerName || `סרטון ${index + 1}`,
     })));
+    
+    const autoPlayFlag = autoPlay ? 'true' : 'false';
 
     return `
 <!DOCTYPE html>
@@ -349,6 +352,7 @@ const CubeWebView = ({
     // Rotation only happens when video 'ended' fires
     
     const faces = ${facesJSON};
+    const shouldAutoPlay = ${autoPlayFlag};
     let fullVideoQueue = faces.filter(f => f && f.videoUrl);
     
     // 4-face rotation path with dynamic tilt for visual interest
@@ -810,7 +814,14 @@ const CubeWebView = ({
         
         isReady = true;
         postMessage('readyToPlay', { videoCount: fullVideoQueue.length });
-        showPlayButton();
+        
+        // Auto-play if flag is set (for fullscreen mode)
+        if (shouldAutoPlay) {
+          console.log('🚀 Auto-starting playback');
+          handlePlayClick();
+        } else {
+          showPlayButton();
+        }
       }
     }
     
@@ -869,7 +880,7 @@ const CubeWebView = ({
 </body>
 </html>
     `;
-  }, [initialFaces]); // Only regenerate when initialFaces is first set
+  }, [initialFaces, autoPlay]); // Only regenerate when initialFaces is first set or autoPlay changes
 
   const onMessage = useCallback((event) => {
     try {
