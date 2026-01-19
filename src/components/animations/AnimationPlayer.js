@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { CubeWebView } from '../cube3d/CubeWebView';
+import CubeWebView from '../cube3d/CubeWebView';
 import { FlipPagesWebView } from './FlipPagesWebView';
 
 const AnimationPlayer = ({
