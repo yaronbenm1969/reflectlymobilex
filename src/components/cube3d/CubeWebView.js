@@ -423,7 +423,7 @@ const CubeWebView = ({
       });
     }
     
-    // Load video onto a face - reuses existing video element, waits for canplaythrough with fallback
+    // Load video onto a face - reuses existing video element, pre-seeks to force first frame decode
     function loadVideoOnFace(faceId, queueIdx) {
       return new Promise((resolve, reject) => {
         if (queueIdx >= fullVideoQueue.length) {
@@ -439,8 +439,8 @@ const CubeWebView = ({
           return;
         }
         
-        // Check if already loaded with correct video (readyState 4 = HAVE_ENOUGH_DATA)
-        if (faceVideos[faceId] && faceVideos[faceId].queueIdx === queueIdx && video.readyState >= 3) {
+        // Check if already loaded with correct video
+        if (faceVideos[faceId] && faceVideos[faceId].queueIdx === queueIdx && video.readyState >= 2) {
           console.log('📹 Face ' + faceId + ' already has queue[' + queueIdx + '] ready');
           resolve(video);
           return;
@@ -450,40 +450,41 @@ const CubeWebView = ({
         const videoUrl = videoData.videoUrl;
         
         // Clean up old listeners
-        video.oncanplaythrough = null;
-        video.oncanplay = null;
+        video.onloadedmetadata = null;
+        video.onseeked = null;
         video.onerror = null;
         
         let resolved = false;
         
         function markReady() {
           if (resolved) return;
-          // Wait for first frame to render
-          requestAnimationFrame(() => {
-            if (resolved) return;
-            resolved = true;
-            video.oncanplaythrough = null;
-            video.oncanplay = null;
-            video.onerror = null;
-            console.log('📹 Face ' + faceId + ' READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's readyState=' + video.readyState);
-            resolve(video);
-          });
+          resolved = true;
+          video.onloadedmetadata = null;
+          video.onseeked = null;
+          video.onerror = null;
+          // Pause to show first frame (will be unpaused when playing)
+          video.pause();
+          console.log('📹 Face ' + faceId + ' READY (first frame): queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
+          resolve(video);
         }
         
-        // Wait for canplaythrough (video is fully buffered) - best case
-        video.oncanplaythrough = markReady;
+        // After metadata loads, seek to 0.001 to force first frame decode on iOS
+        video.onloadedmetadata = function() {
+          console.log('📹 Face ' + faceId + ' metadata loaded, seeking to 0.001...');
+          video.currentTime = 0.001;
+        };
         
-        // Also accept canplay as fallback (faster)
-        video.oncanplay = function() {
-          // Give a short delay for more buffering, then accept
-          setTimeout(markReady, 100);
+        // When seek completes, first frame is decoded and visible
+        video.onseeked = function() {
+          console.log('📹 Face ' + faceId + ' seeked - first frame visible');
+          markReady();
         };
         
         video.onerror = function() {
           if (resolved) return;
           resolved = true;
-          video.oncanplaythrough = null;
-          video.oncanplay = null;
+          video.onloadedmetadata = null;
+          video.onseeked = null;
           video.onerror = null;
           console.log('❌ Face ' + faceId + ' error loading queue[' + queueIdx + ']');
           reject('Video load error');
@@ -496,17 +497,13 @@ const CubeWebView = ({
         video.src = videoUrl;
         video.load();
         
-        // Fallback timeout - accept readyState >= 2 (HAVE_CURRENT_DATA)
+        // Fallback timeout - accept even if seeked doesn't fire
         setTimeout(() => {
           if (!resolved && video.readyState >= 2) {
-            resolved = true;
-            video.oncanplaythrough = null;
-            video.oncanplay = null;
-            video.onerror = null;
-            console.log('📹 Face ' + faceId + ' timeout-ready: queue[' + queueIdx + '] readyState=' + video.readyState);
-            resolve(video);
+            console.log('📹 Face ' + faceId + ' timeout-ready: queue[' + queueIdx + ']');
+            markReady();
           }
-        }, 4000);
+        }, 5000);
       });
     }
     
