@@ -337,9 +337,31 @@ export const FinalVideoScreen = () => {
 
   return (
     <View style={[styles.container, isCubeFullscreen && styles.fullscreenMode]}>
-      {/* FULLSCREEN CUBE OVERLAY - just the background, CubeWebView is rendered below */}
+      {/* FULLSCREEN CUBE - renders on top of everything */}
       {isCubeFullscreen && isCube3D && assetsReady && (
-        <View style={styles.fullscreenCubeOverlay} pointerEvents="none" />
+        <View style={styles.fullscreenCubeOverlay}>
+          <CubeWebView
+            faces={cubeFaces}
+            autoRotate={cubeStarted}
+            rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
+            isFullscreen={true}
+            onFaceChange={handleFaceChange}
+            onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
+            onVideoEnd={handleVideoEnd}
+            onPlaybackStart={() => {
+              console.log('🚀 Cube fullscreen mode ON');
+              setIsCubeFullscreen(true);
+              setCubeStarted(true);
+            }}
+            onPlaybackComplete={() => {
+              console.log('✅ All videos finished - showing end screen');
+              setIsCubeFullscreen(false);
+              setVideoHasPlayed(true);
+              setShowEndScreen(true);
+            }}
+            currentPlayingFaceIndex={currentPlayingFaceIndex}
+          />
+        </View>
       )}
 
       {/* End Screen Overlay */}
@@ -427,7 +449,7 @@ export const FinalVideoScreen = () => {
               </View>
             </View>
           ) : isCube3D && assetsReady ? (
-            /* Show cube only after ALL videos are cached locally - SINGLE instance handles both modes */
+            /* Show cube only after ALL videos are cached locally */
             <View style={[styles.cubeContainer, isCubeFullscreen && styles.cubeFullscreenContainer]}>
               <CubeWebView
                 faces={cubeFaces}
@@ -438,7 +460,7 @@ export const FinalVideoScreen = () => {
                 onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
                 onVideoEnd={handleVideoEnd}
                 onPlaybackStart={() => {
-                  console.log('▶️ Cube playback started');
+                  console.log('🚀 Cube fullscreen mode ON');
                   setIsCubeFullscreen(true);
                   setCubeStarted(true);
                 }}
