@@ -640,10 +640,9 @@ const CubeWebView = ({
         }
       });
       
-      // Play current with sound
+      // Play current with sound (don't reset currentTime - already at first frame from preload)
       video.muted = false;
       video.volume = 1;
-      video.currentTime = 0;
       
       // Remove old ended listener, add new one
       video.onended = null;
