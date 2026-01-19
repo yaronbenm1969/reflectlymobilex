@@ -414,7 +414,8 @@ const CubeWebView = ({
           video.playsInline = true;
           video.setAttribute('playsinline', '');
           video.preload = 'auto';
-          video.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+          // Start with opacity 0 to prevent black flash - will show when playing
+          video.style.cssText = 'width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 0.1s;';
           el.appendChild(video);
           faceVideoElements[faceId] = video;
           console.log('📺 Created persistent video element on face ' + faceId);
@@ -672,6 +673,10 @@ const CubeWebView = ({
       
       video.play().then(() => {
         console.log('✅ Play started: queue[' + currentIndex + ']');
+        
+        // Show video now that it's actually playing (prevents black flash)
+        video.style.opacity = '1';
+        
         postMessage('videoStart', { faceId, queueIndex: currentIndex });
         
         // Set up rotation sync based on video progress
