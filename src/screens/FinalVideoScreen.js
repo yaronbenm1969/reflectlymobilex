@@ -111,6 +111,8 @@ export const FinalVideoScreen = () => {
   const isCube3D = videoFormat === 'cube-3d';
   const isFlipPages = videoFormat === 'flip-pages';
   const isAnimatedFormat = isCube3D || isFlipPages;
+  
+  console.log('🎬 FinalVideoScreen format:', videoFormat, 'isAnimatedFormat:', isAnimatedFormat, 'isFlipPages:', isFlipPages);
 
   // Load all reflections (not limited to 6) for proper progress display
   const { 
