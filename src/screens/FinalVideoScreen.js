@@ -337,10 +337,33 @@ export const FinalVideoScreen = () => {
 
   return (
     <View style={[styles.container, isCubeFullscreen && styles.fullscreenMode]}>
-      {/* SINGLE CUBE - fullscreen overlay mode (renders SAME cube on top when fullscreen) */}
-      {isCubeFullscreen && isCube3D && assetsReady && (
-        <View style={styles.fullscreenCubeOverlay} pointerEvents="none">
-          {/* Empty overlay for fullscreen background - cube renders below in content */}
+      {/* SINGLE CUBE - always rendered, changes style when fullscreen */}
+      {isCube3D && assetsReady && (
+        <View style={[
+          styles.cubeContainer, 
+          isCubeFullscreen && styles.fullscreenCubeOverlay
+        ]}>
+          <CubeWebView
+            faces={cubeFaces}
+            autoRotate={cubeStarted}
+            rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
+            isFullscreen={isCubeFullscreen}
+            onFaceChange={handleFaceChange}
+            onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
+            onVideoEnd={handleVideoEnd}
+            onPlaybackStart={() => {
+              console.log('🚀 Cube fullscreen mode ON');
+              setIsCubeFullscreen(true);
+              setCubeStarted(true);
+            }}
+            onPlaybackComplete={() => {
+              console.log('✅ All videos finished - showing end screen');
+              setIsCubeFullscreen(false);
+              setVideoHasPlayed(true);
+              setShowEndScreen(true);
+            }}
+            currentPlayingFaceIndex={currentPlayingFaceIndex}
+          />
         </View>
       )}
 
@@ -429,30 +452,8 @@ export const FinalVideoScreen = () => {
               </View>
             </View>
           ) : isCube3D && assetsReady ? (
-            /* Show cube only after ALL videos are cached locally */
-            <View style={[styles.cubeContainer, isCubeFullscreen && styles.cubeFullscreenContainer]}>
-              <CubeWebView
-                faces={cubeFaces}
-                autoRotate={cubeStarted}
-                rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
-                isFullscreen={isCubeFullscreen}
-                onFaceChange={handleFaceChange}
-                onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
-                onVideoEnd={handleVideoEnd}
-                onPlaybackStart={() => {
-                  console.log('🚀 Cube fullscreen mode ON');
-                  setIsCubeFullscreen(true);
-                  setCubeStarted(true);
-                }}
-                onPlaybackComplete={() => {
-                  console.log('✅ All videos finished - showing end screen');
-                  setIsCubeFullscreen(false);
-                  setVideoHasPlayed(true);
-                  setShowEndScreen(true);
-                }}
-                currentPlayingFaceIndex={currentPlayingFaceIndex}
-              />
-            </View>
+            /* Cube is rendered at top level - show empty placeholder here */
+            null
           ) : is3DFormat && videos3D.length > 0 ? (
             <Video3DPlayer
               videos={videos3D}
