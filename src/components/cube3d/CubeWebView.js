@@ -657,8 +657,7 @@ const CubeWebView = ({
       activeVideoIndex = -1;
     }
     
-    // Keep ALL videos playing continuously (muted) to avoid iOS black flash
-    // Only switch audio on/off - this keeps frames rendered at all times
+    // Play video with warm-up already done during preload
     async function playCurrentVideo() {
       const faceId = getFaceForIndex(currentIndex);
       let fv = faceVideos[faceId];
@@ -671,19 +670,20 @@ const CubeWebView = ({
       
       // CRITICAL: Verify this face has the correct video loaded
       if (!fv || !fv.element || fv.queueIdx !== currentIndex) {
-        console.log('🔄 Face ' + faceId + ' has wrong video (has ' + (fv ? fv.queueIdx : 'none') + ', need ' + currentIndex + '), reloading...');
+        console.log('🔄 Face ' + faceId + ' has wrong video, reloading...');
+        showOverlay(faceId); // Show overlay while loading
         try {
           await loadVideoOnFace(faceId, currentIndex);
           fv = faceVideos[faceId];
         } catch (e) {
-          console.log('❌ Failed to load video for queue[' + currentIndex + ']: ' + e);
+          console.log('❌ Failed to load video: ' + e);
           advanceToNext();
           return;
         }
       }
       
       if (!fv || !fv.element) {
-        console.log('❌ No video on face ' + faceId + ' for queue[' + currentIndex + ']');
+        console.log('❌ No video on face ' + faceId);
         advanceToNext();
         return;
       }
@@ -691,25 +691,19 @@ const CubeWebView = ({
       const video = fv.element;
       const playingIndex = currentIndex;
       
-      // MUTE all others but KEEP THEM PLAYING (critical for iOS frame rendering)
+      // Pause all other videos
       Object.entries(faceVideos).forEach(([id, v]) => {
         if (parseInt(id) !== faceId && v && v.element) {
+          v.element.pause();
           v.element.muted = true;
-          v.element.volume = 0;
-          // Don't pause! Keep playing muted to maintain rendered frames
-          if (v.element.paused) {
-            v.element.play().catch(() => {});
-          }
         }
       });
       
-      // Reset current video to start and unmute
-      video.currentTime = 0;
+      // Ensure video is at start and unmuted
       video.muted = false;
       video.volume = 1;
-      video.loop = false; // Disable loop for active video so onended fires
       
-      // Remove old ended listener, add new one
+      // Remove old ended listener
       video.onended = null;
       video.onended = function() {
         if (videoTimeoutId) clearTimeout(videoTimeoutId);
@@ -718,26 +712,18 @@ const CubeWebView = ({
         if (currentIndex === playingIndex) advanceToNext();
       };
       
-      console.log('▶️ Playing queue[' + currentIndex + '] on face ' + faceId + ' (all faces stay playing)');
+      console.log('▶️ Playing queue[' + currentIndex + '] on face ' + faceId);
       
-      // If already playing, just ensure it's from start
-      if (!video.paused) {
-        console.log('✅ Video already playing, just switched audio');
-        postMessage('videoStart', { faceId, queueIndex: currentIndex });
-        setupRotationSync(video, playingIndex);
-        
-        const duration = video.duration;
-        const timeout = (duration && isFinite(duration) && duration > 0) 
-          ? (duration + 2) * 1000 
-          : MAX_VIDEO_DURATION * 1000;
-        
-        videoTimeoutId = setTimeout(() => {
-          console.log('⏰ Timeout: queue[' + playingIndex + '] - forcing advance');
-          clearRotationSync();
-          if (currentIndex === playingIndex) advanceToNext();
-        }, timeout);
-        return;
-      }
+      // Hide overlay as soon as video starts showing frames
+      let overlayHidden = false;
+      video.ontimeupdate = function() {
+        if (!overlayHidden && video.currentTime > 0.05) {
+          overlayHidden = true;
+          hideOverlay(faceId);
+          video.ontimeupdate = null;
+          console.log('👁️ First frame visible, hiding overlay');
+        }
+      };
       
       video.play().then(() => {
         console.log('✅ Play started: queue[' + currentIndex + ']');
@@ -750,13 +736,14 @@ const CubeWebView = ({
           : MAX_VIDEO_DURATION * 1000;
         
         videoTimeoutId = setTimeout(() => {
-          console.log('⏰ Timeout: queue[' + playingIndex + '] - forcing advance');
+          console.log('⏰ Timeout: forcing advance');
           clearRotationSync();
           if (currentIndex === playingIndex) advanceToNext();
         }, timeout);
         
       }).catch(e => {
-        console.log('❌ Play failed: ' + e.message + ', advancing...');
+        console.log('❌ Play failed: ' + e.message);
+        hideOverlay(faceId);
         setTimeout(() => advanceToNext(), 500);
       });
     }
