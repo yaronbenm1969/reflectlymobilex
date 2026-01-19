@@ -719,8 +719,11 @@ const CubeWebView = ({
     
     // ============ INITIALIZATION ============
     let isReady = false;
+    let hasUserStarted = false; // Prevent play button from showing again after user clicks
     
     function showPlayButton() {
+      // Don't show if user already started playback
+      if (hasUserStarted || isPlaying) return;
       const btn = document.getElementById('play-button');
       if (btn) btn.classList.remove('hidden');
     }
@@ -731,7 +734,8 @@ const CubeWebView = ({
     }
     
     async function handlePlayClick() {
-      if (!isReady || isPlaying) return;
+      if (!isReady || isPlaying || hasUserStarted) return;
+      hasUserStarted = true; // Block any future showPlayButton calls
       hidePlayButton();
       
       console.log('🎬 Starting playback: ' + fullVideoQueue.length + ' videos');
