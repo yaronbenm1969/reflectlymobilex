@@ -29,6 +29,7 @@ const CubeWebView = ({
   // Track if initial faces have been captured (to prevent WebView reloads)
   const [initialFaces, setInitialFaces] = useState(null);
   const hasInitializedRef = useRef(false);
+  const webViewKeyRef = useRef(Date.now()); // Fixed key to prevent WebView recreation
   
   // Capture initial faces once when first 4 faces have videos ready (4 side faces only)
   useEffect(() => {
@@ -975,6 +976,7 @@ const CubeWebView = ({
   return (
     <View style={[styles.container, isFullscreen && styles.fullscreenContainer]}>
       <WebView
+        key={webViewKeyRef.current}
         ref={webViewRef}
         source={webViewSource}
         style={[styles.webView, isFullscreen && styles.fullscreenWebView]}
