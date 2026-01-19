@@ -458,6 +458,10 @@ const CubeWebView = ({
           resolved = true;
           video.oncanplay = null;
           video.onerror = null;
+          
+          // Tiny seek to trigger iOS to paint first frame (no play/pause needed)
+          video.currentTime = 0.001;
+          
           console.log('📹 Face ' + faceId + ' READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
           resolve(video);
         };
