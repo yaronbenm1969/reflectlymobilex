@@ -418,7 +418,7 @@ const CubeWebView = ({
       });
     }
     
-    // Load video onto a face - reuses existing video element, waits for canplay
+    // Load video onto a face - reuses existing video element, waits for canplaythrough
     function loadVideoOnFace(faceId, queueIdx) {
       return new Promise((resolve, reject) => {
         if (queueIdx >= fullVideoQueue.length) {
@@ -434,38 +434,52 @@ const CubeWebView = ({
           return;
         }
         
-        // Check if already loaded with correct video
-        if (faceVideos[faceId] && faceVideos[faceId].queueIdx === queueIdx && video.readyState >= 2) {
-          console.log('📹 Face ' + faceId + ' already has queue[' + queueIdx + '] ready');
+        // Check if already loaded with correct video (readyState 4 = HAVE_ENOUGH_DATA)
+        if (faceVideos[faceId] && faceVideos[faceId].queueIdx === queueIdx && video.readyState >= 4) {
+          console.log('📹 Face ' + faceId + ' already has queue[' + queueIdx + '] fully ready');
           resolve(video);
           return;
         }
         
-        // Add cache-busting parameter
-        const cacheBuster = '_t=' + Date.now() + '_' + queueIdx;
-        const videoUrl = videoData.videoUrl + (videoData.videoUrl.includes('?') ? '&' + cacheBuster : '?' + cacheBuster);
+        // Use video URL directly (no cache-busting for better caching)
+        const videoUrl = videoData.videoUrl;
         
         // Clean up old listeners
-        video.oncanplay = null;
+        video.oncanplaythrough = null;
+        video.onloadeddata = null;
         video.onerror = null;
-        video.onloadedmetadata = null;
         
         let resolved = false;
         
-        // Wait for canplay (video is ready to play without buffering)
-        video.oncanplay = function() {
+        function markReady() {
           if (resolved) return;
-          resolved = true;
-          video.oncanplay = null;
-          video.onerror = null;
-          console.log('📹 Face ' + faceId + ' READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
-          resolve(video);
+          // Wait for first frame to render
+          requestAnimationFrame(() => {
+            if (resolved) return;
+            resolved = true;
+            video.oncanplaythrough = null;
+            video.onloadeddata = null;
+            video.onerror = null;
+            console.log('📹 Face ' + faceId + ' FULLY READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's readyState=' + video.readyState);
+            resolve(video);
+          });
+        }
+        
+        // Wait for canplaythrough (video is fully buffered)
+        video.oncanplaythrough = markReady;
+        
+        // Also check loadeddata + readyState as backup
+        video.onloadeddata = function() {
+          if (video.readyState >= 4) {
+            markReady();
+          }
         };
         
         video.onerror = function() {
           if (resolved) return;
           resolved = true;
-          video.oncanplay = null;
+          video.oncanplaythrough = null;
+          video.onloadeddata = null;
           video.onerror = null;
           console.log('❌ Face ' + faceId + ' error loading queue[' + queueIdx + ']');
           reject('Video load error');
@@ -478,16 +492,17 @@ const CubeWebView = ({
         video.src = videoUrl;
         video.load();
         
-        // Fallback timeout
+        // Fallback timeout - accept readyState >= 3 (HAVE_FUTURE_DATA)
         setTimeout(() => {
-          if (!resolved && video.readyState >= 2) {
+          if (!resolved && video.readyState >= 3) {
             resolved = true;
-            video.oncanplay = null;
+            video.oncanplaythrough = null;
+            video.onloadeddata = null;
             video.onerror = null;
-            console.log('📹 Face ' + faceId + ' timeout-ready: queue[' + queueIdx + ']');
+            console.log('📹 Face ' + faceId + ' timeout-ready: queue[' + queueIdx + '] readyState=' + video.readyState);
             resolve(video);
           }
-        }, 4000);
+        }, 5000);
       });
     }
     
