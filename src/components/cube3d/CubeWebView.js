@@ -187,6 +187,35 @@ const CubeWebView = ({
       left: 0;
       background: #000;
     }
+    /* Loading overlay - hides black screen until video actually plays */
+    .video-loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #2a1a3a 0%, #1a0a2a 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      transition: opacity 0.15s ease-out;
+    }
+    .video-loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .video-loading-overlay .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: #FF6B9D;
+      border-radius: 50%;
+      animation: loading-spin 0.8s linear infinite;
+    }
+    @keyframes loading-spin {
+      to { transform: rotate(360deg); }
+    }
     /* Top/bottom faces - force GPU rendering on iOS */
     .top video, .bottom video {
       -webkit-transform: translateZ(0);
