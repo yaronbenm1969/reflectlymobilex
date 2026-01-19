@@ -27,10 +27,17 @@ const FlipPagesWebView = ({
   const hasInitializedRef = useRef(false);
   const webViewKeyRef = useRef(Date.now());
   
+  console.log('📖 FlipPagesWebView received faces:', faces.length, 'hasInitialized:', hasInitializedRef.current);
+  faces.forEach((f, i) => {
+    console.log(`📖 Face ${i}: videoUrl=${f?.videoUrl ? 'exists' : 'MISSING'}, playerName=${f?.playerName}`);
+  });
+  
   useEffect(() => {
     if (hasInitializedRef.current) return;
     const minRequired = Math.min(4, faces.length);
     const readyCount = faces.slice(0, 4).filter(f => f?.videoUrl).length;
+    
+    console.log(`📖 FlipPages check: minRequired=${minRequired}, readyCount=${readyCount}, faces.length=${faces.length}`);
     
     if (minRequired > 0 && readyCount >= minRequired) {
       console.log(`📖 All ${minRequired} initial videos ready - initializing flip pages`);
