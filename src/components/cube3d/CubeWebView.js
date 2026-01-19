@@ -488,10 +488,16 @@ const CubeWebView = ({
           video.oncanplay = null;
           video.onerror = null;
           
-          // Tiny seek to trigger iOS to paint first frame (no play/pause needed)
-          video.currentTime = 0.001;
+          // START PLAYING MUTED immediately to force iOS to render frames
+          video.muted = true;
+          video.volume = 0;
+          video.loop = true; // Loop so it keeps rendering even if it ends
+          video.play().then(() => {
+            console.log('📹 Face ' + faceId + ' PLAYING MUTED: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
+          }).catch(() => {
+            console.log('📹 Face ' + faceId + ' ready (autoplay blocked): queue[' + queueIdx + ']');
+          });
           
-          console.log('📹 Face ' + faceId + ' READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
           resolve(video);
         };
         
@@ -627,6 +633,8 @@ const CubeWebView = ({
       activeVideoIndex = -1;
     }
     
+    // Keep ALL videos playing continuously (muted) to avoid iOS black flash
+    // Only switch audio on/off - this keeps frames rendered at all times
     async function playCurrentVideo() {
       const faceId = getFaceForIndex(currentIndex);
       let fv = faceVideos[faceId];
@@ -638,7 +646,6 @@ const CubeWebView = ({
       }
       
       // CRITICAL: Verify this face has the correct video loaded
-      // If not, reload it before playing
       if (!fv || !fv.element || fv.queueIdx !== currentIndex) {
         console.log('🔄 Face ' + faceId + ' has wrong video (has ' + (fv ? fv.queueIdx : 'none') + ', need ' + currentIndex + '), reloading...');
         try {
@@ -658,20 +665,25 @@ const CubeWebView = ({
       }
       
       const video = fv.element;
-      const playingIndex = currentIndex; // Capture for closure
+      const playingIndex = currentIndex;
       
-      // Pause all others, reset to first frame
+      // MUTE all others but KEEP THEM PLAYING (critical for iOS frame rendering)
       Object.entries(faceVideos).forEach(([id, v]) => {
         if (parseInt(id) !== faceId && v && v.element) {
-          v.element.pause();
           v.element.muted = true;
-          v.element.currentTime = 0;
+          v.element.volume = 0;
+          // Don't pause! Keep playing muted to maintain rendered frames
+          if (v.element.paused) {
+            v.element.play().catch(() => {});
+          }
         }
       });
       
-      // Play current with sound (don't reset currentTime - already at first frame from preload)
+      // Reset current video to start and unmute
+      video.currentTime = 0;
       video.muted = false;
       video.volume = 1;
+      video.loop = false; // Disable loop for active video so onended fires
       
       // Remove old ended listener, add new one
       video.onended = null;
@@ -682,16 +694,32 @@ const CubeWebView = ({
         if (currentIndex === playingIndex) advanceToNext();
       };
       
-      console.log('▶️ Playing queue[' + currentIndex + '] on face ' + faceId);
+      console.log('▶️ Playing queue[' + currentIndex + '] on face ' + faceId + ' (all faces stay playing)');
+      
+      // If already playing, just ensure it's from start
+      if (!video.paused) {
+        console.log('✅ Video already playing, just switched audio');
+        postMessage('videoStart', { faceId, queueIndex: currentIndex });
+        setupRotationSync(video, playingIndex);
+        
+        const duration = video.duration;
+        const timeout = (duration && isFinite(duration) && duration > 0) 
+          ? (duration + 2) * 1000 
+          : MAX_VIDEO_DURATION * 1000;
+        
+        videoTimeoutId = setTimeout(() => {
+          console.log('⏰ Timeout: queue[' + playingIndex + '] - forcing advance');
+          clearRotationSync();
+          if (currentIndex === playingIndex) advanceToNext();
+        }, timeout);
+        return;
+      }
       
       video.play().then(() => {
         console.log('✅ Play started: queue[' + currentIndex + ']');
         postMessage('videoStart', { faceId, queueIndex: currentIndex });
-        
-        // Set up rotation sync based on video progress
         setupRotationSync(video, playingIndex);
         
-        // Set safety timeout based on video duration (+ 2 sec buffer)
         const duration = video.duration;
         const timeout = (duration && isFinite(duration) && duration > 0) 
           ? (duration + 2) * 1000 
