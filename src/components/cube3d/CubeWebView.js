@@ -416,6 +416,49 @@ const CubeWebView = ({
           console.log('📺 Created persistent video element on face ' + faceId);
         }
       });
+      
+      // Add thumbnail images to top and bottom faces for visual effect during tilts
+      initTopBottomFaces();
+    }
+    
+    // Populate top/bottom faces with video thumbnails
+    function initTopBottomFaces() {
+      const topFace = document.getElementById('face-4');
+      const bottomFace = document.getElementById('face-5');
+      
+      if (!topFace || !bottomFace || fullVideoQueue.length === 0) return;
+      
+      // Use first two videos for top/bottom thumbnails
+      const topVideoUrl = fullVideoQueue[0]?.videoUrl;
+      const bottomVideoUrl = fullVideoQueue[Math.min(1, fullVideoQueue.length - 1)]?.videoUrl;
+      
+      // Create video element for top face (shows first frame as thumbnail)
+      if (topVideoUrl && !topFace.querySelector('video')) {
+        const topVideo = document.createElement('video');
+        topVideo.muted = true;
+        topVideo.playsInline = true;
+        topVideo.setAttribute('playsinline', '');
+        topVideo.preload = 'metadata';
+        topVideo.src = topVideoUrl;
+        topVideo.style.cssText = 'width:100%;height:100%;object-fit:cover;opacity:0.85;';
+        topVideo.currentTime = 0.5; // Seek to half second for better thumbnail
+        topFace.appendChild(topVideo);
+        console.log('🖼️ Added thumbnail to TOP face');
+      }
+      
+      // Create video element for bottom face
+      if (bottomVideoUrl && !bottomFace.querySelector('video')) {
+        const bottomVideo = document.createElement('video');
+        bottomVideo.muted = true;
+        bottomVideo.playsInline = true;
+        bottomVideo.setAttribute('playsinline', '');
+        bottomVideo.preload = 'metadata';
+        bottomVideo.src = bottomVideoUrl;
+        bottomVideo.style.cssText = 'width:100%;height:100%;object-fit:cover;opacity:0.85;';
+        bottomVideo.currentTime = 0.5;
+        bottomFace.appendChild(bottomVideo);
+        console.log('🖼️ Added thumbnail to BOTTOM face');
+      }
     }
     
     // Load video onto a face - reuses existing video element, waits for canplay
