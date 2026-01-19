@@ -647,7 +647,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: theme.spacing[4],
-    minHeight: 300,
+    minHeight: 400,
+    width: '100%',
     position: 'relative',
   },
   cubeFullscreenContainer: {
