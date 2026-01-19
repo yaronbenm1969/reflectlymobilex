@@ -739,10 +739,9 @@ const CubeWebView = ({
       // Ensure video elements exist
       initFaceVideoElements();
       
-      // Reset state
+      // Reset state (but DON'T clear faceVideos - they're already loaded!)
       currentIndex = 0;
       isPlaying = true;
-      faceVideos = {};
       
       // Set initial rotation to face 0
       const initial = getTargetRotation(0);
@@ -750,15 +749,9 @@ const CubeWebView = ({
       currentRotY = initial.rotY;
       updateCubeTransform(performance.now());
       
-      // Load first 4 videos (using only 4 side faces)
-      const loadPromises = [];
-      for (let i = 0; i < Math.min(4, fullVideoQueue.length); i++) {
-        const faceId = getFaceForIndex(i);
-        loadPromises.push(loadVideoOnFace(faceId, i).catch(() => null));
-      }
-      
-      await Promise.all(loadPromises);
-      console.log('📦 Initial 4 videos loaded');
+      // Videos are already preloaded from init() - no need to reload!
+      // Just verify they're ready
+      console.log('📦 Using pre-loaded videos (no reload needed)');
       
       postMessage('animationStarted', { videoCount: fullVideoQueue.length });
       
@@ -766,28 +759,37 @@ const CubeWebView = ({
       floatStartTime = 0;
       floatAnimId = requestAnimationFrame(floatLoop);
       
-      // Play first video
+      // Play first video immediately (already loaded)
       playCurrentVideo();
     }
     
-    function init() {
+    async function init() {
       console.log('🎲 Cube init: ' + fullVideoQueue.length + ' videos');
       
       // Create persistent video elements on each face (once)
       initFaceVideoElements();
       
-      // Preload first 4 videos silently (4 side faces only)
-      const preloadCount = Math.min(4, fullVideoQueue.length);
-      for (let i = 0; i < preloadCount; i++) {
-        const faceId = getFaceForIndex(i);
-        loadVideoOnFace(faceId, i).catch(() => {});
-      }
-      
       postMessage('cubeReady', { faceCount: fullVideoQueue.length });
       
       if (fullVideoQueue.length > 0) {
+        // Wait for ALL first 4 videos to be fully ready (canplay) before showing play button
+        const preloadCount = Math.min(4, fullVideoQueue.length);
+        console.log('⏳ Preloading first ' + preloadCount + ' videos...');
+        
+        const loadPromises = [];
+        for (let i = 0; i < preloadCount; i++) {
+          const faceId = getFaceForIndex(i);
+          loadPromises.push(loadVideoOnFace(faceId, i).catch(e => {
+            console.log('⚠️ Preload failed for ' + i + ': ' + e);
+            return null;
+          }));
+        }
+        
+        // Wait for all to be ready
+        await Promise.all(loadPromises);
+        console.log('✅ All ' + preloadCount + ' initial videos READY');
+        
         isReady = true;
-        console.log('✅ Ready with ' + fullVideoQueue.length + ' videos');
         postMessage('readyToPlay', { videoCount: fullVideoQueue.length });
         showPlayButton();
       }
