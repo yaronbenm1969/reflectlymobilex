@@ -356,9 +356,9 @@ const CubeWebView = ({
     // but add slight X rotation for depth effect while keeping video on working faces
     const ROTATION_PATH = [
       { faceId: 0, rotX: 0, rotY: 0 },         // Front - straight
-      { faceId: 2, rotX: 15, rotY: -90 },      // Right - slight tilt up
-      { faceId: 1, rotX: -10, rotY: -180 },    // Back - slight tilt down
-      { faceId: 3, rotX: 12, rotY: -270 },     // Left - slight tilt up
+      { faceId: 2, rotX: 12, rotY: -90 },      // Right - slight tilt up
+      { faceId: 1, rotX: -35, rotY: -180 },    // Top-tilt - looking down at cube (pseudo-top)
+      { faceId: 3, rotX: 10, rotY: -270 },     // Left - slight tilt up
     ];
     
     // STATE
