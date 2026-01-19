@@ -429,11 +429,12 @@ const CubeWebView = ({
     // Persistent video elements - created once, src changed
     let faceVideoElements = {}; // faceId -> video element (persistent)
     
-    // Initialize video elements once on each face
+    // Initialize video elements once on each face with overlay
     function initFaceVideoElements() {
       [0, 1, 2, 3].forEach(faceId => {
         const el = document.getElementById('face-' + faceId);
         if (el && !faceVideoElements[faceId]) {
+          // Create video element
           const video = document.createElement('video');
           video.muted = true;
           video.playsInline = true;
@@ -441,10 +442,29 @@ const CubeWebView = ({
           video.preload = 'auto';
           video.style.cssText = 'width:100%;height:100%;object-fit:cover;';
           el.appendChild(video);
+          
+          // Create overlay to hide black screen
+          const overlay = document.createElement('div');
+          overlay.className = 'video-loading-overlay';
+          overlay.id = 'overlay-' + faceId;
+          overlay.innerHTML = '<div class="spinner"></div>';
+          el.appendChild(overlay);
+          
           faceVideoElements[faceId] = video;
-          console.log('📺 Created persistent video element on face ' + faceId);
+          console.log('📺 Created video + overlay on face ' + faceId);
         }
       });
+    }
+    
+    // Show/hide overlay for a face
+    function showOverlay(faceId) {
+      const overlay = document.getElementById('overlay-' + faceId);
+      if (overlay) overlay.classList.remove('hidden');
+    }
+    
+    function hideOverlay(faceId) {
+      const overlay = document.getElementById('overlay-' + faceId);
+      if (overlay) overlay.classList.add('hidden');
     }
     
     // Load video onto a face - reuses existing video element, waits for canplay
@@ -488,12 +508,16 @@ const CubeWebView = ({
           video.oncanplay = null;
           video.onerror = null;
           
-          // START PLAYING MUTED immediately to force iOS to render frames
+          // WARM PLAYBACK: briefly play muted to force iOS to decode and render a frame
           video.muted = true;
           video.volume = 0;
-          video.loop = true; // Loop so it keeps rendering even if it ends
           video.play().then(() => {
-            console.log('📹 Face ' + faceId + ' PLAYING MUTED: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
+            // Let it play for 150ms to render first frames, then pause
+            setTimeout(() => {
+              video.pause();
+              video.currentTime = 0;
+              console.log('📹 Face ' + faceId + ' WARMED: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
+            }, 150);
           }).catch(() => {
             console.log('📹 Face ' + faceId + ' ready (autoplay blocked): queue[' + queueIdx + ']');
           });
