@@ -455,15 +455,30 @@ const CubeWebView = ({
         // Wait for canplay (video is ready to play without buffering)
         video.oncanplay = function() {
           if (resolved) return;
-          resolved = true;
           video.oncanplay = null;
-          video.onerror = null;
           
-          // Tiny seek to trigger iOS to paint first frame (no play/pause needed)
+          // Tiny seek to trigger iOS to paint first frame - wait for seeked before resolving
+          video.onseeked = function() {
+            if (resolved) return;
+            resolved = true;
+            video.onseeked = null;
+            video.onerror = null;
+            console.log('📹 Face ' + faceId + ' READY (seeked): queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
+            resolve(video);
+          };
+          
           video.currentTime = 0.001;
           
-          console.log('📹 Face ' + faceId + ' READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
-          resolve(video);
+          // Fallback if seeked doesn't fire (some browsers)
+          setTimeout(() => {
+            if (!resolved) {
+              resolved = true;
+              video.onseeked = null;
+              video.onerror = null;
+              console.log('📹 Face ' + faceId + ' READY (timeout after canplay): queue[' + queueIdx + ']');
+              resolve(video);
+            }
+          }, 500);
         };
         
         video.onerror = function() {
