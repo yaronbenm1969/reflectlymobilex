@@ -317,6 +317,38 @@ const CubeWebView = ({
     .play-button.hidden {
       display: none;
     }
+    .replay-button {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.95);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .replay-button:hover {
+      transform: translate(-50%, -50%) scale(1.1);
+      box-shadow: 0 6px 25px rgba(0,0,0,0.4);
+    }
+    .replay-button:active {
+      transform: translate(-50%, -50%) scale(0.95);
+    }
+    .replay-button .replay-icon {
+      font-size: 36px;
+      color: #FF6B9D;
+    }
+    .replay-button.hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -328,6 +360,9 @@ const CubeWebView = ({
   <div class="depth-grid"></div>
   <button class="play-button hidden" id="play-button" onclick="handlePlayClick()">
     <div class="play-icon"></div>
+  </button>
+  <button class="replay-button hidden" id="replay-button" onclick="handleReplayClick()">
+    <div class="replay-icon">↻</div>
   </button>
   <div class="scene">
     <div class="float-wrapper">
@@ -737,6 +772,8 @@ const CubeWebView = ({
         postMessage('allVideosComplete', { playedCount: fullVideoQueue.length });
         isPlaying = false;
         if (floatAnimId) cancelAnimationFrame(floatAnimId);
+        // Show replay button
+        showReplayButton();
         return;
       }
       
@@ -783,6 +820,49 @@ const CubeWebView = ({
     function hidePlayButton() {
       const btn = document.getElementById('play-button');
       if (btn) btn.classList.add('hidden');
+    }
+    
+    function showReplayButton() {
+      const btn = document.getElementById('replay-button');
+      if (btn) btn.classList.remove('hidden');
+    }
+    
+    function hideReplayButton() {
+      const btn = document.getElementById('replay-button');
+      if (btn) btn.classList.add('hidden');
+    }
+    
+    async function handleReplayClick() {
+      hideReplayButton();
+      console.log('🔄 Replaying: ' + fullVideoQueue.length + ' videos');
+      
+      // Reset all videos to start
+      Object.values(faceVideos).forEach(fv => {
+        if (fv && fv.element) {
+          fv.element.pause();
+          fv.element.currentTime = 0.001;
+        }
+      });
+      
+      // Reset state
+      currentIndex = 0;
+      isPlaying = true;
+      
+      // Set initial rotation with half-to-half offset
+      const initial = getTargetRotation(0);
+      currentRotX = initial.rotX;
+      currentRotY = initial.rotY + HALF_ANGLE;
+      updateCubeTransform(performance.now());
+      
+      // Start float animation
+      floatStartTime = 0;
+      if (floatAnimId) cancelAnimationFrame(floatAnimId);
+      floatAnimId = requestAnimationFrame(floatLoop);
+      
+      // Start first video
+      playCurrentVideo();
+      
+      postMessage('replayStarted', { videoCount: fullVideoQueue.length });
     }
     
     async function handlePlayClick() {
