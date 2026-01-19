@@ -19,6 +19,7 @@ import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
 import { Video3DPlayer } from '../components/Video3DPlayer';
 import CubeWebView from '../components/cube3d/CubeWebView';
+import { AnimationPlayer } from '../components/animations';
 import { useReflectionAssets } from '../hooks/useReflectionAssets';
 import theme from '../theme/theme';
 
@@ -108,6 +109,8 @@ export const FinalVideoScreen = () => {
 
   const is3DFormat = videoFormat && videoFormat !== 'standard';
   const isCube3D = videoFormat === 'cube-3d';
+  const isFlipPages = videoFormat === 'flip-pages';
+  const isAnimatedFormat = isCube3D || isFlipPages;
 
   // Load all reflections (not limited to 6) for proper progress display
   const { 
@@ -117,7 +120,7 @@ export const FinalVideoScreen = () => {
     isReady: assetsReady,
     reset: resetAssets,
     prepareAllAssets 
-  } = useReflectionAssets(isCube3D ? reflections : [], reflections.length || 9);
+  } = useReflectionAssets(isAnimatedFormat ? reflections : [], reflections.length || 9);
 
   const cubeFaces = preparedFaces;
 
@@ -150,7 +153,7 @@ export const FinalVideoScreen = () => {
   };
 
   useEffect(() => {
-    if (isCube3D && assetsReady) {
+    if (isAnimatedFormat && assetsReady) {
       console.log(`🎲 Cube faces ready: ${cubeFaces.filter(f => f !== null).length} faces with pre-converted videos`);
       cubeFaces.forEach((face, i) => {
         if (face) {
@@ -337,13 +340,14 @@ export const FinalVideoScreen = () => {
 
   return (
     <View style={[styles.container, isCubeFullscreen && styles.fullscreenMode]}>
-      {/* SINGLE CUBE - always rendered, changes style when fullscreen */}
-      {isCube3D && assetsReady && (
+      {/* ANIMATION PLAYER - supports cube-3d and flip-pages */}
+      {isAnimatedFormat && assetsReady && (
         <View style={[
           styles.cubeContainer, 
           isCubeFullscreen && styles.fullscreenCubeOverlay
         ]}>
-          <CubeWebView
+          <AnimationPlayer
+            format={videoFormat}
             faces={cubeFaces}
             autoRotate={cubeStarted}
             rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
@@ -352,7 +356,7 @@ export const FinalVideoScreen = () => {
             onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
             onVideoEnd={handleVideoEnd}
             onPlaybackStart={() => {
-              console.log('🚀 Cube fullscreen mode ON');
+              console.log('🚀 Animation fullscreen mode ON');
               setIsCubeFullscreen(true);
               setCubeStarted(true);
             }}
@@ -409,7 +413,7 @@ export const FinalVideoScreen = () => {
 
           <View style={styles.content}>
         <View style={styles.videoContainer}>
-          {isCube3D && assetStatus === 'error' ? (
+          {isAnimatedFormat && assetStatus === 'error' ? (
             /* Show error screen with retry option when downloads failed */
             <View style={styles.cubeContainer}>
               <View style={styles.loadingContainer}>
@@ -431,7 +435,7 @@ export const FinalVideoScreen = () => {
                 </TouchableOpacity>
               </View>
             </View>
-          ) : isCube3D && (assetStatus === 'loading' || assetStatus === 'converting' || (assetStatus === 'idle' && reflections.length > 0)) && !assetsReady ? (
+          ) : isAnimatedFormat && (assetStatus === 'loading' || assetStatus === 'converting' || (assetStatus === 'idle' && reflections.length > 0)) && !assetsReady ? (
             /* Show loading screen while downloading ALL videos */
             <View style={styles.cubeContainer}>
               <View style={styles.loadingContainer}>
@@ -451,7 +455,7 @@ export const FinalVideoScreen = () => {
                 </Text>
               </View>
             </View>
-          ) : isCube3D && assetsReady ? (
+          ) : isAnimatedFormat && assetsReady ? (
             /* Cube is rendered at top level - show empty placeholder here */
             null
           ) : is3DFormat && videos3D.length > 0 ? (
