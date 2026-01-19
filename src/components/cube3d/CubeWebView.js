@@ -418,7 +418,39 @@ const CubeWebView = ({
       });
     }
     
-    // Load video onto a face - reuses existing video element, waits for canplay
+    // Force first frame to be painted on iOS (play/pause trick)
+    function prepareFirstFrame(video) {
+      return new Promise((resolve) => {
+        if (video.readyState < 2) {
+          resolve(false);
+          return;
+        }
+        
+        video.muted = true;
+        video.currentTime = 0.01;
+        
+        const playPromise = video.play();
+        if (playPromise) {
+          playPromise.then(() => {
+            video.pause();
+            video.currentTime = 0;
+            requestAnimationFrame(() => {
+              console.log('🎨 First frame painted for video');
+              resolve(true);
+            });
+          }).catch(() => {
+            video.currentTime = 0;
+            resolve(false);
+          });
+        } else {
+          video.pause();
+          video.currentTime = 0;
+          resolve(true);
+        }
+      });
+    }
+    
+    // Load video onto a face - reuses existing video element, waits for canplay + first frame
     function loadVideoOnFace(faceId, queueIdx) {
       return new Promise((resolve, reject) => {
         if (queueIdx >= fullVideoQueue.length) {
@@ -452,13 +484,17 @@ const CubeWebView = ({
         
         let resolved = false;
         
-        // Wait for canplay (video is ready to play without buffering)
-        video.oncanplay = function() {
+        // Wait for canplay then force first frame paint
+        video.oncanplay = async function() {
           if (resolved) return;
           resolved = true;
           video.oncanplay = null;
           video.onerror = null;
-          console.log('📹 Face ' + faceId + ' READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
+          
+          // Force iOS to paint the first frame (eliminates black screen)
+          await prepareFirstFrame(video);
+          
+          console.log('📹 Face ' + faceId + ' READY+PAINTED: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
           resolve(video);
         };
         
@@ -479,11 +515,12 @@ const CubeWebView = ({
         video.load();
         
         // Fallback timeout
-        setTimeout(() => {
+        setTimeout(async () => {
           if (!resolved && video.readyState >= 2) {
             resolved = true;
             video.oncanplay = null;
             video.onerror = null;
+            await prepareFirstFrame(video);
             console.log('📹 Face ' + faceId + ' timeout-ready: queue[' + queueIdx + ']');
             resolve(video);
           }
