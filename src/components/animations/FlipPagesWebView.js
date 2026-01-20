@@ -503,8 +503,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a2e',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: 400,
-    width: '100%',
+    minHeight: SCREEN_HEIGHT * 0.6,
+    height: SCREEN_HEIGHT * 0.6,
+    width: SCREEN_WIDTH,
   },
   fullscreen: {
     position: 'absolute',
@@ -512,6 +513,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
     zIndex: 1000,
   },
   webView: {
