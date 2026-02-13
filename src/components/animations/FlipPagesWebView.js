@@ -499,12 +499,8 @@ const FlipPagesWebView = ({
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: '#1a1a2e',
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: SCREEN_HEIGHT * 0.6,
-    height: SCREEN_HEIGHT * 0.6,
+    height: SCREEN_HEIGHT * 0.65,
     width: SCREEN_WIDTH,
   },
   fullscreen: {
@@ -519,8 +515,9 @@ const styles = StyleSheet.create({
   },
   webView: {
     flex: 1,
-    width: '100%',
-    backgroundColor: 'transparent',
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT * 0.65,
+    backgroundColor: '#1a1a2e',
   },
   loadingText: {
     color: 'white',
