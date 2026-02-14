@@ -263,7 +263,8 @@ const FlipPagesWebView = ({
         return;
       }
       
-      const video = pageVideos[currentIndex % 4];
+      const pageSlot = currentIndex % 4;
+      const video = pageVideos[pageSlot];
       if (!video) {
         advanceToNext();
         return;
@@ -271,19 +272,29 @@ const FlipPagesWebView = ({
       
       const playingIndex = currentIndex;
       
+      Object.values(pageVideos).forEach(v => { if (v !== video) v.pause(); });
+      
+      video.muted = false;
+      video.currentTime = 0;
+      
       video.onended = function() {
         console.log('🎬 Video ended: ' + playingIndex);
         flipPage(playingIndex % 4);
-        setTimeout(() => advanceToNext(), 600);
+        setTimeout(() => advanceToNext(), 800);
       };
       
-      video.currentTime = 0;
       video.play().then(() => {
-        console.log('▶️ Playing video ' + currentIndex);
+        console.log('▶️ Playing video ' + currentIndex + ' (unmuted)');
         postMessage('videoStart', { pageIndex: currentIndex });
       }).catch(e => {
-        console.log('❌ Play failed: ' + e.message);
-        setTimeout(() => advanceToNext(), 500);
+        console.log('❌ Play failed unmuted, trying muted: ' + e.message);
+        video.muted = true;
+        video.play().then(() => {
+          postMessage('videoStart', { pageIndex: currentIndex });
+        }).catch(e2 => {
+          console.log('❌ Play failed completely: ' + e2.message);
+          setTimeout(() => advanceToNext(), 500);
+        });
       });
     }
     
@@ -302,11 +313,12 @@ const FlipPagesWebView = ({
         for (let i = 0; i < Math.min(4, fullVideoQueue.length - currentIndex); i++) {
           const video = pageVideos[i];
           if (video && fullVideoQueue[currentIndex + i]) {
+            video.muted = true;
             video.src = fullVideoQueue[currentIndex + i].videoUrl;
             video.load();
           }
         }
-        setTimeout(() => playCurrentVideo(), 300);
+        setTimeout(() => playCurrentVideo(), 500);
       } else {
         playCurrentVideo();
       }
@@ -348,13 +360,11 @@ const FlipPagesWebView = ({
       isPlaying = true;
       resetAllPages();
       
-      Object.values(pageVideos).forEach(v => {
-        if (v) v.currentTime = 0;
-      });
-      
       for (let i = 0; i < Math.min(4, fullVideoQueue.length); i++) {
         const video = pageVideos[i];
         if (video && fullVideoQueue[i]) {
+          video.muted = true;
+          video.currentTime = 0;
           video.src = fullVideoQueue[i].videoUrl;
           video.load();
         }
@@ -363,7 +373,7 @@ const FlipPagesWebView = ({
       setTimeout(() => {
         postMessage('replayStarted', { videoCount: fullVideoQueue.length });
         playCurrentVideo();
-      }, 300);
+      }, 500);
     }
     
     function init() {
