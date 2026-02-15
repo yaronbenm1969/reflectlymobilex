@@ -681,9 +681,6 @@ const CubeWebView = ({
       activeVideoIndex = -1;
     }
     
-    let cubeEarlyTransitionDone = false;
-    const CUBE_OVERLAP_TIME = 1.5;
-    
     function preloadUpcoming(fromIndex) {
       for (let ahead = 1; ahead <= 3; ahead++) {
         const idx = fromIndex + ahead;
@@ -726,40 +723,21 @@ const CubeWebView = ({
       
       const video = fv.element;
       const playingIndex = currentIndex;
-      cubeEarlyTransitionDone = false;
       
       Object.entries(faceVideos).forEach(([id, v]) => {
         if (parseInt(id) !== faceId && v && v.element) {
-          if (v.element.ended || v.element.paused) {
-            v.element.muted = true;
-            v.element.volume = 0;
-          }
+          v.element.pause();
+          v.element.muted = true;
         }
       });
       
       video.muted = false;
       video.volume = 1;
       
-      video.ontimeupdate = function() {
-        if (cubeEarlyTransitionDone) return;
-        const remaining = video.duration - video.currentTime;
-        if (remaining <= CUBE_OVERLAP_TIME && video.duration > CUBE_OVERLAP_TIME + 0.5) {
-          cubeEarlyTransitionDone = true;
-          console.log('⚡ Cube early transition at ' + remaining.toFixed(1) + 's remaining');
-          video.ontimeupdate = null;
-          video.onended = null;
-          if (videoTimeoutId) clearTimeout(videoTimeoutId);
-          clearRotationSync();
-          if (currentIndex === playingIndex) advanceToNext();
-        }
-      };
-      
       video.onended = function() {
-        if (cubeEarlyTransitionDone) return;
-        video.ontimeupdate = null;
         if (videoTimeoutId) clearTimeout(videoTimeoutId);
         clearRotationSync();
-        console.log('🎬 Video ended: queue[' + playingIndex + ']');
+        console.log('🎬 Video ended naturally: queue[' + playingIndex + ']');
         if (currentIndex === playingIndex) advanceToNext();
       };
       
@@ -780,7 +758,6 @@ const CubeWebView = ({
         
         videoTimeoutId = setTimeout(() => {
           console.log('⏰ Timeout: queue[' + playingIndex + '] - forcing advance');
-          video.ontimeupdate = null;
           clearRotationSync();
           if (currentIndex === playingIndex) advanceToNext();
         }, timeout);
