@@ -681,18 +681,18 @@ const CubeWebView = ({
       activeVideoIndex = -1;
     }
     
+    let cubeEarlyTransitionDone = false;
+    const CUBE_OVERLAP_TIME = 1.0;
+    
     async function playCurrentVideo() {
       const faceId = getFaceForIndex(currentIndex);
       let fv = faceVideos[faceId];
       
-      // Clear any existing timeout
       if (videoTimeoutId) {
         clearTimeout(videoTimeoutId);
         videoTimeoutId = null;
       }
       
-      // CRITICAL: Verify this face has the correct video loaded
-      // If not, reload it before playing
       if (!fv || !fv.element || fv.queueIdx !== currentIndex) {
         console.log('🔄 Face ' + faceId + ' has wrong video (has ' + (fv ? fv.queueIdx : 'none') + ', need ' + currentIndex + '), reloading...');
         try {
@@ -712,9 +712,9 @@ const CubeWebView = ({
       }
       
       const video = fv.element;
-      const playingIndex = currentIndex; // Capture for closure
+      const playingIndex = currentIndex;
+      cubeEarlyTransitionDone = false;
       
-      // Pause all others, reset to first frame
       Object.entries(faceVideos).forEach(([id, v]) => {
         if (parseInt(id) !== faceId && v && v.element) {
           v.element.pause();
@@ -723,13 +723,26 @@ const CubeWebView = ({
         }
       });
       
-      // Play current with sound (don't reset currentTime - already at first frame from preload)
       video.muted = false;
       video.volume = 1;
       
-      // Remove old ended listener, add new one
-      video.onended = null;
+      video.ontimeupdate = function() {
+        if (cubeEarlyTransitionDone) return;
+        const remaining = video.duration - video.currentTime;
+        if (remaining <= CUBE_OVERLAP_TIME && video.duration > CUBE_OVERLAP_TIME + 0.5) {
+          cubeEarlyTransitionDone = true;
+          console.log('⚡ Cube early transition at ' + remaining.toFixed(1) + 's remaining');
+          video.ontimeupdate = null;
+          video.onended = null;
+          if (videoTimeoutId) clearTimeout(videoTimeoutId);
+          clearRotationSync();
+          if (currentIndex === playingIndex) advanceToNext();
+        }
+      };
+      
       video.onended = function() {
+        if (cubeEarlyTransitionDone) return;
+        video.ontimeupdate = null;
         if (videoTimeoutId) clearTimeout(videoTimeoutId);
         clearRotationSync();
         console.log('🎬 Video ended: queue[' + playingIndex + ']');
@@ -742,10 +755,8 @@ const CubeWebView = ({
         console.log('✅ Play started: queue[' + currentIndex + ']');
         postMessage('videoStart', { faceId, queueIndex: currentIndex });
         
-        // Set up rotation sync based on video progress
         setupRotationSync(video, playingIndex);
         
-        // Set safety timeout based on video duration (+ 2 sec buffer)
         const duration = video.duration;
         const timeout = (duration && isFinite(duration) && duration > 0) 
           ? (duration + 2) * 1000 
@@ -753,6 +764,7 @@ const CubeWebView = ({
         
         videoTimeoutId = setTimeout(() => {
           console.log('⏰ Timeout: queue[' + playingIndex + '] - forcing advance');
+          video.ontimeupdate = null;
           clearRotationSync();
           if (currentIndex === playingIndex) advanceToNext();
         }, timeout);
