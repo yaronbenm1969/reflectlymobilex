@@ -116,13 +116,7 @@ const FlipPagesWebView = ({
       transform: rotateY(180deg);
     }
     .page-shadow {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 50px;
-      height: 100%;
-      background: linear-gradient(to right, rgba(0,0,0,0.3), transparent);
-      pointer-events: none;
+      display: none;
     }
     .play-button {
       position: absolute;
@@ -182,25 +176,21 @@ const FlipPagesWebView = ({
   </button>
   
   <div class="book-container" id="book">
-    <div class="page" id="page-0">
-      <div class="page-front" id="front-0"></div>
-      <div class="page-back" id="back-0"></div>
-      <div class="page-shadow"></div>
-    </div>
-    <div class="page" id="page-1">
-      <div class="page-front" id="front-1"></div>
-      <div class="page-back" id="back-1"></div>
-      <div class="page-shadow"></div>
-    </div>
-    <div class="page" id="page-2">
-      <div class="page-front" id="front-2"></div>
-      <div class="page-back" id="back-2"></div>
-      <div class="page-shadow"></div>
-    </div>
-    <div class="page" id="page-3">
+    <div class="page" id="page-3" style="z-index:10;">
       <div class="page-front" id="front-3"></div>
       <div class="page-back" id="back-3"></div>
-      <div class="page-shadow"></div>
+    </div>
+    <div class="page" id="page-2" style="z-index:20;">
+      <div class="page-front" id="front-2"></div>
+      <div class="page-back" id="back-2"></div>
+    </div>
+    <div class="page" id="page-1" style="z-index:30;">
+      <div class="page-front" id="front-1"></div>
+      <div class="page-back" id="back-1"></div>
+    </div>
+    <div class="page" id="page-0" style="z-index:40;">
+      <div class="page-front" id="front-0"></div>
+      <div class="page-back" id="back-0"></div>
     </div>
   </div>
   
@@ -243,6 +233,7 @@ const FlipPagesWebView = ({
       const page = document.getElementById('page-' + pageIndex);
       if (page) {
         page.classList.add('flipped');
+        page.style.zIndex = 1;
         console.log('📖 Flipped page ' + pageIndex);
       }
     }
@@ -250,7 +241,10 @@ const FlipPagesWebView = ({
     function resetAllPages() {
       for (let i = 0; i < 4; i++) {
         const page = document.getElementById('page-' + i);
-        if (page) page.classList.remove('flipped');
+        if (page) {
+          page.classList.remove('flipped');
+          page.style.zIndex = (4 - i) * 10;
+        }
       }
     }
     
