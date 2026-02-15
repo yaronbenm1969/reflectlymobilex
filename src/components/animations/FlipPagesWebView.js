@@ -297,11 +297,12 @@ const FlipPagesWebView = ({
         if (remaining <= OVERLAP_TIME && video.duration > OVERLAP_TIME + 0.5) {
           earlyTransitionDone = true;
           console.log('⚡ Early transition at ' + remaining.toFixed(1) + 's remaining');
+          video.muted = true;
+          video.volume = 0;
           flipPage(playingIndex % 4);
           setTimeout(() => {
             video.ontimeupdate = null;
             video.onended = null;
-            video.pause();
             if (currentIndex === playingIndex) advanceToNext();
           }, 600);
         }

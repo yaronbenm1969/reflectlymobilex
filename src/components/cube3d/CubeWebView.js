@@ -730,9 +730,8 @@ const CubeWebView = ({
       
       Object.entries(faceVideos).forEach(([id, v]) => {
         if (parseInt(id) !== faceId && v && v.element) {
-          v.element.pause();
           v.element.muted = true;
-          v.element.currentTime = 0;
+          v.element.volume = 0;
         }
       });
       
