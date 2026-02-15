@@ -590,9 +590,6 @@ const CubeWebView = ({
     let activeVideoIndex = -1;
     let rotationFromX = 0, rotationFromY = 0;
     let rotationToX = 0, rotationToY = 0;
-    let isTransitioning = false;
-    let transitionStartTime = 0;
-    const TRANSITION_DURATION = 500;
     
     // ============ FLOAT & ROTATION ANIMATION ============
     function updateCubeTransform(timestamp) {
@@ -610,20 +607,23 @@ const CubeWebView = ({
       const depthScale = 0.95 + depthPhase1 + depthPhase2;
       const depthTranslateZ = Math.sin(elapsed * 0.18 + 2) * 110 + Math.cos(elapsed * 0.12) * 70;
       
-      if (isTransitioning) {
-        const elapsed = timestamp - transitionStartTime;
-        const progress = Math.min(elapsed / TRANSITION_DURATION, 1);
-        const ease = progress < 0.5 
-          ? 2 * progress * progress 
-          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+      // VIDEO-SYNCED ROTATION: Update rotation based on current video progress
+      if (activeVideo && activeVideoIndex >= 0) {
+        const duration = activeVideo.duration;
+        const currentTime = activeVideo.currentTime;
         
-        currentRotX = rotationFromX + (rotationToX - rotationFromX) * ease;
-        currentRotY = rotationFromY + (rotationToY - rotationFromY) * ease;
-        
-        if (progress >= 1) {
-          currentRotX = rotationToX;
-          currentRotY = rotationToY;
-          isTransitioning = false;
+        if (duration && duration > 0 && isFinite(duration)) {
+          // Calculate progress (0 to 1)
+          const progress = Math.min(currentTime / duration, 1);
+          
+          // Smooth easing for rotation
+          const ease = progress < 0.5 
+            ? 2 * progress * progress 
+            : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+          
+          // Interpolate rotation based on video progress
+          currentRotX = rotationFromX + (rotationToX - rotationFromX) * ease;
+          currentRotY = rotationFromY + (rotationToY - rotationFromY) * ease;
         }
       }
       
@@ -648,23 +648,32 @@ const CubeWebView = ({
     let videoTimeoutId = null;
     const MAX_VIDEO_DURATION = 60; // Safety timeout: max 60 seconds per video
     
-    function setFaceCentered(videoIndex) {
-      const target = getTargetRotation(videoIndex);
-      currentRotX = target.rotX;
-      currentRotY = target.rotY;
-      isTransitioning = false;
-      console.log('📌 Face centered: idx=' + videoIndex + ' rot(' + target.rotX + ',' + target.rotY + ')');
-    }
+    // Set up rotation sync for a video - "HALF TO HALF" mode
+    // Video starts when face is at +45° (entering), ends when face is at -45° (exiting)
+    // This creates smooth overlap where next video starts as current exits
+    const HALF_ANGLE = 45; // Offset for half-to-half transitions
     
-    function animateToFace(videoIndex) {
-      const target = getTargetRotation(videoIndex);
-      rotationFromX = currentRotX;
-      rotationFromY = currentRotY;
-      rotationToX = target.rotX;
-      rotationToY = target.rotY;
-      transitionStartTime = performance.now();
-      isTransitioning = true;
-      console.log('🔄 Rotating to face: idx=' + videoIndex + ' from(' + rotationFromX + ',' + rotationFromY + ') to(' + rotationToX + ',' + rotationToY + ')');
+    function setupRotationSync(video, videoIndex) {
+      // Get rotation targets for current and next face
+      const fromTarget = getTargetRotation(videoIndex);
+      const toTarget = getTargetRotation(videoIndex + 1);
+      
+      // HALF-TO-HALF: Offset Y rotation by 45° so video plays from "entering" to "exiting"
+      // Instead of 0° to -90°, we do +45° to -45° (face enters from right, exits to left)
+      rotationFromX = fromTarget.rotX;
+      rotationFromY = fromTarget.rotY + HALF_ANGLE; // Start 45° before center
+      rotationToX = toTarget.rotX;
+      rotationToY = toTarget.rotY + HALF_ANGLE; // End 45° after center (same offset)
+      
+      // Set current position to start
+      currentRotX = rotationFromX;
+      currentRotY = rotationFromY;
+      
+      // Activate video for rotation sync
+      activeVideo = video;
+      activeVideoIndex = videoIndex;
+      
+      console.log('🔄 Half-to-half sync: idx=' + videoIndex + ' from(' + rotationFromX + ',' + rotationFromY + ') to(' + rotationToX + ',' + rotationToY + ')');
     }
     
     function clearRotationSync() {
@@ -727,6 +736,7 @@ const CubeWebView = ({
       
       video.onended = function() {
         if (videoTimeoutId) clearTimeout(videoTimeoutId);
+        clearRotationSync();
         console.log('🎬 Video ended naturally: queue[' + playingIndex + ']');
         if (currentIndex === playingIndex) advanceToNext();
       };
@@ -737,6 +747,8 @@ const CubeWebView = ({
         console.log('✅ Play started: queue[' + currentIndex + ']');
         postMessage('videoStart', { faceId, queueIndex: currentIndex });
         
+        setupRotationSync(video, playingIndex);
+        
         preloadUpcoming(playingIndex);
         
         const duration = video.duration;
@@ -746,6 +758,7 @@ const CubeWebView = ({
         
         videoTimeoutId = setTimeout(() => {
           console.log('⏰ Timeout: queue[' + playingIndex + '] - forcing advance');
+          clearRotationSync();
           if (currentIndex === playingIndex) advanceToNext();
         }, timeout);
         
@@ -768,11 +781,9 @@ const CubeWebView = ({
         return;
       }
       
-      animateToFace(currentIndex);
+      clearRotationSync();
       
-      setTimeout(() => {
-        playCurrentVideo();
-      }, TRANSITION_DURATION + 50);
+      playCurrentVideo();
     }
     
     // ============ INITIALIZATION ============
@@ -817,7 +828,10 @@ const CubeWebView = ({
       currentIndex = 0;
       isPlaying = true;
       
-      setFaceCentered(0);
+      // Set initial rotation with half-to-half offset
+      const initial = getTargetRotation(0);
+      currentRotX = initial.rotX;
+      currentRotY = initial.rotY + HALF_ANGLE;
       updateCubeTransform(performance.now());
       
       // Start float animation
@@ -845,16 +859,23 @@ const CubeWebView = ({
       currentIndex = 0;
       isPlaying = true;
       
-      setFaceCentered(0);
+      // Set initial rotation to face 0 with half-to-half offset
+      const initial = getTargetRotation(0);
+      currentRotX = initial.rotX;
+      currentRotY = initial.rotY + HALF_ANGLE; // Start at +45° for half-to-half
       updateCubeTransform(performance.now());
       
+      // Videos are already preloaded from init() - no need to reload!
+      // Just verify they're ready
       console.log('📦 Using pre-loaded videos (no reload needed)');
       
       postMessage('animationStarted', { videoCount: fullVideoQueue.length });
       
+      // Start float animation
       floatStartTime = 0;
       floatAnimId = requestAnimationFrame(floatLoop);
       
+      // Play first video immediately (already loaded)
       playCurrentVideo();
     }
     
