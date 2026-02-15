@@ -14,6 +14,7 @@ const AnimationPlayer = ({
   onReadyToPlay,
   isFullscreen = false,
   currentPlayingFaceIndex = -1,
+  storyName = '',
 }) => {
   console.log('🎬 AnimationPlayer rendering format:', format);
   
@@ -22,6 +23,7 @@ const AnimationPlayer = ({
       return (
         <FlipPagesWebView
           faces={faces}
+          storyName={storyName}
           onFaceChange={onFaceChange}
           onVideoStart={onVideoStart}
           onVideoEnd={onVideoEnd}

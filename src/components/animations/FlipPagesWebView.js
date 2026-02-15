@@ -11,6 +11,7 @@ const FLIP_HTML_DIR = FileSystem.cacheDirectory + 'flip_pages_v1/';
 
 const FlipPagesWebView = ({
   faces = [],
+  storyName = '',
   onFaceChange,
   onVideoStart,
   onVideoEnd,
@@ -74,6 +75,7 @@ const FlipPagesWebView = ({
       videoUrl: face?.videoUrl || null,
       playerName: face?.playerName || `סרטון ${index + 1}`,
     })));
+    const safeStoryName = (storyName || 'הסיפור שלי').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
     return `
 <!DOCTYPE html>
@@ -174,6 +176,94 @@ const FlipPagesWebView = ({
     .page.flipped {
       transform: rotateY(180deg);
     }
+    .book-cover {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      transform-origin: right center;
+      transform-style: preserve-3d;
+      transition: transform 1.8s cubic-bezier(0.645, 0.045, 0.355, 1.000);
+      z-index: 100;
+      border-radius: 4px 10px 10px 4px;
+      cursor: pointer;
+    }
+    .book-cover-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 4px 10px 10px 4px;
+      overflow: hidden;
+    }
+    .book-cover-front-face {
+      background: linear-gradient(160deg, #8B4513 0%, #654321 30%, #5C3317 50%, #8B4513 70%, #A0522D 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 3px 4px 15px rgba(0,0,0,0.5), inset 0 0 30px rgba(0,0,0,0.15);
+      border: 2px solid rgba(139,69,19,0.4);
+    }
+    .cover-border {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      border: 1px solid rgba(212,175,55,0.35);
+      border-radius: 4px;
+      pointer-events: none;
+    }
+    .cover-border-inner {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      border: 1px solid rgba(212,175,55,0.2);
+      border-radius: 2px;
+      pointer-events: none;
+    }
+    .cover-title {
+      color: #D4AF37;
+      font-size: 26px;
+      font-weight: bold;
+      text-align: center;
+      padding: 0 30px;
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.5), 0 0 15px rgba(212,175,55,0.3);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      line-height: 1.4;
+      letter-spacing: 1px;
+      z-index: 2;
+    }
+    .cover-ornament {
+      width: 60px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #D4AF37, transparent);
+      margin: 16px auto;
+      z-index: 2;
+    }
+    .cover-subtitle {
+      color: rgba(212,175,55,0.6);
+      font-size: 13px;
+      text-align: center;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      z-index: 2;
+    }
+    .cover-icon {
+      font-size: 40px;
+      margin-bottom: 20px;
+      z-index: 2;
+      opacity: 0.8;
+    }
+    .book-cover-inside {
+      transform: rotateY(-180deg);
+      background: linear-gradient(145deg, #f5f0e8, #ebe4d8);
+    }
+    .book-cover.opened {
+      transform: rotateY(180deg);
+    }
     .book-shadow {
       position: absolute;
       bottom: -15px;
@@ -260,6 +350,17 @@ const FlipPagesWebView = ({
     <div class="page" id="page-0" style="z-index:40;">
       <div class="page-front" id="front-0"></div>
       <div class="page-back" id="back-0"></div>
+    </div>
+    <div class="book-cover" id="book-cover">
+      <div class="book-cover-face book-cover-front-face">
+        <div class="cover-border"></div>
+        <div class="cover-border-inner"></div>
+        <div class="cover-icon">📖</div>
+        <div class="cover-title">${safeStoryName}</div>
+        <div class="cover-ornament"></div>
+        <div class="cover-subtitle">Reflectly</div>
+      </div>
+      <div class="book-cover-face book-cover-inside"></div>
     </div>
     <div class="book-shadow"></div>
   </div>
@@ -450,19 +551,29 @@ const FlipPagesWebView = ({
       hasUserStarted = true;
       hidePlayButton();
       
-      currentIndex = 0;
-      isPlaying = true;
-      resetAllPages();
-      
-      postMessage('animationStarted', { videoCount: fullVideoQueue.length });
-      playCurrentVideo();
+      const cover = document.getElementById('book-cover');
+      if (cover) {
+        cover.classList.add('opened');
+        setTimeout(() => {
+          cover.style.display = 'none';
+          currentIndex = 0;
+          isPlaying = true;
+          resetAllPages();
+          postMessage('animationStarted', { videoCount: fullVideoQueue.length });
+          playCurrentVideo();
+        }, 1900);
+      } else {
+        currentIndex = 0;
+        isPlaying = true;
+        resetAllPages();
+        postMessage('animationStarted', { videoCount: fullVideoQueue.length });
+        playCurrentVideo();
+      }
     }
     
     function handleReplayClick() {
       hideReplayButton();
-      currentIndex = 0;
-      isPlaying = true;
-      resetAllPages();
+      hasUserStarted = false;
       
       for (let i = 0; i < Math.min(4, fullVideoQueue.length); i++) {
         const video = pageVideos[i];
@@ -474,10 +585,19 @@ const FlipPagesWebView = ({
         }
       }
       
+      currentIndex = 0;
+      isPlaying = false;
+      resetAllPages();
+      
+      const cover = document.getElementById('book-cover');
+      if (cover) {
+        cover.style.display = '';
+        cover.classList.remove('opened');
+      }
+      
       setTimeout(() => {
-        postMessage('replayStarted', { videoCount: fullVideoQueue.length });
-        playCurrentVideo();
-      }, 500);
+        showPlayButton();
+      }, 300);
     }
     
     function init() {
@@ -506,7 +626,7 @@ const FlipPagesWebView = ({
   </script>
 </body>
 </html>`;
-  }, [initialFaces]);
+  }, [initialFaces, storyName]);
 
   useEffect(() => {
     if (!flipHTML) return;

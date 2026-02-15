@@ -351,6 +351,7 @@ export const FinalVideoScreen = () => {
           <AnimationPlayer
             format={videoFormat}
             faces={cubeFaces}
+            storyName={storyName}
             autoRotate={cubeStarted}
             rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
             isFullscreen={isCubeFullscreen}
