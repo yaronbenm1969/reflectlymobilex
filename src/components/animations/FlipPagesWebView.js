@@ -42,9 +42,29 @@ const FlipPagesWebView = ({
     if (minRequired > 0 && readyCount >= minRequired) {
       console.log(`📖 All ${minRequired} initial videos ready - initializing flip pages`);
       hasInitializedRef.current = true;
-      setInitialFaces(faces);
+      setInitialFaces([...faces]);
     }
   }, [faces]);
+
+  useEffect(() => {
+    if (!hasInitializedRef.current || !initialFaces || !webViewRef.current) return;
+    const newFaces = faces.filter(f => f?.videoUrl).slice(initialFaces.length);
+    if (newFaces.length > 0) {
+      const newVideos = newFaces.map((face, i) => ({
+        index: initialFaces.length + i,
+        videoUrl: face.videoUrl,
+        playerName: face?.playerName || `סרטון ${initialFaces.length + i + 1}`,
+      }));
+      console.log(`📖 Sending ${newVideos.length} additional videos to WebView`);
+      webViewRef.current.injectJavaScript(`
+        if (window.addVideosToQueue) {
+          window.addVideosToQueue(${JSON.stringify(newVideos)});
+        }
+        true;
+      `);
+      setInitialFaces([...faces]);
+    }
+  }, [faces, initialFaces]);
 
   const flipHTML = useMemo(() => {
     if (!initialFaces || initialFaces.length === 0) return null;
@@ -248,16 +268,18 @@ const FlipPagesWebView = ({
       }
     }
     
-    let earlyTransitionDone = false;
-    const OVERLAP_TIME = 1.5;
+    window.addVideosToQueue = function(newVideos) {
+      newVideos.forEach(function(v) {
+        fullVideoQueue.push(v);
+      });
+      console.log('📖 Queue updated: now ' + fullVideoQueue.length + ' videos');
+    };
     
     function preloadNextVideo() {
       const nextIdx = currentIndex + 1;
       if (nextIdx >= fullVideoQueue.length) return;
       
       const nextSlot = nextIdx % 4;
-      if (nextSlot === 0) return;
-      
       const nextVideo = pageVideos[nextSlot];
       if (nextVideo && fullVideoQueue[nextIdx]) {
         nextVideo.muted = true;
@@ -284,34 +306,33 @@ const FlipPagesWebView = ({
       }
       
       const playingIndex = currentIndex;
-      earlyTransitionDone = false;
       
       Object.values(pageVideos).forEach(v => { if (v !== video) v.pause(); });
       
       video.muted = false;
       video.currentTime = 0;
       
+      let earlyFlipDone = false;
+      
       video.ontimeupdate = function() {
-        if (earlyTransitionDone) return;
+        if (earlyFlipDone) return;
         const remaining = video.duration - video.currentTime;
-        if (remaining <= OVERLAP_TIME && video.duration > OVERLAP_TIME + 0.5) {
-          earlyTransitionDone = true;
-          console.log('⚡ Early transition at ' + remaining.toFixed(1) + 's remaining');
+        if (remaining <= 1.5 && video.duration > 2) {
+          earlyFlipDone = true;
+          console.log('⚡ Early flip at ' + remaining.toFixed(1) + 's remaining (video keeps playing)');
           flipPage(playingIndex % 4);
-          setTimeout(() => {
-            video.ontimeupdate = null;
-            video.onended = null;
-            if (currentIndex === playingIndex) advanceToNext();
-          }, 600);
         }
       };
       
       video.onended = function() {
-        if (earlyTransitionDone) return;
-        console.log('🎬 Video ended: ' + playingIndex);
         video.ontimeupdate = null;
-        flipPage(playingIndex % 4);
-        setTimeout(() => advanceToNext(), 600);
+        if (!earlyFlipDone) {
+          flipPage(playingIndex % 4);
+        }
+        console.log('🎬 Video ended naturally: ' + playingIndex);
+        setTimeout(() => {
+          if (currentIndex === playingIndex) advanceToNext();
+        }, earlyFlipDone ? 100 : 600);
       };
       
       video.play().then(() => {

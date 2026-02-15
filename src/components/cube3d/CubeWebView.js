@@ -31,23 +31,38 @@ const CubeWebView = ({
   const hasInitializedRef = useRef(false);
   const webViewKeyRef = useRef(Date.now()); // Fixed key to prevent WebView recreation
   
-  // Capture initial faces once when first 4 faces have videos ready (4 side faces only)
   useEffect(() => {
     if (hasInitializedRef.current) return;
-    
-    // Get first 4 faces
     const first4 = faces.slice(0, 4);
-    
-    // Check if ALL 4 have videoUrl (or less if total is under 4)
     const minRequired = Math.min(4, faces.length);
     const readyCount = first4.filter(f => f?.videoUrl).length;
     
     if (minRequired > 0 && readyCount >= minRequired) {
       console.log(`🎲 All ${minRequired} initial videos ready - initializing cube`);
       hasInitializedRef.current = true;
-      setInitialFaces(faces);
+      setInitialFaces([...faces]);
     }
   }, [faces]);
+
+  useEffect(() => {
+    if (!hasInitializedRef.current || !initialFaces || !webViewRef.current) return;
+    const newFaces = faces.filter(f => f?.videoUrl).slice(initialFaces.length);
+    if (newFaces.length > 0) {
+      const newVideos = newFaces.map((face, i) => ({
+        index: initialFaces.length + i,
+        videoUrl: face.videoUrl,
+        playerName: face?.playerName || `סרטון ${initialFaces.length + i + 1}`,
+      }));
+      console.log(`🎲 Sending ${newVideos.length} additional videos to cube WebView`);
+      webViewRef.current.injectJavaScript(`
+        if (window.addVideosToQueue) {
+          window.addVideosToQueue(${JSON.stringify(newVideos)});
+        }
+        true;
+      `);
+      setInitialFaces([...faces]);
+    }
+  }, [faces, initialFaces]);
 
   // Use initial faces for HTML generation - prevents WebView reload on face updates
   const cubeHTML = useMemo(() => {
@@ -385,6 +400,13 @@ const CubeWebView = ({
     
     const faces = ${facesJSON};
     let fullVideoQueue = faces.filter(f => f && f.videoUrl);
+    
+    window.addVideosToQueue = function(newVideos) {
+      newVideos.forEach(function(v) {
+        fullVideoQueue.push(v);
+      });
+      console.log('🎲 Queue updated: now ' + fullVideoQueue.length + ' videos');
+    };
     
     // 4-face rotation path with dynamic tilt for visual interest
     // iOS WebView cannot render video on rotateX faces, so we use only side faces
