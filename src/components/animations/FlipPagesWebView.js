@@ -85,7 +85,7 @@ const FlipPagesWebView = ({
       position: absolute;
       width: 100%;
       height: 100%;
-      transform-origin: left center;
+      transform-origin: right center;
       transform-style: preserve-3d;
       transition: transform 1.2s ease-in-out;
       border-radius: 8px;
@@ -105,7 +105,7 @@ const FlipPagesWebView = ({
       z-index: 2;
     }
     .page-back {
-      transform: rotateY(180deg);
+      transform: rotateY(-180deg);
     }
     .page video {
       width: 100%;
@@ -113,15 +113,15 @@ const FlipPagesWebView = ({
       object-fit: cover;
     }
     .page.flipped {
-      transform: rotateY(-180deg);
+      transform: rotateY(180deg);
     }
     .page-shadow {
       position: absolute;
       top: 0;
-      right: 0;
+      left: 0;
       width: 50px;
       height: 100%;
-      background: linear-gradient(to left, rgba(0,0,0,0.3), transparent);
+      background: linear-gradient(to right, rgba(0,0,0,0.3), transparent);
       pointer-events: none;
     }
     .play-button {
