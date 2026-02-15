@@ -95,75 +95,48 @@ const FlipPagesWebView = ({
       justify-content: center;
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     }
-    .scene {
-      perspective: 1800px;
-      perspective-origin: 50% 50%;
-    }
-    .book-wrapper {
-      transform-style: preserve-3d;
-      transform: rotateX(8deg) rotateY(-12deg);
-      position: relative;
-    }
     .book-container {
       width: ${PAGE_WIDTH}px;
       height: ${PAGE_HEIGHT}px;
       position: relative;
-      transform-style: preserve-3d;
+      perspective: 1500px;
     }
     .book-spine {
       position: absolute;
-      right: -15px;
-      top: -4px;
-      width: 16px;
-      height: calc(100% + 8px);
-      background: linear-gradient(90deg, #8B4513, #A0522D, #8B4513);
-      transform: rotateY(90deg) translateZ(0px);
-      transform-origin: left center;
+      right: -10px;
+      top: -3px;
+      width: 12px;
+      height: calc(100% + 6px);
+      background: linear-gradient(90deg, #6B3410, #8B4513, #6B3410);
       border-radius: 2px 0 0 2px;
-      box-shadow: inset 0 0 8px rgba(0,0,0,0.4);
-      z-index: 0;
+      box-shadow: inset 0 0 6px rgba(0,0,0,0.5), 2px 0 6px rgba(0,0,0,0.3);
+      z-index: 50;
     }
     .book-cover-back {
       position: absolute;
-      width: calc(100% + 4px);
-      height: calc(100% + 8px);
-      top: -4px;
-      right: -2px;
-      background: linear-gradient(145deg, #6B3410, #4A2508);
+      width: calc(100% + 6px);
+      height: calc(100% + 6px);
+      top: -3px;
+      right: -12px;
+      background: linear-gradient(145deg, #5C2D0E, #3A1A06);
       border-radius: 4px 10px 10px 4px;
-      box-shadow: 4px 6px 20px rgba(0,0,0,0.6), inset 0 0 20px rgba(0,0,0,0.2);
+      box-shadow: 4px 6px 20px rgba(0,0,0,0.6), inset 0 0 15px rgba(0,0,0,0.2);
       z-index: -1;
-      transform: translateZ(-16px);
-    }
-    .book-cover-front {
-      position: absolute;
-      width: calc(100% + 4px);
-      height: calc(100% + 8px);
-      top: -4px;
-      right: -2px;
-      background: linear-gradient(145deg, #8B4513, #6B3410);
-      border-radius: 4px 10px 10px 4px;
-      box-shadow: 2px 3px 12px rgba(0,0,0,0.4), inset 0 0 15px rgba(139,69,19,0.3);
-      z-index: 1;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.5s;
     }
     .page-edges {
       position: absolute;
-      right: -2px;
-      top: 2px;
-      width: 14px;
-      height: calc(100% - 4px);
+      bottom: -3px;
+      right: 0;
+      width: 90%;
+      height: 8px;
       background: repeating-linear-gradient(
-        180deg,
-        #f5f0e8 0px, #f5f0e8 1px,
-        #e8e0d4 1px, #e8e0d4 2px
+        90deg,
+        #f5f0e8 0px, #f5f0e8 2px,
+        #e0d8cc 2px, #e0d8cc 3px
       );
-      transform: rotateY(90deg) translateZ(-1px);
-      transform-origin: left center;
-      border-radius: 0 1px 1px 0;
-      z-index: 0;
+      border-radius: 0 0 4px 4px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+      z-index: -1;
     }
     .page {
       position: absolute;
@@ -186,7 +159,7 @@ const FlipPagesWebView = ({
     }
     .page-front {
       z-index: 2;
-      box-shadow: -2px 0 8px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.1);
+      box-shadow: -3px 0 10px rgba(0,0,0,0.2), 0 2px 8px rgba(0,0,0,0.15);
     }
     .page-back {
       transform: rotateY(-180deg);
@@ -201,34 +174,14 @@ const FlipPagesWebView = ({
     .page.flipped {
       transform: rotateY(180deg);
     }
-    .page-shadow-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 3;
-      opacity: 0;
-      transition: opacity 0.6s;
-      background: linear-gradient(to right, 
-        rgba(0,0,0,0.3) 0%, 
-        rgba(0,0,0,0.05) 15%, 
-        transparent 50%
-      );
-      border-radius: 4px 8px 8px 4px;
-    }
-    .page.flipped .page-shadow-overlay {
-      opacity: 0;
-    }
     .book-shadow {
       position: absolute;
-      bottom: -20px;
-      right: 10%;
-      width: 80%;
-      height: 20px;
-      background: radial-gradient(ellipse at center, rgba(0,0,0,0.4) 0%, transparent 70%);
-      filter: blur(8px);
+      bottom: -15px;
+      right: 5%;
+      width: 90%;
+      height: 15px;
+      background: radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, transparent 70%);
+      filter: blur(6px);
       z-index: -2;
     }
     .play-button {
@@ -288,36 +241,27 @@ const FlipPagesWebView = ({
     <div class="replay-icon">↻</div>
   </button>
   
-  <div class="scene">
-    <div class="book-wrapper">
-      <div class="book-container" id="book">
-        <div class="book-cover-back"></div>
-        <div class="book-spine"></div>
-        <div class="page-edges"></div>
-        <div class="page" id="page-3" style="z-index:10;">
-          <div class="page-front" id="front-3"></div>
-          <div class="page-back" id="back-3"></div>
-          <div class="page-shadow-overlay"></div>
-        </div>
-        <div class="page" id="page-2" style="z-index:20;">
-          <div class="page-front" id="front-2"></div>
-          <div class="page-back" id="back-2"></div>
-          <div class="page-shadow-overlay"></div>
-        </div>
-        <div class="page" id="page-1" style="z-index:30;">
-          <div class="page-front" id="front-1"></div>
-          <div class="page-back" id="back-1"></div>
-          <div class="page-shadow-overlay"></div>
-        </div>
-        <div class="page" id="page-0" style="z-index:40;">
-          <div class="page-front" id="front-0"></div>
-          <div class="page-back" id="back-0"></div>
-          <div class="page-shadow-overlay"></div>
-        </div>
-        <div class="book-cover-front" id="book-cover-front"></div>
-      </div>
-      <div class="book-shadow"></div>
+  <div class="book-container" id="book">
+    <div class="book-cover-back"></div>
+    <div class="book-spine"></div>
+    <div class="page-edges"></div>
+    <div class="page" id="page-3" style="z-index:10;">
+      <div class="page-front" id="front-3"></div>
+      <div class="page-back" id="back-3"></div>
     </div>
+    <div class="page" id="page-2" style="z-index:20;">
+      <div class="page-front" id="front-2"></div>
+      <div class="page-back" id="back-2"></div>
+    </div>
+    <div class="page" id="page-1" style="z-index:30;">
+      <div class="page-front" id="front-1"></div>
+      <div class="page-back" id="back-1"></div>
+    </div>
+    <div class="page" id="page-0" style="z-index:40;">
+      <div class="page-front" id="front-0"></div>
+      <div class="page-back" id="back-0"></div>
+    </div>
+    <div class="book-shadow"></div>
   </div>
   
   <script>
