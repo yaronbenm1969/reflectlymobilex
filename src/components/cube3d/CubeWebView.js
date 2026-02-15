@@ -682,7 +682,20 @@ const CubeWebView = ({
     }
     
     let cubeEarlyTransitionDone = false;
-    const CUBE_OVERLAP_TIME = 1.0;
+    const CUBE_OVERLAP_TIME = 1.5;
+    
+    function preloadUpcoming(fromIndex) {
+      for (let ahead = 1; ahead <= 3; ahead++) {
+        const idx = fromIndex + ahead;
+        if (idx >= fullVideoQueue.length) break;
+        const fId = getFaceForIndex(idx);
+        const existing = faceVideos[fId];
+        if (!existing || existing.queueIdx !== idx) {
+          console.log('🔮 Preloading queue[' + idx + '] onto face ' + fId);
+          loadVideoOnFace(fId, idx).catch(() => {});
+        }
+      }
+    }
     
     async function playCurrentVideo() {
       const faceId = getFaceForIndex(currentIndex);
@@ -757,6 +770,8 @@ const CubeWebView = ({
         
         setupRotationSync(video, playingIndex);
         
+        preloadUpcoming(playingIndex);
+        
         const duration = video.duration;
         const timeout = (duration && isFinite(duration) && duration > 0) 
           ? (duration + 2) * 1000 
@@ -784,37 +799,12 @@ const CubeWebView = ({
         postMessage('allVideosComplete', { playedCount: fullVideoQueue.length });
         isPlaying = false;
         if (floatAnimId) cancelAnimationFrame(floatAnimId);
-        // Show replay button
         showReplayButton();
         return;
       }
       
-      // Preload next video onto the face we're rotating to
-      const nextFaceId = getFaceForIndex(currentIndex);
-      const nextFv = faceVideos[nextFaceId];
-      if (!nextFv || nextFv.queueIdx !== currentIndex) {
-        console.log('🔮 Preloading queue[' + currentIndex + '] onto face ' + nextFaceId);
-        loadVideoOnFace(nextFaceId, currentIndex).catch(() => {});
-      }
-      
-      // Also preload 2 videos ahead for smoother transitions
-      const oldFaceId = getFaceForIndex(currentIndex - 1);
-      const nextToLoad = currentIndex + 3; // Preload 3 ahead (will land on the old face)
-      if (nextToLoad < fullVideoQueue.length) {
-        loadVideoOnFace(oldFaceId, nextToLoad).catch(() => {});
-      }
-      
-      // And preload one more step ahead
-      const nextToLoad2 = currentIndex + 4;
-      if (nextToLoad2 < fullVideoQueue.length) {
-        const faceForNext2 = getFaceForIndex(nextToLoad2);
-        loadVideoOnFace(faceForNext2, nextToLoad2).catch(() => {});
-      }
-      
-      // Clear rotation sync before starting next video
       clearRotationSync();
       
-      // Play next video (will set up new rotation sync)
       playCurrentVideo();
     }
     
