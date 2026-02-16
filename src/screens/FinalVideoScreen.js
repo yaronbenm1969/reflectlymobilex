@@ -612,7 +612,7 @@ export const FinalVideoScreen = () => {
                   }}
                 >
                   <Ionicons name="play-circle-outline" size={20} color="white" />
-                  <Text style={styles.endScreenSecondaryBtnText}>צפה מחדש</Text>
+                  <Text style={styles.endScreenSecondaryBtnText}>צפה שוב</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
