@@ -8,12 +8,15 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
+  Linking,
+  ScrollView,
 } from 'react-native';
 import { Video } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as MediaLibrary from 'expo-media-library';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
@@ -329,6 +332,139 @@ export const FinalVideoScreen = () => {
     }
   };
 
+  const handleSaveToGallery = async () => {
+    try {
+      setIsDownloading(true);
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('נדרשת הרשאה', 'יש לאשר גישה לגלריה כדי לשמור את הסרטון');
+        return;
+      }
+
+      const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
+      const videoUrl = allVideos[0] || finalVideoUri;
+      if (!videoUrl) {
+        Alert.alert('שגיאה', 'אין סרטון זמין לשמירה');
+        return;
+      }
+
+      const filename = `${storyName.replace(/[^a-zA-Zא-ת0-9]/g, '_')}_${Date.now()}.mp4`;
+      const localUri = FileSystem.cacheDirectory + filename;
+      const downloadResult = await FileSystem.downloadAsync(videoUrl, localUri);
+
+      if (downloadResult.status === 200) {
+        await MediaLibrary.saveToLibraryAsync(downloadResult.uri);
+        Alert.alert('נשמר בהצלחה! 🎉', 'הסרטון נשמר בגלריה שלך');
+      } else {
+        throw new Error('Download failed');
+      }
+    } catch (error) {
+      console.error('Save to gallery error:', error);
+      Alert.alert('שגיאה', 'לא ניתן לשמור את הסרטון');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleShareToFacebook = async () => {
+    try {
+      const shareMessage = `צפו בסיפור שלי: "${storyName}" 🎬✨`;
+      const fbUrl = `https://www.facebook.com/sharer/sharer.php?quote=${encodeURIComponent(shareMessage)}`;
+      const canOpen = await Linking.canOpenURL(fbUrl);
+      if (canOpen) {
+        await Linking.openURL(fbUrl);
+      } else {
+        await Share.share({ message: shareMessage, title: storyName });
+      }
+    } catch (error) {
+      console.error('Facebook share error:', error);
+      Alert.alert('שגיאה', 'לא ניתן לשתף לפייסבוק');
+    }
+  };
+
+  const handleShareToInstagram = async () => {
+    try {
+      const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
+      const videoUrl = allVideos[0] || finalVideoUri;
+
+      if (videoUrl && await Sharing.isAvailableAsync()) {
+        const localUri = FileSystem.cacheDirectory + `instagram_share_${Date.now()}.mp4`;
+        const downloadResult = await FileSystem.downloadAsync(videoUrl, localUri);
+        if (downloadResult.status === 200) {
+          await Sharing.shareAsync(downloadResult.uri, {
+            mimeType: 'video/mp4',
+            UTI: 'com.instagram.exclusivegram',
+          });
+          return;
+        }
+      }
+      const igUrl = 'instagram://app';
+      const canOpen = await Linking.canOpenURL(igUrl);
+      if (canOpen) {
+        await Linking.openURL(igUrl);
+      } else {
+        Alert.alert('אינסטגרם', 'אינסטגרם לא מותקן במכשיר');
+      }
+    } catch (error) {
+      console.error('Instagram share error:', error);
+      Alert.alert('שגיאה', 'לא ניתן לשתף לאינסטגרם');
+    }
+  };
+
+  const handleShareToTikTok = async () => {
+    try {
+      const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
+      const videoUrl = allVideos[0] || finalVideoUri;
+
+      if (videoUrl && await Sharing.isAvailableAsync()) {
+        const localUri = FileSystem.cacheDirectory + `tiktok_share_${Date.now()}.mp4`;
+        const downloadResult = await FileSystem.downloadAsync(videoUrl, localUri);
+        if (downloadResult.status === 200) {
+          await Sharing.shareAsync(downloadResult.uri, {
+            mimeType: 'video/mp4',
+          });
+          return;
+        }
+      }
+      const tiktokUrl = 'snssdk1233://';
+      const canOpen = await Linking.canOpenURL(tiktokUrl);
+      if (canOpen) {
+        await Linking.openURL(tiktokUrl);
+      } else {
+        Alert.alert('טיקטוק', 'טיקטוק לא מותקן במכשיר');
+      }
+    } catch (error) {
+      console.error('TikTok share error:', error);
+      Alert.alert('שגיאה', 'לא ניתן לשתף לטיקטוק');
+    }
+  };
+
+  const handleGeneralShare = async () => {
+    try {
+      const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
+      const videoUrl = allVideos[0] || finalVideoUri;
+
+      if (videoUrl && await Sharing.isAvailableAsync()) {
+        const localUri = FileSystem.cacheDirectory + `share_${Date.now()}.mp4`;
+        const downloadResult = await FileSystem.downloadAsync(videoUrl, localUri);
+        if (downloadResult.status === 200) {
+          await Sharing.shareAsync(downloadResult.uri, {
+            mimeType: 'video/mp4',
+            dialogTitle: `שתף את הסרטון: ${storyName}`,
+          });
+          return;
+        }
+      }
+      await Share.share({
+        message: `צפה בסרטון שלי: "${storyName}" 🎬`,
+        title: storyName,
+      });
+    } catch (error) {
+      console.error('Share error:', error);
+      Alert.alert('שגיאה', 'לא ניתן לשתף');
+    }
+  };
+
   const handleNewStory = () => {
     resetStory();
     go('Home');
@@ -381,17 +517,102 @@ export const FinalVideoScreen = () => {
             colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
             style={styles.endScreenGradient}
           >
-            <Text style={styles.endScreenText}>סוף</Text>
-            <Text style={styles.endScreenSubtext}>{storyName}</Text>
-            <TouchableOpacity 
-              style={styles.endScreenButton}
-              onPress={() => {
-                setShowEndScreen(false);
-                setPlaybackComplete(true);
-              }}
+            <ScrollView 
+              contentContainerStyle={styles.endScreenScroll}
+              showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.endScreenButtonText}>המשך</Text>
-            </TouchableOpacity>
+              <Text style={styles.endScreenText}>סוף</Text>
+              <Text style={styles.endScreenSubtext}>{storyName}</Text>
+
+              <View style={styles.endScreenDivider} />
+
+              <Text style={styles.endScreenSectionTitle}>שמור ושתף</Text>
+
+              <View style={styles.endScreenActions}>
+                <TouchableOpacity 
+                  style={styles.endScreenActionBtn}
+                  onPress={handleSaveToGallery}
+                  disabled={isDownloading}
+                >
+                  <View style={styles.endScreenIconCircle}>
+                    {isDownloading ? (
+                      <ActivityIndicator size="small" color="#FF6B9D" />
+                    ) : (
+                      <Ionicons name="download-outline" size={28} color="#FF6B9D" />
+                    )}
+                  </View>
+                  <Text style={styles.endScreenActionLabel}>הורד לטלפון</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.endScreenActionBtn}
+                  onPress={handleGeneralShare}
+                >
+                  <View style={styles.endScreenIconCircle}>
+                    <Ionicons name="share-outline" size={28} color="#FF6B9D" />
+                  </View>
+                  <Text style={styles.endScreenActionLabel}>שלח</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.endScreenSectionTitle}>פרסם ברשתות</Text>
+
+              <View style={styles.endScreenSocials}>
+                <TouchableOpacity 
+                  style={styles.socialBtn}
+                  onPress={handleShareToFacebook}
+                >
+                  <View style={[styles.socialIconCircle, { backgroundColor: '#1877F2' }]}>  
+                    <Ionicons name="logo-facebook" size={30} color="white" />
+                  </View>
+                  <Text style={styles.socialLabel}>פייסבוק</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.socialBtn}
+                  onPress={handleShareToInstagram}
+                >
+                  <LinearGradient
+                    colors={['#F58529', '#DD2A7B', '#8134AF', '#515BD4']}
+                    style={styles.socialIconCircle}
+                  >
+                    <Ionicons name="logo-instagram" size={30} color="white" />
+                  </LinearGradient>
+                  <Text style={styles.socialLabel}>אינסטגרם</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.socialBtn}
+                  onPress={handleShareToTikTok}
+                >
+                  <View style={[styles.socialIconCircle, { backgroundColor: '#000' }]}>  
+                    <Ionicons name="logo-tiktok" size={28} color="white" />
+                  </View>
+                  <Text style={styles.socialLabel}>טיקטוק</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.endScreenBottomBtns}>
+                <TouchableOpacity 
+                  style={styles.endScreenPrimaryBtn}
+                  onPress={() => {
+                    setShowEndScreen(false);
+                    setPlaybackComplete(true);
+                  }}
+                >
+                  <Ionicons name="arrow-back" size={20} color="white" />
+                  <Text style={styles.endScreenPrimaryBtnText}>חזור</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.endScreenSecondaryBtn}
+                  onPress={handleNewStory}
+                >
+                  <Ionicons name="add-circle-outline" size={20} color="white" />
+                  <Text style={styles.endScreenSecondaryBtnText}>סיפור חדש</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </LinearGradient>
         </View>
       )}
@@ -1011,17 +1232,20 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   endScreenGradient: {
     width: '100%',
     height: '100%',
-    justifyContent: 'center',
+  },
+  endScreenScroll: {
+    flexGrow: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 24,
   },
   endScreenText: {
-    fontSize: 72,
+    fontSize: 56,
     fontWeight: 'bold',
     color: 'white',
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
@@ -1029,23 +1253,115 @@ const styles = StyleSheet.create({
     textShadowRadius: 10,
   },
   endScreenSubtext: {
-    fontSize: 24,
+    fontSize: 22,
     color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 20,
+    marginTop: 12,
     fontWeight: '500',
   },
-  endScreenButton: {
-    marginTop: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    paddingHorizontal: 40,
-    paddingVertical: 15,
+  endScreenDivider: {
+    width: 60,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    marginVertical: 24,
+    borderRadius: 1,
+  },
+  endScreenSectionTitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '600',
+    marginBottom: 16,
+    letterSpacing: 1,
+  },
+  endScreenActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 32,
+    marginBottom: 28,
+  },
+  endScreenActionBtn: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  endScreenIconCircle: {
+    width: 60,
+    height: 60,
     borderRadius: 30,
-    borderWidth: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  endScreenActionLabel: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  endScreenSocials: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 24,
+    marginBottom: 32,
+  },
+  socialBtn: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  socialIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  socialLabel: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  endScreenBottomBtns: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  endScreenPrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 25,
+    borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.5)',
   },
-  endScreenButtonText: {
+  endScreenPrimaryBtnText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
+  },
+  endScreenSecondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  endScreenSecondaryBtnText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
