@@ -603,10 +603,16 @@ export const FinalVideoScreen = () => {
 
                 <TouchableOpacity 
                   style={styles.endScreenSecondaryBtn}
-                  onPress={handleNewStory}
+                  onPress={() => {
+                    setShowEndScreen(false);
+                    setPlaybackComplete(false);
+                    setVideoHasPlayed(false);
+                    setCubeStarted(false);
+                    setIsCubeFullscreen(false);
+                  }}
                 >
-                  <Ionicons name="add-circle-outline" size={20} color="white" />
-                  <Text style={styles.endScreenSecondaryBtnText}>סיפור חדש</Text>
+                  <Ionicons name="play-circle-outline" size={20} color="white" />
+                  <Text style={styles.endScreenSecondaryBtnText}>צפה מחדש</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
