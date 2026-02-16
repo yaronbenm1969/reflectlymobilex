@@ -595,13 +595,10 @@ export const FinalVideoScreen = () => {
               <View style={styles.endScreenBottomBtns}>
                 <TouchableOpacity 
                   style={styles.endScreenPrimaryBtn}
-                  onPress={() => {
-                    setShowEndScreen(false);
-                    setPlaybackComplete(true);
-                  }}
+                  onPress={() => go('Home')}
                 >
-                  <Ionicons name="arrow-back" size={20} color="white" />
-                  <Text style={styles.endScreenPrimaryBtnText}>חזור</Text>
+                  <Ionicons name="home-outline" size={20} color="white" />
+                  <Text style={styles.endScreenPrimaryBtnText}>חזור לדף הבית</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
