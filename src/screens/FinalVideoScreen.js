@@ -332,6 +332,8 @@ export const FinalVideoScreen = () => {
     }
   };
 
+  const [downloadProgress, setDownloadProgress] = useState('');
+
   const handleSaveToGallery = async () => {
     try {
       setIsDownloading(true);
@@ -342,19 +344,73 @@ export const FinalVideoScreen = () => {
       }
 
       const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
-      const videoUrl = allVideos[0] || finalVideoUri;
-      if (!videoUrl) {
+      if (allVideos.length === 0 && !finalVideoUri) {
         Alert.alert('שגיאה', 'אין סרטון זמין לשמירה');
         return;
       }
 
+      if (allVideos.length <= 1) {
+        setDownloadProgress('שומר סרטון...');
+        const videoUrl = allVideos[0] || finalVideoUri;
+        const filename = `${storyName.replace(/[^a-zA-Zא-ת0-9]/g, '_')}_${Date.now()}.mp4`;
+        const localUri = FileSystem.cacheDirectory + filename;
+        const downloadResult = await FileSystem.downloadAsync(videoUrl, localUri);
+        if (downloadResult.status === 200) {
+          await MediaLibrary.saveToLibraryAsync(downloadResult.uri);
+          Alert.alert('נשמר בהצלחה! 🎉', 'הסרטון נשמר בגלריה שלך');
+        } else {
+          throw new Error('Download failed');
+        }
+        return;
+      }
+
+      setDownloadProgress('מחבר סרטונים...');
+      const storyId = `download_${Date.now()}`;
+      const renderRes = await fetch(`${VIDEO_CONVERTER_URL}/api/stories/${storyId}/render`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoUrls: allVideos,
+          format: videoFormat || 'standard',
+        }),
+      });
+
+      const renderData = await renderRes.json();
+      if (!renderData.success || !renderData.jobId) {
+        throw new Error('Failed to start rendering');
+      }
+
+      const jobId = renderData.jobId;
+      let finalUrl = null;
+      
+      for (let i = 0; i < 120; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const statusRes = await fetch(`${VIDEO_CONVERTER_URL}/api/render-status/${jobId}`);
+        const statusData = await statusRes.json();
+
+        if (statusData.status === 'completed' && statusData.finalUrl) {
+          finalUrl = statusData.finalUrl;
+          break;
+        } else if (statusData.status === 'failed') {
+          throw new Error(statusData.error || 'Rendering failed');
+        }
+        
+        const pct = statusData.progress || 0;
+        setDownloadProgress(`מחבר סרטונים... ${pct}%`);
+      }
+
+      if (!finalUrl) {
+        throw new Error('Rendering timed out');
+      }
+
+      setDownloadProgress('שומר בגלריה...');
       const filename = `${storyName.replace(/[^a-zA-Zא-ת0-9]/g, '_')}_${Date.now()}.mp4`;
       const localUri = FileSystem.cacheDirectory + filename;
-      const downloadResult = await FileSystem.downloadAsync(videoUrl, localUri);
+      const downloadResult = await FileSystem.downloadAsync(finalUrl, localUri);
 
       if (downloadResult.status === 200) {
         await MediaLibrary.saveToLibraryAsync(downloadResult.uri);
-        Alert.alert('נשמר בהצלחה! 🎉', 'הסרטון נשמר בגלריה שלך');
+        Alert.alert('נשמר בהצלחה! 🎉', `${allVideos.length} סרטונים חוברו ונשמרו בגלריה שלך`);
       } else {
         throw new Error('Download failed');
       }
@@ -363,6 +419,7 @@ export const FinalVideoScreen = () => {
       Alert.alert('שגיאה', 'לא ניתן לשמור את הסרטון');
     } finally {
       setIsDownloading(false);
+      setDownloadProgress('');
     }
   };
 
@@ -541,7 +598,9 @@ export const FinalVideoScreen = () => {
                       <Ionicons name="download-outline" size={28} color="#FF6B9D" />
                     )}
                   </View>
-                  <Text style={styles.endScreenActionLabel}>הורד לטלפון</Text>
+                  <Text style={styles.endScreenActionLabel}>
+                    {isDownloading && downloadProgress ? downloadProgress : 'הורד לטלפון'}
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
