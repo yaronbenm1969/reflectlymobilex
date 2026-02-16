@@ -19,6 +19,7 @@ const FlipPagesWebView = ({
   onPlaybackComplete,
   onReadyToPlay,
   isFullscreen = false,
+  triggerAutoPlay = false,
 }) => {
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,6 +67,20 @@ const FlipPagesWebView = ({
       setInitialFaces([...faces]);
     }
   }, [faces, initialFaces]);
+
+  useEffect(() => {
+    if (triggerAutoPlay && webViewRef.current) {
+      console.log('📖 Auto-play triggered via prop');
+      webViewRef.current.injectJavaScript(`
+        if (typeof handlePlayClick === 'function') {
+          hasUserStarted = false;
+          isPlaying = false;
+          handlePlayClick();
+        }
+        true;
+      `);
+    }
+  }, [triggerAutoPlay]);
 
   const flipHTML = useMemo(() => {
     if (!initialFaces || initialFaces.length === 0) return null;

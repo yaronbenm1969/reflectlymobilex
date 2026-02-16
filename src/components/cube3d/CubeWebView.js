@@ -20,6 +20,7 @@ const CubeWebView = ({
   onReadyToPlay,
   isFullscreen = false,
   currentPlayingFaceIndex = -1,
+  triggerAutoPlay = false,
 }) => {
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,6 +64,20 @@ const CubeWebView = ({
       setInitialFaces([...faces]);
     }
   }, [faces, initialFaces]);
+
+  useEffect(() => {
+    if (triggerAutoPlay && webViewRef.current) {
+      console.log('🎲 Auto-play triggered via prop');
+      webViewRef.current.injectJavaScript(`
+        if (typeof handlePlayClick === 'function') {
+          hasUserStarted = false;
+          isPlaying = false;
+          handlePlayClick();
+        }
+        true;
+      `);
+    }
+  }, [triggerAutoPlay]);
 
   // Use initial faces for HTML generation - prevents WebView reload on face updates
   const cubeHTML = useMemo(() => {

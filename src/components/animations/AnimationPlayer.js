@@ -15,6 +15,7 @@ const AnimationPlayer = ({
   isFullscreen = false,
   currentPlayingFaceIndex = -1,
   storyName = '',
+  triggerAutoPlay = false,
 }) => {
   console.log('🎬 AnimationPlayer rendering format:', format);
   
@@ -31,6 +32,7 @@ const AnimationPlayer = ({
           onPlaybackComplete={onPlaybackComplete}
           onReadyToPlay={onReadyToPlay}
           isFullscreen={isFullscreen}
+          triggerAutoPlay={triggerAutoPlay}
         />
       );
     
@@ -47,6 +49,7 @@ const AnimationPlayer = ({
           onReadyToPlay={onReadyToPlay}
           isFullscreen={isFullscreen}
           currentPlayingFaceIndex={currentPlayingFaceIndex}
+          triggerAutoPlay={triggerAutoPlay}
         />
       );
   }

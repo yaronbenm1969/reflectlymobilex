@@ -52,6 +52,10 @@ export const FinalVideoScreen = () => {
   const [videoHasPlayed, setVideoHasPlayed] = useState(false);
   const [isCubeFullscreen, setIsCubeFullscreen] = useState(false);
   const [showEndScreen, setShowEndScreen] = useState(false);
+  const [showRecordGuide, setShowRecordGuide] = useState(false);
+  const [recordCountdown, setRecordCountdown] = useState(0);
+  const [isRecordingMode, setIsRecordingMode] = useState(false);
+  const [triggerAutoPlay, setTriggerAutoPlay] = useState(false);
   const videoRef = useRef(null);
   const cubeRef = useRef(null);
 
@@ -334,6 +338,30 @@ export const FinalVideoScreen = () => {
 
   const [downloadProgress, setDownloadProgress] = useState('');
 
+  const handleRecord3DVideo = () => {
+    setShowEndScreen(false);
+    setShowRecordGuide(true);
+  };
+
+  const startRecordingCountdown = () => {
+    setShowRecordGuide(false);
+    setRecordCountdown(5);
+    setIsRecordingMode(true);
+    setTriggerAutoPlay(false);
+
+    let count = 5;
+    const interval = setInterval(() => {
+      count--;
+      setRecordCountdown(count);
+      if (count <= 0) {
+        clearInterval(interval);
+        setRecordCountdown(0);
+        setTriggerAutoPlay(true);
+        setTimeout(() => setTriggerAutoPlay(false), 500);
+      }
+    }, 1000);
+  };
+
   const handleSaveToGallery = async () => {
     try {
       setIsDownloading(true);
@@ -548,6 +576,7 @@ export const FinalVideoScreen = () => {
             autoRotate={cubeStarted}
             rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
             isFullscreen={isCubeFullscreen}
+            triggerAutoPlay={triggerAutoPlay}
             onFaceChange={handleFaceChange}
             onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
             onVideoEnd={handleVideoEnd}
@@ -560,7 +589,18 @@ export const FinalVideoScreen = () => {
               console.log('✅ All videos finished - showing end screen');
               setIsCubeFullscreen(false);
               setVideoHasPlayed(true);
-              setShowEndScreen(true);
+              if (isRecordingMode) {
+                setIsRecordingMode(false);
+                setTimeout(() => {
+                  Alert.alert(
+                    'עצור הקלטה! 🛑',
+                    'הסרטון הסתיים. עצור עכשיו את הקלטת המסך.\nהסרטון עם התלת-מימד נשמר בגלריה שלך!',
+                    [{ text: 'מעולה!', onPress: () => setShowEndScreen(true) }]
+                  );
+                }, 500);
+              } else {
+                setShowEndScreen(true);
+              }
             }}
             currentPlayingFaceIndex={currentPlayingFaceIndex}
           />
@@ -599,9 +639,21 @@ export const FinalVideoScreen = () => {
                     )}
                   </View>
                   <Text style={styles.endScreenActionLabel}>
-                    {isDownloading && downloadProgress ? downloadProgress : 'הורד לטלפון'}
+                    {isDownloading && downloadProgress ? downloadProgress : 'הורד סרטון'}
                   </Text>
                 </TouchableOpacity>
+
+                {isAnimatedFormat && (
+                  <TouchableOpacity 
+                    style={styles.endScreenActionBtn}
+                    onPress={handleRecord3DVideo}
+                  >
+                    <View style={[styles.endScreenIconCircle, { backgroundColor: 'rgba(255,68,68,0.1)' }]}>
+                      <Ionicons name="cube-outline" size={28} color="#FF4444" />
+                    </View>
+                    <Text style={styles.endScreenActionLabel}>הורד עם תלת-מימד</Text>
+                  </TouchableOpacity>
+                )}
 
                 <TouchableOpacity 
                   style={styles.endScreenActionBtn}
@@ -679,7 +731,68 @@ export const FinalVideoScreen = () => {
         </View>
       )}
 
-      {!isCubeFullscreen && !showEndScreen && (
+      {/* Screen Recording Guide Modal */}
+      {showRecordGuide && (
+        <View style={styles.endScreenOverlay}>
+          <LinearGradient
+            colors={['#1a1a2e', '#16213e']}
+            style={styles.endScreenGradient}
+          >
+            <View style={styles.recordGuideContent}>
+              <View style={styles.recordGuideIconWrap}>
+                <Ionicons name="recording-outline" size={50} color="#FF4444" />
+              </View>
+              <Text style={styles.recordGuideTitle}>הקלטת סרטון תלת-מימד</Text>
+              <Text style={styles.recordGuideDesc}>
+                כדי לשמור את הסרטון עם האנימציה התלת-מימדית, יש להפעיל את הקלטת המסך של האייפון.
+              </Text>
+
+              <View style={styles.recordGuideSteps}>
+                <View style={styles.recordGuideStep}>
+                  <View style={styles.stepNumber}><Text style={styles.stepNumberText}>1</Text></View>
+                  <Text style={styles.stepText}>החלק למטה מפינה ימנית עליונה (מרכז הבקרה)</Text>
+                </View>
+                <View style={styles.recordGuideStep}>
+                  <View style={styles.stepNumber}><Text style={styles.stepNumberText}>2</Text></View>
+                  <Text style={styles.stepText}>לחץ על כפתור ההקלטה ⏺</Text>
+                </View>
+                <View style={styles.recordGuideStep}>
+                  <View style={styles.stepNumber}><Text style={styles.stepNumberText}>3</Text></View>
+                  <Text style={styles.stepText}>חזור לאפליקציה ולחץ "מוכן, התחל!"</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity 
+                style={styles.recordStartBtn}
+                onPress={startRecordingCountdown}
+              >
+                <Ionicons name="videocam" size={24} color="white" />
+                <Text style={styles.recordStartBtnText}>מוכן, התחל!</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.recordCancelBtn}
+                onPress={() => {
+                  setShowRecordGuide(false);
+                  setShowEndScreen(true);
+                }}
+              >
+                <Text style={styles.recordCancelBtnText}>ביטול</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </View>
+      )}
+
+      {/* Countdown Overlay */}
+      {recordCountdown > 0 && (
+        <View style={styles.countdownOverlay}>
+          <Text style={styles.countdownNumber}>{recordCountdown}</Text>
+          <Text style={styles.countdownLabel}>הסרטון מתחיל...</Text>
+        </View>
+      )}
+
+      {!isCubeFullscreen && !showEndScreen && !showRecordGuide && (
         <>
           <LinearGradient
             colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
@@ -1425,5 +1538,115 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     fontSize: 15,
     fontWeight: '600',
+  },
+  recordGuideContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 30,
+  },
+  recordGuideIconWrap: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: 'rgba(255, 68, 68, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  recordGuideTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  recordGuideDesc: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  recordGuideSteps: {
+    width: '100%',
+    marginBottom: 32,
+  },
+  recordGuideStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 14,
+  },
+  stepNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 68, 68, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepNumberText: {
+    color: '#FF6666',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  stepText: {
+    flex: 1,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  recordStartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FF4444',
+    paddingHorizontal: 36,
+    paddingVertical: 16,
+    borderRadius: 30,
+    marginBottom: 16,
+    shadowColor: '#FF4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  recordStartBtnText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  recordCancelBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+  },
+  recordCancelBtnText: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 15,
+  },
+  countdownOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9999,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countdownNumber: {
+    fontSize: 120,
+    fontWeight: 'bold',
+    color: '#FF4444',
+    textShadowColor: 'rgba(255, 68, 68, 0.5)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 30,
+  },
+  countdownLabel: {
+    fontSize: 20,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 16,
   },
 });
