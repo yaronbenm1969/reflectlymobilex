@@ -25,7 +25,7 @@ app.use(express.json());
 const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -511,7 +511,8 @@ const renderingJobs = new Map();
 const ALLOWED_VIDEO_DOMAINS = [
   'firebasestorage.googleapis.com',
   'storage.googleapis.com',
-  'reflectly-mobile-x--yaronbenm1.replit.app'
+  'reflectly-mobile-x--yaronbenm1.replit.app',
+  'reflectly-playback.firebasestorage.app'
 ];
 
 function isAllowedVideoUrl(url) {
@@ -606,6 +607,45 @@ function getTransitionFilter(format) {
   }
 }
 
+function getVideoDuration(filePath) {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err) {
+        console.warn(`Could not probe ${filePath}: ${err.message}`);
+        resolve({ duration: 5, hasAudio: true });
+      } else {
+        const duration = metadata.format.duration || 5;
+        const hasAudio = metadata.streams.some(s => s.codec_type === 'audio');
+        console.log(`Probe ${path.basename(filePath)}: ${duration}s, audio: ${hasAudio}`);
+        resolve({ duration, hasAudio });
+      }
+    });
+  });
+}
+
+async function ensureAudioTrack(inputPath) {
+  const info = await getVideoDuration(inputPath);
+  if (info.hasAudio) return inputPath;
+  
+  const outputPath = inputPath.replace('.mp4', '_audio.mp4');
+  return new Promise((resolve, reject) => {
+    ffmpeg()
+      .input(inputPath)
+      .inputOptions(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo'])
+      .outputOptions(['-c:v', 'copy', '-c:a', 'aac', '-shortest', '-y'])
+      .output(outputPath)
+      .on('end', () => {
+        console.log(`Added silent audio track to ${path.basename(inputPath)}`);
+        resolve(outputPath);
+      })
+      .on('error', (err) => {
+        console.warn(`Failed to add audio track: ${err.message}`);
+        resolve(inputPath);
+      })
+      .run();
+  });
+}
+
 async function concatenateWithTransitions(inputPaths, outputPath, format) {
   const transition = getTransitionFilter(format);
   
@@ -615,6 +655,17 @@ async function concatenateWithTransitions(inputPaths, outputPath, format) {
   }
   
   console.log(`Concatenating with ${transition} transitions (format: ${format})`);
+
+  const processedPaths = [];
+  const durations = [];
+  for (const p of inputPaths) {
+    const processed = await ensureAudioTrack(p);
+    processedPaths.push(processed);
+    const info = await getVideoDuration(processed);
+    durations.push(info.duration);
+  }
+  console.log('Video durations:', durations);
+  inputPaths = processedPaths;
   
   return new Promise((resolve, reject) => {
     let command = ffmpeg();
@@ -632,23 +683,26 @@ async function concatenateWithTransitions(inputPaths, outputPath, format) {
     }
     
     if (n === 2) {
-      filterComplex += `[v0][v1]xfade=transition=${transition}:duration=${TRANSITION_DURATION}:offset=2[vout];`;
+      const offset = Math.max(0.5, durations[0] - TRANSITION_DURATION);
+      filterComplex += `[v0][v1]xfade=transition=${transition}:duration=${TRANSITION_DURATION}:offset=${offset.toFixed(2)}[vout];`;
       filterComplex += `[a0][a1]acrossfade=d=${TRANSITION_DURATION}[aout]`;
     } else {
       let lastV = 'v0';
       let lastA = 'a0';
-      let offset = 2;
+      let cumulativeOffset = Math.max(0.5, durations[0] - TRANSITION_DURATION);
       
       for (let i = 1; i < n; i++) {
         const outV = i === n - 1 ? 'vout' : `vt${i}`;
         const outA = i === n - 1 ? 'aout' : `at${i}`;
         
-        filterComplex += `[${lastV}][v${i}]xfade=transition=${transition}:duration=${TRANSITION_DURATION}:offset=${offset}[${outV}];`;
+        filterComplex += `[${lastV}][v${i}]xfade=transition=${transition}:duration=${TRANSITION_DURATION}:offset=${cumulativeOffset.toFixed(2)}[${outV}];`;
         filterComplex += `[${lastA}][a${i}]acrossfade=d=${TRANSITION_DURATION}[${outA}];`;
         
         lastV = outV;
         lastA = outA;
-        offset += 2;
+        if (i < n - 1) {
+          cumulativeOffset += Math.max(0.5, durations[i] - TRANSITION_DURATION);
+        }
       }
     }
     
@@ -730,7 +784,8 @@ app.post('/api/stories/:storyId/render', async (req, res) => {
     });
   }
   
-  console.log(`Rendering ${processVideos.length} videos with format: ${format}, music: ${musicUrl ? 'yes' : 'no'}`);
+  console.log(`📹 Rendering ${processVideos.length} videos with format: ${format}, music: ${musicUrl ? 'yes' : 'no'}`);
+  console.log(`📹 Video URLs:`, processVideos.map(u => u.substring(0, 80)));
   
   const jobId = `${storyId}_${Date.now()}`;
   

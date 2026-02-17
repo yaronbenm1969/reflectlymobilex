@@ -280,19 +280,17 @@ export const FinalVideoScreen = () => {
 
   const handleShare = async () => {
     try {
-      if (finalVideoUri && await Sharing.isAvailableAsync()) {
-        const localUri = FileSystem.cacheDirectory + 'shared_video.mp4';
-        
-        const downloadResult = await FileSystem.downloadAsync(finalVideoUri, localUri);
-        
-        if (downloadResult.status === 200) {
-          await Sharing.shareAsync(downloadResult.uri, {
-            mimeType: 'video/mp4',
-            dialogTitle: `שתף את הסרטון: ${storyName}`,
-          });
-        } else {
-          throw new Error('Failed to download for sharing');
-        }
+      setIsDownloading(true);
+      const videoUrl = await renderConcatenatedVideo('מכין סרטון לשיתוף');
+      if (videoUrl && await Sharing.isAvailableAsync()) {
+        setDownloadProgress('שומר...');
+        const localUri = await downloadVideoToLocal(videoUrl, 'share');
+        setIsDownloading(false);
+        setDownloadProgress('');
+        await Sharing.shareAsync(localUri, {
+          mimeType: 'video/mp4',
+          dialogTitle: `שתף את הסרטון: ${storyName}`,
+        });
       } else {
         await Share.share({
           message: `צפה בסרטון שלי: "${storyName}" 🎬`,
@@ -302,6 +300,9 @@ export const FinalVideoScreen = () => {
     } catch (error) {
       console.error('Error sharing:', error);
       Alert.alert('שגיאה', 'לא ניתן לשתף את הסרטון');
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress('');
     }
   };
 
@@ -362,6 +363,56 @@ export const FinalVideoScreen = () => {
     }, 1000);
   };
 
+  const renderConcatenatedVideo = async (progressLabel = 'מחבר סרטונים') => {
+    const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
+    if (allVideos.length <= 1) {
+      return allVideos[0] || finalVideoUri;
+    }
+    
+    setDownloadProgress(`${progressLabel}...`);
+    const storyId = `render_${Date.now()}`;
+    console.log(`📥 Sending render request: ${allVideos.length} videos, format: ${videoFormat}`);
+    const renderRes = await fetch(`${VIDEO_CONVERTER_URL}/api/stories/${storyId}/render`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        videoUrls: allVideos,
+        format: videoFormat || 'standard',
+      }),
+    });
+
+    const renderText = await renderRes.text();
+    console.log(`📥 Render response (${renderRes.status}):`, renderText);
+    let renderData;
+    try { renderData = JSON.parse(renderText); } catch (e) {
+      throw new Error(`Server returned invalid response: ${renderText.substring(0, 200)}`);
+    }
+    if (!renderData.success || !renderData.jobId) {
+      throw new Error(renderData.error || renderData.message || 'Failed to start rendering');
+    }
+
+    for (let i = 0; i < 120; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const statusRes = await fetch(`${VIDEO_CONVERTER_URL}/api/render-status/${renderData.jobId}`);
+      const statusData = await statusRes.json();
+      if (statusData.status === 'completed' && statusData.finalUrl) {
+        return statusData.finalUrl;
+      } else if (statusData.status === 'failed') {
+        throw new Error(statusData.error || 'Rendering failed');
+      }
+      setDownloadProgress(`${progressLabel}... ${statusData.progress || 0}%`);
+    }
+    throw new Error('Rendering timed out');
+  };
+
+  const downloadVideoToLocal = async (url, prefix = 'video') => {
+    const filename = `${prefix}_${Date.now()}.mp4`;
+    const localUri = FileSystem.cacheDirectory + filename;
+    const downloadResult = await FileSystem.downloadAsync(url, localUri);
+    if (downloadResult.status !== 200) throw new Error('Download failed');
+    return downloadResult.uri;
+  };
+
   const handleSaveToGallery = async () => {
     try {
       setIsDownloading(true);
@@ -377,74 +428,16 @@ export const FinalVideoScreen = () => {
         return;
       }
 
-      if (allVideos.length <= 1) {
-        setDownloadProgress('שומר סרטון...');
-        const videoUrl = allVideos[0] || finalVideoUri;
-        const filename = `${storyName.replace(/[^a-zA-Zא-ת0-9]/g, '_')}_${Date.now()}.mp4`;
-        const localUri = FileSystem.cacheDirectory + filename;
-        const downloadResult = await FileSystem.downloadAsync(videoUrl, localUri);
-        if (downloadResult.status === 200) {
-          await MediaLibrary.saveToLibraryAsync(downloadResult.uri);
-          Alert.alert('נשמר בהצלחה! 🎉', 'הסרטון נשמר בגלריה שלך');
-        } else {
-          throw new Error('Download failed');
-        }
-        return;
-      }
-
-      setDownloadProgress('מחבר סרטונים...');
-      const storyId = `download_${Date.now()}`;
-      const renderRes = await fetch(`${VIDEO_CONVERTER_URL}/api/stories/${storyId}/render`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          videoUrls: allVideos,
-          format: videoFormat || 'standard',
-        }),
-      });
-
-      const renderData = await renderRes.json();
-      if (!renderData.success || !renderData.jobId) {
-        throw new Error('Failed to start rendering');
-      }
-
-      const jobId = renderData.jobId;
-      let finalUrl = null;
-      
-      for (let i = 0; i < 120; i++) {
-        await new Promise(r => setTimeout(r, 2000));
-        const statusRes = await fetch(`${VIDEO_CONVERTER_URL}/api/render-status/${jobId}`);
-        const statusData = await statusRes.json();
-
-        if (statusData.status === 'completed' && statusData.finalUrl) {
-          finalUrl = statusData.finalUrl;
-          break;
-        } else if (statusData.status === 'failed') {
-          throw new Error(statusData.error || 'Rendering failed');
-        }
-        
-        const pct = statusData.progress || 0;
-        setDownloadProgress(`מחבר סרטונים... ${pct}%`);
-      }
-
-      if (!finalUrl) {
-        throw new Error('Rendering timed out');
-      }
-
+      const videoUrl = await renderConcatenatedVideo('שומר סרטון');
       setDownloadProgress('שומר בגלריה...');
-      const filename = `${storyName.replace(/[^a-zA-Zא-ת0-9]/g, '_')}_${Date.now()}.mp4`;
-      const localUri = FileSystem.cacheDirectory + filename;
-      const downloadResult = await FileSystem.downloadAsync(finalUrl, localUri);
-
-      if (downloadResult.status === 200) {
-        await MediaLibrary.saveToLibraryAsync(downloadResult.uri);
-        Alert.alert('נשמר בהצלחה! 🎉', `${allVideos.length} סרטונים חוברו ונשמרו בגלריה שלך`);
-      } else {
-        throw new Error('Download failed');
-      }
+      const localUri = await downloadVideoToLocal(videoUrl, storyName.replace(/[^a-zA-Zא-ת0-9]/g, '_'));
+      await MediaLibrary.saveToLibraryAsync(localUri);
+      Alert.alert('נשמר בהצלחה! 🎉', allVideos.length > 1 
+        ? `${allVideos.length} סרטונים חוברו ונשמרו בגלריה שלך`
+        : 'הסרטון נשמר בגלריה שלך');
     } catch (error) {
       console.error('Save to gallery error:', error);
-      Alert.alert('שגיאה', 'לא ניתן לשמור את הסרטון');
+      Alert.alert('שגיאה', `לא ניתן לשמור: ${error.message}`);
     } finally {
       setIsDownloading(false);
       setDownloadProgress('');
@@ -469,19 +462,18 @@ export const FinalVideoScreen = () => {
 
   const handleShareToInstagram = async () => {
     try {
-      const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
-      const videoUrl = allVideos[0] || finalVideoUri;
-
+      setIsDownloading(true);
+      const videoUrl = await renderConcatenatedVideo('מכין לאינסטגרם');
       if (videoUrl && await Sharing.isAvailableAsync()) {
-        const localUri = FileSystem.cacheDirectory + `instagram_share_${Date.now()}.mp4`;
-        const downloadResult = await FileSystem.downloadAsync(videoUrl, localUri);
-        if (downloadResult.status === 200) {
-          await Sharing.shareAsync(downloadResult.uri, {
-            mimeType: 'video/mp4',
-            UTI: 'com.instagram.exclusivegram',
-          });
-          return;
-        }
+        setDownloadProgress('שומר...');
+        const localUri = await downloadVideoToLocal(videoUrl, 'instagram');
+        setIsDownloading(false);
+        setDownloadProgress('');
+        await Sharing.shareAsync(localUri, {
+          mimeType: 'video/mp4',
+          UTI: 'com.instagram.exclusivegram',
+        });
+        return;
       }
       const igUrl = 'instagram://app';
       const canOpen = await Linking.canOpenURL(igUrl);
@@ -493,23 +485,25 @@ export const FinalVideoScreen = () => {
     } catch (error) {
       console.error('Instagram share error:', error);
       Alert.alert('שגיאה', 'לא ניתן לשתף לאינסטגרם');
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress('');
     }
   };
 
   const handleShareToTikTok = async () => {
     try {
-      const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
-      const videoUrl = allVideos[0] || finalVideoUri;
-
+      setIsDownloading(true);
+      const videoUrl = await renderConcatenatedVideo('מכין לטיקטוק');
       if (videoUrl && await Sharing.isAvailableAsync()) {
-        const localUri = FileSystem.cacheDirectory + `tiktok_share_${Date.now()}.mp4`;
-        const downloadResult = await FileSystem.downloadAsync(videoUrl, localUri);
-        if (downloadResult.status === 200) {
-          await Sharing.shareAsync(downloadResult.uri, {
-            mimeType: 'video/mp4',
-          });
-          return;
-        }
+        setDownloadProgress('שומר...');
+        const localUri = await downloadVideoToLocal(videoUrl, 'tiktok');
+        setIsDownloading(false);
+        setDownloadProgress('');
+        await Sharing.shareAsync(localUri, {
+          mimeType: 'video/mp4',
+        });
+        return;
       }
       const tiktokUrl = 'snssdk1233://';
       const canOpen = await Linking.canOpenURL(tiktokUrl);
@@ -521,24 +515,26 @@ export const FinalVideoScreen = () => {
     } catch (error) {
       console.error('TikTok share error:', error);
       Alert.alert('שגיאה', 'לא ניתן לשתף לטיקטוק');
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress('');
     }
   };
 
   const handleGeneralShare = async () => {
     try {
-      const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
-      const videoUrl = allVideos[0] || finalVideoUri;
-
+      setIsDownloading(true);
+      const videoUrl = await renderConcatenatedVideo('מכין לשיתוף');
       if (videoUrl && await Sharing.isAvailableAsync()) {
-        const localUri = FileSystem.cacheDirectory + `share_${Date.now()}.mp4`;
-        const downloadResult = await FileSystem.downloadAsync(videoUrl, localUri);
-        if (downloadResult.status === 200) {
-          await Sharing.shareAsync(downloadResult.uri, {
-            mimeType: 'video/mp4',
-            dialogTitle: `שתף את הסרטון: ${storyName}`,
-          });
-          return;
-        }
+        setDownloadProgress('שומר...');
+        const localUri = await downloadVideoToLocal(videoUrl, 'share');
+        setIsDownloading(false);
+        setDownloadProgress('');
+        await Sharing.shareAsync(localUri, {
+          mimeType: 'video/mp4',
+          dialogTitle: `שתף את הסרטון: ${storyName}`,
+        });
+        return;
       }
       await Share.share({
         message: `צפה בסרטון שלי: "${storyName}" 🎬`,
@@ -547,6 +543,9 @@ export const FinalVideoScreen = () => {
     } catch (error) {
       console.error('Share error:', error);
       Alert.alert('שגיאה', 'לא ניתן לשתף');
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress('');
     }
   };
 
