@@ -365,19 +365,29 @@ export const FinalVideoScreen = () => {
 
   const renderConcatenatedVideo = async (progressLabel = 'מחבר סרטונים') => {
     const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
-    if (allVideos.length <= 1) {
-      return allVideos[0] || finalVideoUri;
+    if (allVideos.length === 0) {
+      return finalVideoUri;
+    }
+    if (allVideos.length === 1 && !isAnimatedFormat) {
+      return allVideos[0];
     }
     
     setDownloadProgress(`${progressLabel}...`);
     const storyId = `render_${Date.now()}`;
-    console.log(`📥 Sending render request: ${allVideos.length} videos, format: ${videoFormat}`);
-    const renderRes = await fetch(`${VIDEO_CONVERTER_URL}/api/stories/${storyId}/render`, {
+    
+    const useFormatRender = isAnimatedFormat && (isCube3D || isFlipPages);
+    const endpoint = useFormatRender 
+      ? `${VIDEO_CONVERTER_URL}/api/stories/${storyId}/render-format`
+      : `${VIDEO_CONVERTER_URL}/api/stories/${storyId}/render`;
+    
+    console.log(`📥 Sending ${useFormatRender ? 'FORMAT' : 'standard'} render: ${allVideos.length} videos, format: ${videoFormat}`);
+    const renderRes = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         videoUrls: allVideos,
         format: videoFormat || 'standard',
+        storyName: storyName || '',
       }),
     });
 
@@ -391,7 +401,8 @@ export const FinalVideoScreen = () => {
       throw new Error(renderData.error || renderData.message || 'Failed to start rendering');
     }
 
-    for (let i = 0; i < 120; i++) {
+    const maxPolls = useFormatRender ? 300 : 120;
+    for (let i = 0; i < maxPolls; i++) {
       await new Promise(r => setTimeout(r, 2000));
       const statusRes = await fetch(`${VIDEO_CONVERTER_URL}/api/render-status/${renderData.jobId}`);
       const statusData = await statusRes.json();
@@ -400,7 +411,8 @@ export const FinalVideoScreen = () => {
       } else if (statusData.status === 'failed') {
         throw new Error(statusData.error || 'Rendering failed');
       }
-      setDownloadProgress(`${progressLabel}... ${statusData.progress || 0}%`);
+      const progressMsg = statusData.progressMessage || '';
+      setDownloadProgress(`${progressLabel}... ${statusData.progress || 0}% ${progressMsg}`);
     }
     throw new Error('Rendering timed out');
   };

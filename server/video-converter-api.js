@@ -8,6 +8,7 @@ const { initializeApp, cert } = require('firebase-admin/app');
 const { getStorage } = require('firebase-admin/storage');
 const { getFirestore } = require('firebase-admin/firestore');
 const { ConversionQueue } = require('./conversion-queue');
+const { renderFormatVideo, cleanupRenderDir } = require('./format-renderer');
 
 const app = express();
 
@@ -866,6 +867,83 @@ app.post('/api/stories/:storyId/render', async (req, res) => {
         status: 'failed',
         error: error.message,
         storyId
+      });
+    }
+  })();
+});
+
+app.post('/api/stories/:storyId/render-format', async (req, res) => {
+  const { storyId } = req.params;
+  const { videoUrls, format = 'cube-3d', storyName = '' } = req.body;
+  
+  if (!videoUrls || !Array.isArray(videoUrls) || videoUrls.length === 0) {
+    return res.status(400).json({ error: 'videoUrls array is required' });
+  }
+  
+  const invalidUrls = videoUrls.filter(url => !isAllowedVideoUrl(url));
+  if (invalidUrls.length > 0) {
+    return res.status(400).json({ error: 'Invalid video URLs', message: 'Only Firebase Storage URLs are allowed' });
+  }
+  
+  console.log(`🎬 Format render: ${videoUrls.length} videos, format: ${format}, story: ${storyName}`);
+  
+  const jobId = `fmt_${storyId}_${Date.now()}`;
+  
+  renderingJobs.set(jobId, {
+    status: 'processing',
+    progress: 0,
+    storyId,
+    format,
+    startedAt: new Date().toISOString()
+  });
+  
+  res.json({ success: true, jobId, message: 'Format rendering started', status: 'processing' });
+  
+  (async () => {
+    try {
+      const onProgress = (pct, msg) => {
+        const job = renderingJobs.get(jobId);
+        if (job) {
+          job.progress = pct;
+          job.progressMessage = msg;
+        }
+      };
+      
+      const outputPath = await renderFormatVideo(videoUrls, format, storyName, jobId, onProgress);
+      
+      onProgress(92, 'Uploading');
+      
+      let finalUrl;
+      if (bucket) {
+        const storagePath = `edited/${storyId}/format_${Date.now()}.mp4`;
+        finalUrl = await uploadToFirebase(outputPath, storagePath);
+        fs.unlinkSync(outputPath);
+      } else {
+        const destPath = path.join(convertedDir, `format_${jobId}.mp4`);
+        fs.copyFileSync(outputPath, destPath);
+        finalUrl = `/converted/${path.basename(destPath)}`;
+      }
+      
+      cleanupRenderDir(jobId);
+      
+      renderingJobs.set(jobId, {
+        status: 'completed',
+        progress: 100,
+        storyId,
+        format,
+        finalUrl,
+        completedAt: new Date().toISOString()
+      });
+      
+      console.log(`✅ Format render completed: ${finalUrl}`);
+    } catch (error) {
+      console.error('Format render error:', error);
+      cleanupRenderDir(jobId);
+      renderingJobs.set(jobId, {
+        status: 'failed',
+        error: error.message,
+        storyId,
+        format
       });
     }
   })();
