@@ -696,18 +696,6 @@ export const FinalVideoScreen = () => {
                   <Text style={styles.endScreenActionLabel}>הורד סרטון</Text>
                 </TouchableOpacity>
 
-                {isAnimatedFormat && (
-                  <TouchableOpacity 
-                    style={[styles.endScreenActionBtn, isDownloading && styles.disabledBtn]}
-                    onPress={handleRecord3DVideo}
-                    disabled={isDownloading}
-                  >
-                    <View style={[styles.endScreenIconCircle, { backgroundColor: 'rgba(255,68,68,0.1)' }]}>
-                      <Ionicons name="cube-outline" size={28} color="#FF4444" />
-                    </View>
-                    <Text style={styles.endScreenActionLabel}>הורד עם תלת-מימד</Text>
-                  </TouchableOpacity>
-                )}
 
                 <TouchableOpacity 
                   style={[styles.endScreenActionBtn, isDownloading && styles.disabledBtn]}
