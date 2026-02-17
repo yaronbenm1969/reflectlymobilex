@@ -674,6 +674,16 @@ const FlipPagesWebView = ({
     }
   }, [onReadyToPlay, onPlaybackStart, onVideoStart, onPlaybackComplete]);
 
+  const webViewSource = useMemo(() => {
+    if (flipHTML) {
+      return { 
+        html: flipHTML, 
+        baseUrl: Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined 
+      };
+    }
+    return { html: '<html><body></body></html>' };
+  }, [flipHTML]);
+
   if (!initialFaces || initialFaces.length === 0) {
     return (
       <View style={styles.container}>
@@ -701,16 +711,6 @@ const FlipPagesWebView = ({
   }
 
   console.log('📖 FlipPagesWebView rendering, isFullscreen:', isFullscreen, 'htmlFilePath:', htmlFilePath ? 'exists' : 'null');
-  
-  const webViewSource = useMemo(() => {
-    if (flipHTML) {
-      return { 
-        html: flipHTML, 
-        baseUrl: Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined 
-      };
-    }
-    return { html: '<html><body></body></html>' };
-  }, [flipHTML]);
   
   return (
     <View style={[styles.container, isFullscreen && styles.fullscreen]}>
