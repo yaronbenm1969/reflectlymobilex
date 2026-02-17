@@ -645,28 +645,9 @@ const FlipPagesWebView = ({
 
   useEffect(() => {
     if (!flipHTML) return;
-    
-    const saveHTMLToFile = async () => {
-      try {
-        const dirInfo = await FileSystem.getInfoAsync(FLIP_HTML_DIR);
-        if (!dirInfo.exists) {
-          await FileSystem.makeDirectoryAsync(FLIP_HTML_DIR, { intermediates: true });
-        }
-        
-        const filePath = FLIP_HTML_DIR + 'flip_' + Date.now() + '.html';
-        await FileSystem.writeAsStringAsync(filePath, flipHTML, { encoding: FileSystem.EncodingType.UTF8 });
-        
-        console.log('📖 Flip pages HTML saved to:', filePath);
-        setHtmlFilePath(filePath);
-        setIsLoading(false);
-      } catch (err) {
-        console.error('❌ Failed to save flip HTML:', err);
-        setError(err.message);
-        setIsLoading(false);
-      }
-    };
-    
-    saveHTMLToFile();
+    console.log('📖 Flip pages HTML ready, using inline source with baseUrl');
+    setHtmlFilePath('ready');
+    setIsLoading(false);
   }, [flipHTML]);
 
   const handleMessage = useCallback((event) => {
@@ -721,14 +702,24 @@ const FlipPagesWebView = ({
 
   console.log('📖 FlipPagesWebView rendering, isFullscreen:', isFullscreen, 'htmlFilePath:', htmlFilePath ? 'exists' : 'null');
   
+  const webViewSource = useMemo(() => {
+    if (flipHTML) {
+      return { 
+        html: flipHTML, 
+        baseUrl: Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined 
+      };
+    }
+    return { html: '<html><body></body></html>' };
+  }, [flipHTML]);
+  
   return (
     <View style={[styles.container, isFullscreen && styles.fullscreen]}>
       <WebView
         key={webViewKeyRef.current}
         ref={webViewRef}
-        source={{ uri: htmlFilePath }}
+        source={webViewSource}
         style={styles.webView}
-        originWhitelist={['*']}
+        originWhitelist={['*', 'file://*']}
         allowsInlineMediaPlayback={true}
         mediaPlaybackRequiresUserAction={false}
         javaScriptEnabled={true}
@@ -736,11 +727,16 @@ const FlipPagesWebView = ({
         allowFileAccess={true}
         allowFileAccessFromFileURLs={true}
         allowUniversalAccessFromFileURLs={true}
+        allowingReadAccessToURL={Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined}
         onMessage={handleMessage}
+        onError={(e) => setError(e.nativeEvent.description)}
         scrollEnabled={false}
         bounces={false}
         showsVerticalScrollIndicator={false}
         showsHorizontalScrollIndicator={false}
+        useWebKit={true}
+        mixedContentMode="always"
+        cacheEnabled={false}
       />
     </View>
   );
