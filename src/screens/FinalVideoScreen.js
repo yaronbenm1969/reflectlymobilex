@@ -658,6 +658,17 @@ export const FinalVideoScreen = () => {
             colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
             style={styles.endScreenGradient}
           >
+            {isDownloading && (
+              <View style={styles.downloadProgressOverlay}>
+                <View style={styles.downloadProgressCard}>
+                  <ActivityIndicator size="large" color="#FF6B9D" />
+                  <Text style={styles.downloadProgressTitle}>מעבד סרטון...</Text>
+                  {downloadProgress ? (
+                    <Text style={styles.downloadProgressText}>{downloadProgress}</Text>
+                  ) : null}
+                </View>
+              </View>
+            )}
             <ScrollView 
               contentContainerStyle={styles.endScreenScroll}
               showsVerticalScrollIndicator={false}
@@ -682,9 +693,7 @@ export const FinalVideoScreen = () => {
                       <Ionicons name="download-outline" size={28} color="#FF6B9D" />
                     )}
                   </View>
-                  <Text style={styles.endScreenActionLabel}>
-                    {isDownloading && downloadProgress ? downloadProgress : 'הורד סרטון'}
-                  </Text>
+                  <Text style={styles.endScreenActionLabel}>הורד סרטון</Text>
                 </TouchableOpacity>
 
                 {isAnimatedFormat && (
@@ -1443,6 +1452,41 @@ const styles = StyleSheet.create({
   homeButtonText: {
     ...theme.typography.body,
     color: theme.colors.primary,
+  },
+  downloadProgressOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 300,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  downloadProgressCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    paddingVertical: 32,
+    paddingHorizontal: 40,
+    alignItems: 'center',
+    gap: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+    maxWidth: '80%',
+  },
+  downloadProgressTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  downloadProgressText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
   },
   endScreenOverlay: {
     position: 'absolute',
