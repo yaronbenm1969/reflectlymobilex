@@ -5,9 +5,9 @@ const path = require('path');
 const os = require('os');
 
 const CHROMIUM_PATH = execSync('which chromium 2>/dev/null || find /nix -name "chromium" -type f 2>/dev/null | head -1').toString().trim();
-const FRAME_RATE = 24;
-const VIEWPORT_WIDTH = 720;
-const VIEWPORT_HEIGHT = 1280;
+const FRAME_RATE = 12;
+const VIEWPORT_WIDTH = 540;
+const VIEWPORT_HEIGHT = 960;
 
 function getVideoDuration(filePath) {
   try {
@@ -801,16 +801,14 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
         return await window.__seekAndDraw(t);
       }, globalTime);
       
-      await new Promise(r => setTimeout(r, 30));
-      
-      const framePath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.png`);
-      await page.screenshot({ path: framePath, type: 'png' });
+      const framePath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.jpg`);
+      await page.screenshot({ path: framePath, type: 'jpeg', quality: 85 });
       frameCount++;
       
       if (result.done) {
         for (let extra = 0; extra < FRAME_RATE; extra++) {
-          const extraPath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.png`);
-          await page.screenshot({ path: extraPath, type: 'png' });
+          const extraPath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.jpg`);
+          await page.screenshot({ path: extraPath, type: 'jpeg', quality: 85 });
           frameCount++;
         }
         break;
@@ -863,11 +861,11 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
       ffmpegCmd = [
         'ffmpeg', '-y',
         '-framerate', String(FRAME_RATE),
-        '-i', path.join(framesDir, 'frame_%06d.png'),
+        '-i', path.join(framesDir, 'frame_%06d.jpg'),
         '-i', audioPath,
         '-c:v', 'libx264',
-        '-preset', 'fast',
-        '-crf', '20',
+        '-preset', 'veryfast',
+        '-crf', '23',
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
         '-b:a', '128k',
@@ -880,10 +878,10 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
       ffmpegCmd = [
         'ffmpeg', '-y',
         '-framerate', String(FRAME_RATE),
-        '-i', path.join(framesDir, 'frame_%06d.png'),
+        '-i', path.join(framesDir, 'frame_%06d.jpg'),
         '-c:v', 'libx264',
-        '-preset', 'fast',
-        '-crf', '20',
+        '-preset', 'veryfast',
+        '-crf', '23',
         '-pix_fmt', 'yuv420p',
         '-movflags', '+faststart',
         '-vf', `scale=${VIEWPORT_WIDTH}:${VIEWPORT_HEIGHT}`,

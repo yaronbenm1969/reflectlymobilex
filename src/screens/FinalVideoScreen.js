@@ -363,7 +363,15 @@ export const FinalVideoScreen = () => {
     }, 1000);
   };
 
+  const activeRenderRef = useRef(null);
+  
   const renderConcatenatedVideo = async (progressLabel = 'מחבר סרטונים') => {
+    if (activeRenderRef.current) {
+      console.log('📥 Render already in progress, waiting for existing job');
+      return activeRenderRef.current;
+    }
+    
+    const renderPromise = (async () => {
     const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
     if (allVideos.length === 0) {
       return finalVideoUri;
@@ -431,6 +439,15 @@ export const FinalVideoScreen = () => {
       }
     }
     throw new Error('Rendering timed out');
+    })();
+    
+    activeRenderRef.current = renderPromise;
+    try {
+      const result = await renderPromise;
+      return result;
+    } finally {
+      activeRenderRef.current = null;
+    }
   };
 
   const downloadVideoToLocal = async (url, prefix = 'video') => {

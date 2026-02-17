@@ -887,6 +887,21 @@ app.post('/api/stories/:storyId/render-format', async (req, res) => {
   
   console.log(`🎬 Format render: ${videoUrls.length} videos, format: ${format}, story: ${storyName}`);
   
+  const renderKey = `${videoUrls.sort().join('|')}_${format}`;
+  for (const [existingJobId, existingJob] of renderingJobs.entries()) {
+    if (existingJob._renderKey === renderKey && existingJob.status === 'processing') {
+      console.log(`♻️ Duplicate render request, reusing job: ${existingJobId}`);
+      return res.json({ success: true, jobId: existingJobId, message: 'Format rendering already in progress', status: 'processing' });
+    }
+    if (existingJob._renderKey === renderKey && existingJob.status === 'completed' && existingJob.finalUrl) {
+      const age = Date.now() - (existingJob._completedAt || 0);
+      if (age < 10 * 60 * 1000) {
+        console.log(`♻️ Recent render found, reusing: ${existingJobId}`);
+        return res.json({ success: true, jobId: existingJobId, message: 'Format render already available', status: 'processing' });
+      }
+    }
+  }
+  
   const jobId = `fmt_${storyId}_${Date.now()}`;
   
   renderingJobs.set(jobId, {
@@ -894,6 +909,7 @@ app.post('/api/stories/:storyId/render-format', async (req, res) => {
     progress: 0,
     storyId,
     format,
+    _renderKey: renderKey,
     startedAt: new Date().toISOString()
   });
   
@@ -931,6 +947,8 @@ app.post('/api/stories/:storyId/render-format', async (req, res) => {
         progress: 100,
         storyId,
         format,
+        _renderKey: renderKey,
+        _completedAt: Date.now(),
         finalUrl,
         completedAt: new Date().toISOString()
       });
