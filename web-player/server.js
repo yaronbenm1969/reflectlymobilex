@@ -192,6 +192,7 @@ setTimeout(()=>location.href='/cube3d-v2.html?v=${Date.now()}',500);
             port: CONVERTER_PORT,
             path: req.url,
             method: req.method,
+            timeout: 120000,
             headers: {
                 ...req.headers,
                 host: `localhost:${CONVERTER_PORT}`
@@ -203,8 +204,18 @@ setTimeout(()=>location.href='/cube3d-v2.html?v=${Date.now()}',500);
         
         proxyReq.on('error', (err) => {
             console.error('Proxy error:', err.message);
-            res.writeHead(502);
-            res.end(JSON.stringify({ error: 'Converter service unavailable' }));
+            if (!res.headersSent) {
+                res.writeHead(502, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Converter service unavailable', message: err.message }));
+            }
+        });
+
+        proxyReq.on('timeout', () => {
+            proxyReq.destroy();
+            if (!res.headersSent) {
+                res.writeHead(504, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Converter service timeout' }));
+            }
         });
         
         req.pipe(proxyReq);

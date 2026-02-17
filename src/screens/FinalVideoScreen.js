@@ -402,17 +402,33 @@ export const FinalVideoScreen = () => {
     }
 
     const maxPolls = useFormatRender ? 300 : 120;
+    let consecutiveErrors = 0;
     for (let i = 0; i < maxPolls; i++) {
       await new Promise(r => setTimeout(r, 2000));
-      const statusRes = await fetch(`${VIDEO_CONVERTER_URL}/api/render-status/${renderData.jobId}`);
-      const statusData = await statusRes.json();
-      if (statusData.status === 'completed' && statusData.finalUrl) {
-        return statusData.finalUrl;
-      } else if (statusData.status === 'failed') {
-        throw new Error(statusData.error || 'Rendering failed');
+      try {
+        const statusRes = await fetch(`${VIDEO_CONVERTER_URL}/api/render-status/${renderData.jobId}`);
+        const statusText = await statusRes.text();
+        let statusData;
+        try { statusData = JSON.parse(statusText); } catch (parseErr) {
+          console.warn(`Status poll ${i}: non-JSON response (${statusRes.status}):`, statusText.substring(0, 100));
+          consecutiveErrors++;
+          if (consecutiveErrors > 10) throw new Error('Server not responding properly');
+          continue;
+        }
+        consecutiveErrors = 0;
+        if (statusData.status === 'completed' && statusData.finalUrl) {
+          return statusData.finalUrl;
+        } else if (statusData.status === 'failed') {
+          throw new Error(statusData.error || 'Rendering failed');
+        }
+        const progressMsg = statusData.progressMessage || '';
+        setDownloadProgress(`${progressLabel}... ${statusData.progress || 0}% ${progressMsg}`);
+      } catch (fetchErr) {
+        if (fetchErr.message === 'Server not responding properly' || fetchErr.message?.includes('Rendering failed')) throw fetchErr;
+        console.warn(`Status poll ${i} error:`, fetchErr.message);
+        consecutiveErrors++;
+        if (consecutiveErrors > 10) throw new Error('Server connection lost');
       }
-      const progressMsg = statusData.progressMessage || '';
-      setDownloadProgress(`${progressLabel}... ${statusData.progress || 0}% ${progressMsg}`);
     }
     throw new Error('Rendering timed out');
   };
