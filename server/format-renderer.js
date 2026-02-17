@@ -9,13 +9,22 @@ const FRAME_RATE = 24;
 const VIEWPORT_WIDTH = 720;
 const VIEWPORT_HEIGHT = 1280;
 
-function generateCubeHTML(videoUrls) {
+function getVideoDuration(filePath) {
+  try {
+    const result = execSync(
+      `ffprobe -v quiet -print_format json -show_format "${filePath}"`,
+      { timeout: 10000 }
+    ).toString();
+    const data = JSON.parse(result);
+    return parseFloat(data.format.duration) || 0;
+  } catch (e) {
+    console.log('ffprobe error:', e.message);
+    return 0;
+  }
+}
+
+function generateCubeHTML(videoUrls, videoDurations) {
   const CUBE_SIZE = 280;
-  const facesJSON = JSON.stringify(videoUrls.map((url, i) => ({
-    index: i,
-    videoUrl: url,
-    playerName: `Video ${i + 1}`,
-  })));
 
   return `<!DOCTYPE html>
 <html lang="he" dir="rtl">
@@ -98,9 +107,8 @@ function generateCubeHTML(videoUrls) {
       box-shadow: 0 0 30px rgba(0,0,0,0.3);
       backface-visibility: hidden;
     }
-    .cube-face video {
+    .cube-face canvas {
       width: 100%; height: 100%;
-      object-fit: cover;
       position: absolute; top: 0; left: 0;
       background: #000;
     }
@@ -142,8 +150,9 @@ function generateCubeHTML(videoUrls) {
     </div>
   </div>
   <script>
-    const faces = ${facesJSON};
-    const fullVideoQueue = faces.filter(f => f && f.videoUrl);
+    const videoUrls = ${JSON.stringify(videoUrls)};
+    const videoDurations = ${JSON.stringify(videoDurations)};
+    const CANVAS_SIZE = ${CUBE_SIZE};
     
     const ROTATION_PATH = [
       { faceId: 0, rotX: 0, rotY: 0 },
@@ -153,16 +162,45 @@ function generateCubeHTML(videoUrls) {
     ];
     const HALF_ANGLE = 45;
     
-    let currentIndex = 0;
-    let isPlaying = false;
-    let faceVideoElements = {};
-    let faceVideos = {};
-    let floatAnimId = null;
-    let floatStartTime = 0;
-    let currentRotX = 0, currentRotY = 0;
-    let activeVideo = null, activeVideoIndex = -1;
-    let rotationFromX = 0, rotationFromY = 0;
-    let rotationToX = 0, rotationToY = 0;
+    const videoElements = [];
+    const canvasElements = [];
+    const ctxElements = [];
+    
+    let cumulativeTimes = [];
+    let totalDuration = 0;
+    
+    function init() {
+      let cumTime = 0;
+      for (let i = 0; i < videoUrls.length; i++) {
+        cumulativeTimes.push(cumTime);
+        cumTime += videoDurations[i];
+      }
+      totalDuration = cumTime;
+      
+      for (let i = 0; i < videoUrls.length; i++) {
+        const video = document.createElement('video');
+        video.src = videoUrls[i];
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = 'auto';
+        video.crossOrigin = 'anonymous';
+        video.style.display = 'none';
+        document.body.appendChild(video);
+        videoElements.push(video);
+      }
+      
+      [0,1,2,3,4,5].forEach(faceId => {
+        const el = document.getElementById('face-' + faceId);
+        const canvas = document.createElement('canvas');
+        canvas.width = CANVAS_SIZE;
+        canvas.height = CANVAS_SIZE;
+        el.appendChild(canvas);
+        canvasElements[faceId] = canvas;
+        ctxElements[faceId] = canvas.getContext('2d');
+        ctxElements[faceId].fillStyle = '#000';
+        ctxElements[faceId].fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      });
+    }
     
     function getFaceForIndex(idx) { return ROTATION_PATH[idx % 4].faceId; }
     function getTargetRotation(idx) {
@@ -171,205 +209,140 @@ function generateCubeHTML(videoUrls) {
       return { rotX: step.rotX, rotY: step.rotY - (cycle * 360) };
     }
     
-    function initFaceVideoElements() {
-      [0,1,2,3,4,5].forEach(faceId => {
-        const el = document.getElementById('face-' + faceId);
-        if (el && !faceVideoElements[faceId]) {
-          const video = document.createElement('video');
-          video.muted = true;
-          video.playsInline = true;
-          video.setAttribute('playsinline', '');
-          video.preload = 'auto';
-          video.crossOrigin = 'anonymous';
-          video.style.cssText = 'width:100%;height:100%;object-fit:cover;';
-          el.appendChild(video);
-          faceVideoElements[faceId] = video;
+    function getVideoAtTime(globalTime) {
+      for (let i = videoUrls.length - 1; i >= 0; i--) {
+        if (globalTime >= cumulativeTimes[i]) {
+          const localTime = globalTime - cumulativeTimes[i];
+          const dur = videoDurations[i];
+          if (localTime <= dur) {
+            return { videoIndex: i, localTime: Math.min(localTime, dur - 0.01) };
+          }
         }
+      }
+      return { videoIndex: videoUrls.length - 1, localTime: videoDurations[videoDurations.length - 1] - 0.01 };
+    }
+    
+    function drawVideoOnFace(videoIndex, faceId) {
+      const video = videoElements[videoIndex];
+      const ctx = ctxElements[faceId];
+      if (!ctx || !video) return;
+      
+      if (video.readyState >= 2) {
+        const vw = video.videoWidth || CANVAS_SIZE;
+        const vh = video.videoHeight || CANVAS_SIZE;
+        const scale = Math.max(CANVAS_SIZE / vw, CANVAS_SIZE / vh);
+        const sw = vw * scale;
+        const sh = vh * scale;
+        const sx = (CANVAS_SIZE - sw) / 2;
+        const sy = (CANVAS_SIZE - sh) / 2;
+        ctx.drawImage(video, sx, sy, sw, sh);
+      }
+    }
+    
+    window.__seekAndDraw = function(globalTime) {
+      return new Promise(async (resolve) => {
+        if (globalTime >= totalDuration) {
+          resolve({ done: true });
+          return;
+        }
+        
+        const { videoIndex, localTime } = getVideoAtTime(globalTime);
+        const video = videoElements[videoIndex];
+        
+        const faceId = getFaceForIndex(videoIndex);
+        
+        if (video.readyState < 2) {
+          await new Promise((r) => {
+            if (video.readyState >= 2) { r(); return; }
+            video.oncanplay = () => { video.oncanplay = null; r(); };
+            setTimeout(r, 5000);
+          });
+        }
+        
+        if (Math.abs(video.currentTime - localTime) > 0.05) {
+          await new Promise((r) => {
+            video.onseeked = () => { video.onseeked = null; r(); };
+            video.currentTime = localTime;
+            setTimeout(r, 1000);
+          });
+        }
+        
+        drawVideoOnFace(videoIndex, faceId);
+        
+        const prevVideoIndex = videoIndex > 0 ? videoIndex - 1 : null;
+        const nextVideoIndex = videoIndex < videoUrls.length - 1 ? videoIndex + 1 : null;
+        if (prevVideoIndex !== null) {
+          drawVideoOnFace(prevVideoIndex, getFaceForIndex(prevVideoIndex));
+        }
+        if (nextVideoIndex !== null) {
+          const nextVideo = videoElements[nextVideoIndex];
+          if (nextVideo.readyState >= 2) {
+            drawVideoOnFace(nextVideoIndex, getFaceForIndex(nextVideoIndex));
+          }
+        }
+        
+        const dur = videoDurations[videoIndex];
+        const videoProgress = dur > 0 ? Math.min(localTime / dur, 1) : 0;
+        
+        const fromTarget = getTargetRotation(videoIndex);
+        const toTarget = getTargetRotation(videoIndex + 1);
+        const ease = videoProgress < 0.5 ? 2*videoProgress*videoProgress : 1 - Math.pow(-2*videoProgress+2,2)/2;
+        
+        const fromRotX = fromTarget.rotX;
+        const fromRotY = fromTarget.rotY + HALF_ANGLE;
+        const toRotX = toTarget.rotX;
+        const toRotY = toTarget.rotY + HALF_ANGLE;
+        
+        const currentRotX = fromRotX + (toRotX - fromRotX) * ease;
+        const currentRotY = fromRotY + (toRotY - fromRotY) * ease;
+        
+        const elapsed = globalTime;
+        const floatX = Math.sin(elapsed * 0.5) * 22 + Math.sin(elapsed * 0.3) * 13;
+        const floatY = Math.sin(elapsed * 0.4 + 1) * 26 + Math.cos(elapsed * 0.25) * 16;
+        const floatZ = Math.sin(elapsed * 0.35 + 2) * 38 + Math.cos(elapsed * 0.2) * 20;
+        const depthPhase1 = Math.sin(elapsed * 0.15) * 0.22;
+        const depthPhase2 = Math.sin(elapsed * 0.4 + 1.5) * 0.11;
+        const depthScale = 0.95 + depthPhase1 + depthPhase2;
+        const depthTranslateZ = Math.sin(elapsed * 0.18 + 2) * 110 + Math.cos(elapsed * 0.12) * 70;
+        
+        const spinWrapper = document.getElementById('spin-wrapper');
+        const floatWrapper = document.getElementById('float-wrapper');
+        if (spinWrapper) spinWrapper.style.transform = 'rotateX('+currentRotX+'deg) rotateY('+currentRotY+'deg)';
+        if (floatWrapper) floatWrapper.style.transform = 'translate3d('+floatX+'px,'+floatY+'px,'+(floatZ+depthTranslateZ)+'px) scale('+depthScale+')';
+        
+        resolve({ done: false, videoIndex, localTime: localTime.toFixed(2), faceId });
       });
-    }
+    };
     
-    function loadVideoOnFace(faceId, queueIdx) {
-      return new Promise((resolve, reject) => {
-        if (queueIdx >= fullVideoQueue.length) { reject('No video'); return; }
-        const video = faceVideoElements[faceId];
-        if (!video) { reject('No element'); return; }
-        if (faceVideos[faceId] && faceVideos[faceId].queueIdx === queueIdx && video.readyState >= 2) {
-          resolve(video); return;
-        }
-        let resolved = false;
-        video.oncanplay = function() {
-          if (resolved) return; resolved = true;
-          video.oncanplay = null; video.onerror = null;
-          video.currentTime = 0.001;
-          resolve(video);
-        };
-        video.onerror = function() {
-          if (resolved) return; resolved = true;
-          video.oncanplay = null; video.onerror = null;
-          reject('Load error');
-        };
-        faceVideos[faceId] = { element: video, queueIdx };
-        video.src = fullVideoQueue[queueIdx].videoUrl;
-        video.load();
-        setTimeout(() => { if (!resolved && video.readyState >= 2) { resolved = true; resolve(video); } }, 8000);
-        setTimeout(() => { if (!resolved) { resolved = true; reject('Timeout'); } }, 15000);
-      });
-    }
+    window.__loadAllVideos = function() {
+      return Promise.all(videoElements.map((v, i) => {
+        return new Promise((resolve) => {
+          if (v.readyState >= 2) { resolve(true); return; }
+          v.oncanplay = () => { v.oncanplay = null; resolve(true); };
+          v.onerror = () => { resolve(false); };
+          v.load();
+          setTimeout(() => resolve(v.readyState >= 2), 15000);
+        });
+      }));
+    };
     
-    function updateCubeTransform(timestamp) {
-      if (!floatStartTime) floatStartTime = timestamp;
-      const elapsed = (timestamp - floatStartTime) / 1000;
-      const floatX = Math.sin(elapsed * 0.5) * 22 + Math.sin(elapsed * 0.3) * 13;
-      const floatY = Math.sin(elapsed * 0.4 + 1) * 26 + Math.cos(elapsed * 0.25) * 16;
-      const floatZ = Math.sin(elapsed * 0.35 + 2) * 38 + Math.cos(elapsed * 0.2) * 20;
-      const depthPhase1 = Math.sin(elapsed * 0.15) * 0.22;
-      const depthPhase2 = Math.sin(elapsed * 0.4 + 1.5) * 0.11;
-      const depthScale = 0.95 + depthPhase1 + depthPhase2;
-      const depthTranslateZ = Math.sin(elapsed * 0.18 + 2) * 110 + Math.cos(elapsed * 0.12) * 70;
-      
-      if (activeVideo && activeVideoIndex >= 0) {
-        const duration = activeVideo.duration;
-        const currentTime = activeVideo.currentTime;
-        if (duration && duration > 0 && isFinite(duration)) {
-          const progress = Math.min(currentTime / duration, 1);
-          const ease = progress < 0.5 ? 2*progress*progress : 1 - Math.pow(-2*progress+2,2)/2;
-          currentRotX = rotationFromX + (rotationToX - rotationFromX) * ease;
-          currentRotY = rotationFromY + (rotationToY - rotationFromY) * ease;
-        }
-      }
-      
-      const spinWrapper = document.getElementById('spin-wrapper');
-      const floatWrapper = document.getElementById('float-wrapper');
-      if (spinWrapper) spinWrapper.style.transform = 'rotateX('+currentRotX+'deg) rotateY('+currentRotY+'deg)';
-      if (floatWrapper) floatWrapper.style.transform = 'translate3d('+floatX+'px,'+floatY+'px,'+(floatZ+depthTranslateZ)+'px) scale('+depthScale+')';
-    }
+    window.__getTotalDuration = function() { return totalDuration; };
+    window.__ready = false;
     
-    function floatLoop(timestamp) {
-      if (!isPlaying) return;
-      updateCubeTransform(timestamp);
-      floatAnimId = requestAnimationFrame(floatLoop);
-    }
-    
-    function setupRotationSync(video, videoIndex) {
-      const fromTarget = getTargetRotation(videoIndex);
-      const toTarget = getTargetRotation(videoIndex + 1);
-      rotationFromX = fromTarget.rotX;
-      rotationFromY = fromTarget.rotY + HALF_ANGLE;
-      rotationToX = toTarget.rotX;
-      rotationToY = toTarget.rotY + HALF_ANGLE;
-      currentRotX = rotationFromX;
-      currentRotY = rotationFromY;
-      activeVideo = video;
-      activeVideoIndex = videoIndex;
-    }
-    
-    function clearRotationSync() { activeVideo = null; activeVideoIndex = -1; }
-    
-    function preloadUpcoming(fromIdx) {
-      for (let a = 1; a <= 3; a++) {
-        const idx = fromIdx + a;
-        if (idx >= fullVideoQueue.length) break;
-        const fId = getFaceForIndex(idx);
-        const existing = faceVideos[fId];
-        if (!existing || existing.queueIdx !== idx) {
-          loadVideoOnFace(fId, idx).catch(() => {});
-        }
-      }
-    }
-    
-    async function playCurrentVideo() {
-      if (currentIndex >= fullVideoQueue.length) {
-        console.log('ALL_DONE');
-        window.__renderComplete = true;
-        isPlaying = false;
-        if (floatAnimId) cancelAnimationFrame(floatAnimId);
-        return;
-      }
-      const faceId = getFaceForIndex(currentIndex);
-      let fv = faceVideos[faceId];
-      if (!fv || fv.queueIdx !== currentIndex) {
-        try { await loadVideoOnFace(faceId, currentIndex); fv = faceVideos[faceId]; }
-        catch(e) { advanceToNext(); return; }
-      }
-      if (!fv || !fv.element) { advanceToNext(); return; }
-      
-      const video = fv.element;
-      const playingIdx = currentIndex;
-      
-      Object.entries(faceVideos).forEach(([id, v]) => {
-        if (parseInt(id) !== faceId && v && v.element) { v.element.pause(); v.element.muted = true; }
-      });
-      
-      video.muted = false;
-      video.volume = 1;
-      video.onended = function() {
-        clearRotationSync();
-        if (currentIndex === playingIdx) advanceToNext();
-      };
-      
-      try {
-        await video.play();
-        setupRotationSync(video, playingIdx);
-        preloadUpcoming(playingIdx);
-      } catch(e) {
-        video.muted = true;
-        try { await video.play(); setupRotationSync(video, playingIdx); preloadUpcoming(playingIdx); }
-        catch(e2) { setTimeout(() => advanceToNext(), 200); }
-      }
-    }
-    
-    function advanceToNext() {
-      currentIndex++;
-      if (currentIndex >= fullVideoQueue.length) {
-        console.log('ALL_DONE');
-        window.__renderComplete = true;
-        isPlaying = false;
-        if (floatAnimId) cancelAnimationFrame(floatAnimId);
-        return;
-      }
-      clearRotationSync();
-      playCurrentVideo();
-    }
-    
-    async function autoStart() {
-      initFaceVideoElements();
-      const preloadCount = Math.min(4, fullVideoQueue.length);
-      const promises = [];
-      for (let i = 0; i < preloadCount; i++) {
-        promises.push(loadVideoOnFace(getFaceForIndex(i), i).catch(() => null));
-      }
-      await Promise.all(promises);
-      
-      currentIndex = 0;
-      isPlaying = true;
-      const initial = getTargetRotation(0);
-      currentRotX = initial.rotX;
-      currentRotY = initial.rotY + HALF_ANGLE;
-      updateCubeTransform(performance.now());
-      floatStartTime = 0;
-      floatAnimId = requestAnimationFrame(floatLoop);
-      
-      window.__renderStarted = true;
-      playCurrentVideo();
-    }
-    
-    window.__renderComplete = false;
-    window.__renderStarted = false;
-    autoStart();
+    init();
+    window.__loadAllVideos().then(() => {
+      window.__ready = true;
+      console.log('READY: all videos loaded, totalDuration=' + totalDuration);
+    });
   </script>
 </body>
 </html>`;
 }
 
-function generateFlipPagesHTML(videoUrls, storyName = 'My Story') {
+function generateFlipPagesHTML(videoUrls, storyName, videoDurations) {
   const PAGE_WIDTH = 280;
   const PAGE_HEIGHT = PAGE_WIDTH * 1.4;
   const safeStoryName = (storyName || 'My Story').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-  const facesJSON = JSON.stringify(videoUrls.map((url, i) => ({
-    index: i,
-    videoUrl: url,
-    playerName: `Video ${i + 1}`,
-  })));
 
   return `<!DOCTYPE html>
 <html lang="he" dir="rtl">
@@ -419,7 +392,6 @@ function generateFlipPagesHTML(videoUrls, storyName = 'My Story') {
       position: absolute; width: 100%; height: 100%;
       transform-origin: right center;
       transform-style: preserve-3d;
-      transition: transform 1.2s cubic-bezier(0.645, 0.045, 0.355, 1.000);
       border-radius: 4px 8px 8px 4px;
       overflow: hidden;
     }
@@ -432,7 +404,7 @@ function generateFlipPagesHTML(videoUrls, storyName = 'My Story') {
     }
     .page-front { z-index: 2; box-shadow: -3px 0 10px rgba(0,0,0,0.2); }
     .page-back { transform: rotateY(-180deg); background: linear-gradient(145deg, #ebe4d8, #ddd6c8); }
-    .page video {
+    .page canvas {
       width: 100%; height: 100%; object-fit: cover;
       border-radius: 4px 8px 8px 4px;
     }
@@ -441,7 +413,6 @@ function generateFlipPagesHTML(videoUrls, storyName = 'My Story') {
       position: absolute; width: 100%; height: 100%;
       transform-origin: right center;
       transform-style: preserve-3d;
-      transition: transform 1.8s cubic-bezier(0.645, 0.045, 0.355, 1.000);
       z-index: 100;
       border-radius: 4px 10px 10px 4px;
     }
@@ -477,206 +448,199 @@ function generateFlipPagesHTML(videoUrls, storyName = 'My Story') {
       background: linear-gradient(90deg, transparent, #D4AF37, transparent);
       margin: 16px auto; z-index: 2;
     }
-    .cover-subtitle {
-      color: rgba(212,175,55,0.6); font-size: 13px;
-      text-align: center; letter-spacing: 3px;
-      text-transform: uppercase; z-index: 2;
-    }
-    .cover-icon { font-size: 40px; margin-bottom: 20px; z-index: 2; opacity: 0.8; }
-    .book-cover-inside {
+    .book-cover-back-face {
       transform: rotateY(-180deg);
-      background: linear-gradient(145deg, #f5f0e8, #ebe4d8);
+      background: linear-gradient(145deg, #654321, #3E2508);
     }
     .book-cover.opened { transform: rotateY(180deg); }
-    .book-shadow {
-      position: absolute; bottom: -15px; right: 5%;
-      width: 90%; height: 15px;
-      background: radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, transparent 70%);
-      filter: blur(6px); z-index: -2;
-    }
   </style>
 </head>
 <body>
-  <div class="book-container" id="book">
+  <div class="book-container" id="book-container">
     <div class="book-cover-back"></div>
-    <div class="book-spine"></div>
     <div class="page-edges"></div>
-    <div class="page" id="page-3" style="z-index:10;">
-      <div class="page-front" id="front-3"></div>
-      <div class="page-back" id="back-3"></div>
-    </div>
-    <div class="page" id="page-2" style="z-index:20;">
-      <div class="page-front" id="front-2"></div>
-      <div class="page-back" id="back-2"></div>
-    </div>
-    <div class="page" id="page-1" style="z-index:30;">
-      <div class="page-front" id="front-1"></div>
-      <div class="page-back" id="back-1"></div>
-    </div>
-    <div class="page" id="page-0" style="z-index:40;">
-      <div class="page-front" id="front-0"></div>
-      <div class="page-back" id="back-0"></div>
-    </div>
+    <div class="book-spine"></div>
     <div class="book-cover" id="book-cover">
       <div class="book-cover-face book-cover-front-face">
         <div class="cover-border"></div>
         <div class="cover-border-inner"></div>
-        <div class="cover-icon">📖</div>
+        <div class="cover-ornament"></div>
         <div class="cover-title">${safeStoryName}</div>
         <div class="cover-ornament"></div>
-        <div class="cover-subtitle">Reflectly</div>
       </div>
-      <div class="book-cover-face book-cover-inside"></div>
+      <div class="book-cover-face book-cover-back-face"></div>
     </div>
-    <div class="book-shadow"></div>
   </div>
   <script>
-    const faces = ${facesJSON};
-    const fullVideoQueue = faces.filter(f => f && f.videoUrl);
-    let currentIndex = 0;
-    let isPlaying = false;
-    const pageVideos = {};
+    const videoUrls = ${JSON.stringify(videoUrls)};
+    const videoDurations = ${JSON.stringify(videoDurations)};
+    const PAGE_WIDTH = ${PAGE_WIDTH};
+    const PAGE_HEIGHT = ${PAGE_HEIGHT};
     
-    function initPageVideos() {
-      for (let i = 0; i < Math.min(4, fullVideoQueue.length); i++) {
-        const frontEl = document.getElementById('front-' + i);
-        if (frontEl && !pageVideos[i]) {
-          const video = document.createElement('video');
-          video.muted = true;
-          video.playsInline = true;
-          video.setAttribute('playsinline', '');
-          video.preload = 'auto';
-          video.crossOrigin = 'anonymous';
-          video.style.cssText = 'width:100%;height:100%;object-fit:cover;';
-          video.src = fullVideoQueue[i].videoUrl;
-          frontEl.appendChild(video);
-          pageVideos[i] = video;
-        }
+    const videoElements = [];
+    const pages = [];
+    let totalDuration = 0;
+    let cumulativeTimes = [];
+    const COVER_OPEN_TIME = 2.0;
+    const PAGE_FLIP_TIME = 1.2;
+    
+    function init() {
+      let cumTime = COVER_OPEN_TIME;
+      for (let i = 0; i < videoUrls.length; i++) {
+        cumulativeTimes.push(cumTime);
+        cumTime += videoDurations[i] + PAGE_FLIP_TIME;
       }
-    }
-    
-    function flipPage(pageIndex) {
-      const page = document.getElementById('page-' + pageIndex);
-      if (page) { page.classList.add('flipped'); page.style.zIndex = 1; }
-    }
-    
-    function resetAllPages() {
-      for (let i = 0; i < 4; i++) {
-        const page = document.getElementById('page-' + i);
-        if (page) { page.classList.remove('flipped'); page.style.zIndex = (4-i)*10; }
-      }
-    }
-    
-    function preloadNextVideo() {
-      const nextIdx = currentIndex + 1;
-      if (nextIdx >= fullVideoQueue.length) return;
-      const nextSlot = nextIdx % 4;
-      const nextVideo = pageVideos[nextSlot];
-      if (nextVideo && fullVideoQueue[nextIdx]) {
-        nextVideo.muted = true;
-        nextVideo.src = fullVideoQueue[nextIdx].videoUrl;
-        nextVideo.load();
-      }
-    }
-    
-    function playCurrentVideo() {
-      if (currentIndex >= fullVideoQueue.length) {
-        console.log('ALL_DONE');
-        window.__renderComplete = true;
-        isPlaying = false;
-        return;
-      }
-      const pageSlot = currentIndex % 4;
-      const video = pageVideos[pageSlot];
-      if (!video) { advanceToNext(); return; }
+      totalDuration = cumTime;
       
-      const playingIndex = currentIndex;
-      Object.values(pageVideos).forEach(v => { if (v !== video) v.pause(); });
-      video.muted = false;
-      video.currentTime = 0;
-      
-      let earlyFlipDone = false;
-      video.ontimeupdate = function() {
-        if (earlyFlipDone) return;
-        const remaining = video.duration - video.currentTime;
-        if (remaining <= 1.5 && video.duration > 2) {
-          earlyFlipDone = true;
-          flipPage(playingIndex % 4);
-        }
-      };
-      
-      video.onended = function() {
-        video.ontimeupdate = null;
-        if (!earlyFlipDone) flipPage(playingIndex % 4);
-        setTimeout(() => {
-          if (currentIndex === playingIndex) advanceToNext();
-        }, earlyFlipDone ? 100 : 600);
-      };
-      
-      video.play().then(() => {
-        preloadNextVideo();
-      }).catch(e => {
+      for (let i = 0; i < videoUrls.length; i++) {
+        const video = document.createElement('video');
+        video.src = videoUrls[i];
         video.muted = true;
-        video.play().then(() => preloadNextVideo()).catch(() => {
-          setTimeout(() => advanceToNext(), 200);
-        });
-      });
+        video.playsInline = true;
+        video.preload = 'auto';
+        video.crossOrigin = 'anonymous';
+        video.style.display = 'none';
+        document.body.appendChild(video);
+        videoElements.push(video);
+      }
+      
+      const container = document.getElementById('book-container');
+      for (let i = 0; i < videoUrls.length; i++) {
+        const page = document.createElement('div');
+        page.className = 'page';
+        page.style.zIndex = String(videoUrls.length - i + 10);
+        page.id = 'page-' + i;
+        
+        const front = document.createElement('div');
+        front.className = 'page-front';
+        const canvas = document.createElement('canvas');
+        canvas.width = PAGE_WIDTH;
+        canvas.height = PAGE_HEIGHT;
+        canvas.id = 'canvas-' + i;
+        front.appendChild(canvas);
+        
+        const back = document.createElement('div');
+        back.className = 'page-back';
+        
+        page.appendChild(front);
+        page.appendChild(back);
+        container.appendChild(page);
+        
+        pages.push({ page, canvas, ctx: canvas.getContext('2d') });
+      }
     }
     
-    function advanceToNext() {
-      currentIndex++;
-      if (currentIndex >= fullVideoQueue.length) {
-        console.log('ALL_DONE');
-        window.__renderComplete = true;
-        isPlaying = false;
-        return;
-      }
-      if (currentIndex % 4 === 0) {
-        resetAllPages();
-        for (let i = 0; i < Math.min(4, fullVideoQueue.length - currentIndex); i++) {
-          const video = pageVideos[i];
-          if (video && fullVideoQueue[currentIndex + i]) {
-            video.muted = true;
-            video.src = fullVideoQueue[currentIndex + i].videoUrl;
-            video.load();
+    function drawVideoOnCanvas(videoIndex) {
+      const video = videoElements[videoIndex];
+      const { ctx } = pages[videoIndex];
+      if (!ctx || !video || video.readyState < 2) return;
+      
+      const vw = video.videoWidth || PAGE_WIDTH;
+      const vh = video.videoHeight || PAGE_HEIGHT;
+      const scale = Math.max(PAGE_WIDTH / vw, PAGE_HEIGHT / vh);
+      const sw = vw * scale;
+      const sh = vh * scale;
+      const sx = (PAGE_WIDTH - sw) / 2;
+      const sy = (PAGE_HEIGHT - sh) / 2;
+      ctx.drawImage(video, sx, sy, sw, sh);
+    }
+    
+    window.__seekAndDraw = function(globalTime) {
+      return new Promise(async (resolve) => {
+        if (globalTime >= totalDuration) {
+          resolve({ done: true });
+          return;
+        }
+        
+        const cover = document.getElementById('book-cover');
+        if (globalTime < COVER_OPEN_TIME) {
+          const progress = globalTime / COVER_OPEN_TIME;
+          const angle = Math.min(progress * 180, 180);
+          if (cover) cover.style.transform = 'rotateY(' + angle + 'deg)';
+          resolve({ done: false, phase: 'cover', progress: progress.toFixed(2) });
+          return;
+        }
+        
+        if (cover && cover.style.transform !== 'rotateY(180deg)') {
+          cover.style.transform = 'rotateY(180deg)';
+        }
+        
+        let activeVideoIndex = -1;
+        for (let i = videoUrls.length - 1; i >= 0; i--) {
+          if (globalTime >= cumulativeTimes[i]) {
+            activeVideoIndex = i;
+            break;
           }
         }
-        setTimeout(() => playCurrentVideo(), 300);
-      } else {
-        playCurrentVideo();
-      }
-    }
-    
-    async function autoStart() {
-      initPageVideos();
-      const preloadPromises = Object.values(pageVideos).map(video => {
-        return new Promise(resolve => {
-          if (video.readyState >= 2) resolve();
-          else {
-            video.oncanplay = () => resolve();
-            setTimeout(resolve, 8000);
+        if (activeVideoIndex < 0) activeVideoIndex = 0;
+        
+        const videoStartTime = cumulativeTimes[activeVideoIndex];
+        const timeSinceStart = globalTime - videoStartTime;
+        const dur = videoDurations[activeVideoIndex];
+        
+        for (let i = 0; i < activeVideoIndex; i++) {
+          const pg = pages[i];
+          if (pg && !pg.page.classList.contains('flipped')) {
+            pg.page.classList.add('flipped');
+            pg.page.style.transition = 'none';
           }
-        });
+        }
+        
+        if (timeSinceStart <= dur) {
+          const localTime = Math.min(timeSinceStart, dur - 0.01);
+          const video = videoElements[activeVideoIndex];
+          
+          if (video.readyState < 2) {
+            await new Promise((r) => {
+              if (video.readyState >= 2) { r(); return; }
+              video.oncanplay = () => { video.oncanplay = null; r(); };
+              setTimeout(r, 5000);
+            });
+          }
+          
+          if (Math.abs(video.currentTime - localTime) > 0.05) {
+            await new Promise((r) => {
+              video.onseeked = () => { video.onseeked = null; r(); };
+              video.currentTime = localTime;
+              setTimeout(r, 1000);
+            });
+          }
+          
+          drawVideoOnCanvas(activeVideoIndex);
+          resolve({ done: false, videoIndex: activeVideoIndex, localTime: localTime.toFixed(2) });
+        } else {
+          const flipProgress = Math.min((timeSinceStart - dur) / PAGE_FLIP_TIME, 1);
+          const pg = pages[activeVideoIndex];
+          if (pg) {
+            const angle = flipProgress * 180;
+            pg.page.style.transition = 'none';
+            pg.page.style.transform = 'rotateY(' + angle + 'deg)';
+          }
+          resolve({ done: false, phase: 'flip', videoIndex: activeVideoIndex, flipProgress: flipProgress.toFixed(2) });
+        }
       });
-      await Promise.all(preloadPromises);
-      
-      const cover = document.getElementById('book-cover');
-      if (cover) {
-        cover.classList.add('opened');
-        await new Promise(r => setTimeout(r, 2000));
-        cover.style.display = 'none';
-      }
-      
-      currentIndex = 0;
-      isPlaying = true;
-      resetAllPages();
-      window.__renderStarted = true;
-      playCurrentVideo();
-    }
+    };
     
-    window.__renderComplete = false;
-    window.__renderStarted = false;
-    autoStart();
+    window.__loadAllVideos = function() {
+      return Promise.all(videoElements.map((v, i) => {
+        return new Promise((resolve) => {
+          if (v.readyState >= 2) { resolve(true); return; }
+          v.oncanplay = () => { v.oncanplay = null; resolve(true); };
+          v.onerror = () => { resolve(false); };
+          v.load();
+          setTimeout(() => resolve(v.readyState >= 2), 15000);
+        });
+      }));
+    };
+    
+    window.__getTotalDuration = function() { return totalDuration; };
+    window.__ready = false;
+    
+    init();
+    window.__loadAllVideos().then(() => {
+      window.__ready = true;
+      console.log('READY: all videos loaded, totalDuration=' + totalDuration);
+    });
   </script>
 </body>
 </html>`;
@@ -687,7 +651,7 @@ async function downloadFile(url, destPath) {
   const http = require('http');
   return new Promise((resolve, reject) => {
     const mod = url.startsWith('https') ? https : http;
-    const request = mod.get(url, { timeout: 30000 }, (response) => {
+    const request = mod.get(url, { timeout: 60000 }, (response) => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         downloadFile(response.headers.location, destPath).then(resolve).catch(reject);
         return;
@@ -714,13 +678,28 @@ function startLocalVideoServer(videosDir, port) {
       res.writeHead(404); res.end(); return;
     }
     const stat = fs.statSync(filePath);
-    res.writeHead(200, {
-      'Content-Type': 'video/mp4',
-      'Content-Length': stat.size,
-      'Access-Control-Allow-Origin': '*',
-      'Accept-Ranges': 'bytes',
-    });
-    fs.createReadStream(filePath).pipe(res);
+    const range = req.headers.range;
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': end - start + 1,
+        'Content-Type': 'video/mp4',
+        'Access-Control-Allow-Origin': '*',
+      });
+      fs.createReadStream(filePath, { start, end }).pipe(res);
+    } else {
+      res.writeHead(200, {
+        'Content-Type': 'video/mp4',
+        'Content-Length': stat.size,
+        'Access-Control-Allow-Origin': '*',
+        'Accept-Ranges': 'bytes',
+      });
+      fs.createReadStream(filePath).pipe(res);
+    }
   });
   return new Promise((resolve) => {
     server.listen(port, '127.0.0.1', () => {
@@ -747,10 +726,16 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
     onProgress(5, 'Downloading videos');
     
     const localUrls = [];
+    const videoDurations = [];
+    
     for (let i = 0; i < videoUrls.length; i++) {
       const localPath = path.join(videosDir, `video_${i}.mp4`);
       console.log(`Downloading video ${i+1}/${videoUrls.length}...`);
       await downloadFile(videoUrls[i], localPath);
+      
+      const duration = getVideoDuration(localPath);
+      console.log(`Video ${i}: duration=${duration}s, size=${fs.statSync(localPath).size} bytes`);
+      videoDurations.push(duration > 0 ? duration : 5);
       localUrls.push(`http://127.0.0.1:${localPort}/video_${i}.mp4`);
       onProgress(5 + Math.round((i+1)/videoUrls.length * 10), `Downloaded ${i+1}/${videoUrls.length}`);
     }
@@ -781,12 +766,10 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
     page.on('pageerror', err => console.log(`[Browser Error] ${err.message}`));
     
     let html;
-    if (format === 'cube-3d') {
-      html = generateCubeHTML(localUrls);
-    } else if (format === 'flip-pages') {
-      html = generateFlipPagesHTML(localUrls, storyName);
+    if (format === 'flip-pages') {
+      html = generateFlipPagesHTML(localUrls, storyName, videoDurations);
     } else {
-      html = generateCubeHTML(localUrls);
+      html = generateCubeHTML(localUrls, videoDurations);
     }
     
     onProgress(20, 'Loading animation');
@@ -796,47 +779,47 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
     onProgress(22, 'Waiting for videos to load');
     
     try {
-      await page.waitForFunction('window.__renderStarted === true', { timeout: 60000 });
+      await page.waitForFunction('window.__ready === true', { timeout: 60000 });
+      console.log('All videos loaded in browser');
     } catch (e) {
-      console.log('Warning: __renderStarted not detected, proceeding anyway');
+      console.log('Warning: video loading timeout, proceeding anyway');
     }
+    
+    const totalDuration = await page.evaluate(() => window.__getTotalDuration());
+    console.log(`Total animation duration: ${totalDuration.toFixed(1)}s`);
+    
+    const totalFrames = Math.ceil(totalDuration * FRAME_RATE) + FRAME_RATE * 2;
     
     onProgress(25, 'Recording animation');
     
-    const frameInterval = 1000 / FRAME_RATE;
     let frameCount = 0;
-    const maxFrames = FRAME_RATE * 300;
-    const maxWaitMs = 300000;
-    const startTime = Date.now();
-    const minFrames = FRAME_RATE * 5;
     
-    while (frameCount < maxFrames) {
-      const isComplete = await page.evaluate(() => window.__renderComplete);
-      if (isComplete && frameCount >= minFrames) {
-        for (let extra = 0; extra < FRAME_RATE * 2; extra++) {
-          const framePath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.png`);
-          await page.screenshot({ path: framePath, type: 'png' });
-          frameCount++;
-          await new Promise(r => setTimeout(r, frameInterval));
-        }
-        break;
-      }
+    for (let f = 0; f < totalFrames; f++) {
+      const globalTime = f / FRAME_RATE;
       
-      if (Date.now() - startTime > maxWaitMs) {
-        console.log('Render timeout - using captured frames');
-        break;
-      }
+      const result = await page.evaluate(async (t) => {
+        return await window.__seekAndDraw(t);
+      }, globalTime);
+      
+      await new Promise(r => setTimeout(r, 30));
       
       const framePath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.png`);
       await page.screenshot({ path: framePath, type: 'png' });
       frameCount++;
       
-      if (frameCount % (FRAME_RATE * 5) === 0) {
-        const progressPct = Math.min(25 + (frameCount / (FRAME_RATE * 60)) * 55, 80);
-        onProgress(Math.round(progressPct), `Recording... ${Math.round(frameCount / FRAME_RATE)}s`);
+      if (result.done) {
+        for (let extra = 0; extra < FRAME_RATE; extra++) {
+          const extraPath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.png`);
+          await page.screenshot({ path: extraPath, type: 'png' });
+          frameCount++;
+        }
+        break;
       }
       
-      await new Promise(r => setTimeout(r, frameInterval));
+      if (frameCount % (FRAME_RATE * 5) === 0) {
+        const progressPct = Math.min(25 + (f / totalFrames) * 55, 80);
+        onProgress(Math.round(progressPct), `Recording... ${Math.round(globalTime)}s / ${Math.round(totalDuration)}s`);
+      }
     }
     
     console.log(`Captured ${frameCount} frames (${(frameCount/FRAME_RATE).toFixed(1)}s)`);
@@ -855,7 +838,7 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
     
     onProgress(82, 'Compiling video');
     
-    const videoDuration = frameCount / FRAME_RATE;
+    const videoDurationSecs = frameCount / FRAME_RATE;
     const audioPath = path.join(tmpDir, 'audio.aac');
     let hasAudio = false;
     
@@ -865,7 +848,7 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
       if (videoFiles.length > 0) {
         const lines = videoFiles.map(f => `file '${path.join(videosDir, f)}'`).join('\n');
         fs.writeFileSync(concatList, lines);
-        const concatAudioCmd = `ffmpeg -y -f concat -safe 0 -i ${concatList} -vn -acodec aac -b:a 128k -t ${videoDuration} ${audioPath} 2>/dev/null`;
+        const concatAudioCmd = `ffmpeg -y -f concat -safe 0 -i ${concatList} -vn -acodec aac -b:a 128k -t ${videoDurationSecs} ${audioPath} 2>/dev/null`;
         execSync(concatAudioCmd, { timeout: 30000 });
         if (fs.existsSync(audioPath) && fs.statSync(audioPath).size > 100) {
           hasAudio = true;
@@ -908,7 +891,7 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
       ].join(' ');
     }
     
-    execSync(ffmpegCmd, { timeout: 120000 });
+    execSync(ffmpegCmd, { timeout: 300000 });
     
     onProgress(90, 'Video compiled');
     
