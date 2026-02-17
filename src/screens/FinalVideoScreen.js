@@ -698,8 +698,9 @@ export const FinalVideoScreen = () => {
 
                 {isAnimatedFormat && (
                   <TouchableOpacity 
-                    style={styles.endScreenActionBtn}
+                    style={[styles.endScreenActionBtn, isDownloading && styles.disabledBtn]}
                     onPress={handleRecord3DVideo}
+                    disabled={isDownloading}
                   >
                     <View style={[styles.endScreenIconCircle, { backgroundColor: 'rgba(255,68,68,0.1)' }]}>
                       <Ionicons name="cube-outline" size={28} color="#FF4444" />
@@ -709,8 +710,9 @@ export const FinalVideoScreen = () => {
                 )}
 
                 <TouchableOpacity 
-                  style={styles.endScreenActionBtn}
+                  style={[styles.endScreenActionBtn, isDownloading && styles.disabledBtn]}
                   onPress={handleGeneralShare}
+                  disabled={isDownloading}
                 >
                   <View style={styles.endScreenIconCircle}>
                     <Ionicons name="share-outline" size={28} color="#FF6B9D" />
@@ -723,8 +725,9 @@ export const FinalVideoScreen = () => {
 
               <View style={styles.endScreenSocials}>
                 <TouchableOpacity 
-                  style={styles.socialBtn}
+                  style={[styles.socialBtn, isDownloading && styles.disabledBtn]}
                   onPress={handleShareToFacebook}
+                  disabled={isDownloading}
                 >
                   <View style={[styles.socialIconCircle, { backgroundColor: '#1877F2' }]}>  
                     <Ionicons name="logo-facebook" size={30} color="white" />
@@ -733,8 +736,9 @@ export const FinalVideoScreen = () => {
                 </TouchableOpacity>
 
                 <TouchableOpacity 
-                  style={styles.socialBtn}
+                  style={[styles.socialBtn, isDownloading && styles.disabledBtn]}
                   onPress={handleShareToInstagram}
+                  disabled={isDownloading}
                 >
                   <LinearGradient
                     colors={['#F58529', '#DD2A7B', '#8134AF', '#515BD4']}
@@ -746,8 +750,9 @@ export const FinalVideoScreen = () => {
                 </TouchableOpacity>
 
                 <TouchableOpacity 
-                  style={styles.socialBtn}
+                  style={[styles.socialBtn, isDownloading && styles.disabledBtn]}
                   onPress={handleShareToTikTok}
+                  disabled={isDownloading}
                 >
                   <View style={[styles.socialIconCircle, { backgroundColor: '#000' }]}>  
                     <Ionicons name="logo-tiktok" size={28} color="white" />
@@ -1452,6 +1457,9 @@ const styles = StyleSheet.create({
   homeButtonText: {
     ...theme.typography.body,
     color: theme.colors.primary,
+  },
+  disabledBtn: {
+    opacity: 0.4,
   },
   downloadProgressOverlay: {
     position: 'absolute',
