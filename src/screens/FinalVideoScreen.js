@@ -409,18 +409,23 @@ export const FinalVideoScreen = () => {
       throw new Error(renderData.error || renderData.message || 'Failed to start rendering');
     }
 
-    const maxPolls = useFormatRender ? 300 : 120;
+    const maxPolls = useFormatRender ? 450 : 120;
     let consecutiveErrors = 0;
     for (let i = 0; i < maxPolls; i++) {
       await new Promise(r => setTimeout(r, 2000));
       try {
-        const statusRes = await fetch(`${VIDEO_CONVERTER_URL}/api/render-status/${renderData.jobId}`);
+        const controller = new AbortController();
+        const fetchTimeout = setTimeout(() => controller.abort(), 15000);
+        const statusRes = await fetch(`${VIDEO_CONVERTER_URL}/api/render-status/${renderData.jobId}`, {
+          signal: controller.signal,
+        });
+        clearTimeout(fetchTimeout);
         const statusText = await statusRes.text();
         let statusData;
         try { statusData = JSON.parse(statusText); } catch (parseErr) {
           console.warn(`Status poll ${i}: non-JSON response (${statusRes.status}):`, statusText.substring(0, 100));
           consecutiveErrors++;
-          if (consecutiveErrors > 10) throw new Error('Server not responding properly');
+          if (consecutiveErrors > 30) throw new Error('Server not responding properly');
           continue;
         }
         consecutiveErrors = 0;
@@ -430,12 +435,12 @@ export const FinalVideoScreen = () => {
           throw new Error(statusData.error || 'Rendering failed');
         }
         const progressMsg = statusData.progressMessage || '';
-        setDownloadProgress(`${progressLabel}... ${statusData.progress || 0}% ${progressMsg}`);
+        setDownloadProgress(`${statusData.progress || 0}% ${progressMsg}`);
       } catch (fetchErr) {
         if (fetchErr.message === 'Server not responding properly' || fetchErr.message?.includes('Rendering failed')) throw fetchErr;
         console.warn(`Status poll ${i} error:`, fetchErr.message);
         consecutiveErrors++;
-        if (consecutiveErrors > 10) throw new Error('Server connection lost');
+        if (consecutiveErrors > 30) throw new Error('Server connection lost');
       }
     }
     throw new Error('Rendering timed out');

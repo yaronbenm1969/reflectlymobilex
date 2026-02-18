@@ -723,26 +723,32 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
   const localPort = 9100 + Math.floor(Math.random() * 900);
   
   try {
-    onProgress(5, 'Downloading videos');
+    onProgress(5, 'מוריד סרטונים');
     
     const localUrls = [];
     const videoDurations = [];
     
-    for (let i = 0; i < videoUrls.length; i++) {
+    const downloadPromises = videoUrls.map((url, i) => {
       const localPath = path.join(videosDir, `video_${i}.mp4`);
       console.log(`Downloading video ${i+1}/${videoUrls.length}...`);
-      await downloadFile(videoUrls[i], localPath);
-      
-      const duration = getVideoDuration(localPath);
-      console.log(`Video ${i}: duration=${duration}s, size=${fs.statSync(localPath).size} bytes`);
-      videoDurations.push(duration > 0 ? duration : 5);
-      localUrls.push(`http://127.0.0.1:${localPort}/video_${i}.mp4`);
-      onProgress(5 + Math.round((i+1)/videoUrls.length * 10), `Downloaded ${i+1}/${videoUrls.length}`);
+      return downloadFile(url, localPath).then(() => {
+        const duration = getVideoDuration(localPath);
+        console.log(`Video ${i}: duration=${duration}s, size=${fs.statSync(localPath).size} bytes`);
+        return { index: i, duration: duration > 0 ? duration : 5 };
+      });
+    });
+    
+    const results = await Promise.all(downloadPromises);
+    results.sort((a, b) => a.index - b.index);
+    for (const r of results) {
+      videoDurations.push(r.duration);
+      localUrls.push(`http://127.0.0.1:${localPort}/video_${r.index}.mp4`);
     }
+    onProgress(15, `הורדו ${videoUrls.length} סרטונים`);
     
     localServer = await startLocalVideoServer(videosDir, localPort);
     
-    onProgress(18, 'Starting browser');
+    onProgress(18, 'מפעיל דפדפן');
     
     browser = await puppeteer.launch({
       executablePath: CHROMIUM_PATH,
@@ -772,11 +778,11 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
       html = generateCubeHTML(localUrls, videoDurations);
     }
     
-    onProgress(20, 'Loading animation');
+    onProgress(20, 'טוען אנימציה');
     
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60000 });
     
-    onProgress(22, 'Waiting for videos to load');
+    onProgress(22, 'ממתין לטעינת סרטונים');
     
     try {
       await page.waitForFunction('window.__ready === true', { timeout: 60000 });
@@ -790,7 +796,9 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
     
     const totalFrames = Math.ceil(totalDuration * FRAME_RATE) + FRAME_RATE * 2;
     
-    onProgress(25, 'Recording animation');
+    onProgress(25, 'מצלם אנימציה');
+    
+    const cdpSession = await page.createCDPSession();
     
     let frameCount = 0;
     
@@ -802,26 +810,33 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
       }, globalTime);
       
       const framePath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.jpg`);
-      await page.screenshot({ path: framePath, type: 'jpeg', quality: 85 });
+      
+      const { data } = await cdpSession.send('Page.captureScreenshot', {
+        format: 'jpeg',
+        quality: 80,
+      });
+      fs.writeFileSync(framePath, Buffer.from(data, 'base64'));
       frameCount++;
       
       if (result.done) {
+        const lastFrameData = data;
         for (let extra = 0; extra < FRAME_RATE; extra++) {
           const extraPath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.jpg`);
-          await page.screenshot({ path: extraPath, type: 'jpeg', quality: 85 });
+          fs.writeFileSync(extraPath, Buffer.from(lastFrameData, 'base64'));
           frameCount++;
         }
         break;
       }
       
-      if (frameCount % (FRAME_RATE * 5) === 0) {
+      if (frameCount % FRAME_RATE === 0) {
         const progressPct = Math.min(25 + (f / totalFrames) * 55, 80);
-        onProgress(Math.round(progressPct), `Recording... ${Math.round(globalTime)}s / ${Math.round(totalDuration)}s`);
+        onProgress(Math.round(progressPct), `מצלם ${Math.round(globalTime)}/${Math.round(totalDuration)} שניות`);
       }
     }
     
     console.log(`Captured ${frameCount} frames (${(frameCount/FRAME_RATE).toFixed(1)}s)`);
     
+    await cdpSession.detach();
     await browser.close();
     browser = null;
     
@@ -834,7 +849,7 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
       throw new Error('Not enough frames captured');
     }
     
-    onProgress(82, 'Compiling video');
+    onProgress(82, 'מרכיב סרטון');
     
     const videoDurationSecs = frameCount / FRAME_RATE;
     const audioPath = path.join(tmpDir, 'audio.aac');
@@ -857,41 +872,41 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
     }
     
     let ffmpegCmd;
+    const commonArgs = [
+      'ffmpeg', '-y',
+      '-framerate', String(FRAME_RATE),
+      '-i', path.join(framesDir, 'frame_%06d.jpg'),
+    ];
+    const videoArgs = [
+      '-c:v', 'libx264',
+      '-preset', 'ultrafast',
+      '-crf', '26',
+      '-pix_fmt', 'yuv420p',
+      '-movflags', '+faststart',
+      '-vf', `scale=${VIEWPORT_WIDTH}:${VIEWPORT_HEIGHT}`,
+    ];
+    
     if (hasAudio) {
       ffmpegCmd = [
-        'ffmpeg', '-y',
-        '-framerate', String(FRAME_RATE),
-        '-i', path.join(framesDir, 'frame_%06d.jpg'),
+        ...commonArgs,
         '-i', audioPath,
-        '-c:v', 'libx264',
-        '-preset', 'veryfast',
-        '-crf', '23',
-        '-pix_fmt', 'yuv420p',
+        ...videoArgs,
         '-c:a', 'aac',
         '-b:a', '128k',
         '-shortest',
-        '-movflags', '+faststart',
-        '-vf', `scale=${VIEWPORT_WIDTH}:${VIEWPORT_HEIGHT}`,
         outputPath,
       ].join(' ');
     } else {
       ffmpegCmd = [
-        'ffmpeg', '-y',
-        '-framerate', String(FRAME_RATE),
-        '-i', path.join(framesDir, 'frame_%06d.jpg'),
-        '-c:v', 'libx264',
-        '-preset', 'veryfast',
-        '-crf', '23',
-        '-pix_fmt', 'yuv420p',
-        '-movflags', '+faststart',
-        '-vf', `scale=${VIEWPORT_WIDTH}:${VIEWPORT_HEIGHT}`,
+        ...commonArgs,
+        ...videoArgs,
         outputPath,
       ].join(' ');
     }
     
     execSync(ffmpegCmd, { timeout: 300000 });
     
-    onProgress(90, 'Video compiled');
+    onProgress(90, 'הסרטון מוכן');
     
     return outputPath;
   } catch (error) {
