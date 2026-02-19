@@ -57,6 +57,12 @@ The application supports distinct Creator and Player flows, encompassing:
 - **Aesthetic**: Clean, warm, minimalist design focused on journaling.
 - **Interaction**: Features smooth 60 FPS animations for carousels and interactive format selection.
 
+### Video Export System
+- **Current approach**: Server-side rendering with Puppeteer (headless Chromium) capturing frame-by-frame screenshots at 12fps, then compiling with FFmpeg. Uses CDP protocol for faster screenshot capture, parallel video downloads, and ultrafast FFmpeg preset.
+- **Performance optimizations**: Server-side deduplication prevents duplicate renders (renderKey check). Client-side activeRenderRef guard prevents duplicate requests. Progress reported every 1 second.
+- **Client polling**: 2s interval, up to 450 polls (15 min timeout), 30 consecutive errors threshold, AbortController with 15s per-request timeout.
+- **PLANNED UPGRADE**: Switch to client-side WebView recording using `canvas.captureStream()` + `MediaRecorder` during playback. This would eliminate server-side rendering entirely - the video records itself while the user watches the animation. Falls back to server-side rendering on unsupported devices (iOS < 14.6). Upload recorded video to Firebase Storage automatically when playback ends.
+
 ## External Dependencies
 
 - **Firebase**: Authentication, Firestore (database), Storage (for video assets).
