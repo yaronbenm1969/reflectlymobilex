@@ -21,7 +21,8 @@ export const storageService = {
       const response = await fetch(uri);
       const blob = await response.blob();
       
-      const extension = uri.toLowerCase().includes('.mov') ? 'mov' : 'mp4';
+      const lowerUri = uri.toLowerCase();
+      const extension = lowerUri.includes('.mov') ? 'mov' : lowerUri.includes('.webm') ? 'webm' : 'mp4';
       const filename = `stories/${storyId}/${videoType}_${Date.now()}.${extension}`;
       const storageRef = ref(storage, filename);
       
@@ -108,7 +109,8 @@ export const storageService = {
       const response = await fetch(uri);
       const blob = await response.blob();
       
-      const extension = uri.toLowerCase().includes('.mov') ? 'mov' : 'mp4';
+      const lowerUri2 = uri.toLowerCase();
+      const extension = lowerUri2.includes('.mov') ? 'mov' : lowerUri2.includes('.webm') ? 'webm' : 'mp4';
       const filename = `stories/${storyId}/${videoType}_${Date.now()}.${extension}`;
       const storageRef = ref(storage, filename);
       
