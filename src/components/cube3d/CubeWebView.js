@@ -1205,7 +1205,7 @@ const CubeWebView = ({
             var b64 = reader.result.split(',')[1];
             var CHUNK = 64 * 1024;
             var total = Math.ceil(b64.length / CHUNK);
-            postMessage('recordingMeta', { totalChunks: total, sizeBytes: blob.size });
+            postMessage('recordingMeta', { totalChunks: total, sizeBytes: blob.size, mimeType: mimeType });
             
             var sendIdx = 0;
             function sendNext() {
@@ -1304,7 +1304,7 @@ const CubeWebView = ({
           console.log('📹 Recording started in WebView');
           break;
         case 'recordingMeta':
-          recordingMetaRef.current = data;
+          recordingMetaRef.current = { ...data };
           recordingChunksRef.current = [];
           onRecordingProgress?.({ phase: 'transferring', progress: 0 });
           break;
@@ -1322,7 +1322,10 @@ const CubeWebView = ({
           console.log('📹 All recording chunks received:', data.totalChunks);
           onRecordingProgress?.({ phase: 'saving', progress: 90 });
           const base64Data = recordingChunksRef.current.join('');
-          const fileUri = FileSystem.cacheDirectory + 'cube_recording_' + Date.now() + '.webm';
+          const recMime = recordingMetaRef.current?.mimeType || '';
+          const recExt = recMime.includes('mp4') ? '.mp4' : '.webm';
+          console.log('📹 Recording mimeType:', recMime, 'extension:', recExt);
+          const fileUri = FileSystem.cacheDirectory + 'cube_recording_' + Date.now() + recExt;
           FileSystem.writeAsStringAsync(fileUri, base64Data, {
             encoding: FileSystem.EncodingType.Base64,
           }).then(() => {

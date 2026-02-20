@@ -794,9 +794,16 @@ const FlipPagesWebView = ({
       recordedChunks = [];
       
       const stream = recordingCanvas.captureStream(30);
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
-        ? 'video/webm;codecs=vp9' 
-        : 'video/webm';
+      var mimeType = '';
+      ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'].some(function(m) {
+        if (MediaRecorder.isTypeSupported(m)) { mimeType = m; return true; }
+      });
+      if (!mimeType) {
+        console.log('📹 No supported recording format');
+        postMessage('recordingProgress', { phase: 'error' });
+        return;
+      }
+      console.log('📹 FlipPages recording mimeType:', mimeType);
       
       mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 4000000 });
       
@@ -828,7 +835,8 @@ const FlipPagesWebView = ({
               chunk: chunk,
               chunkIndex: i,
               totalChunks: totalChunks,
-              isLast: i === totalChunks - 1
+              isLast: i === totalChunks - 1,
+              mimeType: mimeType
             });
             postMessage('recordingProgress', { 
               phase: 'transferring', 
@@ -911,7 +919,7 @@ const FlipPagesWebView = ({
           if (data.isLast) {
             const fullBase64 = recordingChunksRef.current.join('');
             recordingChunksRef.current = [];
-            saveRecordingToFile(fullBase64);
+            saveRecordingToFile(fullBase64, data.mimeType || '');
           }
           break;
       }
@@ -920,10 +928,12 @@ const FlipPagesWebView = ({
     }
   }, [onReadyToPlay, onPlaybackStart, onVideoStart, onPlaybackComplete, onRecordingSupport, onRecordingProgress, onRecordingComplete]);
 
-  const saveRecordingToFile = useCallback(async (base64Data) => {
+  const saveRecordingToFile = useCallback(async (base64Data, mimeType = '') => {
     try {
       onRecordingProgress?.({ phase: 'saving' });
-      const fileUri = FileSystem.cacheDirectory + `flip_recording_${Date.now()}.webm`;
+      const ext = mimeType.includes('mp4') ? '.mp4' : '.webm';
+      console.log('📖 Recording mimeType:', mimeType, 'extension:', ext);
+      const fileUri = FileSystem.cacheDirectory + `flip_recording_${Date.now()}${ext}`;
       await FileSystem.writeAsStringAsync(fileUri, base64Data, {
         encoding: FileSystem.EncodingType.Base64,
       });

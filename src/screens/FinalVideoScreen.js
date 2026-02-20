@@ -536,9 +536,31 @@ export const FinalVideoScreen = () => {
 
   const convertAndUploadRecording = async (fileUri) => {
     if (!currentStoryId || !fileUri) return;
+    const isAlreadyMp4 = fileUri.toLowerCase().includes('.mp4');
+    
     try {
       setIsUploadingRecording(true);
       isUploadingRef.current = true;
+      
+      if (isAlreadyMp4) {
+        console.log('📹 Recording is already MP4 (iOS) - uploading directly...');
+        const uploadResult = await storageService.uploadVideo(
+          fileUri,
+          currentStoryId,
+          'animated_export',
+          (progress) => console.log(`📹 Upload progress: ${progress.toFixed(0)}%`)
+        );
+        
+        if (uploadResult.success && uploadResult.url) {
+          console.log('📹 MP4 uploaded to Firebase:', uploadResult.url.substring(0, 60));
+          setRecordingFirebaseUrl(uploadResult.url);
+          firebaseUrlRef.current = uploadResult.url;
+          setConversionSucceeded(true);
+        } else {
+          console.warn('📹 Firebase upload failed:', uploadResult.error);
+        }
+        return;
+      }
       
       console.log('📹 Step 1: Uploading webm to Firebase...');
       const uploadResult = await storageService.uploadVideo(
