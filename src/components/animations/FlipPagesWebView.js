@@ -715,33 +715,54 @@ const FlipPagesWebView = ({
         for (var i = 0; i < 4; i++) {
           var page = document.getElementById('page-' + i);
           if (page) {
-            page.style.transition = 'none';
-            page.style.transform = 'rotateY(0deg)';
-            page.style.zIndex = (4 - i) * 10;
+            page.style.opacity = '0';
           }
         }
-        flippedCount = currentIndex;
-        buildPageStack();
-        var batchStarted = false;
-        var batchIdx = currentIndex;
-        function startBatchIfReady() {
-          if (batchStarted || currentIndex !== batchIdx) return;
-          batchStarted = true;
-          playCurrentVideo();
-        }
-        for (var i = 0; i < Math.min(4, fullVideoQueue.length - currentIndex); i++) {
-          var video = pageVideos[i];
-          if (video && fullVideoQueue[currentIndex + i]) {
-            video.muted = true;
-            video.src = fullVideoQueue[currentIndex + i].videoUrl;
-            video.load();
+        
+        setTimeout(function() {
+          for (var i = 0; i < 4; i++) {
+            var page = document.getElementById('page-' + i);
+            if (page) {
+              page.style.transition = 'none';
+              page.style.transform = 'rotateY(0deg)';
+              page.style.zIndex = (4 - i) * 10;
+            }
           }
-        }
-        var firstVideo = pageVideos[currentIndex % 4];
-        if (firstVideo) {
-          firstVideo.onloadeddata = function() { startBatchIfReady(); };
-        }
-        setTimeout(function() { startBatchIfReady(); }, 600);
+          flippedCount = currentIndex;
+          buildPageStack();
+          
+          var batchStarted = false;
+          var batchIdx = currentIndex;
+          function startBatchIfReady() {
+            if (batchStarted || currentIndex !== batchIdx) return;
+            batchStarted = true;
+            var page0 = document.getElementById('page-0');
+            if (page0) {
+              page0.style.transition = 'opacity 0.3s ease';
+              page0.style.opacity = '1';
+            }
+            for (var j = 1; j < 4; j++) {
+              var p = document.getElementById('page-' + j);
+              if (p) p.style.opacity = '1';
+            }
+            playCurrentVideo();
+          }
+          
+          for (var i = 0; i < Math.min(4, fullVideoQueue.length - currentIndex); i++) {
+            var video = pageVideos[i];
+            if (video && fullVideoQueue[currentIndex + i]) {
+              video.muted = true;
+              video.src = fullVideoQueue[currentIndex + i].videoUrl;
+              video.load();
+            }
+          }
+          
+          var firstVideo = pageVideos[0];
+          if (firstVideo) {
+            firstVideo.onloadeddata = function() { startBatchIfReady(); };
+          }
+          setTimeout(function() { startBatchIfReady(); }, 800);
+        }, 50);
       } else {
         playCurrentVideo();
       }
