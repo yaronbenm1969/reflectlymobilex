@@ -1101,36 +1101,70 @@ const CubeWebView = ({
         return { id: faceIdx, proj: proj, z: avgZ };
       }
       
+      function biLerp(proj, u, v) {
+        var top = lrp(proj[0], proj[1], u);
+        var bot = lrp(proj[3], proj[2], u);
+        return lrp(top, bot, v);
+      }
+      
       function drawQuad(fd) {
         var proj = fd.proj;
         var vidEl = faceVideoElements[fd.id];
-        var STRIPS = 14;
         
-        for (var s = 0; s < STRIPS; s++) {
-          var t0 = s/STRIPS, t1 = (s+1)/STRIPS;
-          var tl = lrp(proj[0], proj[1], t0);
-          var tr2 = lrp(proj[0], proj[1], t1);
-          var bl = lrp(proj[3], proj[2], t0);
-          var br = lrp(proj[3], proj[2], t1);
+        if (vidEl && vidEl.readyState >= 2) {
+          var vw = vidEl.videoWidth || 720;
+          var vh = vidEl.videoHeight || 720;
+          var GRID = 4;
           
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(tl[0],tl[1]); ctx.lineTo(tr2[0],tr2[1]);
-          ctx.lineTo(br[0],br[1]); ctx.lineTo(bl[0],bl[1]);
-          ctx.closePath(); ctx.clip();
-          
-          if (vidEl && vidEl.readyState >= 2) {
-            var sw = vidEl.videoWidth || 720, sh = vidEl.videoHeight || 720;
-            var sx = t0*sw, sW = (t1-t0)*sw;
-            var mnX = Math.min(tl[0],tr2[0],bl[0],br[0]);
-            var mxX = Math.max(tl[0],tr2[0],bl[0],br[0]);
-            var mnY = Math.min(tl[1],tr2[1],bl[1],br[1]);
-            var mxY = Math.max(tl[1],tr2[1],bl[1],br[1]);
-            try { ctx.drawImage(vidEl, sx, 0, sW, sh, mnX, mnY, mxX-mnX, mxY-mnY); } catch(e) {}
-          } else {
-            ctx.fillStyle = '#1a1a2e'; ctx.fill();
+          for (var gy = 0; gy < GRID; gy++) {
+            for (var gx = 0; gx < GRID; gx++) {
+              var u0 = gx / GRID, u1 = (gx + 1) / GRID;
+              var v0 = gy / GRID, v1 = (gy + 1) / GRID;
+              
+              var tl = biLerp(proj, u0, v0);
+              var tr = biLerp(proj, u1, v0);
+              var bl = biLerp(proj, u0, v1);
+              var br = biLerp(proj, u1, v1);
+              
+              var sx = u0 * vw, sy = v0 * vh;
+              var svw = (u1 - u0) * vw;
+              var svh = (v1 - v0) * vh;
+              
+              var a1 = (tr[0] - tl[0]) / svw;
+              var b1 = (tr[1] - tl[1]) / svw;
+              var c1 = (bl[0] - tl[0]) / svh;
+              var d1 = (bl[1] - tl[1]) / svh;
+              ctx.save();
+              ctx.beginPath();
+              ctx.moveTo(tl[0], tl[1]); ctx.lineTo(tr[0], tr[1]); ctx.lineTo(bl[0], bl[1]);
+              ctx.closePath(); ctx.clip();
+              ctx.setTransform(a1, b1, c1, d1, tl[0], tl[1]);
+              try { ctx.drawImage(vidEl, sx, sy, svw, svh, 0, 0, svw, svh); } catch(ex) {}
+              ctx.setTransform(1, 0, 0, 1, 0, 0);
+              ctx.restore();
+              
+              var c2 = (br[0] - tr[0]) / svh;
+              var d2 = (br[1] - tr[1]) / svh;
+              var e2 = bl[0] - c2 * svh;
+              var f2 = bl[1] - d2 * svh;
+              var a2 = (tr[0] - e2) / svw;
+              var b2 = (tr[1] - f2) / svw;
+              ctx.save();
+              ctx.beginPath();
+              ctx.moveTo(tr[0], tr[1]); ctx.lineTo(br[0], br[1]); ctx.lineTo(bl[0], bl[1]);
+              ctx.closePath(); ctx.clip();
+              ctx.setTransform(a2, b2, c2, d2, e2, f2);
+              try { ctx.drawImage(vidEl, sx, sy, svw, svh, 0, 0, svw, svh); } catch(ex) {}
+              ctx.setTransform(1, 0, 0, 1, 0, 0);
+              ctx.restore();
+            }
           }
-          ctx.restore();
+        } else {
+          ctx.fillStyle = '#1a1a2e';
+          ctx.beginPath();
+          ctx.moveTo(proj[0][0],proj[0][1]);
+          for (var i = 1; i < 4; i++) ctx.lineTo(proj[i][0],proj[i][1]);
+          ctx.closePath(); ctx.fill();
         }
         ctx.strokeStyle = 'rgba(255,255,255,0.6)';
         ctx.lineWidth = 3;
