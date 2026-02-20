@@ -394,24 +394,25 @@ const FlipPagesWebView = ({
   <div class="book-container" id="book">
     <div class="book-cover-back"></div>
     <div class="book-spine"></div>
-    <div class="page-edges"></div>
-    <div class="page" id="page-3" style="z-index:10;">
+    <div class="page-stack-right" id="page-stack-right"></div>
+    <div class="page-edges" id="page-edges-bottom"></div>
+    <div class="page" id="page-3" style="z-index:10;transform:rotateY(0deg);">
       <div class="page-front" id="front-3"></div>
-      <div class="page-back" id="back-3"></div>
+      <div class="page-back" id="back-3"><div class="page-back-pattern"></div><div class="page-back-label"></div></div>
     </div>
-    <div class="page" id="page-2" style="z-index:20;">
+    <div class="page" id="page-2" style="z-index:20;transform:rotateY(0deg);">
       <div class="page-front" id="front-2"></div>
-      <div class="page-back" id="back-2"></div>
+      <div class="page-back" id="back-2"><div class="page-back-pattern"></div><div class="page-back-label"></div></div>
     </div>
-    <div class="page" id="page-1" style="z-index:30;">
+    <div class="page" id="page-1" style="z-index:30;transform:rotateY(0deg);">
       <div class="page-front" id="front-1"></div>
-      <div class="page-back" id="back-1"></div>
+      <div class="page-back" id="back-1"><div class="page-back-pattern"></div><div class="page-back-label"></div></div>
     </div>
-    <div class="page" id="page-0" style="z-index:40;">
+    <div class="page" id="page-0" style="z-index:40;transform:rotateY(0deg);">
       <div class="page-front" id="front-0"></div>
-      <div class="page-back" id="back-0"></div>
+      <div class="page-back" id="back-0"><div class="page-back-pattern"></div><div class="page-back-label"></div></div>
     </div>
-    <div class="book-cover" id="book-cover">
+    <div class="book-cover" id="book-cover" style="transform:rotateY(0deg);">
       <div class="book-cover-face book-cover-front-face">
         <div class="cover-border"></div>
         <div class="cover-border-inner"></div>
@@ -420,7 +421,7 @@ const FlipPagesWebView = ({
         <div class="cover-ornament"></div>
         <div class="cover-subtitle">Reflectly</div>
       </div>
-      <div class="book-cover-face book-cover-inside"></div>
+      <div class="book-cover-face book-cover-inside"><div class="page-back-pattern" style="opacity:0.1;"></div></div>
     </div>
     <div class="book-shadow"></div>
   </div>
@@ -433,6 +434,8 @@ const FlipPagesWebView = ({
     let isReady = false;
     let hasUserStarted = false;
     const pageVideos = {};
+    let totalPages = fullVideoQueue.length;
+    let flippedCount = 0;
     
     console.log('📖 Flip Pages init: ' + fullVideoQueue.length + ' videos');
     
@@ -442,11 +445,35 @@ const FlipPagesWebView = ({
       }
     }
     
+    function buildPageStack() {
+      var stackEl = document.getElementById('page-stack-right');
+      if (!stackEl) return;
+      stackEl.innerHTML = '';
+      var remaining = Math.max(0, totalPages - flippedCount - 1);
+      var maxLines = Math.min(remaining, 8);
+      var stackHeight = stackEl.offsetHeight || 400;
+      for (var i = 0; i < maxLines; i++) {
+        var line = document.createElement('div');
+        line.className = 'page-stack-line';
+        var spacing = stackHeight / (maxLines + 1);
+        line.style.top = (spacing * (i + 1)) + 'px';
+        var shade = Math.round(220 - i * 8);
+        line.style.background = 'rgb(' + shade + ',' + (shade - 10) + ',' + (shade - 20) + ')';
+        line.style.boxShadow = '1px 0 2px rgba(0,0,0,0.15)';
+        stackEl.appendChild(line);
+      }
+      var edgesEl = document.getElementById('page-edges-bottom');
+      if (edgesEl) {
+        var edgeWidth = Math.max(20, 90 - (flippedCount / totalPages) * 60);
+        edgesEl.style.width = edgeWidth + '%';
+      }
+    }
+    
     function initPageVideos() {
-      for (let i = 0; i < Math.min(4, fullVideoQueue.length); i++) {
-        const frontEl = document.getElementById('front-' + i);
+      for (var i = 0; i < Math.min(4, fullVideoQueue.length); i++) {
+        var frontEl = document.getElementById('front-' + i);
         if (frontEl && !pageVideos[i]) {
-          const video = document.createElement('video');
+          var video = document.createElement('video');
           video.muted = true;
           video.playsInline = true;
           video.setAttribute('playsinline', '');
@@ -462,38 +489,127 @@ const FlipPagesWebView = ({
       }
     }
     
-    function flipPage(pageIndex) {
-      const page = document.getElementById('page-' + pageIndex);
+    var activeFlipAnim = null;
+    
+    var activeFlipElement = null;
+    
+    function animateFlip(element, duration, onComplete) {
+      var start = performance.now();
+      if (activeFlipAnim) {
+        cancelAnimationFrame(activeFlipAnim);
+        if (activeFlipElement) {
+          activeFlipElement.style.transform = 'rotateY(180deg)';
+          activeFlipElement.style.zIndex = 1;
+        }
+        activeFlipAnim = null;
+      }
+      
+      activeFlipElement = element;
+      var pageSlot = parseInt(element.id.split('-')[1]);
+      element.style.zIndex = 200;
+      
+      function frame(now) {
+        var t = Math.min(1, (now - start) / duration);
+        var ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        
+        var rotateY = ease * 180;
+        
+        var bendAmount = Math.sin(t * Math.PI) * 12;
+        var liftAmount = Math.sin(t * Math.PI) * 8;
+        
+        var scaleX = 1 - Math.sin(t * Math.PI) * 0.03;
+        
+        element.style.transform = 
+          'rotateY(' + rotateY + 'deg) ' +
+          'translateZ(' + liftAmount + 'px) ' +
+          'scaleX(' + scaleX + ') ' +
+          'skewY(' + (t < 0.5 ? bendAmount * 0.3 : -bendAmount * 0.2) + 'deg)';
+        
+        if (t < 1) {
+          activeFlipAnim = requestAnimationFrame(frame);
+        } else {
+          element.style.transform = 'rotateY(180deg)';
+          element.style.zIndex = 1;
+          activeFlipAnim = null;
+          activeFlipElement = null;
+          if (onComplete) onComplete();
+        }
+      }
+      activeFlipAnim = requestAnimationFrame(frame);
+    }
+    
+    function animateCoverOpen(onComplete) {
+      var cover = document.getElementById('book-cover');
+      if (!cover) { if (onComplete) onComplete(); return; }
+      
+      var start = performance.now();
+      var duration = 1800;
+      
+      function frame(now) {
+        var t = Math.min(1, (now - start) / duration);
+        var ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        
+        var rotateY = ease * 180;
+        var lift = Math.sin(t * Math.PI) * 5;
+        
+        cover.style.transform = 'rotateY(' + rotateY + 'deg) translateZ(' + lift + 'px)';
+        
+        if (t >= 0.7 && cover.style.zIndex !== '0') {
+          cover.style.zIndex = '0';
+        }
+        
+        if (t < 1) {
+          requestAnimationFrame(frame);
+        } else {
+          cover.style.transform = 'rotateY(180deg)';
+          cover.style.zIndex = '0';
+          cover.style.pointerEvents = 'none';
+          if (onComplete) onComplete();
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+    
+    function flipPage(pageIndex, onComplete) {
+      var page = document.getElementById('page-' + (pageIndex % 4));
       if (page) {
-        page.classList.add('flipped');
-        page.style.zIndex = 1;
-        console.log('📖 Flipped page ' + pageIndex);
+        flippedCount++;
+        buildPageStack();
+        console.log('📖 Flipping page ' + pageIndex + ' (flipped: ' + flippedCount + '/' + totalPages + ')');
+        animateFlip(page, 1200, onComplete);
+      } else {
+        if (onComplete) onComplete();
       }
     }
     
     function resetAllPages() {
-      for (let i = 0; i < 4; i++) {
-        const page = document.getElementById('page-' + i);
+      if (activeFlipAnim) { cancelAnimationFrame(activeFlipAnim); activeFlipAnim = null; activeFlipElement = null; }
+      for (var i = 0; i < 4; i++) {
+        var page = document.getElementById('page-' + i);
         if (page) {
-          page.classList.remove('flipped');
+          page.style.transform = 'rotateY(0deg)';
           page.style.zIndex = (4 - i) * 10;
         }
       }
+      flippedCount = 0;
+      buildPageStack();
     }
     
     window.addVideosToQueue = function(newVideos) {
       newVideos.forEach(function(v) {
         fullVideoQueue.push(v);
       });
+      totalPages = fullVideoQueue.length;
+      buildPageStack();
       console.log('📖 Queue updated: now ' + fullVideoQueue.length + ' videos');
     };
     
     function preloadNextVideo() {
-      const nextIdx = currentIndex + 1;
+      var nextIdx = currentIndex + 1;
       if (nextIdx >= fullVideoQueue.length) return;
       
-      const nextSlot = nextIdx % 4;
-      const nextVideo = pageVideos[nextSlot];
+      var nextSlot = nextIdx % 4;
+      var nextVideo = pageVideos[nextSlot];
       if (nextVideo && fullVideoQueue[nextIdx]) {
         nextVideo.muted = true;
         nextVideo.src = fullVideoQueue[nextIdx].videoUrl;
@@ -511,62 +627,66 @@ const FlipPagesWebView = ({
         return;
       }
       
-      const pageSlot = currentIndex % 4;
-      const video = pageVideos[pageSlot];
+      var pageSlot = currentIndex % 4;
+      var video = pageVideos[pageSlot];
       if (!video) {
         advanceToNext();
         return;
       }
       
-      const playingIndex = currentIndex;
+      var playingIndex = currentIndex;
       
-      Object.values(pageVideos).forEach(v => { if (v !== video) v.pause(); });
+      Object.values(pageVideos).forEach(function(v) { if (v !== video) v.pause(); });
       
       video.muted = false;
       video.currentTime = 0;
       
-      let earlyFlipDone = false;
+      var earlyFlipDone = false;
       
       video.ontimeupdate = function() {
         if (earlyFlipDone) return;
-        const remaining = video.duration - video.currentTime;
-        if (remaining <= 1.5 && video.duration > 2) {
+        var remaining = video.duration - video.currentTime;
+        if (remaining <= 1.8 && video.duration > 2) {
           earlyFlipDone = true;
-          console.log('⚡ Early flip at ' + remaining.toFixed(1) + 's remaining (video keeps playing)');
-          flipPage(playingIndex % 4);
+          console.log('⚡ Early flip at ' + remaining.toFixed(1) + 's remaining');
+          flipPage(playingIndex, null);
         }
       };
       
       video.onended = function() {
         video.ontimeupdate = null;
         if (!earlyFlipDone) {
-          flipPage(playingIndex % 4);
+          flipPage(playingIndex, function() {
+            console.log('🎬 Video ended: ' + playingIndex);
+            if (currentIndex === playingIndex) advanceToNext();
+          });
+          return;
         }
-        console.log('🎬 Video ended naturally: ' + playingIndex);
-        setTimeout(() => {
+        console.log('🎬 Video ended: ' + playingIndex);
+        setTimeout(function() {
           if (currentIndex === playingIndex) advanceToNext();
-        }, earlyFlipDone ? 100 : 600);
+        }, 100);
       };
       
-      video.play().then(() => {
+      video.play().then(function() {
         console.log('▶️ Playing video ' + currentIndex + ' (unmuted)');
         postMessage('videoStart', { pageIndex: currentIndex });
         preloadNextVideo();
-      }).catch(e => {
+      }).catch(function(e) {
         console.log('❌ Play failed unmuted, trying muted: ' + e.message);
         video.muted = true;
-        video.play().then(() => {
+        video.play().then(function() {
           postMessage('videoStart', { pageIndex: currentIndex });
           preloadNextVideo();
-        }).catch(e2 => {
+        }).catch(function(e2) {
           console.log('❌ Play failed completely: ' + e2.message);
-          setTimeout(() => advanceToNext(), 500);
+          setTimeout(function() { advanceToNext(); }, 500);
         });
       });
     }
     
     function advanceToNext() {
-      const prevIdx = currentIndex;
+      var prevIdx = currentIndex;
       if (isRecording && typeof notifyFlipStarted === 'function') {
         notifyFlipStarted(prevIdx);
       }
@@ -581,15 +701,17 @@ const FlipPagesWebView = ({
       
       if (currentIndex % 4 === 0) {
         resetAllPages();
-        for (let i = 0; i < Math.min(4, fullVideoQueue.length - currentIndex); i++) {
-          const video = pageVideos[i];
+        flippedCount = currentIndex;
+        buildPageStack();
+        for (var i = 0; i < Math.min(4, fullVideoQueue.length - currentIndex); i++) {
+          var video = pageVideos[i];
           if (video && fullVideoQueue[currentIndex + i]) {
             video.muted = true;
             video.src = fullVideoQueue[currentIndex + i].videoUrl;
             video.load();
           }
         }
-        setTimeout(() => playCurrentVideo(), 300);
+        setTimeout(function() { playCurrentVideo(); }, 300);
       } else {
         playCurrentVideo();
       }
@@ -617,32 +739,22 @@ const FlipPagesWebView = ({
       hasUserStarted = true;
       hidePlayButton();
       
-      const cover = document.getElementById('book-cover');
-      if (cover) {
-        cover.classList.add('opened');
-        setTimeout(() => {
-          cover.style.display = 'none';
-          currentIndex = 0;
-          isPlaying = true;
-          resetAllPages();
-          postMessage('animationStarted', { videoCount: fullVideoQueue.length });
-          playCurrentVideo();
-        }, 1900);
-      } else {
+      postMessage('animationStarted', { videoCount: fullVideoQueue.length });
+      
+      animateCoverOpen(function() {
         currentIndex = 0;
         isPlaying = true;
-        resetAllPages();
-        postMessage('animationStarted', { videoCount: fullVideoQueue.length });
+        buildPageStack();
         playCurrentVideo();
-      }
+      });
     }
     
     function handleReplayClick() {
       hideReplayButton();
       hasUserStarted = false;
       
-      for (let i = 0; i < Math.min(4, fullVideoQueue.length); i++) {
-        const video = pageVideos[i];
+      for (var i = 0; i < Math.min(4, fullVideoQueue.length); i++) {
+        var video = pageVideos[i];
         if (video && fullVideoQueue[i]) {
           video.muted = true;
           video.currentTime = 0;
@@ -655,32 +767,34 @@ const FlipPagesWebView = ({
       isPlaying = false;
       resetAllPages();
       
-      const cover = document.getElementById('book-cover');
+      var cover = document.getElementById('book-cover');
       if (cover) {
-        cover.style.display = '';
-        cover.classList.remove('opened');
+        cover.style.transform = 'rotateY(0deg)';
+        cover.style.zIndex = '100';
+        cover.style.pointerEvents = '';
       }
       
-      setTimeout(() => {
+      setTimeout(function() {
         showPlayButton();
       }, 300);
     }
     
     function init() {
       initPageVideos();
+      buildPageStack();
       
-      const preloadPromises = Object.values(pageVideos).map(video => {
-        return new Promise(resolve => {
+      var preloadPromises = Object.values(pageVideos).map(function(video) {
+        return new Promise(function(resolve) {
           if (video.readyState >= 2) {
             resolve();
           } else {
-            video.oncanplay = () => resolve();
+            video.oncanplay = function() { resolve(); };
             setTimeout(resolve, 5000);
           }
         });
       });
       
-      Promise.all(preloadPromises).then(() => {
+      Promise.all(preloadPromises).then(function() {
         console.log('✅ All videos preloaded');
         isReady = true;
         postMessage('cubeReady', { faceCount: fullVideoQueue.length });
@@ -720,37 +834,50 @@ const FlipPagesWebView = ({
       prevVideoSlot = fromIndex % 4;
     }
     
+    let recCoverProgress = -1;
+    let recCoverStart = 0;
+    var recCoverDuration = 1800;
+    
     function drawRecordingFrame() {
       if (!recordingCtx || !isRecording) return;
-      const ctx = recordingCtx;
-      const now = performance.now();
+      var ctx = recordingCtx;
+      var now = performance.now();
       
       ctx.fillStyle = '#1a1a2e';
       ctx.fillRect(0, 0, REC_W, REC_H);
       
-      const bookW = REC_W * 0.85;
-      const bookH = bookW * 1.4;
-      const bookX = (REC_W - bookW) / 2;
-      const bookY = (REC_H - bookH) / 2;
+      var bookW = REC_W * 0.85;
+      var bookH = bookW * 1.4;
+      var bookX = (REC_W - bookW) / 2;
+      var bookY = (REC_H - bookH) / 2;
       
       ctx.fillStyle = '#3A1A06';
       ctx.beginPath();
       ctx.roundRect(bookX - 6, bookY - 3, bookW + 18, bookH + 6, 8);
       ctx.fill();
       
-      const grad = ctx.createLinearGradient(bookX + bookW, bookY, bookX + bookW + 12, bookY);
+      var grad = ctx.createLinearGradient(bookX + bookW, bookY, bookX + bookW + 12, bookY);
       grad.addColorStop(0, '#6B3410');
       grad.addColorStop(0.5, '#8B4513');
       grad.addColorStop(1, '#6B3410');
       ctx.fillStyle = grad;
       ctx.fillRect(bookX + bookW, bookY - 3, 12, bookH + 6);
       
+      var stackRemaining = Math.max(0, totalPages - flippedCount - 1);
+      var stackLines = Math.min(stackRemaining, 6);
+      for (var sl = 0; sl < stackLines; sl++) {
+        var sx = bookX - 4 + sl * 0.5;
+        var shade = Math.round(220 - sl * 10);
+        ctx.fillStyle = 'rgb(' + shade + ',' + (shade-10) + ',' + (shade-20) + ')';
+        ctx.fillRect(sx, bookY + 8 + sl * ((bookH - 16) / (stackLines + 1)), 3, 1);
+      }
+      
       if (flipTransitionProgress >= 0) {
         flipTransitionProgress = Math.min(1, (now - flipTransitionStart) / FLIP_DURATION);
       }
       
       function drawVideoOnPage(videoSlot, x, y, w, h, alpha) {
-        const video = pageVideos[videoSlot];
+        var video = pageVideos[videoSlot];
         if (!video || video.readyState < 2) {
           ctx.fillStyle = '#f5f0e8';
           ctx.beginPath();
@@ -758,38 +885,89 @@ const FlipPagesWebView = ({
           ctx.fill();
           return;
         }
-        const vw = video.videoWidth || w;
-        const vh = video.videoHeight || h;
-        const scale = Math.max(w / vw, h / vh);
-        const sw = vw * scale;
-        const sh = vh * scale;
-        const sx = x + (w - sw) / 2;
-        const sy = y + (h - sh) / 2;
+        var vw = video.videoWidth || w;
+        var vh = video.videoHeight || h;
+        var scale = Math.max(w / vw, h / vh);
+        var sw = vw * scale;
+        var sh = vh * scale;
+        var svx = x + (w - sw) / 2;
+        var svy = y + (h - sh) / 2;
         
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.beginPath();
         ctx.roundRect(x, y, w, h, [4, 8, 8, 4]);
         ctx.clip();
-        ctx.drawImage(video, sx, sy, sw, sh);
+        ctx.drawImage(video, svx, svy, sw, sh);
         ctx.restore();
       }
       
-      if (flipTransitionProgress >= 0 && flipTransitionProgress < 1) {
-        const t = flipTransitionProgress;
-        const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      if (recCoverProgress >= 0 && recCoverProgress < 1) {
+        recCoverProgress = Math.min(1, (now - recCoverStart) / recCoverDuration);
+        var ct = recCoverProgress;
+        var cEase = ct < 0.5 ? 2 * ct * ct : -1 + (4 - 2 * ct) * ct;
         
-        const slot = currentIndex % 4;
+        if (ct > 0.4) {
+          var slot0 = 0;
+          drawVideoOnPage(slot0, bookX, bookY, bookW, bookH, 1);
+        }
+        
+        var coverW = bookW * (1 - cEase);
+        if (coverW > 1) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(bookX, bookY, coverW, bookH);
+          ctx.clip();
+          var coverGrad = ctx.createLinearGradient(bookX, bookY, bookX + bookW, bookY + bookH);
+          coverGrad.addColorStop(0, '#8B4513');
+          coverGrad.addColorStop(0.3, '#654321');
+          coverGrad.addColorStop(0.5, '#5C3317');
+          coverGrad.addColorStop(0.7, '#8B4513');
+          coverGrad.addColorStop(1, '#A0522D');
+          ctx.fillStyle = coverGrad;
+          ctx.fillRect(bookX, bookY, bookW, bookH);
+          
+          ctx.strokeStyle = 'rgba(212,175,55,0.35)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(bookX + 12, bookY + 12, bookW - 24, bookH - 24);
+          
+          ctx.fillStyle = '#D4AF37';
+          ctx.font = 'bold 24px -apple-system, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.shadowColor = 'rgba(0,0,0,0.5)';
+          ctx.shadowBlur = 3;
+          ctx.fillText('${safeStoryName}', bookX + bookW / 2, bookY + bookH / 2);
+          ctx.shadowBlur = 0;
+          
+          ctx.fillStyle = 'rgba(0,0,0,' + (ct * 0.2) + ')';
+          ctx.fillRect(bookX, bookY, coverW, bookH);
+          ctx.restore();
+        }
+        
+        if (recCoverProgress >= 1) {
+          recCoverProgress = -1;
+        }
+      } else if (flipTransitionProgress >= 0 && flipTransitionProgress < 1) {
+        var t = flipTransitionProgress;
+        var eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        
+        var slot = currentIndex % 4;
         drawVideoOnPage(slot, bookX, bookY, bookW, bookH, 1);
         
-        if (prevVideoSlot >= 0 && t < 0.8) {
-          const pageW = bookW * (1 - eased);
+        if (prevVideoSlot >= 0 && t < 0.85) {
+          var pageW = bookW * (1 - eased);
           if (pageW > 2) {
             ctx.save();
             ctx.beginPath();
             ctx.rect(bookX + bookW - pageW, bookY, pageW, bookH);
             ctx.clip();
             drawVideoOnPage(prevVideoSlot, bookX, bookY, bookW, bookH, 1);
+            
+            ctx.fillStyle = '#d4c9b8';
+            ctx.globalAlpha = eased * 0.6;
+            ctx.fillRect(bookX + bookW - pageW, bookY, pageW, bookH);
+            ctx.globalAlpha = 1;
+            
             ctx.fillStyle = 'rgba(0,0,0,' + (0.3 * eased) + ')';
             ctx.fillRect(bookX + bookW - pageW, bookY, pageW, bookH);
             ctx.restore();
@@ -801,8 +979,8 @@ const FlipPagesWebView = ({
           prevVideoSlot = -1;
         }
       } else {
-        const slot = currentIndex % 4;
-        drawVideoOnPage(slot, bookX, bookY, bookW, bookH, 1);
+        var cslot = currentIndex % 4;
+        drawVideoOnPage(cslot, bookX, bookY, bookW, bookH, 1);
       }
       
       ctx.strokeStyle = 'rgba(139,69,19,0.3)';
@@ -811,11 +989,13 @@ const FlipPagesWebView = ({
       ctx.roundRect(bookX, bookY, bookW, bookH, [4, 8, 8, 4]);
       ctx.stroke();
       
-      const counterText = (currentIndex + 1) + ' / ' + fullVideoQueue.length;
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.font = '20px -apple-system, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(counterText, REC_W / 2, bookY + bookH + 40);
+      if (recCoverProgress < 0) {
+        var counterText = (currentIndex + 1) + ' / ' + fullVideoQueue.length;
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.font = '20px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(counterText, REC_W / 2, bookY + bookH + 40);
+      }
       
       recordingAnimFrame = requestAnimationFrame(drawRecordingFrame);
     }
@@ -940,12 +1120,14 @@ const FlipPagesWebView = ({
       }
     }
     
-    const origPostMessage = postMessage;
+    var origPostMessage = postMessage;
     postMessage = function(type, data) {
       origPostMessage(type, data);
       if (type === 'animationStarted' && shouldRecordNext) {
         shouldRecordNext = false;
         startRecording();
+        recCoverProgress = 0;
+        recCoverStart = performance.now();
       }
       if (type === 'allVideosComplete' && isRecording) {
         setTimeout(stopRecording, 500);
