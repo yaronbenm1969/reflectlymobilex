@@ -55,7 +55,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npx expo start --tunnel"
+args = "npx expo start --tunnel 2>&1 || npx expo start --lan 2>&1"
 
 [[ports]]
 localPort = 3001
