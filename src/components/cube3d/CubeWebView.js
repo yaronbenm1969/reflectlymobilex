@@ -1057,7 +1057,9 @@ const CubeWebView = ({
         [[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],
         [[1,-1,-1],[-1,-1,-1],[-1,1,-1],[1,1,-1]],
         [[1,-1,1],[1,-1,-1],[1,1,-1],[1,1,1]],
-        [[-1,-1,-1],[-1,-1,1],[-1,1,1],[-1,1,-1]]
+        [[-1,-1,-1],[-1,-1,1],[-1,1,1],[-1,1,-1]],
+        [[-1,-1,-1],[1,-1,-1],[1,-1,1],[-1,-1,1]],
+        [[-1,1,1],[1,1,1],[1,1,-1],[-1,1,-1]]
       ];
       
       var bgStars = [];
@@ -1101,13 +1103,27 @@ const CubeWebView = ({
         return { id: faceIdx, proj: proj, z: avgZ };
       }
       
+      function getDrawSource(faceId) {
+        if (faceId < 4) {
+          var v = faceVideoElements[faceId];
+          if (v && v.readyState >= 2) return v;
+          return null;
+        }
+        var faceEl = document.getElementById('face-' + faceId);
+        if (faceEl) {
+          var v = faceEl.querySelector('video');
+          if (v && v.readyState >= 2) return v;
+        }
+        return null;
+      }
+      
       function drawQuad(fd) {
         var proj = fd.proj;
-        var vidEl = faceVideoElements[fd.id];
+        var src = getDrawSource(fd.id);
         
-        if (vidEl && vidEl.readyState >= 2) {
-          var vw = vidEl.videoWidth || 720;
-          var vh = vidEl.videoHeight || 720;
+        if (src) {
+          var vw = src.videoWidth || 720;
+          var vh = src.videoHeight || 720;
           
           var a = (proj[1][0] - proj[0][0]) / vw;
           var b = (proj[1][1] - proj[0][1]) / vw;
@@ -1123,7 +1139,7 @@ const CubeWebView = ({
           ctx.closePath();
           ctx.clip();
           ctx.setTransform(a, b, c, d, proj[0][0], proj[0][1]);
-          try { ctx.drawImage(vidEl, 0, 0); } catch(ex) {}
+          try { ctx.drawImage(src, 0, 0); } catch(ex) {}
           ctx.setTransform(1, 0, 0, 1, 0, 0);
           ctx.restore();
         } else {
@@ -1171,7 +1187,7 @@ const CubeWebView = ({
         ctx.globalAlpha = 1;
         
         var visible = [];
-        for (var f = 0; f < 4; f++) {
+        for (var f = 0; f < 6; f++) {
           var fd = computeFace(f, fx, fy, fz + dtz, ds);
           if (fd) visible.push(fd);
         }
