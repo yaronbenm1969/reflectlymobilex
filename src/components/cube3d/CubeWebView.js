@@ -1456,6 +1456,10 @@ const CubeWebView = ({
           console.log('✅ Cube playback complete');
           onPlaybackComplete?.();
           break;
+        case 'replayStarted':
+          console.log('🔄 Cube replay started');
+          onPlaybackStart?.();
+          break;
         case 'recordingSupport':
           console.log('📹 Recording support:', data.supported);
           onRecordingSupport?.(data.supported);
