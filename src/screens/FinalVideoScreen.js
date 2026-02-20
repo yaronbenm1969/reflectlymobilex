@@ -70,6 +70,7 @@ export const FinalVideoScreen = () => {
   const isUploadingRef = useRef(false);
   const cachedRecordingRef = useRef(null);
   const firebaseUrlRef = useRef(null);
+  const clientRecordingSupportedRef = useRef(false);
   const videoRef = useRef(null);
   const cubeRef = useRef(null);
 
@@ -504,6 +505,7 @@ export const FinalVideoScreen = () => {
   const handleRecordingSupport = (supported) => {
     console.log('📹 Client recording supported:', supported);
     setClientRecordingSupported(supported);
+    clientRecordingSupportedRef.current = supported;
     if (supported && isAnimatedFormat && !autoRecordTriggeredRef.current) {
       console.log('📹 Auto-recording enabled - will record first playback');
       autoRecordTriggeredRef.current = true;
@@ -533,6 +535,7 @@ export const FinalVideoScreen = () => {
           setCachedRecordingUri(null);
           cachedRecordingRef.current = null;
           setClientRecordingSupported(false);
+          clientRecordingSupportedRef.current = false;
         }
       } catch (e) {
         console.warn('📹 Cannot check recording file:', e.message);
@@ -697,7 +700,7 @@ export const FinalVideoScreen = () => {
       console.log('📹 Using webm recording (conversion may have failed)');
       return cached;
     }
-    if (isAnimatedFormat && clientRecordingSupported) {
+    if (isAnimatedFormat && clientRecordingSupportedRef.current) {
       console.log('📹 Recording not cached yet, recording now');
       setIsDownloading(true);
       const fileUri = await performClientRecording();
