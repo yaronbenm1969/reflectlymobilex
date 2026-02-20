@@ -1216,7 +1216,46 @@ const CubeWebView = ({
         }
       }
       
+      function waitForFaceVideos() {
+        return new Promise(function(resolve) {
+          var attempts = 0;
+          function check() {
+            var ready = 0;
+            var total = 0;
+            for (var fid = 0; fid < 4; fid++) {
+              var v = faceVideoElements[fid];
+              if (v && v.src) {
+                total++;
+                if (v.readyState >= 2) ready++;
+              }
+            }
+            if (ready >= total && total > 0) {
+              console.log('📹 All ' + ready + ' face videos ready for recording');
+              resolve(true);
+            } else if (attempts > 50) {
+              console.warn('📹 Timeout waiting for videos: ' + ready + '/' + total + ' ready');
+              resolve(false);
+            } else {
+              attempts++;
+              setTimeout(check, 100);
+            }
+          }
+          check();
+        });
+      }
+      
       function startRec() {
+        if (recState !== 'idle') return;
+        
+        waitForFaceVideos().then(function(allReady) {
+          if (!allReady) {
+            console.warn('📹 Not all videos ready but proceeding anyway');
+          }
+          actualStartRec();
+        });
+      }
+      
+      function actualStartRec() {
         if (recState !== 'idle') return;
         recState = 'recording';
         chunks = [];
