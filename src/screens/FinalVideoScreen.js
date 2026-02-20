@@ -503,10 +503,14 @@ export const FinalVideoScreen = () => {
   };
 
   const handleRecordingSupport = (supported) => {
-    console.log('📹 Client recording supported:', supported);
-    setClientRecordingSupported(supported);
-    clientRecordingSupportedRef.current = supported;
-    if (supported && isAnimatedFormat && !autoRecordTriggeredRef.current) {
+    console.log('📹 Client recording supported:', supported, 'format:', videoFormat);
+    const useClientRecording = supported && isFlipPages;
+    if (supported && isCube3D) {
+      console.log('📹 Cube uses server-side render for better quality - skipping client recording');
+    }
+    setClientRecordingSupported(useClientRecording);
+    clientRecordingSupportedRef.current = useClientRecording;
+    if (useClientRecording && !autoRecordTriggeredRef.current) {
       console.log('📹 Auto-recording enabled - will record first playback');
       autoRecordTriggeredRef.current = true;
       setRecordNextPlayback(true);
