@@ -869,7 +869,10 @@ const FlipPagesWebView = ({
         
         const reader = new FileReader();
         reader.onload = function() {
-          const base64 = reader.result.split(',')[1];
+          const b64Marker = ';base64,';
+          const b64Idx = reader.result.indexOf(b64Marker);
+          const base64 = b64Idx >= 0 ? reader.result.substring(b64Idx + b64Marker.length) : reader.result.split(',').slice(1).join(',');
+          console.log('📹 FlipPages base64 length: ' + base64.length + ' chars');
           const CHUNK = 512 * 1024;
           const totalChunks = Math.ceil(base64.length / CHUNK);
           

@@ -1251,7 +1251,10 @@ const CubeWebView = ({
           
           var reader = new FileReader();
           reader.onloadend = function() {
-            var b64 = reader.result.split(',')[1];
+            var b64Marker = ';base64,';
+            var b64Idx = reader.result.indexOf(b64Marker);
+            var b64 = b64Idx >= 0 ? reader.result.substring(b64Idx + b64Marker.length) : reader.result.split(',').slice(1).join(',');
+            console.log('📹 Cube base64 length: ' + b64.length + ' chars');
             var CHUNK = 64 * 1024;
             var total = Math.ceil(b64.length / CHUNK);
             postMessage('recordingMeta', { totalChunks: total, sizeBytes: blob.size, mimeType: mimeType });

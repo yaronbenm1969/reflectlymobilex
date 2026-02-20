@@ -64,6 +64,7 @@ The application supports distinct Creator and Player flows, encompassing:
 - **Client-side recording (IMPLEMENTED, PARTIALLY WORKING)**: Uses `canvas.captureStream(30)` + `MediaRecorder` in WebView during first playback. Auto-records during playback, uploads webm to Firebase, converts to mp4 via server. Falls back to server-side render if recording too small (<50KB).
   - **FIXED**: `crossOrigin='anonymous'` on all video elements (required for canvas not to be tainted). Recording now produces valid 3.5MB webm files.
   - **FIXED (Feb 20 2026)**: iOS `PHPhotosErrorDomain error 3302` - Root cause: webm from MediaRecorder has no audio track, FFmpeg produced mp4 without audio which iOS Photos rejects. Fix: `convertVideo()` now uses `hasAudioStream()` to detect missing audio and adds silent AAC track via `anullsrc`. Also switched to H.264 Baseline profile level 3.1 for max iOS compatibility.
+  - **FIXED (Feb 20 2026)**: FlipPages recording producing 0-byte files - Root cause: MIME type `video/webm;codecs=vp8,opus` contains comma, `split(',')[1]` extracted wrong part of data URL. Fix: Use `indexOf(';base64,')` to correctly extract base64 data. Applied to both CubeWebView and FlipPagesWebView.
   - **Key files**: CubeWebView.js (recording logic), FlipPagesWebView.js (recording logic), FinalVideoScreen.js (upload/convert/save flow)
   - **Flow**: WebView records → checks blob size → sends base64 chunks → native saves file → checks file size → uploads to Firebase → converts webm→mp4 → downloads mp4 → saves to gallery
 
