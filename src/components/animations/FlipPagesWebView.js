@@ -514,16 +514,28 @@ const FlipPagesWebView = ({
         
         var rotateY = ease * 180;
         
-        var bendAmount = Math.sin(t * Math.PI) * 12;
-        var liftAmount = Math.sin(t * Math.PI) * 8;
+        var liftAmount = Math.sin(t * Math.PI) * 15;
         
-        var scaleX = 1 - Math.sin(t * Math.PI) * 0.03;
+        var bendPhase = Math.sin(t * Math.PI);
+        var skewAmount;
+        if (t < 0.3) {
+          skewAmount = bendPhase * 6;
+        } else if (t < 0.5) {
+          skewAmount = bendPhase * 4;
+        } else if (t < 0.7) {
+          skewAmount = -bendPhase * 5;
+        } else {
+          skewAmount = -bendPhase * 3;
+        }
+        
+        var perspShift = Math.sin(t * Math.PI) * 3;
         
         element.style.transform = 
+          'perspective(800px) ' +
           'rotateY(' + rotateY + 'deg) ' +
           'translateZ(' + liftAmount + 'px) ' +
-          'scaleX(' + scaleX + ') ' +
-          'skewY(' + (t < 0.5 ? bendAmount * 0.3 : -bendAmount * 0.2) + 'deg)';
+          'translateY(' + (-perspShift) + 'px) ' +
+          'skewY(' + skewAmount + 'deg)';
         
         if (t < 1) {
           activeFlipAnim = requestAnimationFrame(frame);
