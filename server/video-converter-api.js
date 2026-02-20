@@ -159,12 +159,26 @@ async function getVideoRotation(inputPath) {
   });
 }
 
+async function hasAudioStream(inputPath) {
+  return new Promise((resolve) => {
+    ffmpeg.ffprobe(inputPath, (err, metadata) => {
+      if (err || !metadata || !metadata.streams) {
+        resolve(false);
+        return;
+      }
+      const audioStream = metadata.streams.find(s => s.codec_type === 'audio');
+      resolve(!!audioStream);
+    });
+  });
+}
+
 async function convertVideo(inputPath, outputPath) {
   return new Promise(async (resolve, reject) => {
     console.log(`Converting: ${inputPath} -> ${outputPath}`);
     
     const rotation = await getVideoRotation(inputPath);
-    console.log(`Video rotation detected: ${rotation}°`);
+    const hasAudio = await hasAudioStream(inputPath);
+    console.log(`Video rotation detected: ${rotation}°, has audio: ${hasAudio}`);
     
     let vfFilters = 'scale=trunc(iw/2)*2:trunc(ih/2)*2';
     
@@ -178,16 +192,26 @@ async function convertVideo(inputPath, outputPath) {
     
     console.log(`Using video filter: ${vfFilters}`);
     
-    ffmpeg(inputPath)
-      .outputOptions([
+    const cmd = ffmpeg(inputPath);
+    
+    if (!hasAudio) {
+      console.log('⚠️ No audio track found - adding silent audio for iOS compatibility');
+      cmd.input('anullsrc=r=44100:cl=stereo')
+         .inputFormat('lavfi');
+    }
+    
+    cmd.outputOptions([
         '-c:v', 'libx264',
+        '-profile:v', 'baseline',
+        '-level', '3.1',
         '-c:a', 'aac',
         '-preset', 'fast',
         '-crf', '23',
         '-movflags', '+faststart',
         '-pix_fmt', 'yuv420p',
         '-vf', vfFilters,
-        '-metadata:s:v:0', 'rotate=0'
+        '-metadata:s:v:0', 'rotate=0',
+        '-shortest'
       ])
       .output(outputPath)
       .on('start', (cmd) => console.log('FFmpeg started:', cmd))

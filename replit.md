@@ -63,11 +63,7 @@ The application supports distinct Creator and Player flows, encompassing:
 - **Client polling**: 2s interval, up to 450 polls (15 min timeout), 30 consecutive errors threshold, AbortController with 15s per-request timeout.
 - **Client-side recording (IMPLEMENTED, PARTIALLY WORKING)**: Uses `canvas.captureStream(30)` + `MediaRecorder` in WebView during first playback. Auto-records during playback, uploads webm to Firebase, converts to mp4 via server. Falls back to server-side render if recording too small (<50KB).
   - **FIXED**: `crossOrigin='anonymous'` on all video elements (required for canvas not to be tainted). Recording now produces valid 3.5MB webm files.
-  - **ACTIVE BUG (Feb 20 2026)**: iOS `PHPhotosErrorDomain error 3302` - the converted mp4 (2.1MB) cannot be saved to Camera Roll. The webm→mp4 conversion via FFmpeg on server produces a file that iOS Photos rejects. Possible causes:
-    1. FFmpeg output may have incompatible codec settings for iOS Photos (needs H.264 Baseline/Main profile, AAC audio, specific pixel format)
-    2. The webm source from iOS WebView MediaRecorder may have unusual properties (no audio track?) causing FFmpeg to produce mp4 without audio, which iOS might reject
-    3. Try adding `-an` flag if no audio, or add silent audio track: `ffmpeg -f lavfi -i anullsrc=r=44100:cl=stereo -i input.webm -c:v libx264 -profile:v baseline -level 3.1 -c:a aac -shortest output.mp4`
-    4. Alternative: try `MediaLibrary.saveToLibraryAsync` with a file in documentDirectory instead of cacheDirectory
+  - **FIXED (Feb 20 2026)**: iOS `PHPhotosErrorDomain error 3302` - Root cause: webm from MediaRecorder has no audio track, FFmpeg produced mp4 without audio which iOS Photos rejects. Fix: `convertVideo()` now uses `hasAudioStream()` to detect missing audio and adds silent AAC track via `anullsrc`. Also switched to H.264 Baseline profile level 3.1 for max iOS compatibility.
   - **Key files**: CubeWebView.js (recording logic), FlipPagesWebView.js (recording logic), FinalVideoScreen.js (upload/convert/save flow)
   - **Flow**: WebView records → checks blob size → sends base64 chunks → native saves file → checks file size → uploads to Firebase → converts webm→mp4 → downloads mp4 → saves to gallery
 
