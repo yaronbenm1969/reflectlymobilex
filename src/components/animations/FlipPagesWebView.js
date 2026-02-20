@@ -582,6 +582,83 @@ const FlipPagesWebView = ({
       requestAnimationFrame(frame);
     }
     
+    var nextBatchPrepared = false;
+    
+    function prepareNextBatchBehindLastPage() {
+      var nextBatchStart = currentIndex + 1;
+      if (nextBatchStart >= fullVideoQueue.length) return;
+      if ((currentIndex + 1) % 4 !== 0) return;
+      if (nextBatchPrepared) return;
+      nextBatchPrepared = true;
+      
+      console.log('📖 Pre-loading next batch behind page-3');
+      
+      var lastPageSlot = currentIndex % 4;
+      var lastPage = document.getElementById('page-' + lastPageSlot);
+      if (lastPage) {
+        lastPage.style.zIndex = 200;
+      }
+      
+      for (var i = 0; i < 4; i++) {
+        if (i === lastPageSlot) continue;
+        var page = document.getElementById('page-' + i);
+        if (page) {
+          page.style.transition = 'none';
+          page.style.transform = 'rotateY(0deg)';
+          page.style.zIndex = (4 - i) * 10;
+        }
+      }
+      
+      var batchStart = nextBatchStart;
+      for (var i = 0; i < Math.min(4, fullVideoQueue.length - batchStart); i++) {
+        if (i === lastPageSlot) continue;
+        var video = pageVideos[i];
+        if (video && fullVideoQueue[batchStart + i]) {
+          video.muted = true;
+          video.src = fullVideoQueue[batchStart + i].videoUrl;
+          video.load();
+        }
+      }
+    }
+    
+    function finishBatchTransition(batchStartIdx) {
+      nextBatchPrepared = false;
+      
+      var lastPageSlot = (batchStartIdx - 1) % 4;
+      var lastPage = document.getElementById('page-' + lastPageSlot);
+      if (lastPage) {
+        lastPage.style.transition = 'none';
+        lastPage.style.transform = 'rotateY(0deg)';
+        lastPage.style.zIndex = (4 - lastPageSlot) * 10;
+      }
+      
+      var slotForFirst = 0;
+      var firstVideo = pageVideos[slotForFirst];
+      if (firstVideo && fullVideoQueue[batchStartIdx]) {
+        firstVideo.muted = true;
+        firstVideo.src = fullVideoQueue[batchStartIdx].videoUrl;
+        firstVideo.load();
+      }
+      
+      if (lastPageSlot !== 0) {
+        for (var i = 0; i < Math.min(4, fullVideoQueue.length - batchStartIdx); i++) {
+          var video = pageVideos[i];
+          if (video && fullVideoQueue[batchStartIdx + i]) {
+            video.muted = true;
+            if (video.src !== fullVideoQueue[batchStartIdx + i].videoUrl) {
+              video.src = fullVideoQueue[batchStartIdx + i].videoUrl;
+              video.load();
+            }
+          }
+        }
+      }
+      
+      flippedCount = batchStartIdx;
+      buildPageStack();
+      
+      playCurrentVideo();
+    }
+    
     function flipPage(pageIndex, onComplete) {
       var page = document.getElementById('page-' + (pageIndex % 4));
       if (page) {
@@ -655,6 +732,10 @@ const FlipPagesWebView = ({
       
       var earlyFlipDone = false;
       
+      if ((playingIndex + 1) % 4 === 0 && (playingIndex + 1) < fullVideoQueue.length) {
+        prepareNextBatchBehindLastPage();
+      }
+      
       video.ontimeupdate = function() {
         if (earlyFlipDone) return;
         var remaining = video.duration - video.currentTime;
@@ -712,57 +793,7 @@ const FlipPagesWebView = ({
       }
       
       if (currentIndex % 4 === 0) {
-        for (var i = 0; i < 4; i++) {
-          var page = document.getElementById('page-' + i);
-          if (page) {
-            page.style.opacity = '0';
-          }
-        }
-        
-        setTimeout(function() {
-          for (var i = 0; i < 4; i++) {
-            var page = document.getElementById('page-' + i);
-            if (page) {
-              page.style.transition = 'none';
-              page.style.transform = 'rotateY(0deg)';
-              page.style.zIndex = (4 - i) * 10;
-            }
-          }
-          flippedCount = currentIndex;
-          buildPageStack();
-          
-          var batchStarted = false;
-          var batchIdx = currentIndex;
-          function startBatchIfReady() {
-            if (batchStarted || currentIndex !== batchIdx) return;
-            batchStarted = true;
-            var page0 = document.getElementById('page-0');
-            if (page0) {
-              page0.style.transition = 'opacity 0.3s ease';
-              page0.style.opacity = '1';
-            }
-            for (var j = 1; j < 4; j++) {
-              var p = document.getElementById('page-' + j);
-              if (p) p.style.opacity = '1';
-            }
-            playCurrentVideo();
-          }
-          
-          for (var i = 0; i < Math.min(4, fullVideoQueue.length - currentIndex); i++) {
-            var video = pageVideos[i];
-            if (video && fullVideoQueue[currentIndex + i]) {
-              video.muted = true;
-              video.src = fullVideoQueue[currentIndex + i].videoUrl;
-              video.load();
-            }
-          }
-          
-          var firstVideo = pageVideos[0];
-          if (firstVideo) {
-            firstVideo.onloadeddata = function() { startBatchIfReady(); };
-          }
-          setTimeout(function() { startBatchIfReady(); }, 800);
-        }, 50);
+        finishBatchTransition(currentIndex);
       } else {
         playCurrentVideo();
       }
