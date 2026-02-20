@@ -1158,33 +1158,27 @@ const CubeWebView = ({
           ctx.beginPath();
           ctx.moveTo(tl[0], tl[1]);
           ctx.lineTo(tr[0], tr[1]);
+          ctx.lineTo(br[0], br[1]);
           ctx.lineTo(bl[0], bl[1]);
           ctx.closePath();
           ctx.clip();
+          
           var a1 = (tr[0] - tl[0]) / vw;
           var b1 = (tr[1] - tl[1]) / vw;
           var c1 = (bl[0] - tl[0]) / vh;
           var d1 = (bl[1] - tl[1]) / vh;
           ctx.setTransform(a1, b1, c1, d1, tl[0], tl[1]);
           try { ctx.drawImage(src, 0, 0); } catch(ex) {}
-          ctx.setTransform(1, 0, 0, 1, 0, 0);
-          ctx.restore();
           
-          var e2 = bl[0] - ((br[0] - tr[0]) / vh) * vh;
-          var f2 = bl[1] - ((br[1] - tr[1]) / vh) * vh;
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(tr[0], tr[1]);
-          ctx.lineTo(br[0], br[1]);
-          ctx.lineTo(bl[0], bl[1]);
-          ctx.closePath();
-          ctx.clip();
-          var a2 = (tr[0] - e2) / vw;
-          var b2 = (tr[1] - f2) / vw;
           var c2 = (br[0] - tr[0]) / vh;
           var d2 = (br[1] - tr[1]) / vh;
+          var e2 = bl[0] - c2 * vh;
+          var f2 = bl[1] - d2 * vh;
+          var a2 = (tr[0] - e2) / vw;
+          var b2 = (tr[1] - f2) / vw;
           ctx.setTransform(a2, b2, c2, d2, e2, f2);
           try { ctx.drawImage(src, 0, 0); } catch(ex) {}
+          
           ctx.setTransform(1, 0, 0, 1, 0, 0);
           ctx.restore();
         } else {
