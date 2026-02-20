@@ -497,6 +497,8 @@ const CubeWebView = ({
           video.muted = true;
           video.playsInline = true;
           video.setAttribute('playsinline', '');
+          video.setAttribute('crossorigin', 'anonymous');
+          video.crossOrigin = 'anonymous';
           video.preload = 'auto';
           video.style.cssText = 'width:100%;height:100%;object-fit:cover;';
           el.appendChild(video);
@@ -526,20 +528,23 @@ const CubeWebView = ({
         topVideo.muted = true;
         topVideo.playsInline = true;
         topVideo.setAttribute('playsinline', '');
+        topVideo.setAttribute('crossorigin', 'anonymous');
+        topVideo.crossOrigin = 'anonymous';
         topVideo.preload = 'metadata';
         topVideo.src = topVideoUrl;
         topVideo.style.cssText = 'width:100%;height:100%;object-fit:cover;opacity:0.85;';
-        topVideo.currentTime = 0.5; // Seek to half second for better thumbnail
+        topVideo.currentTime = 0.5;
         topFace.appendChild(topVideo);
         console.log('🖼️ Added thumbnail to TOP face');
       }
       
-      // Create video element for bottom face
       if (bottomVideoUrl && !bottomFace.querySelector('video')) {
         const bottomVideo = document.createElement('video');
         bottomVideo.muted = true;
         bottomVideo.playsInline = true;
         bottomVideo.setAttribute('playsinline', '');
+        bottomVideo.setAttribute('crossorigin', 'anonymous');
+        bottomVideo.crossOrigin = 'anonymous';
         bottomVideo.preload = 'metadata';
         bottomVideo.src = bottomVideoUrl;
         bottomVideo.style.cssText = 'width:100%;height:100%;object-fit:cover;opacity:0.85;';

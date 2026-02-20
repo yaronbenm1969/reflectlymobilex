@@ -419,6 +419,8 @@ const FlipPagesWebView = ({
           video.muted = true;
           video.playsInline = true;
           video.setAttribute('playsinline', '');
+          video.setAttribute('crossorigin', 'anonymous');
+          video.crossOrigin = 'anonymous';
           video.preload = 'auto';
           video.style.cssText = 'width:100%;height:100%;object-fit:cover;';
           video.src = fullVideoQueue[i].videoUrl;
