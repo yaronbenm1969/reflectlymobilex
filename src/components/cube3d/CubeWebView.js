@@ -1117,28 +1117,73 @@ const CubeWebView = ({
         return null;
       }
       
+      function drawTriTextured(src, sx, sy, sw, sh, p0, p1, p2) {
+        var dw = sw || 1;
+        var dh = sh || 1;
+        var x0 = (sx) / dw, y0 = (sy) / dh;
+        var x1 = (sx + sw) / dw, y1 = y0;
+        var x2 = x0, y2 = (sy + sh) / dh;
+        
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(p0[0], p0[1]);
+        ctx.lineTo(p1[0], p1[1]);
+        ctx.lineTo(p2[0], p2[1]);
+        ctx.closePath();
+        ctx.clip();
+        
+        var vw = src.videoWidth || src.width || 720;
+        var vh = src.videoHeight || src.height || 720;
+        
+        var a1 = (p1[0] - p0[0]) / vw;
+        var b1 = (p1[1] - p0[1]) / vw;
+        var c1 = (p2[0] - p0[0]) / vh;
+        var d1 = (p2[1] - p0[1]) / vh;
+        ctx.setTransform(a1, b1, c1, d1, p0[0], p0[1]);
+        try { ctx.drawImage(src, 0, 0); } catch(ex) {}
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.restore();
+      }
+      
       function drawQuad(fd) {
         var proj = fd.proj;
         var src = getDrawSource(fd.id);
         
         if (src) {
-          var vw = src.videoWidth || 720;
-          var vh = src.videoHeight || 720;
-          
-          var a = (proj[1][0] - proj[0][0]) / vw;
-          var b = (proj[1][1] - proj[0][1]) / vw;
-          var c = (proj[3][0] - proj[0][0]) / vh;
-          var d = (proj[3][1] - proj[0][1]) / vh;
+          var vw = src.videoWidth || src.width || 720;
+          var vh = src.videoHeight || src.height || 720;
+          var tl = proj[0], tr = proj[1], br = proj[2], bl = proj[3];
           
           ctx.save();
           ctx.beginPath();
-          ctx.moveTo(proj[0][0], proj[0][1]);
-          ctx.lineTo(proj[1][0], proj[1][1]);
-          ctx.lineTo(proj[2][0], proj[2][1]);
-          ctx.lineTo(proj[3][0], proj[3][1]);
+          ctx.moveTo(tl[0], tl[1]);
+          ctx.lineTo(tr[0], tr[1]);
+          ctx.lineTo(bl[0], bl[1]);
           ctx.closePath();
           ctx.clip();
-          ctx.setTransform(a, b, c, d, proj[0][0], proj[0][1]);
+          var a1 = (tr[0] - tl[0]) / vw;
+          var b1 = (tr[1] - tl[1]) / vw;
+          var c1 = (bl[0] - tl[0]) / vh;
+          var d1 = (bl[1] - tl[1]) / vh;
+          ctx.setTransform(a1, b1, c1, d1, tl[0], tl[1]);
+          try { ctx.drawImage(src, 0, 0); } catch(ex) {}
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.restore();
+          
+          var e2 = bl[0] - ((br[0] - tr[0]) / vh) * vh;
+          var f2 = bl[1] - ((br[1] - tr[1]) / vh) * vh;
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(tr[0], tr[1]);
+          ctx.lineTo(br[0], br[1]);
+          ctx.lineTo(bl[0], bl[1]);
+          ctx.closePath();
+          ctx.clip();
+          var a2 = (tr[0] - e2) / vw;
+          var b2 = (tr[1] - f2) / vw;
+          var c2 = (br[0] - tr[0]) / vh;
+          var d2 = (br[1] - tr[1]) / vh;
+          ctx.setTransform(a2, b2, c2, d2, e2, f2);
           try { ctx.drawImage(src, 0, 0); } catch(ex) {}
           ctx.setTransform(1, 0, 0, 1, 0, 0);
           ctx.restore();
