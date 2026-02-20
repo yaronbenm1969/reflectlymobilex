@@ -858,31 +858,12 @@ const FlipPagesWebView = ({
       ctx.fillStyle = '#1a1a2e';
       ctx.fillRect(0, 0, REC_W, REC_H);
       
-      var bookW = REC_W * 0.85;
+      var bookW = REC_W * 0.75;
       var bookH = bookW * 1.4;
       var bookX = (REC_W - bookW) / 2;
       var bookY = (REC_H - bookH) / 2;
-      
-      ctx.fillStyle = '#3A1A06';
-      ctx.beginPath();
-      ctx.roundRect(bookX - 6, bookY - 3, bookW + 18, bookH + 6, 8);
-      ctx.fill();
-      
-      var grad = ctx.createLinearGradient(bookX + bookW, bookY, bookX + bookW + 12, bookY);
-      grad.addColorStop(0, '#6B3410');
-      grad.addColorStop(0.5, '#8B4513');
-      grad.addColorStop(1, '#6B3410');
-      ctx.fillStyle = grad;
-      ctx.fillRect(bookX + bookW, bookY - 3, 12, bookH + 6);
-      
-      var stackRemaining = Math.max(0, totalPages - flippedCount - 1);
-      var stackLines = Math.min(stackRemaining, 6);
-      for (var sl = 0; sl < stackLines; sl++) {
-        var sx = bookX - 4 + sl * 0.5;
-        var shade = Math.round(220 - sl * 10);
-        ctx.fillStyle = 'rgb(' + shade + ',' + (shade-10) + ',' + (shade-20) + ')';
-        ctx.fillRect(sx, bookY + 8 + sl * ((bookH - 16) / (stackLines + 1)), 3, 1);
-      }
+      var spineW = 14;
+      var spineX = bookX + bookW;
       
       if (flipTransitionProgress >= 0) {
         flipTransitionProgress = Math.min(1, (now - flipTransitionStart) / FLIP_DURATION);
@@ -904,7 +885,6 @@ const FlipPagesWebView = ({
         var sh = vh * scale;
         var svx = x + (w - sw) / 2;
         var svy = y + (h - sh) / 2;
-        
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.beginPath();
@@ -914,45 +894,256 @@ const FlipPagesWebView = ({
         ctx.restore();
       }
       
+      function drawBookShell() {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 20;
+        ctx.shadowOffsetX = 5;
+        ctx.shadowOffsetY = 8;
+        ctx.fillStyle = '#3A1A06';
+        ctx.beginPath();
+        ctx.roundRect(bookX - 4, bookY - 4, bookW + spineW + 8, bookH + 8, [4, 10, 10, 4]);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.restore();
+        
+        var backGrad = ctx.createLinearGradient(bookX, bookY, bookX + bookW, bookY + bookH);
+        backGrad.addColorStop(0, '#5C2D0E');
+        backGrad.addColorStop(0.5, '#4A2209');
+        backGrad.addColorStop(1, '#3A1A06');
+        ctx.fillStyle = backGrad;
+        ctx.beginPath();
+        ctx.roundRect(bookX - 2, bookY - 2, bookW + 4, bookH + 4, [4, 0, 0, 4]);
+        ctx.fill();
+        
+        var spGrad = ctx.createLinearGradient(spineX, bookY, spineX + spineW, bookY);
+        spGrad.addColorStop(0, '#5C2D0E');
+        spGrad.addColorStop(0.3, '#8B4513');
+        spGrad.addColorStop(0.5, '#A0522D');
+        spGrad.addColorStop(0.7, '#8B4513');
+        spGrad.addColorStop(1, '#6B3410');
+        ctx.fillStyle = spGrad;
+        ctx.fillRect(spineX, bookY - 4, spineW, bookH + 8);
+        
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(spineX, bookY - 4);
+        ctx.lineTo(spineX, bookY + bookH + 4);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(spineX + spineW, bookY - 4);
+        ctx.lineTo(spineX + spineW, bookY + bookH + 4);
+        ctx.stroke();
+        
+        ctx.fillStyle = 'rgba(160,82,45,0.2)';
+        ctx.fillRect(spineX + 3, bookY + 20, spineW - 6, 2);
+        ctx.fillRect(spineX + 3, bookY + bookH - 22, spineW - 6, 2);
+      }
+      
+      function drawPageStack() {
+        var remaining = Math.max(0, totalPages - flippedCount - 1);
+        var stackCount = Math.min(remaining, 8);
+        if (stackCount <= 0) return;
+        
+        var stackThickness = Math.min(stackCount * 2, 12);
+        
+        for (var i = stackCount - 1; i >= 0; i--) {
+          var offset = (i + 1) * (stackThickness / stackCount);
+          var shade = Math.round(240 - i * 6);
+          ctx.fillStyle = 'rgb(' + shade + ',' + (shade - 8) + ',' + (shade - 18) + ')';
+          ctx.beginPath();
+          ctx.roundRect(bookX - offset, bookY + 1, bookW + offset, bookH - 2, [4, 0, 0, 4]);
+          ctx.fill();
+        }
+        
+        var edgeGrad = ctx.createLinearGradient(bookX - stackThickness, bookY, bookX - stackThickness + 4, bookY);
+        edgeGrad.addColorStop(0, 'rgba(0,0,0,0.15)');
+        edgeGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = edgeGrad;
+        ctx.fillRect(bookX - stackThickness, bookY + 2, 4, bookH - 4);
+        
+        var bottomRemaining = Math.max(20, 90 - (flippedCount / Math.max(1, totalPages)) * 60);
+        var bottomW = bookW * bottomRemaining / 100;
+        var bottomX = bookX + (bookW - bottomW) / 2;
+        for (var b = 0; b < Math.min(stackCount, 5); b++) {
+          var bShade = Math.round(235 - b * 8);
+          ctx.fillStyle = 'rgb(' + bShade + ',' + (bShade - 8) + ',' + (bShade - 16) + ')';
+          ctx.fillRect(bottomX + b, bookY + bookH + b, bottomW - b * 2, 2);
+        }
+      }
+      
+      function drawPageBorder() {
+        ctx.strokeStyle = 'rgba(139,69,19,0.25)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(bookX, bookY, bookW, bookH, [4, 8, 8, 4]);
+        ctx.stroke();
+        
+        ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(bookX + bookW - 1, bookY + 4);
+        ctx.lineTo(bookX + bookW - 1, bookY + bookH - 4);
+        ctx.stroke();
+      }
+      
+      function drawFlippingPage(t, eased) {
+        if (prevVideoSlot < 0) return;
+        
+        var flipProgress = eased;
+        var pageW = bookW * Math.abs(Math.cos(flipProgress * Math.PI));
+        if (pageW < 2) return;
+        
+        var isFirstHalf = t < 0.5;
+        var pageX;
+        
+        if (isFirstHalf) {
+          pageX = bookX + bookW - pageW;
+        } else {
+          pageX = bookX - pageW + bookW;
+          pageX = bookX + bookW - pageW;
+        }
+        
+        var liftY = Math.sin(t * Math.PI) * 4;
+        
+        ctx.save();
+        
+        if (isFirstHalf) {
+          ctx.beginPath();
+          ctx.moveTo(pageX, bookY - liftY);
+          ctx.lineTo(pageX + pageW, bookY);
+          ctx.lineTo(pageX + pageW, bookY + bookH);
+          ctx.lineTo(pageX, bookY + bookH + liftY);
+          ctx.closePath();
+          ctx.clip();
+          
+          var scaleRatio = pageW / bookW;
+          ctx.save();
+          ctx.translate(pageX + pageW, bookY);
+          ctx.scale(-scaleRatio, 1);
+          ctx.translate(0, 0);
+          var prevVideo = pageVideos[prevVideoSlot];
+          if (prevVideo && prevVideo.readyState >= 2) {
+            var vw = prevVideo.videoWidth || bookW;
+            var vh = prevVideo.videoHeight || bookH;
+            var sc = Math.max(bookW / vw, bookH / vh);
+            ctx.drawImage(prevVideo, (bookW - vw * sc) / 2, (bookH - vh * sc) / 2, vw * sc, vh * sc);
+          } else {
+            ctx.fillStyle = '#f5f0e8';
+            ctx.fillRect(0, 0, bookW, bookH);
+          }
+          ctx.restore();
+          
+          ctx.fillStyle = 'rgba(0,0,0,' + (t * 0.3) + ')';
+          ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(pageX, bookY);
+          ctx.lineTo(pageX + pageW, bookY - liftY);
+          ctx.lineTo(pageX + pageW, bookY + bookH + liftY);
+          ctx.lineTo(pageX, bookY + bookH);
+          ctx.closePath();
+          ctx.clip();
+          
+          var backGrad2 = ctx.createLinearGradient(pageX, bookY, pageX + pageW, bookY);
+          backGrad2.addColorStop(0, '#d4c9b8');
+          backGrad2.addColorStop(0.3, '#c7b9a5');
+          backGrad2.addColorStop(1, '#bfae98');
+          ctx.fillStyle = backGrad2;
+          ctx.fillRect(pageX, bookY - liftY, pageW, bookH + liftY * 2);
+          
+          for (var ln = 0; ln < 8; ln++) {
+            var ly = bookY + (bookH / 9) * (ln + 1);
+            ctx.strokeStyle = 'rgba(139,69,19,0.06)';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(pageX + 8, ly);
+            ctx.lineTo(pageX + pageW - 8, ly);
+            ctx.stroke();
+          }
+          
+          ctx.fillStyle = 'rgba(0,0,0,' + ((1 - t) * 0.15) + ')';
+          ctx.fill();
+        }
+        
+        ctx.restore();
+        
+        ctx.strokeStyle = 'rgba(100,60,20,0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(pageX, bookY - liftY);
+        ctx.lineTo(pageX, bookY + bookH + liftY);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(pageX + pageW, bookY - liftY);
+        ctx.lineTo(pageX + pageW, bookY + bookH + liftY);
+        ctx.stroke();
+      }
+      
+      drawBookShell();
+      drawPageStack();
+      
       if (recCoverProgress >= 0 && recCoverProgress < 1) {
         recCoverProgress = Math.min(1, (now - recCoverStart) / recCoverDuration);
         var ct = recCoverProgress;
         var cEase = ct < 0.5 ? 2 * ct * ct : -1 + (4 - 2 * ct) * ct;
         
-        if (ct > 0.4) {
-          var slot0 = 0;
-          drawVideoOnPage(slot0, bookX, bookY, bookW, bookH, 1);
+        if (ct > 0.3) {
+          drawVideoOnPage(0, bookX, bookY, bookW, bookH, 1);
+          drawPageBorder();
         }
         
-        var coverW = bookW * (1 - cEase);
-        if (coverW > 1) {
+        var coverPageW = bookW * Math.abs(Math.cos(cEase * Math.PI / 2));
+        if (coverPageW > 1) {
+          var coverX = bookX + bookW - coverPageW;
+          var coverLift = Math.sin(ct * Math.PI) * 3;
+          
           ctx.save();
           ctx.beginPath();
-          ctx.rect(bookX, bookY, coverW, bookH);
+          ctx.moveTo(coverX, bookY - coverLift);
+          ctx.lineTo(coverX + coverPageW, bookY);
+          ctx.lineTo(coverX + coverPageW, bookY + bookH);
+          ctx.lineTo(coverX, bookY + bookH + coverLift);
+          ctx.closePath();
           ctx.clip();
-          var coverGrad = ctx.createLinearGradient(bookX, bookY, bookX + bookW, bookY + bookH);
-          coverGrad.addColorStop(0, '#8B4513');
-          coverGrad.addColorStop(0.3, '#654321');
-          coverGrad.addColorStop(0.5, '#5C3317');
-          coverGrad.addColorStop(0.7, '#8B4513');
-          coverGrad.addColorStop(1, '#A0522D');
-          ctx.fillStyle = coverGrad;
-          ctx.fillRect(bookX, bookY, bookW, bookH);
           
-          ctx.strokeStyle = 'rgba(212,175,55,0.35)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(bookX + 12, bookY + 12, bookW - 24, bookH - 24);
+          if (ct < 0.5) {
+            var coverGrad = ctx.createLinearGradient(coverX, bookY, coverX + coverPageW, bookY + bookH);
+            coverGrad.addColorStop(0, '#8B4513');
+            coverGrad.addColorStop(0.3, '#654321');
+            coverGrad.addColorStop(0.7, '#8B4513');
+            coverGrad.addColorStop(1, '#A0522D');
+            ctx.fillStyle = coverGrad;
+            ctx.fillRect(coverX, bookY - coverLift, coverPageW, bookH + coverLift * 2);
+            
+            ctx.strokeStyle = 'rgba(212,175,55,0.3)';
+            ctx.lineWidth = 1;
+            var inset = 10 * (coverPageW / bookW);
+            ctx.strokeRect(coverX + inset, bookY + 10, coverPageW - inset * 2, bookH - 20);
+            
+            var textScale = coverPageW / bookW;
+            if (textScale > 0.3) {
+              ctx.fillStyle = '#D4AF37';
+              ctx.font = 'bold ' + Math.round(22 * textScale) + 'px -apple-system, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.globalAlpha = textScale;
+              ctx.fillText('${safeStoryName}', coverX + coverPageW / 2, bookY + bookH / 2);
+              ctx.globalAlpha = 1;
+            }
+          } else {
+            var insideGrad = ctx.createLinearGradient(coverX, bookY, coverX + coverPageW, bookY);
+            insideGrad.addColorStop(0, '#c7b9a5');
+            insideGrad.addColorStop(1, '#b8a890');
+            ctx.fillStyle = insideGrad;
+            ctx.fillRect(coverX, bookY - coverLift, coverPageW, bookH + coverLift * 2);
+            
+            ctx.fillStyle = 'rgba(0,0,0,' + ((ct - 0.5) * 0.2) + ')';
+            ctx.fillRect(coverX, bookY - coverLift, coverPageW, bookH + coverLift * 2);
+          }
           
-          ctx.fillStyle = '#D4AF37';
-          ctx.font = 'bold 24px -apple-system, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.shadowColor = 'rgba(0,0,0,0.5)';
-          ctx.shadowBlur = 3;
-          ctx.fillText('${safeStoryName}', bookX + bookW / 2, bookY + bookH / 2);
-          ctx.shadowBlur = 0;
-          
-          ctx.fillStyle = 'rgba(0,0,0,' + (ct * 0.2) + ')';
-          ctx.fillRect(bookX, bookY, coverW, bookH);
           ctx.restore();
         }
         
@@ -965,26 +1156,9 @@ const FlipPagesWebView = ({
         
         var slot = currentIndex % 4;
         drawVideoOnPage(slot, bookX, bookY, bookW, bookH, 1);
+        drawPageBorder();
         
-        if (prevVideoSlot >= 0 && t < 0.85) {
-          var pageW = bookW * (1 - eased);
-          if (pageW > 2) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(bookX + bookW - pageW, bookY, pageW, bookH);
-            ctx.clip();
-            drawVideoOnPage(prevVideoSlot, bookX, bookY, bookW, bookH, 1);
-            
-            ctx.fillStyle = '#d4c9b8';
-            ctx.globalAlpha = eased * 0.6;
-            ctx.fillRect(bookX + bookW - pageW, bookY, pageW, bookH);
-            ctx.globalAlpha = 1;
-            
-            ctx.fillStyle = 'rgba(0,0,0,' + (0.3 * eased) + ')';
-            ctx.fillRect(bookX + bookW - pageW, bookY, pageW, bookH);
-            ctx.restore();
-          }
-        }
+        drawFlippingPage(t, eased);
         
         if (flipTransitionProgress >= 1) {
           flipTransitionProgress = -1;
@@ -993,20 +1167,15 @@ const FlipPagesWebView = ({
       } else {
         var cslot = currentIndex % 4;
         drawVideoOnPage(cslot, bookX, bookY, bookW, bookH, 1);
+        drawPageBorder();
       }
-      
-      ctx.strokeStyle = 'rgba(139,69,19,0.3)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(bookX, bookY, bookW, bookH, [4, 8, 8, 4]);
-      ctx.stroke();
       
       if (recCoverProgress < 0) {
         var counterText = (currentIndex + 1) + ' / ' + fullVideoQueue.length;
         ctx.fillStyle = 'rgba(255,255,255,0.7)';
         ctx.font = '20px -apple-system, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(counterText, REC_W / 2, bookY + bookH + 40);
+        ctx.fillText(counterText, REC_W / 2, bookY + bookH + 50);
       }
       
       recordingAnimFrame = requestAnimationFrame(drawRecordingFrame);
