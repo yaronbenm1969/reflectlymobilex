@@ -698,8 +698,36 @@ export const FinalVideoScreen = () => {
       const videoUri = await getVideoForSharing('שומר סרטון');
       setDownloadProgress('שומר בגלריה...');
       const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
-      const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, storyName.replace(/[^a-zA-Zא-ת0-9]/g, '_'));
-      await MediaLibrary.saveToLibraryAsync(localUri);
+      let localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, storyName.replace(/[^a-zA-Zא-ת0-9]/g, '_'));
+      
+      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      console.log('📹 File to save:', localUri, 'size:', fileInfo.size, 'exists:', fileInfo.exists);
+      
+      if (!fileInfo.exists || fileInfo.size < 1000) {
+        console.warn('📹 Local file too small or missing, trying Firebase URL...');
+        const fbUrl = firebaseUrlRef.current || recordingFirebaseUrl;
+        if (fbUrl) {
+          localUri = await downloadVideoToLocal(fbUrl, 'gallery_save');
+          const reInfo = await FileSystem.getInfoAsync(localUri);
+          console.log('📹 Re-downloaded from Firebase:', reInfo.size, 'bytes');
+        }
+      }
+      
+      if (!localUri.endsWith('.mp4')) {
+        const mp4Path = localUri.replace(/\.[^.]+$/, '.mp4');
+        await FileSystem.copyAsync({ from: localUri, to: mp4Path });
+        localUri = mp4Path;
+        console.log('📹 Renamed to .mp4 for gallery save:', mp4Path);
+      }
+      
+      try {
+        const asset = await MediaLibrary.createAssetAsync(localUri);
+        console.log('📹 Asset created:', asset.uri);
+      } catch (assetErr) {
+        console.warn('📹 createAssetAsync failed, trying saveToLibraryAsync:', assetErr.message);
+        await MediaLibrary.saveToLibraryAsync(localUri);
+      }
+      
       Alert.alert('נשמר בהצלחה!', allVideos.length > 1 
         ? `${allVideos.length} סרטונים חוברו ונשמרו בגלריה שלך`
         : 'הסרטון נשמר בגלריה שלך');
