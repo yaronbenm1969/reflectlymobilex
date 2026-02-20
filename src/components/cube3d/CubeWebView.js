@@ -18,19 +18,25 @@ const CubeWebView = ({
   onPlaybackStart,
   onPlaybackComplete,
   onReadyToPlay,
+  onRecordingSupport,
+  onRecordingComplete,
+  onRecordingProgress,
   isFullscreen = false,
   currentPlayingFaceIndex = -1,
   triggerAutoPlay = false,
+  recordNextPlayback = false,
 }) => {
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [htmlFilePath, setHtmlFilePath] = useState(null);
   
-  // Track if initial faces have been captured (to prevent WebView reloads)
   const [initialFaces, setInitialFaces] = useState(null);
   const hasInitializedRef = useRef(false);
-  const webViewKeyRef = useRef(Date.now()); // Fixed key to prevent WebView recreation
+  const webViewKeyRef = useRef(Date.now());
+  
+  const recordingChunksRef = useRef([]);
+  const recordingMetaRef = useRef(null);
   
   useEffect(() => {
     if (hasInitializedRef.current) return;
@@ -78,6 +84,16 @@ const CubeWebView = ({
       `);
     }
   }, [triggerAutoPlay]);
+
+  useEffect(() => {
+    if (recordNextPlayback && webViewRef.current) {
+      console.log('📹 Enabling recording for next playback');
+      webViewRef.current.injectJavaScript(`
+        window._recEnabled = true;
+        true;
+      `);
+    }
+  }, [recordNextPlayback]);
 
   // Use initial faces for HTML generation - prevents WebView reload on face updates
   const cubeHTML = useMemo(() => {
@@ -998,6 +1014,252 @@ const CubeWebView = ({
       }
     };
     
+    // ============ CLIENT-SIDE RECORDING MODULE ============
+    window._recEnabled = false;
+    var _recModule = (function() {
+      var hasRecorder = typeof MediaRecorder !== 'undefined';
+      var hasCapture = HTMLCanvasElement.prototype && 
+                       typeof HTMLCanvasElement.prototype.captureStream === 'function';
+      var supported = hasRecorder && hasCapture;
+      
+      setTimeout(function() {
+        postMessage('recordingSupport', { supported: supported });
+      }, 200);
+      
+      if (!supported) {
+        console.log('📹 Recording not supported in this WebView');
+        return { supported: false, start: function(){}, stop: function(){}, isRec: function(){ return false; } };
+      }
+      
+      console.log('📹 Client-side recording available');
+      
+      var RW = 720, RH = 1280;
+      var cvs = document.createElement('canvas');
+      cvs.width = RW; cvs.height = RH;
+      var ctx = cvs.getContext('2d');
+      
+      var recorder = null;
+      var chunks = [];
+      var recAnimId = null;
+      var recState = 'idle';
+      
+      var CUBE_PX = ${CUBE_SIZE};
+      var HALF_PX = CUBE_PX / 2;
+      var SF = RW / (CUBE_PX + 80);
+      var PERSP = 800;
+      
+      var FACE_CORNERS = [
+        [[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],
+        [[1,-1,-1],[-1,-1,-1],[-1,1,-1],[1,1,-1]],
+        [[1,-1,1],[1,-1,-1],[1,1,-1],[1,1,1]],
+        [[-1,-1,-1],[-1,-1,1],[-1,1,1],[-1,1,-1]]
+      ];
+      
+      var bgStars = [];
+      for (var si = 0; si < 60; si++) {
+        bgStars.push({ x: Math.random()*RW, y: Math.random()*RH, r: Math.random()*1.5+0.5, a: Math.random()*0.5+0.2 });
+      }
+      
+      function rY(p, deg) {
+        var r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+        return [p[0]*c + p[2]*s, p[1], -p[0]*s + p[2]*c];
+      }
+      function rX(p, deg) {
+        var r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+        return [p[0], p[1]*c - p[2]*s, p[1]*s + p[2]*c];
+      }
+      function lrp(a, b, t) { return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t]; }
+      
+      function computeFace(faceIdx, fx, fy, fz, ds) {
+        var corners = FACE_CORNERS[faceIdx];
+        var tr = [];
+        for (var i = 0; i < 4; i++) {
+          var p = rY(corners[i], currentRotY);
+          p = rX(p, currentRotX);
+          tr.push([p[0]*ds, p[1]*ds, p[2]*ds]);
+        }
+        var e1 = [tr[1][0]-tr[0][0], tr[1][1]-tr[0][1], tr[1][2]-tr[0][2]];
+        var e2 = [tr[3][0]-tr[0][0], tr[3][1]-tr[0][1], tr[3][2]-tr[0][2]];
+        var nz = e1[0]*e2[1] - e1[1]*e2[0];
+        if (nz <= 0) return null;
+        
+        var proj = [];
+        for (var i = 0; i < 4; i++) {
+          var xPx = (tr[i][0] * HALF_PX + fx) * SF;
+          var yPx = (tr[i][1] * HALF_PX + fy) * SF;
+          var zPx = (tr[i][2] * HALF_PX + fz) * SF;
+          var factor = (PERSP * SF) / (PERSP * SF - zPx);
+          if (factor < 0.01) return null;
+          proj.push([RW/2 + xPx * factor, RH/2 + yPx * factor]);
+        }
+        var avgZ = (tr[0][2]+tr[1][2]+tr[2][2]+tr[3][2])/4;
+        return { id: faceIdx, proj: proj, z: avgZ };
+      }
+      
+      function drawQuad(fd) {
+        var proj = fd.proj;
+        var vidEl = faceVideoElements[fd.id];
+        var STRIPS = 14;
+        
+        for (var s = 0; s < STRIPS; s++) {
+          var t0 = s/STRIPS, t1 = (s+1)/STRIPS;
+          var tl = lrp(proj[0], proj[1], t0);
+          var tr2 = lrp(proj[0], proj[1], t1);
+          var bl = lrp(proj[3], proj[2], t0);
+          var br = lrp(proj[3], proj[2], t1);
+          
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(tl[0],tl[1]); ctx.lineTo(tr2[0],tr2[1]);
+          ctx.lineTo(br[0],br[1]); ctx.lineTo(bl[0],bl[1]);
+          ctx.closePath(); ctx.clip();
+          
+          if (vidEl && vidEl.readyState >= 2) {
+            var sw = vidEl.videoWidth || 720, sh = vidEl.videoHeight || 720;
+            var sx = t0*sw, sW = (t1-t0)*sw;
+            var mnX = Math.min(tl[0],tr2[0],bl[0],br[0]);
+            var mxX = Math.max(tl[0],tr2[0],bl[0],br[0]);
+            var mnY = Math.min(tl[1],tr2[1],bl[1],br[1]);
+            var mxY = Math.max(tl[1],tr2[1],bl[1],br[1]);
+            try { ctx.drawImage(vidEl, sx, 0, sW, sh, mnX, mnY, mxX-mnX, mxY-mnY); } catch(e) {}
+          } else {
+            ctx.fillStyle = '#1a1a2e'; ctx.fill();
+          }
+          ctx.restore();
+        }
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(proj[0][0],proj[0][1]);
+        for (var i = 1; i < 4; i++) ctx.lineTo(proj[i][0],proj[i][1]);
+        ctx.closePath(); ctx.stroke();
+      }
+      
+      function renderRecFrame() {
+        if (recState !== 'recording') return;
+        
+        var elapsed = floatStartTime ? (performance.now() - floatStartTime) / 1000 : 0;
+        var fx = Math.sin(elapsed*0.5)*22 + Math.sin(elapsed*0.3)*13;
+        var fy = Math.sin(elapsed*0.4+1)*26 + Math.cos(elapsed*0.25)*16;
+        var fz = Math.sin(elapsed*0.35+2)*38 + Math.cos(elapsed*0.2)*20;
+        var dp1 = Math.sin(elapsed*0.15)*0.22;
+        var dp2 = Math.sin(elapsed*0.4+1.5)*0.11;
+        var ds = 0.95 + dp1 + dp2;
+        var dtz = Math.sin(elapsed*0.18+2)*110 + Math.cos(elapsed*0.12)*70;
+        
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, RW, RH);
+        var grad = ctx.createRadialGradient(RW/2, RH*0.45, 0, RW/2, RH*0.45, RW*0.85);
+        grad.addColorStop(0, '#0a0a1a');
+        grad.addColorStop(1, '#000');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, RW, RH);
+        
+        ctx.fillStyle = '#fff';
+        for (var si = 0; si < bgStars.length; si++) {
+          var st = bgStars[si];
+          ctx.globalAlpha = st.a * (0.4 + 0.6 * Math.sin(elapsed*(0.8+si*0.05)));
+          ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        
+        var visible = [];
+        for (var f = 0; f < 4; f++) {
+          var fd = computeFace(f, fx, fy, fz + dtz, ds);
+          if (fd) visible.push(fd);
+        }
+        visible.sort(function(a,b) { return a.z - b.z; });
+        for (var i = 0; i < visible.length; i++) drawQuad(visible[i]);
+        
+        recAnimId = requestAnimationFrame(renderRecFrame);
+      }
+      
+      function startRec() {
+        if (recState !== 'idle') return;
+        recState = 'recording';
+        chunks = [];
+        
+        var stream = cvs.captureStream(30);
+        var mimeType = '';
+        ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'].some(function(m) {
+          if (MediaRecorder.isTypeSupported(m)) { mimeType = m; return true; }
+        });
+        if (!mimeType) {
+          postMessage('recordingError', { error: 'No supported format' });
+          recState = 'idle'; return;
+        }
+        
+        recorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 4000000 });
+        recorder.ondataavailable = function(e) {
+          if (e.data && e.data.size > 0) chunks.push(e.data);
+        };
+        recorder.onstop = function() {
+          recState = 'processing';
+          var blob = new Blob(chunks, { type: mimeType });
+          console.log('📹 Recording blob: ' + (blob.size/1024/1024).toFixed(1) + 'MB');
+          postMessage('recordingProcessing', { sizeBytes: blob.size });
+          
+          var reader = new FileReader();
+          reader.onloadend = function() {
+            var b64 = reader.result.split(',')[1];
+            var CHUNK = 64 * 1024;
+            var total = Math.ceil(b64.length / CHUNK);
+            postMessage('recordingMeta', { totalChunks: total, sizeBytes: blob.size });
+            
+            var sendIdx = 0;
+            function sendNext() {
+              if (sendIdx >= total) {
+                postMessage('recordingComplete', { totalChunks: total, sizeBytes: blob.size });
+                recState = 'idle';
+                return;
+              }
+              var data = b64.substring(sendIdx * CHUNK, (sendIdx+1) * CHUNK);
+              postMessage('recordingChunk', { index: sendIdx, data: data, total: total });
+              sendIdx++;
+              setTimeout(sendNext, 5);
+            }
+            sendNext();
+          };
+          reader.readAsDataURL(blob);
+        };
+        
+        recorder.start(1000);
+        recAnimId = requestAnimationFrame(renderRecFrame);
+        postMessage('recordingStarted', {});
+        console.log('📹 Recording started: ' + mimeType);
+      }
+      
+      function stopRec() {
+        if (recState !== 'recording' || !recorder) return;
+        console.log('📹 Stopping recording...');
+        if (recAnimId) cancelAnimationFrame(recAnimId);
+        recorder.stop();
+      }
+      
+      return {
+        supported: true,
+        start: startRec,
+        stop: stopRec,
+        isRec: function() { return recState === 'recording'; }
+      };
+    })();
+    
+    var _origPostMsg = postMessage;
+    postMessage = function(type, data) {
+      _origPostMsg(type, data);
+      if (type === 'animationStarted' && window._recEnabled) {
+        window._recEnabled = false;
+        _recModule.start();
+      }
+      if (type === 'allVideosComplete' && _recModule.isRec()) {
+        setTimeout(function() { _recModule.stop(); }, 500);
+      }
+    };
+    
+    window.startClientRecording = function() { _recModule.start(); };
+    window.stopClientRecording = function() { _recModule.stop(); };
+    
     init();
   </script>
 </body>
@@ -1034,11 +1296,55 @@ const CubeWebView = ({
           console.log('✅ Cube playback complete');
           onPlaybackComplete?.();
           break;
+        case 'recordingSupport':
+          console.log('📹 Recording support:', data.supported);
+          onRecordingSupport?.(data.supported);
+          break;
+        case 'recordingStarted':
+          console.log('📹 Recording started in WebView');
+          break;
+        case 'recordingMeta':
+          recordingMetaRef.current = data;
+          recordingChunksRef.current = [];
+          onRecordingProgress?.({ phase: 'transferring', progress: 0 });
+          break;
+        case 'recordingChunk':
+          recordingChunksRef.current.push(data.data);
+          if (recordingMetaRef.current) {
+            const pct = Math.round(((data.index + 1) / data.total) * 100);
+            onRecordingProgress?.({ phase: 'transferring', progress: pct });
+          }
+          break;
+        case 'recordingProcessing':
+          onRecordingProgress?.({ phase: 'processing', progress: 0 });
+          break;
+        case 'recordingComplete': {
+          console.log('📹 All recording chunks received:', data.totalChunks);
+          onRecordingProgress?.({ phase: 'saving', progress: 90 });
+          const base64Data = recordingChunksRef.current.join('');
+          const fileUri = FileSystem.cacheDirectory + 'cube_recording_' + Date.now() + '.webm';
+          FileSystem.writeAsStringAsync(fileUri, base64Data, {
+            encoding: FileSystem.EncodingType.Base64,
+          }).then(() => {
+            console.log('📹 Recording saved:', fileUri);
+            onRecordingComplete?.(fileUri);
+            recordingChunksRef.current = [];
+            recordingMetaRef.current = null;
+          }).catch(err => {
+            console.error('📹 Failed to save recording:', err);
+            onRecordingComplete?.(null);
+          });
+          break;
+        }
+        case 'recordingError':
+          console.error('📹 Recording error:', data.error);
+          onRecordingComplete?.(null);
+          break;
       }
     } catch (e) {
       console.warn('WebView message parse error:', e);
     }
-  }, [onFaceChange, onVideoStart, onVideoEnd, onReadyToPlay, onPlaybackStart, onPlaybackComplete]);
+  }, [onFaceChange, onVideoStart, onVideoEnd, onReadyToPlay, onPlaybackStart, onPlaybackComplete, onRecordingSupport, onRecordingComplete, onRecordingProgress]);
 
   useEffect(() => {
     if (webViewRef.current) {

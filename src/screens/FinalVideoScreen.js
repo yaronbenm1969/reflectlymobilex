@@ -56,6 +56,10 @@ export const FinalVideoScreen = () => {
   const [recordCountdown, setRecordCountdown] = useState(0);
   const [isRecordingMode, setIsRecordingMode] = useState(false);
   const [triggerAutoPlay, setTriggerAutoPlay] = useState(false);
+  const [clientRecordingSupported, setClientRecordingSupported] = useState(false);
+  const [recordNextPlayback, setRecordNextPlayback] = useState(false);
+  const [clientRecordingInProgress, setClientRecordingInProgress] = useState(false);
+  const clientRecordingResolveRef = useRef(null);
   const videoRef = useRef(null);
   const cubeRef = useRef(null);
 
@@ -281,10 +285,11 @@ export const FinalVideoScreen = () => {
   const handleShare = async () => {
     try {
       setIsDownloading(true);
-      const videoUrl = await renderConcatenatedVideo('מכין סרטון לשיתוף');
-      if (videoUrl && await Sharing.isAvailableAsync()) {
+      const videoUri = await getVideoForSharing('מכין סרטון לשיתוף');
+      if (videoUri && await Sharing.isAvailableAsync()) {
         setDownloadProgress('שומר...');
-        const localUri = await downloadVideoToLocal(videoUrl, 'share');
+        const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
+        const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'share');
         setIsDownloading(false);
         setDownloadProgress('');
         await Sharing.shareAsync(localUri, {
@@ -455,6 +460,74 @@ export const FinalVideoScreen = () => {
     }
   };
 
+  const performClientRecording = () => {
+    return new Promise((resolve) => {
+      clientRecordingResolveRef.current = resolve;
+      setClientRecordingInProgress(true);
+      setDownloadProgress('מקליט אנימציה...');
+      setShowEndScreen(false);
+      setRecordNextPlayback(true);
+      
+      const recordingTimeout = setTimeout(() => {
+        console.log('📹 Recording timeout - resolving with null');
+        if (clientRecordingResolveRef.current) {
+          clientRecordingResolveRef.current(null);
+          clientRecordingResolveRef.current = null;
+        }
+        setRecordNextPlayback(false);
+        setClientRecordingInProgress(false);
+      }, 5 * 60 * 1000);
+      
+      const origResolve = resolve;
+      clientRecordingResolveRef.current = (fileUri) => {
+        clearTimeout(recordingTimeout);
+        origResolve(fileUri);
+      };
+      
+      setTimeout(() => {
+        setTriggerAutoPlay(true);
+        setTimeout(() => setTriggerAutoPlay(false), 500);
+      }, 300);
+    });
+  };
+
+  const handleRecordingSupport = (supported) => {
+    console.log('📹 Client recording supported:', supported);
+    setClientRecordingSupported(supported);
+  };
+
+  const handleRecordingComplete = (fileUri) => {
+    console.log('📹 Recording complete:', fileUri);
+    setRecordNextPlayback(false);
+    setClientRecordingInProgress(false);
+    setShowEndScreen(true);
+    if (clientRecordingResolveRef.current) {
+      clientRecordingResolveRef.current(fileUri);
+      clientRecordingResolveRef.current = null;
+    }
+  };
+
+  const handleRecordingProgress = (progress) => {
+    if (progress.phase === 'transferring') {
+      setDownloadProgress(`מעביר הקלטה... ${progress.progress}%`);
+    } else if (progress.phase === 'processing') {
+      setDownloadProgress('מעבד הקלטה...');
+    } else if (progress.phase === 'saving') {
+      setDownloadProgress('שומר...');
+    }
+  };
+
+  const getVideoForSharing = async (label = 'מכין סרטון') => {
+    if (isAnimatedFormat && clientRecordingSupported) {
+      console.log('📹 Using client-side recording');
+      setIsDownloading(true);
+      const fileUri = await performClientRecording();
+      if (fileUri) return fileUri;
+      console.log('📹 Client recording failed, falling back to server');
+    }
+    return await renderConcatenatedVideo(label);
+  };
+
   const downloadVideoToLocal = async (url, prefix = 'video') => {
     const filename = `${prefix}_${Date.now()}.mp4`;
     const localUri = FileSystem.cacheDirectory + filename;
@@ -478,11 +551,12 @@ export const FinalVideoScreen = () => {
         return;
       }
 
-      const videoUrl = await renderConcatenatedVideo('שומר סרטון');
+      const videoUri = await getVideoForSharing('שומר סרטון');
       setDownloadProgress('שומר בגלריה...');
-      const localUri = await downloadVideoToLocal(videoUrl, storyName.replace(/[^a-zA-Zא-ת0-9]/g, '_'));
+      const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
+      const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, storyName.replace(/[^a-zA-Zא-ת0-9]/g, '_'));
       await MediaLibrary.saveToLibraryAsync(localUri);
-      Alert.alert('נשמר בהצלחה! 🎉', allVideos.length > 1 
+      Alert.alert('נשמר בהצלחה!', allVideos.length > 1 
         ? `${allVideos.length} סרטונים חוברו ונשמרו בגלריה שלך`
         : 'הסרטון נשמר בגלריה שלך');
     } catch (error) {
@@ -513,10 +587,11 @@ export const FinalVideoScreen = () => {
   const handleShareToInstagram = async () => {
     try {
       setIsDownloading(true);
-      const videoUrl = await renderConcatenatedVideo('מכין לאינסטגרם');
-      if (videoUrl && await Sharing.isAvailableAsync()) {
+      const videoUri = await getVideoForSharing('מכין לאינסטגרם');
+      if (videoUri && await Sharing.isAvailableAsync()) {
         setDownloadProgress('שומר...');
-        const localUri = await downloadVideoToLocal(videoUrl, 'instagram');
+        const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
+        const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'instagram');
         setIsDownloading(false);
         setDownloadProgress('');
         await Sharing.shareAsync(localUri, {
@@ -544,10 +619,11 @@ export const FinalVideoScreen = () => {
   const handleShareToTikTok = async () => {
     try {
       setIsDownloading(true);
-      const videoUrl = await renderConcatenatedVideo('מכין לטיקטוק');
-      if (videoUrl && await Sharing.isAvailableAsync()) {
+      const videoUri = await getVideoForSharing('מכין לטיקטוק');
+      if (videoUri && await Sharing.isAvailableAsync()) {
         setDownloadProgress('שומר...');
-        const localUri = await downloadVideoToLocal(videoUrl, 'tiktok');
+        const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
+        const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'tiktok');
         setIsDownloading(false);
         setDownloadProgress('');
         await Sharing.shareAsync(localUri, {
@@ -626,6 +702,7 @@ export const FinalVideoScreen = () => {
             rotationSpeed={currentVideoDuration > 0 ? currentVideoDuration * 1000 * 4 : 20000}
             isFullscreen={isCubeFullscreen}
             triggerAutoPlay={triggerAutoPlay}
+            recordNextPlayback={recordNextPlayback}
             onFaceChange={handleFaceChange}
             onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
             onVideoEnd={handleVideoEnd}
@@ -638,11 +715,13 @@ export const FinalVideoScreen = () => {
               console.log('✅ All videos finished - showing end screen');
               setIsCubeFullscreen(false);
               setVideoHasPlayed(true);
-              if (isRecordingMode) {
+              if (clientRecordingInProgress) {
+                console.log('📹 Playback complete during recording - waiting for data');
+              } else if (isRecordingMode) {
                 setIsRecordingMode(false);
                 setTimeout(() => {
                   Alert.alert(
-                    'עצור הקלטה! 🛑',
+                    'עצור הקלטה!',
                     'הסרטון הסתיים. עצור עכשיו את הקלטת המסך.\nהסרטון עם התלת-מימד נשמר בגלריה שלך!',
                     [{ text: 'מעולה!', onPress: () => setShowEndScreen(true) }]
                   );
@@ -651,6 +730,9 @@ export const FinalVideoScreen = () => {
                 setShowEndScreen(true);
               }
             }}
+            onRecordingSupport={handleRecordingSupport}
+            onRecordingComplete={handleRecordingComplete}
+            onRecordingProgress={handleRecordingProgress}
             currentPlayingFaceIndex={currentPlayingFaceIndex}
           />
         </View>

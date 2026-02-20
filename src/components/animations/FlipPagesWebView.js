@@ -18,8 +18,12 @@ const FlipPagesWebView = ({
   onPlaybackStart,
   onPlaybackComplete,
   onReadyToPlay,
+  onRecordingSupport,
+  onRecordingComplete,
+  onRecordingProgress,
   isFullscreen = false,
   triggerAutoPlay = false,
+  recordNextPlayback = false,
 }) => {
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -81,6 +85,16 @@ const FlipPagesWebView = ({
       `);
     }
   }, [triggerAutoPlay]);
+
+  useEffect(() => {
+    if (recordNextPlayback && webViewRef.current) {
+      console.log('📖 Recording next playback requested');
+      webViewRef.current.injectJavaScript(`
+        shouldRecordNext = true;
+        true;
+      `);
+    }
+  }, [recordNextPlayback]);
 
   const flipHTML = useMemo(() => {
     if (!initialFaces || initialFaces.length === 0) return null;
@@ -519,6 +533,10 @@ const FlipPagesWebView = ({
     }
     
     function advanceToNext() {
+      const prevIdx = currentIndex;
+      if (isRecording && typeof notifyFlipStarted === 'function') {
+        notifyFlipStarted(prevIdx);
+      }
       currentIndex++;
       if (currentIndex >= fullVideoQueue.length) {
         console.log('🏁 All videos complete!');
@@ -637,7 +655,216 @@ const FlipPagesWebView = ({
       });
     }
     
+    // ===== RECORDING MODULE =====
+    let recordingCanvas = null;
+    let recordingCtx = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let isRecording = false;
+    let shouldRecordNext = false;
+    let recordingAnimFrame = null;
+    const REC_W = 720, REC_H = 1280;
+    
+    function initRecording() {
+      const supported = !!(HTMLCanvasElement.prototype.captureStream && typeof MediaRecorder !== 'undefined');
+      postMessage('recordingSupport', { supported: supported });
+      if (!supported) return;
+      
+      recordingCanvas = document.createElement('canvas');
+      recordingCanvas.width = REC_W;
+      recordingCanvas.height = REC_H;
+      recordingCtx = recordingCanvas.getContext('2d');
+    }
+    
+    let flipTransitionProgress = -1;
+    let flipTransitionStart = 0;
+    let prevVideoSlot = -1;
+    const FLIP_DURATION = 1200;
+    
+    function notifyFlipStarted(fromIndex) {
+      flipTransitionProgress = 0;
+      flipTransitionStart = performance.now();
+      prevVideoSlot = fromIndex % 4;
+    }
+    
+    function drawRecordingFrame() {
+      if (!recordingCtx || !isRecording) return;
+      const ctx = recordingCtx;
+      const now = performance.now();
+      
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(0, 0, REC_W, REC_H);
+      
+      const bookW = REC_W * 0.85;
+      const bookH = bookW * 1.4;
+      const bookX = (REC_W - bookW) / 2;
+      const bookY = (REC_H - bookH) / 2;
+      
+      ctx.fillStyle = '#3A1A06';
+      ctx.beginPath();
+      ctx.roundRect(bookX - 6, bookY - 3, bookW + 18, bookH + 6, 8);
+      ctx.fill();
+      
+      const grad = ctx.createLinearGradient(bookX + bookW, bookY, bookX + bookW + 12, bookY);
+      grad.addColorStop(0, '#6B3410');
+      grad.addColorStop(0.5, '#8B4513');
+      grad.addColorStop(1, '#6B3410');
+      ctx.fillStyle = grad;
+      ctx.fillRect(bookX + bookW, bookY - 3, 12, bookH + 6);
+      
+      if (flipTransitionProgress >= 0) {
+        flipTransitionProgress = Math.min(1, (now - flipTransitionStart) / FLIP_DURATION);
+      }
+      
+      function drawVideoOnPage(videoSlot, x, y, w, h, alpha) {
+        const video = pageVideos[videoSlot];
+        if (!video || video.readyState < 2) {
+          ctx.fillStyle = '#f5f0e8';
+          ctx.beginPath();
+          ctx.roundRect(x, y, w, h, [4, 8, 8, 4]);
+          ctx.fill();
+          return;
+        }
+        const vw = video.videoWidth || w;
+        const vh = video.videoHeight || h;
+        const scale = Math.max(w / vw, h / vh);
+        const sw = vw * scale;
+        const sh = vh * scale;
+        const sx = x + (w - sw) / 2;
+        const sy = y + (h - sh) / 2;
+        
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, [4, 8, 8, 4]);
+        ctx.clip();
+        ctx.drawImage(video, sx, sy, sw, sh);
+        ctx.restore();
+      }
+      
+      if (flipTransitionProgress >= 0 && flipTransitionProgress < 1) {
+        const t = flipTransitionProgress;
+        const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        
+        const slot = currentIndex % 4;
+        drawVideoOnPage(slot, bookX, bookY, bookW, bookH, 1);
+        
+        if (prevVideoSlot >= 0 && t < 0.8) {
+          const pageW = bookW * (1 - eased);
+          if (pageW > 2) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(bookX + bookW - pageW, bookY, pageW, bookH);
+            ctx.clip();
+            drawVideoOnPage(prevVideoSlot, bookX, bookY, bookW, bookH, 1);
+            ctx.fillStyle = 'rgba(0,0,0,' + (0.3 * eased) + ')';
+            ctx.fillRect(bookX + bookW - pageW, bookY, pageW, bookH);
+            ctx.restore();
+          }
+        }
+        
+        if (flipTransitionProgress >= 1) {
+          flipTransitionProgress = -1;
+          prevVideoSlot = -1;
+        }
+      } else {
+        const slot = currentIndex % 4;
+        drawVideoOnPage(slot, bookX, bookY, bookW, bookH, 1);
+      }
+      
+      ctx.strokeStyle = 'rgba(139,69,19,0.3)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(bookX, bookY, bookW, bookH, [4, 8, 8, 4]);
+      ctx.stroke();
+      
+      const counterText = (currentIndex + 1) + ' / ' + fullVideoQueue.length;
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = '20px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(counterText, REC_W / 2, bookY + bookH + 40);
+      
+      recordingAnimFrame = requestAnimationFrame(drawRecordingFrame);
+    }
+    
+    function startRecording() {
+      if (!recordingCanvas || isRecording) return;
+      console.log('📹 FlipPages recording started');
+      isRecording = true;
+      recordedChunks = [];
+      
+      const stream = recordingCanvas.captureStream(30);
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
+        ? 'video/webm;codecs=vp9' 
+        : 'video/webm';
+      
+      mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 4000000 });
+      
+      mediaRecorder.ondataavailable = function(e) {
+        if (e.data && e.data.size > 0) {
+          recordedChunks.push(e.data);
+        }
+      };
+      
+      mediaRecorder.onstop = function() {
+        console.log('📹 FlipPages MediaRecorder stopped, chunks: ' + recordedChunks.length);
+        isRecording = false;
+        if (recordingAnimFrame) cancelAnimationFrame(recordingAnimFrame);
+        
+        const blob = new Blob(recordedChunks, { type: mimeType });
+        console.log('📹 Blob size: ' + (blob.size / 1024 / 1024).toFixed(2) + 'MB');
+        
+        postMessage('recordingProgress', { phase: 'transferring', progress: 0 });
+        
+        const reader = new FileReader();
+        reader.onload = function() {
+          const base64 = reader.result.split(',')[1];
+          const CHUNK = 512 * 1024;
+          const totalChunks = Math.ceil(base64.length / CHUNK);
+          
+          for (let i = 0; i < totalChunks; i++) {
+            const chunk = base64.substring(i * CHUNK, (i + 1) * CHUNK);
+            postMessage('recordingData', {
+              chunk: chunk,
+              chunkIndex: i,
+              totalChunks: totalChunks,
+              isLast: i === totalChunks - 1
+            });
+            postMessage('recordingProgress', { 
+              phase: 'transferring', 
+              progress: Math.round(((i + 1) / totalChunks) * 100)
+            });
+          }
+        };
+        reader.readAsDataURL(blob);
+      };
+      
+      mediaRecorder.start(1000);
+      drawRecordingFrame();
+    }
+    
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        console.log('📹 Stopping FlipPages recording');
+        mediaRecorder.stop();
+      }
+    }
+    
+    const origPostMessage = postMessage;
+    postMessage = function(type, data) {
+      origPostMessage(type, data);
+      if (type === 'animationStarted' && shouldRecordNext) {
+        shouldRecordNext = false;
+        startRecording();
+      }
+      if (type === 'allVideosComplete' && isRecording) {
+        setTimeout(stopRecording, 500);
+      }
+    };
+    // ===== END RECORDING MODULE =====
+    
     init();
+    initRecording();
   </script>
 </body>
 </html>`;
@@ -650,10 +877,14 @@ const FlipPagesWebView = ({
     setIsLoading(false);
   }, [flipHTML]);
 
+  const recordingChunksRef = useRef([]);
+
   const handleMessage = useCallback((event) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
-      console.log('📖 FlipPages message:', data.type);
+      if (data.type !== 'recordingData' && data.type !== 'recordingProgress') {
+        console.log('📖 FlipPages message:', data.type);
+      }
       
       switch (data.type) {
         case 'cubeReady':
@@ -668,11 +899,41 @@ const FlipPagesWebView = ({
         case 'allVideosComplete':
           onPlaybackComplete?.();
           break;
+        case 'recordingSupport':
+          onRecordingSupport?.(data.supported);
+          break;
+        case 'recordingProgress':
+          onRecordingProgress?.(data);
+          break;
+        case 'recordingData':
+          if (data.chunkIndex === 0) recordingChunksRef.current = [];
+          recordingChunksRef.current.push(data.chunk);
+          if (data.isLast) {
+            const fullBase64 = recordingChunksRef.current.join('');
+            recordingChunksRef.current = [];
+            saveRecordingToFile(fullBase64);
+          }
+          break;
       }
     } catch (e) {
       console.error('📖 Message parse error:', e);
     }
-  }, [onReadyToPlay, onPlaybackStart, onVideoStart, onPlaybackComplete]);
+  }, [onReadyToPlay, onPlaybackStart, onVideoStart, onPlaybackComplete, onRecordingSupport, onRecordingProgress, onRecordingComplete]);
+
+  const saveRecordingToFile = useCallback(async (base64Data) => {
+    try {
+      onRecordingProgress?.({ phase: 'saving' });
+      const fileUri = FileSystem.cacheDirectory + `flip_recording_${Date.now()}.webm`;
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      console.log('📖 Recording saved to:', fileUri);
+      onRecordingComplete?.(fileUri);
+    } catch (err) {
+      console.error('📖 Error saving recording:', err);
+      onRecordingComplete?.(null);
+    }
+  }, [onRecordingComplete, onRecordingProgress]);
 
   const webViewSource = useMemo(() => {
     if (flipHTML) {

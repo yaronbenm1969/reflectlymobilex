@@ -12,10 +12,14 @@ const AnimationPlayer = ({
   onPlaybackStart,
   onPlaybackComplete,
   onReadyToPlay,
+  onRecordingSupport,
+  onRecordingComplete,
+  onRecordingProgress,
   isFullscreen = false,
   currentPlayingFaceIndex = -1,
   storyName = '',
   triggerAutoPlay = false,
+  recordNextPlayback = false,
 }) => {
   console.log('🎬 AnimationPlayer rendering format:', format);
   
@@ -31,8 +35,12 @@ const AnimationPlayer = ({
           onPlaybackStart={onPlaybackStart}
           onPlaybackComplete={onPlaybackComplete}
           onReadyToPlay={onReadyToPlay}
+          onRecordingSupport={onRecordingSupport}
+          onRecordingComplete={onRecordingComplete}
+          onRecordingProgress={onRecordingProgress}
           isFullscreen={isFullscreen}
           triggerAutoPlay={triggerAutoPlay}
+          recordNextPlayback={recordNextPlayback}
         />
       );
     
@@ -47,9 +55,13 @@ const AnimationPlayer = ({
           onPlaybackStart={onPlaybackStart}
           onPlaybackComplete={onPlaybackComplete}
           onReadyToPlay={onReadyToPlay}
+          onRecordingSupport={onRecordingSupport}
+          onRecordingComplete={onRecordingComplete}
+          onRecordingProgress={onRecordingProgress}
           isFullscreen={isFullscreen}
           currentPlayingFaceIndex={currentPlayingFaceIndex}
           triggerAutoPlay={triggerAutoPlay}
+          recordNextPlayback={recordNextPlayback}
         />
       );
   }
