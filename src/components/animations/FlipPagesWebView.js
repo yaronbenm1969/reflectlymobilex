@@ -154,6 +154,23 @@ const FlipPagesWebView = ({
       box-shadow: 4px 6px 20px rgba(0,0,0,0.6), inset 0 0 15px rgba(0,0,0,0.2);
       z-index: -1;
     }
+    .page-stack-right {
+      position: absolute;
+      right: -4px;
+      top: 4px;
+      width: 6px;
+      height: calc(100% - 8px);
+      z-index: 5;
+      pointer-events: none;
+      transition: height 0.8s ease;
+    }
+    .page-stack-line {
+      position: absolute;
+      right: 0;
+      width: 100%;
+      height: 1px;
+      border-radius: 0 1px 1px 0;
+    }
     .page-edges {
       position: absolute;
       bottom: -3px;
@@ -168,6 +185,7 @@ const FlipPagesWebView = ({
       border-radius: 0 0 4px 4px;
       box-shadow: 0 3px 6px rgba(0,0,0,0.3);
       z-index: -1;
+      transition: width 0.8s ease;
     }
     .page {
       position: absolute;
@@ -175,9 +193,8 @@ const FlipPagesWebView = ({
       height: 100%;
       transform-origin: right center;
       transform-style: preserve-3d;
-      transition: transform 1.2s cubic-bezier(0.645, 0.045, 0.355, 1.000);
       border-radius: 4px 8px 8px 4px;
-      overflow: hidden;
+      overflow: visible;
     }
     .page-front, .page-back {
       position: absolute;
@@ -186,15 +203,36 @@ const FlipPagesWebView = ({
       backface-visibility: hidden;
       border-radius: 4px 8px 8px 4px;
       overflow: hidden;
-      background: linear-gradient(145deg, #f5f0e8, #ebe4d8);
     }
     .page-front {
       z-index: 2;
+      background: linear-gradient(145deg, #f5f0e8, #ebe4d8);
       box-shadow: -3px 0 10px rgba(0,0,0,0.2), 0 2px 8px rgba(0,0,0,0.15);
     }
     .page-back {
       transform: rotateY(-180deg);
-      background: linear-gradient(145deg, #ebe4d8, #ddd6c8);
+      background: linear-gradient(145deg, #d4c9b8, #c7b9a5);
+      box-shadow: inset 0 0 30px rgba(0,0,0,0.08);
+    }
+    .page-back-pattern {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      opacity: 0.15;
+      background: 
+        repeating-linear-gradient(0deg, transparent, transparent 12px, rgba(139,69,19,0.08) 12px, rgba(139,69,19,0.08) 13px),
+        repeating-linear-gradient(90deg, transparent, transparent 12px, rgba(139,69,19,0.05) 12px, rgba(139,69,19,0.05) 13px);
+    }
+    .page-back-label {
+      position: absolute;
+      bottom: 20px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      color: rgba(139,69,19,0.25);
+      font-size: 14px;
+      font-style: italic;
+      letter-spacing: 2px;
     }
     .page video {
       width: 100%;
@@ -202,16 +240,12 @@ const FlipPagesWebView = ({
       object-fit: cover;
       border-radius: 4px 8px 8px 4px;
     }
-    .page.flipped {
-      transform: rotateY(180deg);
-    }
     .book-cover {
       position: absolute;
       width: 100%;
       height: 100%;
       transform-origin: right center;
       transform-style: preserve-3d;
-      transition: transform 1.8s cubic-bezier(0.645, 0.045, 0.355, 1.000);
       z-index: 100;
       border-radius: 4px 10px 10px 4px;
       cursor: pointer;
@@ -288,10 +322,7 @@ const FlipPagesWebView = ({
     }
     .book-cover-inside {
       transform: rotateY(-180deg);
-      background: linear-gradient(145deg, #f5f0e8, #ebe4d8);
-    }
-    .book-cover.opened {
-      transform: rotateY(180deg);
+      background: linear-gradient(145deg, #c7b9a5, #b8a890);
     }
     .book-shadow {
       position: absolute;
