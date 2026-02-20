@@ -517,15 +517,31 @@ export const FinalVideoScreen = () => {
     setClientRecordingInProgress(false);
     setDownloadProgress('');
     
+    let validRecording = false;
     if (fileUri) {
-      setCachedRecordingUri(fileUri);
-      cachedRecordingRef.current = fileUri;
-      convertAndUploadRecording(fileUri);
+      try {
+        const info = await FileSystem.getInfoAsync(fileUri);
+        const MIN_VALID_SIZE = 50000;
+        console.log(`📹 Recording file size: ${info.size} bytes (min: ${MIN_VALID_SIZE})`);
+        if (info.exists && info.size >= MIN_VALID_SIZE) {
+          validRecording = true;
+          setCachedRecordingUri(fileUri);
+          cachedRecordingRef.current = fileUri;
+          convertAndUploadRecording(fileUri);
+        } else {
+          console.warn('📹 Recording too small - iOS captureStream likely not supported. Will use server render.');
+          setCachedRecordingUri(null);
+          cachedRecordingRef.current = null;
+          setClientRecordingSupported(false);
+        }
+      } catch (e) {
+        console.warn('📹 Cannot check recording file:', e.message);
+      }
     }
     
     const hadManualResolve = !!clientRecordingResolveRef.current;
     if (clientRecordingResolveRef.current) {
-      clientRecordingResolveRef.current(fileUri);
+      clientRecordingResolveRef.current(validRecording ? fileUri : null);
       clientRecordingResolveRef.current = null;
     }
     
@@ -649,16 +665,35 @@ export const FinalVideoScreen = () => {
     const cached = cachedRecordingRef.current;
     const fbUrl = firebaseUrlRef.current;
     const isMp4 = (uri) => uri && !uri.toLowerCase().includes('.webm');
+    const MIN_VALID_SIZE = 50000;
     
-    if (isMp4(cached)) {
+    const isValidLocal = async (uri) => {
+      if (!uri) return false;
+      try {
+        const info = await FileSystem.getInfoAsync(uri);
+        const valid = info.exists && info.size >= MIN_VALID_SIZE;
+        if (!valid) console.log(`📹 File invalid: ${uri.slice(-30)} size=${info.size || 0}`);
+        return valid;
+      } catch { return false; }
+    };
+    
+    if (isMp4(cached) && await isValidLocal(cached)) {
       console.log('📹 Using cached mp4 recording');
       return cached;
     }
     if (fbUrl) {
-      console.log('📹 Using Firebase converted URL');
-      return fbUrl;
+      console.log('📹 Using Firebase converted URL, downloading...');
+      try {
+        const localPath = await downloadVideoToLocal(fbUrl, 'share_mp4');
+        if (await isValidLocal(localPath)) {
+          console.log('📹 Firebase mp4 downloaded and valid');
+          return localPath;
+        }
+      } catch (e) {
+        console.warn('📹 Firebase download failed:', e.message);
+      }
     }
-    if (cached) {
+    if (cached && await isValidLocal(cached)) {
       console.log('📹 Using webm recording (conversion may have failed)');
       return cached;
     }
@@ -666,9 +701,10 @@ export const FinalVideoScreen = () => {
       console.log('📹 Recording not cached yet, recording now');
       setIsDownloading(true);
       const fileUri = await performClientRecording();
-      if (fileUri) return fileUri;
-      console.log('📹 Client recording failed, falling back to server');
+      if (fileUri && await isValidLocal(fileUri)) return fileUri;
+      console.log('📹 Client recording failed or too small, falling back to server');
     }
+    console.log('📹 Falling back to server-side render');
     return await renderConcatenatedVideo(label);
   };
 

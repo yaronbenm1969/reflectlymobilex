@@ -1197,7 +1197,14 @@ const CubeWebView = ({
         recorder.onstop = function() {
           recState = 'processing';
           var blob = new Blob(chunks, { type: mimeType });
-          console.log('📹 Recording blob: ' + (blob.size/1024/1024).toFixed(1) + 'MB');
+          var sizeMB = (blob.size/1024/1024).toFixed(2);
+          console.log('📹 Recording blob: ' + sizeMB + 'MB (' + blob.size + ' bytes, ' + chunks.length + ' chunks)');
+          if (blob.size < 50000) {
+            console.warn('📹 Recording too small (' + blob.size + 'b) - captureStream likely not working on this device');
+            postMessage('recordingFailed', { error: 'Recording too small', sizeBytes: blob.size });
+            recState = 'idle';
+            return;
+          }
           postMessage('recordingProcessing', { sizeBytes: blob.size });
           
           var reader = new FileReader();
@@ -1339,6 +1346,10 @@ const CubeWebView = ({
           });
           break;
         }
+        case 'recordingFailed':
+          console.warn('📹 Recording failed (too small):', data.sizeBytes, 'bytes');
+          onRecordingComplete?.(null);
+          break;
         case 'recordingError':
           console.error('📹 Recording error:', data.error);
           onRecordingComplete?.(null);

@@ -819,7 +819,13 @@ const FlipPagesWebView = ({
         if (recordingAnimFrame) cancelAnimationFrame(recordingAnimFrame);
         
         const blob = new Blob(recordedChunks, { type: mimeType });
-        console.log('📹 Blob size: ' + (blob.size / 1024 / 1024).toFixed(2) + 'MB');
+        console.log('📹 Blob size: ' + (blob.size / 1024 / 1024).toFixed(2) + 'MB (' + blob.size + ' bytes)');
+        
+        if (blob.size < 50000) {
+          console.warn('📹 Recording too small (' + blob.size + 'b) - captureStream not working');
+          postMessage('recordingFailed', { error: 'Recording too small', sizeBytes: blob.size });
+          return;
+        }
         
         postMessage('recordingProgress', { phase: 'transferring', progress: 0 });
         
@@ -921,6 +927,10 @@ const FlipPagesWebView = ({
             recordingChunksRef.current = [];
             saveRecordingToFile(fullBase64, data.mimeType || '');
           }
+          break;
+        case 'recordingFailed':
+          console.warn('📖 Recording failed (too small):', data.sizeBytes, 'bytes');
+          onRecordingComplete?.(null);
           break;
       }
     } catch (e) {
