@@ -24,6 +24,7 @@ import { Video3DPlayer } from '../components/Video3DPlayer';
 import CubeWebView from '../components/cube3d/CubeWebView';
 import { AnimationPlayer } from '../components/animations';
 import { useReflectionAssets } from '../hooks/useReflectionAssets';
+import { storageService } from '../services/storageService';
 import theme from '../theme/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -41,6 +42,7 @@ export const FinalVideoScreen = () => {
   const reflections = useAppState((state) => state.reflections);
   const videoFormat = useAppState((state) => state.videoFormat);
   const keyStoryUri = useAppState((state) => state.keyStoryUri);
+  const currentStoryId = useAppState((state) => state.currentStoryId);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -59,7 +61,11 @@ export const FinalVideoScreen = () => {
   const [clientRecordingSupported, setClientRecordingSupported] = useState(false);
   const [recordNextPlayback, setRecordNextPlayback] = useState(false);
   const [clientRecordingInProgress, setClientRecordingInProgress] = useState(false);
+  const [cachedRecordingUri, setCachedRecordingUri] = useState(null);
+  const [recordingFirebaseUrl, setRecordingFirebaseUrl] = useState(null);
+  const [isUploadingRecording, setIsUploadingRecording] = useState(false);
   const clientRecordingResolveRef = useRef(null);
+  const autoRecordTriggeredRef = useRef(false);
   const videoRef = useRef(null);
   const cubeRef = useRef(null);
 
@@ -494,32 +500,78 @@ export const FinalVideoScreen = () => {
   const handleRecordingSupport = (supported) => {
     console.log('📹 Client recording supported:', supported);
     setClientRecordingSupported(supported);
+    if (supported && isAnimatedFormat && !autoRecordTriggeredRef.current) {
+      console.log('📹 Auto-recording enabled - will record first playback');
+      autoRecordTriggeredRef.current = true;
+      setRecordNextPlayback(true);
+    }
   };
 
-  const handleRecordingComplete = (fileUri) => {
+  const handleRecordingComplete = async (fileUri) => {
     console.log('📹 Recording complete:', fileUri);
     setRecordNextPlayback(false);
     setClientRecordingInProgress(false);
-    setShowEndScreen(true);
+    setDownloadProgress('');
+    
+    if (fileUri) {
+      setCachedRecordingUri(fileUri);
+      uploadRecordingToFirebase(fileUri);
+    }
+    
+    const hadManualResolve = !!clientRecordingResolveRef.current;
     if (clientRecordingResolveRef.current) {
       clientRecordingResolveRef.current(fileUri);
       clientRecordingResolveRef.current = null;
+    }
+    
+    if (!hadManualResolve) {
+      setShowEndScreen(true);
+    }
+  };
+
+  const uploadRecordingToFirebase = async (fileUri) => {
+    if (!currentStoryId || !fileUri) return;
+    try {
+      setIsUploadingRecording(true);
+      console.log('📹 Uploading recording to Firebase...');
+      const result = await storageService.uploadVideo(
+        fileUri,
+        currentStoryId,
+        'animated_export',
+        (progress) => console.log(`📹 Upload progress: ${progress.toFixed(0)}%`)
+      );
+      if (result.success) {
+        console.log('📹 Recording uploaded to Firebase:', result.url);
+        setRecordingFirebaseUrl(result.url);
+      } else {
+        console.warn('📹 Firebase upload failed:', result.error);
+      }
+    } catch (err) {
+      console.warn('📹 Firebase upload error:', err.message);
+    } finally {
+      setIsUploadingRecording(false);
     }
   };
 
   const handleRecordingProgress = (progress) => {
     if (progress.phase === 'transferring') {
-      setDownloadProgress(`מעביר הקלטה... ${progress.progress}%`);
-    } else if (progress.phase === 'processing') {
-      setDownloadProgress('מעבד הקלטה...');
+      setDownloadProgress(`מעבד הקלטה... ${progress.progress}%`);
     } else if (progress.phase === 'saving') {
-      setDownloadProgress('שומר...');
+      setDownloadProgress('שומר הקלטה...');
     }
   };
 
   const getVideoForSharing = async (label = 'מכין סרטון') => {
+    if (cachedRecordingUri) {
+      console.log('📹 Using cached recording from first playback');
+      return cachedRecordingUri;
+    }
+    if (recordingFirebaseUrl) {
+      console.log('📹 Using Firebase recording URL');
+      return recordingFirebaseUrl;
+    }
     if (isAnimatedFormat && clientRecordingSupported) {
-      console.log('📹 Using client-side recording');
+      console.log('📹 Recording not cached yet, recording now');
       setIsDownloading(true);
       const fileUri = await performClientRecording();
       if (fileUri) return fileUri;
@@ -650,10 +702,11 @@ export const FinalVideoScreen = () => {
   const handleGeneralShare = async () => {
     try {
       setIsDownloading(true);
-      const videoUrl = await renderConcatenatedVideo('מכין לשיתוף');
-      if (videoUrl && await Sharing.isAvailableAsync()) {
+      const videoUri = await getVideoForSharing('מכין לשיתוף');
+      if (videoUri && await Sharing.isAvailableAsync()) {
         setDownloadProgress('שומר...');
-        const localUri = await downloadVideoToLocal(videoUrl, 'share');
+        const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
+        const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'share');
         setIsDownloading(false);
         setDownloadProgress('');
         await Sharing.shareAsync(localUri, {
@@ -710,6 +763,9 @@ export const FinalVideoScreen = () => {
               console.log('🚀 Animation fullscreen mode ON');
               setIsCubeFullscreen(true);
               setCubeStarted(true);
+              if (recordNextPlayback) {
+                setClientRecordingInProgress(true);
+              }
             }}
             onPlaybackComplete={() => {
               console.log('✅ All videos finished - showing end screen');
@@ -738,6 +794,21 @@ export const FinalVideoScreen = () => {
         </View>
       )}
 
+      {/* Recording Processing Overlay */}
+      {!isCubeFullscreen && clientRecordingInProgress && !showEndScreen && videoHasPlayed && (
+        <View style={styles.endScreenOverlay}>
+          <LinearGradient
+            colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
+            style={[styles.endScreenGradient, { justifyContent: 'center', alignItems: 'center' }]}
+          >
+            <ActivityIndicator size="large" color="white" />
+            <Text style={{ color: 'white', fontSize: 18, marginTop: 16, fontWeight: '600' }}>
+              {downloadProgress || 'מכין את הסרטון...'}
+            </Text>
+          </LinearGradient>
+        </View>
+      )}
+
       {/* End Screen Overlay */}
       {showEndScreen && (
         <View style={styles.endScreenOverlay}>
@@ -762,6 +833,19 @@ export const FinalVideoScreen = () => {
             >
               <Text style={styles.endScreenText}>סוף</Text>
               <Text style={styles.endScreenSubtext}>{storyName}</Text>
+
+              {cachedRecordingUri && (
+                <View style={styles.recordingReadyBadge}>
+                  <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
+                  <Text style={styles.recordingReadyText}>סרטון מוכן לשיתוף</Text>
+                </View>
+              )}
+              {isUploadingRecording && (
+                <View style={styles.recordingReadyBadge}>
+                  <ActivityIndicator size="small" color="white" />
+                  <Text style={styles.recordingReadyText}>מעלה לענן...</Text>
+                </View>
+              )}
 
               <View style={styles.endScreenDivider} />
 
@@ -1602,6 +1686,21 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 12,
+    fontWeight: '500',
+  },
+  recordingReadyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  recordingReadyText: {
+    color: 'white',
+    fontSize: 13,
     fontWeight: '500',
   },
   endScreenDivider: {
