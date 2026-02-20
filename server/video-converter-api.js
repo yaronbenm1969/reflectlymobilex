@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const ffmpeg = require('fluent-ffmpeg');
+const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { initializeApp, cert } = require('firebase-admin/app');
@@ -173,34 +174,60 @@ async function hasAudioStream(inputPath) {
 }
 
 async function convertVideo(inputPath, outputPath) {
-  return new Promise(async (resolve, reject) => {
-    console.log(`Converting: ${inputPath} -> ${outputPath}`);
-    
-    const rotation = await getVideoRotation(inputPath);
-    const hasAudio = await hasAudioStream(inputPath);
-    console.log(`Video rotation detected: ${rotation}°, has audio: ${hasAudio}`);
-    
-    let vfFilters = 'scale=trunc(iw/2)*2:trunc(ih/2)*2';
-    
-    if (rotation === 90) {
-      vfFilters = 'transpose=1,' + vfFilters;
-    } else if (rotation === 180) {
-      vfFilters = 'transpose=1,transpose=1,' + vfFilters;
-    } else if (rotation === 270 || rotation === -90) {
-      vfFilters = 'transpose=2,' + vfFilters;
-    }
-    
-    console.log(`Using video filter: ${vfFilters}`);
-    
-    const cmd = ffmpeg(inputPath);
-    
-    if (!hasAudio) {
-      console.log('⚠️ No audio track found - adding silent audio for iOS compatibility');
-      cmd.input('anullsrc=r=44100:cl=stereo')
-         .inputFormat('lavfi');
-    }
-    
-    cmd.outputOptions([
+  const rotation = await getVideoRotation(inputPath);
+  const hasAudio = await hasAudioStream(inputPath);
+  console.log(`Converting: ${inputPath} -> ${outputPath}`);
+  console.log(`Video rotation detected: ${rotation}°, has audio: ${hasAudio}`);
+  
+  let vfFilters = 'scale=trunc(iw/2)*2:trunc(ih/2)*2';
+  
+  if (rotation === 90) {
+    vfFilters = 'transpose=1,' + vfFilters;
+  } else if (rotation === 180) {
+    vfFilters = 'transpose=1,transpose=1,' + vfFilters;
+  } else if (rotation === 270 || rotation === -90) {
+    vfFilters = 'transpose=2,' + vfFilters;
+  }
+  
+  console.log(`Using video filter: ${vfFilters}`);
+  
+  if (!hasAudio) {
+    console.log('⚠️ No audio track found - adding silent audio via raw ffmpeg for iOS compatibility');
+    return new Promise((resolve, reject) => {
+      const args = [
+        '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+        '-i', inputPath,
+        '-c:v', 'libx264',
+        '-profile:v', 'baseline',
+        '-level', '3.1',
+        '-c:a', 'aac',
+        '-preset', 'fast',
+        '-crf', '23',
+        '-movflags', '+faststart',
+        '-pix_fmt', 'yuv420p',
+        '-vf', vfFilters,
+        '-map', '1:v:0', '-map', '0:a:0',
+        '-shortest',
+        '-metadata:s:v:0', 'rotate=0',
+        '-y', outputPath
+      ];
+      console.log('FFmpeg started:', 'ffmpeg', args.join(' '));
+      const proc = execFile('ffmpeg', args, { timeout: 120000 }, (err, stdout, stderr) => {
+        if (err) {
+          console.error('Conversion error:', err.message);
+          console.error('FFmpeg stderr:', stderr);
+          reject(err);
+        } else {
+          console.log('Conversion completed (with silent audio)');
+          resolve(outputPath);
+        }
+      });
+    });
+  }
+  
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .outputOptions([
         '-c:v', 'libx264',
         '-profile:v', 'baseline',
         '-level', '3.1',
