@@ -789,6 +789,40 @@ const FlipPagesWebView = ({
       recordingAnimFrame = requestAnimationFrame(drawRecordingFrame);
     }
     
+    function setupFlipAudioCapture(stream) {
+      try {
+        var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        var dest = audioCtx.createMediaStreamDestination();
+        var count = 0;
+        
+        Object.values(pageVideos).forEach(function(video) {
+          if (video) {
+            try {
+              var source = audioCtx.createMediaElementSource(video);
+              var gain = audioCtx.createGain();
+              gain.gain.value = 1.0;
+              source.connect(gain);
+              gain.connect(dest);
+              gain.connect(audioCtx.destination);
+              count++;
+            } catch(e) {
+              console.warn('📹 Audio source error:', e.message);
+            }
+          }
+        });
+        
+        dest.stream.getAudioTracks().forEach(function(track) {
+          stream.addTrack(track);
+        });
+        console.log('🔊 FlipPages audio capture: ' + count + ' sources');
+        window._flipAudioCtx = audioCtx;
+        return true;
+      } catch(e) {
+        console.warn('🔇 FlipPages audio capture failed:', e.message);
+        return false;
+      }
+    }
+    
     function startRecording() {
       if (!recordingCanvas || isRecording) return;
       console.log('📹 FlipPages recording started');
@@ -796,8 +830,10 @@ const FlipPagesWebView = ({
       recordedChunks = [];
       
       const stream = recordingCanvas.captureStream(30);
+      setupFlipAudioCapture(stream);
+      
       var mimeType = '';
-      ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'].some(function(m) {
+      ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm', 'video/mp4'].some(function(m) {
         if (MediaRecorder.isTypeSupported(m)) { mimeType = m; return true; }
       });
       if (!mimeType) {
@@ -807,7 +843,7 @@ const FlipPagesWebView = ({
       }
       console.log('📹 FlipPages recording mimeType:', mimeType);
       
-      mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 4000000 });
+      mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 8000000 });
       
       mediaRecorder.ondataavailable = function(e) {
         if (e.data && e.data.size > 0) {
@@ -863,6 +899,10 @@ const FlipPagesWebView = ({
       if (mediaRecorder && mediaRecorder.state === 'recording') {
         console.log('📹 Stopping FlipPages recording');
         mediaRecorder.stop();
+      }
+      if (window._flipAudioCtx) {
+        try { window._flipAudioCtx.close(); } catch(e) {}
+        window._flipAudioCtx = null;
       }
     }
     

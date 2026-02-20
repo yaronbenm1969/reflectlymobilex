@@ -1180,14 +1180,51 @@ const CubeWebView = ({
         recAnimId = requestAnimationFrame(renderRecFrame);
       }
       
+      var _audioCtx = null;
+      var _audioSources = new Map();
+      
+      function setupAudioCapture(stream) {
+        try {
+          _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          var dest = _audioCtx.createMediaStreamDestination();
+          
+          Object.values(faceVideos).forEach(function(fv) {
+            if (fv && fv.element && !_audioSources.has(fv.element)) {
+              try {
+                var source = _audioCtx.createMediaElementSource(fv.element);
+                var gain = _audioCtx.createGain();
+                gain.gain.value = 1.0;
+                source.connect(gain);
+                gain.connect(dest);
+                gain.connect(_audioCtx.destination);
+                _audioSources.set(fv.element, { source: source, gain: gain });
+              } catch(e) {
+                console.warn('📹 Audio source error:', e.message);
+              }
+            }
+          });
+          
+          dest.stream.getAudioTracks().forEach(function(track) {
+            stream.addTrack(track);
+          });
+          console.log('🔊 Audio capture added (' + _audioSources.size + ' sources)');
+          return true;
+        } catch(e) {
+          console.warn('🔇 Audio capture failed:', e.message);
+          return false;
+        }
+      }
+      
       function startRec() {
         if (recState !== 'idle') return;
         recState = 'recording';
         chunks = [];
         
         var stream = cvs.captureStream(30);
+        setupAudioCapture(stream);
+        
         var mimeType = '';
-        ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'].some(function(m) {
+        ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm', 'video/mp4'].some(function(m) {
           if (MediaRecorder.isTypeSupported(m)) { mimeType = m; return true; }
         });
         if (!mimeType) {
@@ -1195,7 +1232,7 @@ const CubeWebView = ({
           recState = 'idle'; return;
         }
         
-        recorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 4000000 });
+        recorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 8000000 });
         recorder.ondataavailable = function(e) {
           if (e.data && e.data.size > 0) chunks.push(e.data);
         };
@@ -1247,6 +1284,11 @@ const CubeWebView = ({
         console.log('📹 Stopping recording...');
         if (recAnimId) cancelAnimationFrame(recAnimId);
         recorder.stop();
+        if (_audioCtx) {
+          try { _audioCtx.close(); } catch(e) {}
+          _audioCtx = null;
+          _audioSources.clear();
+        }
       }
       
       return {
