@@ -740,14 +740,22 @@ const CubeWebView = ({
     }
     
     function preloadUpcoming(fromIndex) {
+      const prevFace = fromIndex > 0 ? getFaceForIndex(fromIndex - 1) : -1;
       for (let ahead = 1; ahead <= 3; ahead++) {
         const idx = fromIndex + ahead;
         if (idx >= fullVideoQueue.length) break;
         const fId = getFaceForIndex(idx);
         const existing = faceVideos[fId];
         if (!existing || existing.queueIdx !== idx) {
-          console.log('🔮 Preloading queue[' + idx + '] onto face ' + fId);
-          loadVideoOnFace(fId, idx).catch(() => {});
+          if (fId === prevFace) {
+            console.log('🔮 Delayed preload queue[' + idx + '] onto face ' + fId + ' (just finished)');
+            setTimeout(() => {
+              loadVideoOnFace(fId, idx).catch(() => {});
+            }, 2500);
+          } else {
+            console.log('🔮 Preloading queue[' + idx + '] onto face ' + fId);
+            loadVideoOnFace(fId, idx).catch(() => {});
+          }
         }
       }
     }
