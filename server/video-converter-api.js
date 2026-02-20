@@ -191,6 +191,9 @@ async function convertVideo(inputPath, outputPath) {
   
   console.log(`Using video filter: ${vfFilters}`);
   
+  const audioFilter = 'highpass=f=80,lowpass=f=13000,afftdn=nf=-25:nr=12:nt=w,acompressor=threshold=-20dB:ratio=3:attack=5:release=50,volume=1.1';
+  console.log(`🔊 Audio noise reduction filter: ${audioFilter}`);
+  
   if (!hasAudio) {
     console.log('⚠️ No audio track found - adding silent audio via raw ffmpeg for iOS compatibility');
     return new Promise((resolve, reject) => {
@@ -237,6 +240,7 @@ async function convertVideo(inputPath, outputPath) {
         '-movflags', '+faststart',
         '-pix_fmt', 'yuv420p',
         '-vf', vfFilters,
+        '-af', audioFilter,
         '-metadata:s:v:0', 'rotate=0',
         '-shortest'
       ])
