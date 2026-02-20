@@ -64,8 +64,12 @@ export const FinalVideoScreen = () => {
   const [cachedRecordingUri, setCachedRecordingUri] = useState(null);
   const [recordingFirebaseUrl, setRecordingFirebaseUrl] = useState(null);
   const [isUploadingRecording, setIsUploadingRecording] = useState(false);
+  const [conversionSucceeded, setConversionSucceeded] = useState(false);
   const clientRecordingResolveRef = useRef(null);
   const autoRecordTriggeredRef = useRef(false);
+  const isUploadingRef = useRef(false);
+  const cachedRecordingRef = useRef(null);
+  const firebaseUrlRef = useRef(null);
   const videoRef = useRef(null);
   const cubeRef = useRef(null);
 
@@ -515,7 +519,8 @@ export const FinalVideoScreen = () => {
     
     if (fileUri) {
       setCachedRecordingUri(fileUri);
-      uploadRecordingToFirebase(fileUri);
+      cachedRecordingRef.current = fileUri;
+      convertAndUploadRecording(fileUri);
     }
     
     const hadManualResolve = !!clientRecordingResolveRef.current;
@@ -529,27 +534,69 @@ export const FinalVideoScreen = () => {
     }
   };
 
-  const uploadRecordingToFirebase = async (fileUri) => {
+  const convertAndUploadRecording = async (fileUri) => {
     if (!currentStoryId || !fileUri) return;
     try {
       setIsUploadingRecording(true);
-      console.log('📹 Uploading recording to Firebase...');
-      const result = await storageService.uploadVideo(
+      isUploadingRef.current = true;
+      
+      console.log('📹 Step 1: Uploading webm to Firebase...');
+      const uploadResult = await storageService.uploadVideo(
         fileUri,
         currentStoryId,
-        'animated_export',
+        'animated_export_raw',
         (progress) => console.log(`📹 Upload progress: ${progress.toFixed(0)}%`)
       );
-      if (result.success) {
-        console.log('📹 Recording uploaded to Firebase:', result.url);
-        setRecordingFirebaseUrl(result.url);
-      } else {
-        console.warn('📹 Firebase upload failed:', result.error);
+      
+      if (!uploadResult.success || !uploadResult.url) {
+        console.warn('📹 Firebase upload failed:', uploadResult.error);
+        return;
       }
+      
+      const webmUrl = uploadResult.url;
+      console.log('📹 Step 2: Converting webm→mp4 via server...', webmUrl.substring(0, 60));
+      
+      try {
+        const convertResponse = await fetch(`${VIDEO_CONVERTER_URL}/api/convert-url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: webmUrl }),
+        });
+        
+        if (convertResponse.ok) {
+          const convertResult = await convertResponse.json();
+          if (convertResult.success && convertResult.convertedUrl) {
+            console.log('📹 Converted mp4 ready:', convertResult.convertedUrl.substring(0, 60));
+            setRecordingFirebaseUrl(convertResult.convertedUrl);
+            firebaseUrlRef.current = convertResult.convertedUrl;
+            setConversionSucceeded(true);
+            
+            const mp4LocalPath = FileSystem.cacheDirectory + `recording_mp4_${Date.now()}.mp4`;
+            try {
+              const dlResult = await FileSystem.downloadAsync(convertResult.convertedUrl, mp4LocalPath);
+              if (dlResult.status === 200) {
+                console.log('📹 Mp4 cached locally:', mp4LocalPath);
+                setCachedRecordingUri(mp4LocalPath);
+                cachedRecordingRef.current = mp4LocalPath;
+              }
+            } catch (dlErr) {
+              console.warn('📹 Mp4 local cache failed, will use URL:', dlErr.message);
+            }
+            return;
+          }
+        }
+        console.warn('📹 Server conversion failed, using webm as fallback');
+      } catch (convertErr) {
+        console.warn('📹 Conversion request failed:', convertErr.message);
+      }
+      
+      setRecordingFirebaseUrl(webmUrl);
+      firebaseUrlRef.current = webmUrl;
     } catch (err) {
-      console.warn('📹 Firebase upload error:', err.message);
+      console.warn('📹 Upload/convert error:', err.message);
     } finally {
       setIsUploadingRecording(false);
+      isUploadingRef.current = false;
     }
   };
 
@@ -562,13 +609,36 @@ export const FinalVideoScreen = () => {
   };
 
   const getVideoForSharing = async (label = 'מכין סרטון') => {
-    if (cachedRecordingUri) {
-      console.log('📹 Using cached recording from first playback');
-      return cachedRecordingUri;
+    if (isUploadingRef.current) {
+      console.log('📹 Conversion in progress, waiting...');
+      setDownloadProgress('ממיר סרטון...');
+      await new Promise(resolve => {
+        const checkInterval = setInterval(() => {
+          if (!isUploadingRef.current) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 1000);
+        setTimeout(() => { clearInterval(checkInterval); resolve(); }, 60000);
+      });
+      setDownloadProgress('');
     }
-    if (recordingFirebaseUrl) {
-      console.log('📹 Using Firebase recording URL');
-      return recordingFirebaseUrl;
+    
+    const cached = cachedRecordingRef.current;
+    const fbUrl = firebaseUrlRef.current;
+    const isMp4 = (uri) => uri && !uri.toLowerCase().includes('.webm');
+    
+    if (isMp4(cached)) {
+      console.log('📹 Using cached mp4 recording');
+      return cached;
+    }
+    if (fbUrl) {
+      console.log('📹 Using Firebase converted URL');
+      return fbUrl;
+    }
+    if (cached) {
+      console.log('📹 Using webm recording (conversion may have failed)');
+      return cached;
     }
     if (isAnimatedFormat && clientRecordingSupported) {
       console.log('📹 Recording not cached yet, recording now');
@@ -834,18 +904,22 @@ export const FinalVideoScreen = () => {
               <Text style={styles.endScreenText}>סוף</Text>
               <Text style={styles.endScreenSubtext}>{storyName}</Text>
 
-              {cachedRecordingUri && (
-                <View style={styles.recordingReadyBadge}>
-                  <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
-                  <Text style={styles.recordingReadyText}>סרטון מוכן לשיתוף</Text>
-                </View>
-              )}
-              {isUploadingRecording && (
+              {isUploadingRecording ? (
                 <View style={styles.recordingReadyBadge}>
                   <ActivityIndicator size="small" color="white" />
-                  <Text style={styles.recordingReadyText}>מעלה לענן...</Text>
+                  <Text style={styles.recordingReadyText}>ממיר ומעלה סרטון...</Text>
                 </View>
-              )}
+              ) : conversionSucceeded ? (
+                <View style={styles.recordingReadyBadge}>
+                  <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
+                  <Text style={styles.recordingReadyText}>סרטון MP4 מוכן לשיתוף</Text>
+                </View>
+              ) : cachedRecordingUri ? (
+                <View style={styles.recordingReadyBadge}>
+                  <Ionicons name="checkmark-circle" size={18} color="#FFC107" />
+                  <Text style={styles.recordingReadyText}>סרטון מוקלט, ממתין להמרה</Text>
+                </View>
+              ) : null}
 
               <View style={styles.endScreenDivider} />
 
