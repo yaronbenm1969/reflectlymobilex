@@ -712,9 +712,23 @@ const FlipPagesWebView = ({
       }
       
       if (currentIndex % 4 === 0) {
-        resetAllPages();
+        for (var i = 0; i < 4; i++) {
+          var page = document.getElementById('page-' + i);
+          if (page) {
+            page.style.transition = 'none';
+            page.style.transform = 'rotateY(0deg)';
+            page.style.zIndex = (4 - i) * 10;
+          }
+        }
         flippedCount = currentIndex;
         buildPageStack();
+        var batchStarted = false;
+        var batchIdx = currentIndex;
+        function startBatchIfReady() {
+          if (batchStarted || currentIndex !== batchIdx) return;
+          batchStarted = true;
+          playCurrentVideo();
+        }
         for (var i = 0; i < Math.min(4, fullVideoQueue.length - currentIndex); i++) {
           var video = pageVideos[i];
           if (video && fullVideoQueue[currentIndex + i]) {
@@ -723,7 +737,11 @@ const FlipPagesWebView = ({
             video.load();
           }
         }
-        setTimeout(function() { playCurrentVideo(); }, 300);
+        var firstVideo = pageVideos[currentIndex % 4];
+        if (firstVideo) {
+          firstVideo.onloadeddata = function() { startBatchIfReady(); };
+        }
+        setTimeout(function() { startBatchIfReady(); }, 600);
       } else {
         playCurrentVideo();
       }
