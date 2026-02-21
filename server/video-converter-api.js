@@ -27,7 +27,7 @@ app.use(express.json());
 const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -1140,9 +1140,159 @@ app.post('/api/convert-url', async (req, res) => {
 
 app.use('/converted', express.static(convertedDir));
 
+const musicJobs = new Map();
+
+app.post('/api/generate-music', async (req, res) => {
+  const { storyId, transcriptionSegments, totalDuration, style } = req.body;
+  
+  if (!storyId || !totalDuration) {
+    return res.status(400).json({ error: 'storyId and totalDuration are required' });
+  }
+  
+  if (!process.env.REPLICATE_API_TOKEN) {
+    return res.status(500).json({ error: 'REPLICATE_API_TOKEN not configured' });
+  }
+
+  const jobId = `music_${storyId}_${Date.now()}`;
+  
+  musicJobs.set(jobId, {
+    status: 'processing',
+    progress: 0,
+    storyId,
+    startedAt: new Date().toISOString()
+  });
+
+  res.json({ success: true, jobId, message: 'Music generation started' });
+
+  (async () => {
+    try {
+      const { generateMusicForVideo, cleanupMusicFiles } = require('./music/music-service');
+      const { mixStemsWithTimeline } = require('./music/mixing-service');
+
+      musicJobs.get(jobId).progress = 10;
+      musicJobs.get(jobId).stage = 'analyzing_emotions';
+
+      const segments = transcriptionSegments || [{ start: 0, end: totalDuration, text: '' }];
+
+      const result = await generateMusicForVideo(segments, totalDuration, style);
+      
+      if (!result.success) {
+        musicJobs.set(jobId, { status: 'failed', error: result.error });
+        return;
+      }
+
+      musicJobs.get(jobId).progress = 60;
+      musicJobs.get(jobId).stage = 'mixing_stems';
+
+      const mixedPath = result.musicPath.replace('.wav', '_mixed.m4a');
+      await mixStemsWithTimeline(result.stems, result.emotionTimeline, totalDuration, mixedPath);
+
+      musicJobs.get(jobId).progress = 80;
+      musicJobs.get(jobId).stage = 'uploading';
+
+      let musicUrl = null;
+      if (bucket) {
+        const storagePath = `music/${storyId}/ai_music_${Date.now()}.m4a`;
+        musicUrl = await uploadToFirebase(mixedPath, storagePath);
+        console.log(`✅ Music uploaded to Firebase: ${musicUrl}`);
+      }
+
+      cleanupMusicFiles(result.musicPath, result.stems);
+      if (fs.existsSync(mixedPath)) fs.unlinkSync(mixedPath);
+
+      musicJobs.set(jobId, {
+        status: 'completed',
+        progress: 100,
+        musicUrl,
+        emotionTimeline: result.emotionTimeline,
+        musicPrompt: result.musicPrompt,
+        musicalKey: result.musicalKey,
+        bpm: result.bpm,
+        completedAt: new Date().toISOString()
+      });
+
+      console.log(`✅ Music generation completed for story ${storyId}`);
+
+    } catch (error) {
+      console.error(`❌ Music generation failed for story ${storyId}:`, error);
+      musicJobs.set(jobId, { status: 'failed', error: error.message });
+    }
+  })();
+});
+
+app.get('/api/music-status/:jobId', (req, res) => {
+  const { jobId } = req.params;
+  const job = musicJobs.get(jobId);
+  
+  if (!job) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+  
+  res.json(job);
+});
+
+app.post('/api/mix-music-with-video', async (req, res) => {
+  const { videoUrl, musicUrl, musicVolume = 0.3, storyId } = req.body;
+  
+  if (!videoUrl || !musicUrl) {
+    return res.status(400).json({ error: 'videoUrl and musicUrl are required' });
+  }
+
+  try {
+    const { mixMusicWithVideo } = require('./music/mixing-service');
+    const { downloadVideo } = require('./video-converter-api') || {};
+
+    const jobDir = path.join(tempDir, `mix_${Date.now()}`);
+    fs.mkdirSync(jobDir, { recursive: true });
+
+    const videoPath = path.join(jobDir, 'video.mp4');
+    const musicPath = path.join(jobDir, 'music.m4a');
+    const outputPath = path.join(jobDir, 'final_with_music.mp4');
+
+    await downloadFile(videoUrl, videoPath);
+    await downloadFile(musicUrl, musicPath);
+
+    await mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume);
+
+    let finalUrl = null;
+    if (bucket) {
+      const storagePath = `edited/${storyId || 'unknown'}/final_music_${Date.now()}.mp4`;
+      finalUrl = await uploadToFirebase(outputPath, storagePath);
+    }
+
+    fs.rmSync(jobDir, { recursive: true, force: true });
+
+    res.json({ success: true, videoUrl: finalUrl });
+  } catch (error) {
+    console.error('❌ Mix music with video failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+async function downloadFile(url, outputPath) {
+  const protocol = url.startsWith('https') ? require('https') : require('http');
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(outputPath);
+    protocol.get(url, (response) => {
+      if (response.statusCode === 301 || response.statusCode === 302) {
+        file.close();
+        fs.unlinkSync(outputPath);
+        return downloadFile(response.headers.location, outputPath).then(resolve).catch(reject);
+      }
+      response.pipe(file);
+      file.on('finish', () => { file.close(); resolve(outputPath); });
+    }).on('error', (err) => {
+      file.close();
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+      reject(err);
+    });
+  });
+}
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Video Converter API running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log('AI endpoints: /api/transcribe, /api/analyze-story, /api/editing-suggestions, /api/generate-title');
+  console.log('Music: /api/generate-music, /api/music-status/:jobId, /api/mix-music-with-video');
   console.log('New: /api/convert-url - Convert webm to mp4');
 });
