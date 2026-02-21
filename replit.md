@@ -68,12 +68,73 @@ The application supports distinct Creator and Player flows, encompassing:
   - **Key files**: CubeWebView.js (recording logic), FlipPagesWebView.js (recording logic), FinalVideoScreen.js (upload/convert/save flow)
   - **Flow**: WebView records → checks blob size → sends base64 chunks → native saves file → checks file size → uploads to Firebase → converts webm→mp4 → downloads mp4 → saves to gallery
 
+## AI Music Generation System (IN PROGRESS - Feb 21 2026)
+
+### Architecture
+Full pipeline for AI-generated background music that responds to video emotional content:
+
+1. **Emotional Analysis** (`server/music/emotion-analysis.js`): 
+   - GPT-4o analyzes Whisper transcription → creates emotion timeline map with timestamps
+   - Each segment: emotion, intensity, per-instrument levels (drums/bass/melody), EQ, reverb, stereo width
+   - Generates single continuous MusicGen prompt describing full emotional journey (maintains musical coherence)
+
+2. **Music Generation** (`server/music/music-service.js`):
+   - Replicate MusicGen (`facebook/musicgen:stereo-large`) creates ONE continuous instrumental track
+   - Single prompt = same key, harmony, rhythm throughout
+   - Replicate Demucs (`ardianfe/demucs-prod`) separates into 4 stems: drums, bass, vocals (empty), other (melody)
+   - `DEMUCS_MODEL` env var configurable: `htdemucs` (4 channels, default) or `htdemucs_6s` (6 channels: +guitar, +piano)
+
+3. **Dynamic Mixing** (`server/music/mixing-service.js`):
+   - FFmpeg re-mixes stems with per-channel dynamic volume based on emotion timeline
+   - Per-segment: drums level, bass level, melody level (0-100)
+   - EQ presets (warm/bright/deep/neutral), reverb, stereo width
+   - Final mix with video: music volume adjustable (default 0.3), original audio preserved
+
+### API Endpoints (added to video-converter-api.js)
+- `POST /api/generate-music` - Start async music generation (storyId, transcriptionSegments, totalDuration, style)
+- `GET /api/music-status/:jobId` - Poll generation progress
+- `POST /api/mix-music-with-video` - Mix generated music with rendered video
+
+### Pipeline Order (critical - no conflicts)
+```
+Individual videos → convertVideo() [noise filter: highpass/lowpass/afftdn/compressor] → clean videos
+                                                                                          ↓
+                                                                              Format render (cube/flip)
+                                                                                          ↓
+                                                                              Final video + Music mix ← AI Music
+```
+Music is added AFTER noise filter (which only cleans individual video clips). No interference.
+
+### Cost per video: ~$0.12-0.13
+- MusicGen: ~$0.03-0.05
+- Demucs: ~$0.07
+- GPT-4o analysis: ~$0.01
+
+### Open Design Decision (PENDING USER INPUT)
+**When to generate music - 3 options discussed:**
+- **Option A**: Music before participants - participants hear it during recording (inspiration)
+- **Option B**: Music after all recordings - based on all content
+- **Option C (recommended)**: Music created right after creator's story, participants hear it as background during their recording, same music used in final video. Optional regeneration in Edit Room.
+- User is thinking about this decision. **Wait for user to decide before implementing UI flow.**
+
+### Existing UI (already built, needs updating):
+- `MusicSelectionScreen.js` - Full screen with options: ai-custom, upbeat, calm, dramatic, romantic, none
+- `appState.js` - `selectedMusic` / `setSelectedMusic` in Zustand
+- `storiesService.js` - saves `music` field to Firestore
+- `FormatSelectionScreen.js` - navigates to MusicSelection (line 98)
+- Description needs update: change "ElevenLabs" → "MusicGen/Replicate"
+- Need to add: AI generation trigger, progress UI, musicUrl storage
+
+### Future Upgrade Path
+- When Suno AI releases official API → add vocal/singing option
+- Switch DEMUCS_MODEL to htdemucs_6s for 6-channel separation (guitar+piano separate)
+- User's mood selection becomes part of MusicGen prompt
+
 ## External Dependencies
 
 - **Firebase**: Authentication, Firestore (database), Storage (for video assets).
 - **OpenAI**: Whisper API for transcription, GPT-4o for story analysis and suggestions.
-- **Replicate**: For AI video processing.
-- **ElevenLabs**: For AI-generated custom music.
-- **FFmpeg**: Server-side for video format conversion.
+- **Replicate**: MusicGen for AI music generation, Demucs for instrument separation.
+- **FFmpeg**: Server-side for video format conversion and music mixing.
 - **Expo APIs**: `expo-camera`, `expo-sharing`, `Linking` (for WhatsApp integration), `expo-contacts`.
 - **React Native Libraries**: `react-native-reanimated-carousel`, `react-native-safe-area-context`.
