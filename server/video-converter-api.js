@@ -1289,10 +1289,83 @@ async function downloadFile(url, outputPath) {
   });
 }
 
+app.get('/api/ambient-library', (req, res) => {
+  const { getAllPresets } = require('./music/ambient-library');
+  res.json({ success: true, presets: getAllPresets() });
+});
+
+app.post('/api/generate-ambient-library', async (req, res) => {
+  if (!process.env.REPLICATE_API_TOKEN) {
+    return res.status(500).json({ error: 'REPLICATE_API_TOKEN not configured' });
+  }
+
+  res.json({ success: true, message: 'Library generation started in background' });
+
+  (async () => {
+    try {
+      const { generateFullLibrary } = require('./music/ambient-library');
+      const results = await generateFullLibrary(bucket ? uploadToFirebase : null);
+      
+      const libraryData = {};
+      for (const result of results) {
+        if (result.success && result.firebaseUrl) {
+          libraryData[result.preset.id] = {
+            url: result.firebaseUrl,
+            key: result.preset.key,
+            bpm: result.preset.bpm,
+            name: result.preset.name
+          };
+        }
+      }
+
+      if (db) {
+        await db.collection('settings').doc('ambientLibrary').set({
+          tracks: libraryData,
+          generatedAt: new Date().toISOString(),
+          trackCount: Object.keys(libraryData).length
+        });
+        console.log('✅ Ambient library metadata saved to Firestore');
+      }
+
+      console.log(`✅ Ambient library generation complete: ${Object.keys(libraryData).length} tracks`);
+    } catch (error) {
+      console.error('❌ Ambient library generation failed:', error);
+    }
+  })();
+});
+
+app.get('/api/ambient-track/:trackId', async (req, res) => {
+  const { trackId } = req.params;
+  
+  try {
+    if (db) {
+      const doc = await db.collection('settings').doc('ambientLibrary').get();
+      if (doc.exists) {
+        const data = doc.data();
+        const track = data.tracks?.[trackId];
+        if (track) {
+          return res.json({ success: true, track });
+        }
+      }
+    }
+    
+    const { getPresetById } = require('./music/ambient-library');
+    const preset = getPresetById(trackId);
+    if (preset) {
+      return res.json({ success: true, track: { key: preset.key, bpm: preset.bpm, name: preset.name, url: null } });
+    }
+    
+    res.status(404).json({ error: 'Track not found' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Video Converter API running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log('AI endpoints: /api/transcribe, /api/analyze-story, /api/editing-suggestions, /api/generate-title');
   console.log('Music: /api/generate-music, /api/music-status/:jobId, /api/mix-music-with-video');
+  console.log('Ambient: /api/ambient-library, /api/generate-ambient-library, /api/ambient-track/:id');
   console.log('New: /api/convert-url - Convert webm to mp4');
 });

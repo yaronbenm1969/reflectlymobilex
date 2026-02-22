@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, InteractionManager } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, InteractionManager, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
@@ -7,6 +7,99 @@ import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
 import { storiesService } from '../services/storiesService';
 import theme from '../theme/theme';
+
+const AMBIENT_LIBRARY = [
+  { 
+    id: 'reflective-space', 
+    name: 'Reflective Space',
+    nameHe: 'מרחב פנימי',
+    description: 'שקט פנימי, מרחב נשימה. פאדים רכים + פסנתר מינימלי.',
+    icon: 'water-outline',
+    key: 'D',
+    bpm: 60
+  },
+  { 
+    id: 'gentle-warmth', 
+    name: 'Gentle Warmth',
+    nameHe: 'חום עדין',
+    description: 'חום אנושי, קרבה. כלי מיתר רכים + הרמוניה פתוחה.',
+    icon: 'heart-outline',
+    key: 'G',
+    bpm: 65
+  },
+  { 
+    id: 'soft-hope', 
+    name: 'Soft Hope',
+    nameHe: 'תקווה שקטה',
+    description: 'תקווה שקטה, לא מתפרצת. מעבר מודאלי בהיר, ללא שיאים.',
+    icon: 'sunny-outline',
+    key: 'C',
+    bpm: 70
+  },
+  { 
+    id: 'tender-vulnerability', 
+    name: 'Tender Vulnerability',
+    nameHe: 'עדינות רגשית',
+    description: 'עדינות רגשית, חשיפה. טקסטורה דקה מאוד, כמעט שקופה.',
+    icon: 'flower-outline',
+    key: 'Am',
+    bpm: 58
+  },
+  { 
+    id: 'quiet-strength', 
+    name: 'Quiet Strength',
+    nameHe: 'כוח שקט',
+    description: 'יציבות שקטה. תו עוגן נמוך + תנועה איטית מעליו.',
+    icon: 'shield-outline',
+    key: 'E',
+    bpm: 62
+  },
+  { 
+    id: 'light-movement', 
+    name: 'Light Movement',
+    nameHe: 'תנועה עדינה',
+    description: 'אנרגיה עדינה, מתאים לריקוד רגשי. פולס רך, בלי תופים.',
+    icon: 'walk-outline',
+    key: 'A',
+    bpm: 80
+  },
+  { 
+    id: 'floating-memory', 
+    name: 'Floating Memory',
+    nameHe: 'זיכרון מרחף',
+    description: 'תחושת זיכרון / חלום. הרמוניות מרחפות, ריוורב עמוק.',
+    icon: 'cloud-outline',
+    key: 'Dm',
+    bpm: 55
+  },
+  { 
+    id: 'grounded-calm', 
+    name: 'Grounded Calm',
+    nameHe: 'רוגע מעוגן',
+    description: 'קרקוע, יציבות. מרחב נמוך, מינימום תנועה.',
+    icon: 'leaf-outline',
+    key: 'F',
+    bpm: 56
+  },
+  { 
+    id: 'subtle-uplift', 
+    name: 'Subtle Uplift',
+    nameHe: 'התעלות עדינה',
+    description: 'הרמה רגשית איטית לאורך זמן. התפתחות עדינה מאוד.',
+    icon: 'trending-up-outline',
+    key: 'Bb',
+    bpm: 72
+  },
+  { 
+    id: 'open-horizon', 
+    name: 'Open Horizon',
+    nameHe: 'אופק פתוח',
+    description: 'תחושת פתיחות וסיום אופטימי. אקורדים פתוחים, אור עדין.',
+    icon: 'globe-outline',
+    key: 'D',
+    bpm: 75
+  },
+];
 
 export const MusicSelectionScreen = ({ route }) => {
   const { go, back } = useNav();
@@ -29,14 +122,9 @@ export const MusicSelectionScreen = ({ route }) => {
     return () => task.cancel();
   }, []);
 
-  const musicOptions = [
-    { id: 'ai-custom', name: '🎼 יצירה מקורית AI', description: 'מוזיקה מותאמת אישית דרך ElevenLabs', featured: true },
-    { id: 'upbeat', name: 'Upbeat', description: 'Energetic and positive' },
-    { id: 'calm', name: 'Calm', description: 'Peaceful and relaxing' },
-    { id: 'dramatic', name: 'Dramatic', description: 'Emotional and intense' },
-    { id: 'romantic', name: 'Romantic', description: 'Sweet and loving' },
-    { id: 'none', name: 'No Music', description: 'Keep original audio only' },
-  ];
+  const handleSelect = (optionId) => {
+    setCurrentSelection(optionId);
+  };
 
   const handleSave = async () => {
     if (!isReady) {
@@ -48,10 +136,35 @@ export const MusicSelectionScreen = ({ route }) => {
       setSelectedMusic(currentSelection);
     }
     
+    const selectedOption = AMBIENT_LIBRARY.find(o => o.id === currentSelection);
+    
     if (currentStoryId) {
-      const result = await storiesService.updateStory(currentStoryId, {
+      const musicData = {
         music: currentSelection || 'none',
-      });
+      };
+      
+      if (selectedOption) {
+        musicData.musicAmbient = {
+          id: selectedOption.id,
+          name: selectedOption.name,
+          key: selectedOption.key,
+          bpm: selectedOption.bpm,
+        };
+
+        try {
+          const API_URL = process.env.EXPO_PUBLIC_VIDEO_CONVERTER_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
+          const trackRes = await fetch(`${API_URL}/api/ambient-track/${selectedOption.id}`);
+          const trackData = await trackRes.json();
+          if (trackData.success && trackData.track?.url) {
+            musicData.musicAmbient.url = trackData.track.url;
+            console.log('🎵 Ambient track URL found:', trackData.track.url);
+          }
+        } catch (err) {
+          console.log('⚠️ Could not fetch ambient track URL:', err.message);
+        }
+      }
+      
+      const result = await storiesService.updateStory(currentStoryId, musicData);
       console.log('💾 Firebase music update result:', result);
     }
     
@@ -64,61 +177,83 @@ export const MusicSelectionScreen = ({ route }) => {
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Select Music</Text>
+        <Text style={styles.title}>מוזיקת רקע</Text>
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.description}>
-          Choose background music for your story. The music will blend with your recorded audio.
+          בחר/י אווירה מוזיקלית שתתנגן ברקע בזמן הצילום ותעניק השראה למשתתפים
         </Text>
 
-        <Card style={styles.optionsContainer}>
-          {musicOptions.map((option) => (
+        <TouchableOpacity
+          style={[
+            styles.noneOption,
+            currentSelection === 'none' && styles.noneOptionSelected
+          ]}
+          onPress={() => handleSelect('none')}
+        >
+          <Ionicons name="volume-mute-outline" size={20} color={currentSelection === 'none' ? theme.colors.primary : theme.colors.subtext} />
+          <Text style={[styles.noneText, currentSelection === 'none' && styles.noneTextSelected]}>
+            ללא מוזיקה
+          </Text>
+          {currentSelection === 'none' && (
+            <Ionicons name="checkmark-circle" size={22} color={theme.colors.primary} />
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.grid}>
+          {AMBIENT_LIBRARY.map((option) => (
             <TouchableOpacity
               key={option.id}
               style={[
-                styles.musicOption,
-                currentSelection === option.id && styles.musicOptionSelected,
-                option.featured && styles.musicOptionFeatured
+                styles.musicCard,
+                currentSelection === option.id && styles.musicCardSelected
               ]}
-              onPress={() => setCurrentSelection(option.id)}
+              onPress={() => handleSelect(option.id)}
+              activeOpacity={0.7}
             >
-              <View style={styles.optionContent}>
-                <View style={styles.optionInfo}>
-                  <Text style={[
-                    styles.optionName,
-                    currentSelection === option.id && styles.optionNameSelected,
-                    option.featured && styles.optionNameFeatured
-                  ]}>
-                    {option.name}
-                  </Text>
-                  <Text style={styles.optionDescription}>
-                    {option.description}
-                  </Text>
+              <View style={styles.cardHeader}>
+                <View style={[
+                  styles.iconContainer,
+                  currentSelection === option.id && styles.iconContainerSelected
+                ]}>
+                  <Ionicons 
+                    name={option.icon} 
+                    size={22} 
+                    color={currentSelection === option.id ? '#fff' : theme.colors.primary} 
+                  />
                 </View>
                 {currentSelection === option.id && (
-                  <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
+                  <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
                 )}
               </View>
-              {option.id !== 'none' && option.id !== 'ai-custom' && (
-                <TouchableOpacity style={styles.playButton}>
-                  <Ionicons name="play" size={16} color={theme.colors.primary} />
-                </TouchableOpacity>
-              )}
-              {option.featured && (
-                <View style={styles.featuredBadge}>
-                  <Ionicons name="sparkles" size={12} color="white" />
-                  <Text style={styles.featuredText}>AI</Text>
-                </View>
-              )}
+              
+              <Text style={[
+                styles.cardName,
+                currentSelection === option.id && styles.cardNameSelected
+              ]}>
+                {option.nameHe}
+              </Text>
+              
+              <Text style={styles.cardNameEn}>{option.name}</Text>
+              
+              <Text style={styles.cardDescription} numberOfLines={2}>
+                {option.description}
+              </Text>
+
+              <View style={styles.cardMeta}>
+                <Text style={styles.metaText}>{option.key}</Text>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.metaText}>{option.bpm} BPM</Text>
+              </View>
             </TouchableOpacity>
           ))}
-        </Card>
+        </View>
 
         <View style={styles.actions}>
           <AppButton
-            title="Save Selection"
+            title="שמור בחירה"
             onPress={handleSave}
             variant="primary"
             size="lg"
@@ -167,79 +302,116 @@ const styles = StyleSheet.create({
     ...theme.typography.body,
     color: theme.colors.subtext,
     textAlign: 'center',
-    marginBottom: theme.spacing[6],
+    marginBottom: theme.spacing[4],
     lineHeight: 24,
   },
-  optionsContainer: {
-    padding: theme.spacing[4],
-    marginBottom: theme.spacing[6],
-  },
-  musicOption: {
-    padding: theme.spacing[4],
+  noneOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing[3],
     borderRadius: theme.radii.md,
-    marginBottom: theme.spacing[3],
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: '#e0e0e0',
+    marginBottom: theme.spacing[4],
+    gap: 10,
   },
-  musicOptionSelected: {
-    borderColor: theme.colors.primary,
-    backgroundColor: `${theme.colors.primary}05`,
-  },
-  musicOptionFeatured: {
+  noneOptionSelected: {
     borderColor: theme.colors.primary,
     backgroundColor: `${theme.colors.primary}08`,
   },
-  optionNameFeatured: {
-    fontSize: 18,
-    fontWeight: '700',
+  noneText: {
+    flex: 1,
+    fontSize: 15,
+    color: theme.colors.subtext,
+    fontWeight: '500',
   },
-  featuredBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  noneTextSelected: {
+    color: theme.colors.primary,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  musicCard: {
+    width: '47%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 2,
+    borderColor: '#f0f0f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  musicCardSelected: {
+    borderColor: theme.colors.primary,
+    backgroundColor: `${theme.colors.primary}06`,
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
     borderRadius: 12,
+    backgroundColor: `${theme.colors.primary}12`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconContainerSelected: {
+    backgroundColor: theme.colors.primary,
+  },
+  cardName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginBottom: 2,
+    textAlign: 'right',
+  },
+  cardNameSelected: {
+    color: theme.colors.primary,
+  },
+  cardNameEn: {
+    fontSize: 11,
+    color: theme.colors.subtext,
+    marginBottom: 6,
+    opacity: 0.7,
+  },
+  cardDescription: {
+    fontSize: 12,
+    color: theme.colors.subtext,
+    lineHeight: 18,
+    textAlign: 'right',
+    marginBottom: 8,
+  },
+  cardMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  featuredText: {
-    color: 'white',
+  metaText: {
     fontSize: 10,
-    fontWeight: '700',
-  },
-  optionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing[2],
-  },
-  optionInfo: {
-    flex: 1,
-  },
-  optionName: {
-    ...theme.typography.h3,
-    color: theme.colors.text,
-    fontSize: 16,
-  },
-  optionNameSelected: {
-    color: theme.colors.primary,
-  },
-  optionDescription: {
-    ...theme.typography.caption,
     color: theme.colors.subtext,
-    marginTop: theme.spacing[1],
+    fontWeight: '600',
+    opacity: 0.6,
   },
-  playButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: `${theme.colors.primary}15`,
-    alignItems: 'center',
-    justifyContent: 'center',
+  metaDot: {
+    fontSize: 10,
+    color: theme.colors.subtext,
+    opacity: 0.4,
   },
   actions: {
-    paddingBottom: theme.spacing[6],
+    paddingTop: theme.spacing[5],
+    paddingBottom: theme.spacing[8],
   },
 });
