@@ -1,0 +1,212 @@
+You are building an automatic emotional music engine for the Reflectly Playback app.
+
+Project Context:
+This is an Expo / React Native app with a Node/Express backend.
+Videos are uploaded, processed, and combined into a final compiled film.
+We now need to build an automatic emotional music system.
+
+The system must be modular, lightweight, and MVP-oriented.
+Do not over-engineer.
+Keep functions clean and reusable.
+
+========================================
+SYSTEM GOAL
+========================================
+
+Create a two-stage music system:
+
+1) Ambient Background Bed (non-intrusive, 3-phase structure)
+2) Full Dynamic Score for final film
+3) Motion detection
+4) Silence detection
+5) Singing detection
+6) Emotional timeline builder
+7) Final score generation based on timeline
+
+Everything should run automatically by default.
+
+========================================
+PHASE 1 – AMBIENT BACKGROUND BED
+========================================
+
+Goal:
+Generate a continuous non-intrusive ambient music bed.
+
+Structure:
+- Opening (spacious, stable, minimal harmonic movement)
+- Gentle development (subtle texture change)
+- Optimistic ending (light harmonic lift, warm resolution)
+
+Requirements:
+- Single continuous track
+- No heavy rhythm
+- Organic / acoustic palette
+- No EDM textures
+- Anchor tonal center but allow modal flexibility
+- Not emotionally manipulative
+
+Create function:
+
+generateAmbientBed(durationSeconds)
+
+Return:
+- Single audio file structured internally into 3 sections.
+
+========================================
+PHASE 2 – MOTION & SILENCE DETECTION (MVP)
+========================================
+
+Goal:
+Detect expressive movement when there is no speech.
+
+Step 1 – Motion Detection:
+- Compare video frames
+- Calculate percentage of changed pixels
+- Normalize result to 0–1
+
+motionEnergy = changed_pixels / total_pixels
+
+Step 2 – Audio Energy Detection:
+- Extract audio track
+- Measure RMS energy
+
+If:
+- motionEnergy > 0.35
+- audioEnergy below speech threshold
+- sustained for 3+ seconds
+
+Then classify event:
+
+{
+  type: "silence_with_motion",
+  start: X,
+  end: Y
+}
+
+Create function:
+
+analyzeMotionAndSilence(videoPath)
+
+Return:
+Array of motion events.
+
+========================================
+PHASE 3 – SINGING DETECTION
+========================================
+
+Goal:
+If someone is singing, music must step back.
+
+Detect:
+- Sustained pitch
+- Stable vocal frequency patterns
+- Continuous tonal structure
+
+If singing detected:
+Create event:
+
+{
+  type: "singing",
+  start: X,
+  end: Y
+}
+
+Music behavior rule:
+- Reduce intensity
+- Remove pulse
+- Keep harmonic drone only
+
+Create function:
+
+detectSinging(videoPath)
+
+Return:
+Array of singing events.
+
+========================================
+PHASE 4 – EMOTIONAL TIMELINE MAP
+========================================
+
+Build structured emotional JSON describing the film.
+
+Example structure:
+
+{
+  durationSec: 360,
+  anchorKey: "D",
+  sections: [
+    { start: 0, end: 60, mood: "reflective", intensity: 0.2 },
+    { start: 60, end: 140, mood: "gentle_growth", intensity: 0.35 },
+    { start: 140, end: 180, mood: "surprise", intensity: 0.6 },
+    { start: 180, end: 260, mood: "sad", intensity: 0.4 },
+    { start: 260, end: 360, mood: "optimistic_end", intensity: 0.5 }
+  ],
+  events: [
+    { type: "singing", start: 95, end: 120 },
+    { type: "silence_with_motion", start: 240, end: 260 }
+  ]
+}
+
+Create function:
+
+buildEmotionalTimeline(transcript, motionEvents, singingEvents, duration)
+
+========================================
+PHASE 5 – FULL SCORE GENERATION
+========================================
+
+Goal:
+Generate a single cohesive dynamic score for the entire film.
+
+Input:
+- Emotional timeline JSON
+- Anchor tonal center (not restrictive)
+- Total duration
+
+Rules:
+- One continuous piece
+- Organic instrumentation
+- Cohesive musical language
+- Dynamic evolution across timeline
+- Duck music during singing
+- Add subtle pulse during silence_with_motion
+- No abrupt stylistic shifts
+
+Create function:
+
+generateFullScore(timelineJSON)
+
+========================================
+SYSTEM FLOW
+========================================
+
+1. User uploads compiled video
+2. Transcription (Whisper)
+3. Motion & silence analysis
+4. Singing detection
+5. Emotional timeline build
+6. Generate ambient bed OR full score
+7. Attach generated music to final video
+8. Return finished film
+
+========================================
+DEFAULT BEHAVIOR
+========================================
+
+System runs automatically.
+Keep architecture modular.
+Prioritize MVP simplicity.
+Avoid heavy AI unless necessary.
+Focus on clean, scalable structure.
+
+Build step-by-step in this order:
+1) Motion detection
+2) Audio energy detection
+3) Singing detection
+4) Timeline builder
+5) Ambient bed
+6) Full score
+
+Do not skip steps.
+Do not overcomplicate.
+Keep code clean and readable.
