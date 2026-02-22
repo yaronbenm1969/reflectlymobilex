@@ -110,12 +110,34 @@ Music is added AFTER noise filter (which only cleans individual video clips). No
 - Demucs: ~$0.07
 - GPT-4o analysis: ~$0.01
 
-### Open Design Decision (PENDING USER INPUT)
-**When to generate music - 3 options discussed:**
-- **Option A**: Music before participants - participants hear it during recording (inspiration)
-- **Option B**: Music after all recordings - based on all content
-- **Option C (recommended)**: Music created right after creator's story, participants hear it as background during their recording, same music used in final video. Optional regeneration in Edit Room.
-- User is thinking about this decision. **Wait for user to decide before implementing UI flow.**
+### Design Decision (CONFIRMED by user - Feb 22 2026)
+**Two-stage music system:**
+
+**Stage 1 - Ambient Bed (during recording):**
+- Generated right after creator records their story
+- Plays DURING filming for both creator review AND participant recordings
+- Purpose: Set BPM, musical key, mood - inspire participants to sing, dance, move
+- Characteristics: non-intrusive, open, encouraging, 3-phase structure (spacious opening → gentle development → optimistic ending)
+- Plays in background while participants record via WhatsApp web-player link
+- This music is TEMPORARY - will be replaced in final video
+
+**Stage 2 - Full Dynamic Score (final video):**
+- Generated AFTER all recordings are collected and video is compiled
+- Completely NEW music, but uses SAME musical key as Ambient Bed (so any singing/humming stays in tune)
+- Built from full analysis of finished film: transcription, emotion timeline, motion detection, silence detection, singing detection
+- Dynamic: responds to every moment in the video
+- Replaces the Ambient Bed entirely in the final output
+
+**Stage 3 - Regeneration (optional, paid):**
+- If creator doesn't like the Full Score → "Generate new music" button in Edit Room
+- Each regeneration costs money (price configurable in admin panel)
+- Uses same analysis but different creative interpretation
+
+### Advanced Analysis Features (from spec doc):
+- **Motion Detection**: Compare video frames for movement when no speech (motionEnergy > 0.35 for 3+ seconds)
+- **Silence Detection**: RMS audio energy below speech threshold
+- **Singing Detection**: Sustained pitch, stable vocal frequency → music ducks (reduce intensity, remove pulse, keep harmonic drone)
+- These events feed into the emotional timeline for Full Score generation
 
 ### Existing UI (already built, needs updating):
 - `MusicSelectionScreen.js` - Full screen with options: ai-custom, upbeat, calm, dramatic, romantic, none
@@ -123,7 +145,7 @@ Music is added AFTER noise filter (which only cleans individual video clips). No
 - `storiesService.js` - saves `music` field to Firestore
 - `FormatSelectionScreen.js` - navigates to MusicSelection (line 98)
 - Description needs update: change "ElevenLabs" → "MusicGen/Replicate"
-- Need to add: AI generation trigger, progress UI, musicUrl storage
+- Need to add: AI generation trigger, progress UI, musicUrl storage, ambient bed playback in web-player
 
 ### Future Upgrade Path
 - When Suno AI releases official API → add vocal/singing option
