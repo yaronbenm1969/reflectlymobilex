@@ -104,6 +104,14 @@ Individual videos → convertVideo() [noise filter] → clean videos → Format 
 
 ## Current Status / Next Steps (Feb 22, 2026)
 - **DONE**: MusicSelectionScreen UI with 10 Hebrew presets, ambient-library.js with MusicGen prompts, API endpoints, Firestore integration for saving selection + URL
+- **DONE**: Fixed `firestoreDb` variable name in ambient endpoints (was `db`), fixed Replicate token lazy initialization
 - **BLOCKED**: Replicate API token returning 401 Unauthorized. User needs to verify/refresh token at replicate.com/account/api-tokens and update the REPLICATE_API_TOKEN secret
 - **NEXT after token fix**: Run `/api/generate-ambient-library` to create all 10 tracks and upload to Firebase
 - **THEN**: Implement ambient playback during recording, build Stage 2 full dynamic score pipeline
+
+### Commercial Licensing Decision
+- **For development**: Using MusicGen (Meta) via Replicate - NOT commercially licensed (CC-BY-NC)
+- **For production/commercial launch**: Plan to switch to Beatoven.ai API (~$0.12-0.15/min, ~₪0.40-0.55 per 1min video) - fully commercially licensed, ethically trained
+- **Alternative considered**: Suno AI ($10/mo Pro for manual creation), Mubert API ($99+/mo)
+- **Ambient library (10 tracks)**: Can create manually in Suno ($10 one-time) for commercial use
+- **Code is modular**: music-service.js can be swapped to different provider without changing rest of pipeline
