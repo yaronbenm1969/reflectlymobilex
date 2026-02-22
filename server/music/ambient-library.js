@@ -4,9 +4,11 @@ const path = require('path');
 const https = require('https');
 const http = require('http');
 
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN
-});
+function getReplicate() {
+  const token = process.env.REPLICATE_API_TOKEN;
+  if (!token) throw new Error('REPLICATE_API_TOKEN not set');
+  return new Replicate({ auth: token });
+}
 
 const AMBIENT_PRESETS = [
   {
@@ -118,6 +120,7 @@ async function generateSingleAmbientTrack(preset, durationSeconds = 30) {
   console.log(`🎵 Generating ambient track: ${preset.name} (${preset.key}, ${preset.bpm} BPM)...`);
 
   try {
+    const replicate = getReplicate();
     const output = await replicate.run(
       'facebook/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedbb',
       {

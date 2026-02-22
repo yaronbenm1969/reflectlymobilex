@@ -1318,8 +1318,8 @@ app.post('/api/generate-ambient-library', async (req, res) => {
         }
       }
 
-      if (db) {
-        await db.collection('settings').doc('ambientLibrary').set({
+      if (firestoreDb) {
+        await firestoreDb.collection('settings').doc('ambientLibrary').set({
           tracks: libraryData,
           generatedAt: new Date().toISOString(),
           trackCount: Object.keys(libraryData).length
@@ -1338,8 +1338,8 @@ app.get('/api/ambient-track/:trackId', async (req, res) => {
   const { trackId } = req.params;
   
   try {
-    if (db) {
-      const doc = await db.collection('settings').doc('ambientLibrary').get();
+    if (firestoreDb) {
+      const doc = await firestoreDb.collection('settings').doc('ambientLibrary').get();
       if (doc.exists) {
         const data = doc.data();
         const track = data.tracks?.[trackId];
