@@ -58,3 +58,52 @@ Reflectly is a mobile journaling application built with React Native/Expo, desig
 - **FFmpeg**: Server-side for video format conversion and music mixing.
 - **Expo APIs**: `expo-camera`, `expo-sharing`, `Linking`, `expo-contacts`.
 - **React Native Libraries**: `react-native-reanimated-carousel`, `react-native-safe-area-context`.
+
+## AI Music Generation System
+
+### Two-Stage Architecture
+1. **Stage 1 - Ambient Bed**: Pre-generated library of 10 emotional anchor tracks. Plays during filming to inspire participants with mood/BPM. One-time generation cost ~$0.30-0.50.
+2. **Stage 2 - Full Dynamic Score**: AI-generated music post-production using emotion timeline, motion/silence/singing detection. Replaces ambient bed in final video. Uses same musical key as selected ambient for coherence.
+3. **Stage 3 - Regeneration**: Option for paid regeneration (admin-configurable pricing).
+
+### Music Pipeline Modules
+- **Emotion Analysis** (`server/music/emotion-analysis.js`): GPT-4o analyzes Whisper transcription → emotion timeline with per-instrument levels, EQ, reverb, stereo width.
+- **Music Generation** (`server/music/music-service.js`): Replicate MusicGen (stereo-large) → Demucs stem separation (drums/bass/vocals/melody). DEMUCS_MODEL configurable: htdemucs (4ch) or htdemucs_6s (6ch).
+- **Dynamic Mixing** (`server/music/mixing-service.js`): FFmpeg re-mixes stems with per-channel dynamic volume from emotion timeline. Music volume adjustable (default 0.3).
+- **Ambient Library** (`server/music/ambient-library.js`): 10 presets with detailed MusicGen prompts (3-phase structure each).
+
+### Ambient Bed Presets (10 tracks)
+1. Reflective Space (D, 60bpm) - מרחב פנימי
+2. Gentle Warmth (G, 65bpm) - חום עדין
+3. Soft Hope (C, 70bpm) - תקווה שקטה
+4. Tender Vulnerability (Am, 58bpm) - עדינות רגשית
+5. Quiet Strength (E, 62bpm) - כוח שקט
+6. Light Movement (A, 80bpm) - תנועה עדינה
+7. Floating Memory (Dm, 55bpm) - זיכרון מרחף
+8. Grounded Calm (F, 56bpm) - רוגע מעוגן
+9. Subtle Uplift (Bb, 72bpm) - התעלות עדינה
+10. Open Horizon (D, 75bpm) - אופק פתוח
+
+### Music API Endpoints (on video-converter-api.js, port 3001)
+- `POST /api/generate-music` - Start async full score generation
+- `GET /api/music-status/:jobId` - Poll generation progress
+- `POST /api/mix-music-with-video` - Mix music with rendered video
+- `GET /api/ambient-library` - Get all ambient presets metadata
+- `POST /api/generate-ambient-library` - Generate all 10 tracks (one-time)
+- `GET /api/ambient-track/:trackId` - Get specific track URL and metadata
+
+### Pipeline Order (no conflicts with existing video processing)
+```
+Individual videos → convertVideo() [noise filter] → clean videos → Format render → Full Dynamic Score → Final mix
+```
+
+### Firestore Schema for Music
+- `story.music` = selected preset id or 'none'
+- `story.musicAmbient` = { id, name, key, bpm, url }
+- `settings/ambientLibrary` = { tracks: { [presetId]: { url, key, bpm, name } }, generatedAt, trackCount }
+
+## Current Status / Next Steps (Feb 22, 2026)
+- **DONE**: MusicSelectionScreen UI with 10 Hebrew presets, ambient-library.js with MusicGen prompts, API endpoints, Firestore integration for saving selection + URL
+- **BLOCKED**: Replicate API token returning 401 Unauthorized. User needs to verify/refresh token at replicate.com/account/api-tokens and update the REPLICATE_API_TOKEN secret
+- **NEXT after token fix**: Run `/api/generate-ambient-library` to create all 10 tracks and upload to Firebase
+- **THEN**: Implement ambient playback during recording, build Stage 2 full dynamic score pipeline
