@@ -12,8 +12,8 @@ import theme from '../theme/theme';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const DEMO_COLORS = [
-  '#FF6B9D',
-  '#C06FBB', 
+  '#8446b0',
+  '#464fb0', 
   '#8B7ED8',
   '#6B9FFF',
   '#4ECDC4',

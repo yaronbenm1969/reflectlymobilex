@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Animated, StyleSheet, Easing } from 'react-native';
 import theme from '../theme/theme';
 
-const COLORS = ['#FF6B9D', '#C06FBB', '#8B7ED8', '#6B9FFF'];
+const COLORS = ['#8446b0', '#464fb0', '#469bb0', '#5a73b0'];
 
 export const SimpleFormatPreview = ({ type = 'standard', size = 50 }) => {
   const anim1 = useRef(new Animated.Value(0)).current;

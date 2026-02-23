@@ -9,8 +9,8 @@ const RESERVED_UI = 200;
 const CUBE_SIZE = Math.min(SCREEN_WIDTH * 0.92, (SCREEN_HEIGHT - RESERVED_UI) * 0.85);
 
 const FACE_COLORS = [
-  '#FF6B9D',
-  '#C06FBB',
+  '#8446b0',
+  '#464fb0',
   '#8B5CF6',
   '#EC4899',
   '#F472B6',
@@ -46,7 +46,7 @@ function CubeFace({ position, rotation, textureUrl, faceIndex, isActive, isPlayi
       <meshStandardMaterial
         map={texture}
         color={texture ? '#ffffff' : faceColor}
-        emissive={isPlaying ? '#FF6B9D' : (isActive ? '#FF6B9D' : '#000000')}
+        emissive={isPlaying ? '#8446b0' : (isActive ? '#8446b0' : '#000000')}
         emissiveIntensity={isPlaying ? 0.6 : (isActive ? 0.3 : 0.1)}
         transparent={true}
         opacity={isPlaying ? 0.15 : 1}
@@ -230,7 +230,7 @@ function Scene({ faces, onFaceEnterFront, onFaceExitFront, onFaceTransformUpdate
     <>
       <ambientLight intensity={0.9} />
       <pointLight position={[5, 5, 5]} intensity={0.7} />
-      <pointLight position={[-5, -5, 5]} intensity={0.4} color="#FF6B9D" />
+      <pointLight position={[-5, -5, 5]} intensity={0.4} color="#8446b0" />
       <pointLight position={[0, 0, 6]} intensity={0.5} color="#ffffff" />
       <RotatingCube
         ref={cubeRef}

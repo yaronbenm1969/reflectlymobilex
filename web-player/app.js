@@ -419,7 +419,7 @@ async function loadStory(code) {
                     display: inline-block;
                     margin-top: 15px;
                     padding: 12px 24px;
-                    background: linear-gradient(135deg, #FF6B9D, #C06FBB);
+                    background: linear-gradient(135deg, #8446b0, #464fb0);
                     color: white;
                     border: none;
                     border-radius: 25px;
@@ -990,7 +990,7 @@ function showWelcomeMessage() {
                 <div style="font-size: 80px; margin-bottom: 20px;">🎬</div>
                 <h2 style="margin-bottom: 15px;">ברוכים הבאים ל-Reflectly</h2>
                 <p style="opacity: 0.8; margin-bottom: 20px;">כדי לצפות בסיפור, קבל קישור מחבר</p>
-                <a href="/cube-demo.html" style="background: white; color: #C06FBB; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: bold;">🎲 צפה בדמו הקוביה</a>
+                <a href="/cube-demo.html" style="background: white; color: #464fb0; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: bold;">🎲 צפה בדמו הקוביה</a>
             </div>
         `;
     }
@@ -1010,10 +1010,10 @@ function addInAppBrowserBanner() {
     
     const banner = document.createElement('div');
     banner.id = 'inapp-browser-banner';
-    banner.style.cssText = 'background: linear-gradient(135deg, #FF6B9D, #C06FBB); color: white; padding: 12px 16px; text-align: center; font-size: 14px; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.2);';
+    banner.style.cssText = 'background: linear-gradient(135deg, #8446b0, #464fb0); color: white; padding: 12px 16px; text-align: center; font-size: 14px; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.2);';
     banner.innerHTML = `
         <div style="margin-bottom: 8px;">📱 להקלטת הפידבק, פתח בדפדפן:</div>
-        <button onclick="window.open(window.location.href, '_system')" style="background: white; color: #C06FBB; border: none; padding: 8px 20px; border-radius: 20px; font-weight: bold; cursor: pointer;">
+        <button onclick="window.open(window.location.href, '_system')" style="background: white; color: #464fb0; border: none; padding: 8px 20px; border-radius: 20px; font-weight: bold; cursor: pointer;">
             🔗 פתח ב-Safari/Chrome
         </button>
     `;

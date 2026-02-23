@@ -55,7 +55,7 @@ export const AccessGate = ({ children }) => {
 
   if (status === 'loading') {
     return (
-      <LinearGradient colors={['#FF6B9D', '#C06FBB']} style={styles.container}>
+      <LinearGradient colors={['#8446b0', '#464fb0']} style={styles.container}>
         <ActivityIndicator size="large" color="white" />
         <Text style={styles.loadingText}>Loading...</Text>
       </LinearGradient>
@@ -64,7 +64,7 @@ export const AccessGate = ({ children }) => {
 
   if (status === 'maintenance') {
     return (
-      <LinearGradient colors={['#FF6B9D', '#C06FBB']} style={styles.container}>
+      <LinearGradient colors={['#8446b0', '#464fb0']} style={styles.container}>
         <View style={styles.card}>
           <Ionicons name="construct" size={80} color={theme.colors.primary} />
           <Text style={styles.title}>Under Maintenance</Text>
@@ -83,7 +83,7 @@ export const AccessGate = ({ children }) => {
 
   if (status === 'locked') {
     return (
-      <LinearGradient colors={['#FF6B9D', '#C06FBB']} style={styles.container}>
+      <LinearGradient colors={['#8446b0', '#464fb0']} style={styles.container}>
         <View style={styles.card}>
           <Ionicons name="lock-closed" size={60} color={theme.colors.primary} />
           <Text style={styles.title}>Access Required</Text>

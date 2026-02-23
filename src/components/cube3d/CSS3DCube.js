@@ -7,8 +7,8 @@ const CUBE_SIZE = Math.min(SCREEN_WIDTH * 0.85, 320);
 const HALF_SIZE = CUBE_SIZE / 2;
 
 const FACE_COLORS = [
-  '#FF6B9D',
-  '#C06FBB',
+  '#8446b0',
+  '#464fb0',
   '#9B59B6',
   '#E74C3C',
   '#3498DB',

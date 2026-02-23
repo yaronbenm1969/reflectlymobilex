@@ -46,7 +46,7 @@ Reflectly is a mobile journaling application built with React Native/Expo, desig
 - **Web Player**: Separate `web-player/` directory for browser-based functionality.
 
 ### UI/UX Design
-- **Theme**: Pink-purple gradient (#FF6B9D → #C06FBB) with a light pink background (#FFEFF4).
+- **Theme**: Purple-blue gradient (#8446b0 → #464fb0) with turquoise accent (#469bb0), light lavender background (#F5F0FA).
 - **Aesthetic**: Clean, warm, minimalist, journaling-focused.
 - **Interaction**: Smooth 60 FPS animations.
 

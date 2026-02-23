@@ -97,7 +97,7 @@ localStorage.clear();
 sessionStorage.clear();
 setTimeout(()=>location.href='/cube3d-v2.html?v=${Date.now()}',500);
 </script>
-</head><body style="background:linear-gradient(135deg,#FF6B9D,#C06FBB);display:flex;align-items:center;justify-content:center;height:100vh;color:white;font-family:sans-serif;">
+</head><body style="background:linear-gradient(135deg,#8446b0,#464fb0);display:flex;align-items:center;justify-content:center;height:100vh;color:white;font-family:sans-serif;">
 <div style="text-align:center;"><h2>מנקה קאש...</h2><p>מעביר לדמו הקוביה</p></div>
 </body></html>`);
         return;

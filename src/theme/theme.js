@@ -1,8 +1,9 @@
 export const theme = {
   colors: {
-    primary: '#7B61FF',
-    secondary: '#5C45E0',
-    bg: '#FFF8FF',
+    primary: '#8446b0',
+    secondary: '#464fb0',
+    accent: '#469bb0',
+    bg: '#F5F0FA',
     white: '#FFFFFF',
     text: '#1e1e1e',
     subtext: '#666666',
@@ -10,8 +11,8 @@ export const theme = {
     error: '#F44336',
     warning: '#FF9800',
     gradient: {
-      start: '#7B61FF',
-      end: '#5C45E0',
+      start: '#8446b0',
+      end: '#464fb0',
     },
   },
   spacing: [0, 4, 8, 12, 16, 20, 24, 32, 40, 48, 56, 64],

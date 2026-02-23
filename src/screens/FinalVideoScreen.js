@@ -978,7 +978,7 @@ export const FinalVideoScreen = () => {
             {isDownloading && (
               <View style={styles.downloadProgressOverlay}>
                 <View style={styles.downloadProgressCard}>
-                  <ActivityIndicator size="large" color="#FF6B9D" />
+                  <ActivityIndicator size="large" color="#8446b0" />
                   <Text style={styles.downloadProgressTitle}>מעבד סרטון...</Text>
                   {downloadProgress ? (
                     <Text style={styles.downloadProgressText}>{downloadProgress}</Text>
@@ -1022,9 +1022,9 @@ export const FinalVideoScreen = () => {
                 >
                   <View style={styles.endScreenIconCircle}>
                     {isDownloading ? (
-                      <ActivityIndicator size="small" color="#FF6B9D" />
+                      <ActivityIndicator size="small" color="#8446b0" />
                     ) : (
-                      <Ionicons name="download-outline" size={28} color="#FF6B9D" />
+                      <Ionicons name="download-outline" size={28} color="#8446b0" />
                     )}
                   </View>
                   <Text style={styles.endScreenActionLabel}>הורד סרטון</Text>
@@ -1037,7 +1037,7 @@ export const FinalVideoScreen = () => {
                   disabled={isDownloading}
                 >
                   <View style={styles.endScreenIconCircle}>
-                    <Ionicons name="share-outline" size={28} color="#FF6B9D" />
+                    <Ionicons name="share-outline" size={28} color="#8446b0" />
                   </View>
                   <Text style={styles.endScreenActionLabel}>שלח</Text>
                 </TouchableOpacity>
@@ -1575,7 +1575,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     overflow: 'hidden',
     backgroundColor: '#000',
-    shadowColor: '#FF6B9D',
+    shadowColor: '#8446b0',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.9,
     shadowRadius: 15,
@@ -1627,7 +1627,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#FF6B9D',
+    shadowColor: '#8446b0',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 20,

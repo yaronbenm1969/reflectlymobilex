@@ -25,8 +25,8 @@ const FACE_POSITIONS = [
 ];
 
 const FACE_COLORS = [
-  '#FF6B9D',
-  '#C06FBB',
+  '#8446b0',
+  '#464fb0',
   '#9B59B6',
   '#E74C3C',
   '#3498DB',

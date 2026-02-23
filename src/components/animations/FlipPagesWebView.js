@@ -354,7 +354,7 @@ const FlipPagesWebView = ({
     .play-button .play-icon {
       width: 0;
       height: 0;
-      border-left: 28px solid #FF6B9D;
+      border-left: 28px solid #8446b0;
       border-top: 18px solid transparent;
       border-bottom: 18px solid transparent;
       margin-left: 6px;
@@ -379,7 +379,7 @@ const FlipPagesWebView = ({
     }
     .replay-button .replay-icon {
       font-size: 36px;
-      color: #FF6B9D;
+      color: #8446b0;
     }
   </style>
 </head>
@@ -1477,7 +1477,7 @@ const FlipPagesWebView = ({
   if (!initialFaces || initialFaces.length === 0) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#FF6B9D" />
+        <ActivityIndicator size="large" color="#8446b0" />
         <Text style={styles.loadingText}>טוען דפים...</Text>
       </View>
     );
@@ -1494,7 +1494,7 @@ const FlipPagesWebView = ({
   if (isLoading || !htmlFilePath) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#FF6B9D" />
+        <ActivityIndicator size="large" color="#8446b0" />
         <Text style={styles.loadingText}>מכין דפים מתהפכים...</Text>
       </View>
     );
@@ -1560,7 +1560,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   errorText: {
-    color: '#FF6B9D',
+    color: '#8446b0',
     fontSize: 16,
   },
 });

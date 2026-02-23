@@ -265,7 +265,7 @@ export default function WatchExperienceScreen() {
 
   if (isLoading) {
     return (
-      <LinearGradient colors={['#FF6B9D', '#C06FBB']} style={styles.loadingContainer}>
+      <LinearGradient colors={['#8446b0', '#464fb0']} style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#fff" />
         <Text style={styles.loadingText}>טוען קליפים...</Text>
       </LinearGradient>
@@ -274,7 +274,7 @@ export default function WatchExperienceScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient colors={['#FF6B9D', '#C06FBB']} style={styles.header}>
+      <LinearGradient colors={['#8446b0', '#464fb0']} style={styles.header}>
         <TouchableOpacity onPress={() => nav.goTo('Home')} style={styles.backButton}>
           <Ionicons name="arrow-forward" size={24} color="#fff" />
         </TouchableOpacity>

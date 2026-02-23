@@ -83,7 +83,7 @@ export default function AuthScreen() {
 
   return (
     <LinearGradient
-      colors={['#FF6B9D', '#C06FBB']}
+      colors={['#8446b0', '#464fb0']}
       style={[styles.container, { paddingTop: insets.top }]}
     >
       <KeyboardAvoidingView
@@ -257,13 +257,13 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   submitButton: {
-    backgroundColor: '#FF6B9D',
+    backgroundColor: '#8446b0',
     borderRadius: 12,
     height: 55,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 10,
-    shadowColor: '#FF6B9D',
+    shadowColor: '#8446b0',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   switchButtonText: {
-    color: '#FF6B9D',
+    color: '#8446b0',
     fontSize: 14,
   },
   skipButton: {
