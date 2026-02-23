@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFEFF4"
+      "backgroundColor": "#F5F0FA"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -28,7 +28,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFEFF4"
+        "backgroundColor": "#F5F0FA"
       },
       "package": "com.reflectly.app",
       "permissions": [
