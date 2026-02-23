@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   secondary: {
     backgroundColor: theme.colors.white,
     borderWidth: 2,
-    borderColor: theme.colors.primary,
+    borderColor: theme.colors.secondary,
   },
   ghost: {
     backgroundColor: 'transparent',
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
   },
   textSecondary: {
-    color: theme.colors.primary,
+    color: theme.colors.secondary,
   },
   textGhost: {
     color: theme.colors.primary,

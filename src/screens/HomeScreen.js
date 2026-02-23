@@ -175,7 +175,7 @@ export const HomeScreen = () => {
 
           <Card style={styles.playerCard}>
             <View style={styles.playerHeader}>
-              <Ionicons name="people" size={24} color={theme.colors.primary} />
+              <Ionicons name="people" size={24} color={theme.colors.accent} />
               <Text style={styles.playerTitle}>קיבלת הזמנה מחבר?</Text>
             </View>
             <Text style={styles.playerDescription}>
@@ -203,7 +203,7 @@ export const HomeScreen = () => {
 
           <Card style={styles.infoCard}>
             <View style={styles.infoHeader}>
-              <Ionicons name="information-circle" size={24} color={theme.colors.primary} />
+              <Ionicons name="information-circle" size={24} color={theme.colors.secondary} />
               <Text style={styles.infoTitle}>איך זה עובד</Text>
             </View>
             <Text style={styles.infoText}>
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   playerCard: {
     padding: theme.spacing[5],
     borderWidth: 2,
-    borderColor: theme.colors.primary,
+    borderColor: theme.colors.accent,
     borderStyle: 'dashed',
   },
   playerHeader: {
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: theme.colors.white,
     borderWidth: 2,
-    borderColor: theme.colors.primary,
+    borderColor: theme.colors.accent,
     borderRadius: theme.radii.lg,
     padding: theme.spacing[3],
     fontSize: 20,
