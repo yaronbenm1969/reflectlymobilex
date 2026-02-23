@@ -349,6 +349,8 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     padding: theme.spacing[5],
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.secondary,
   },
   infoHeader: {
     flexDirection: 'row',

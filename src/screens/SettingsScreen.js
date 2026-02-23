@@ -50,8 +50,8 @@ export const SettingsScreen = () => {
           <Text style={styles.sectionTitle}>App Settings</Text>
           {settingsOptions.map((option) => (
             <TouchableOpacity key={option.id} style={styles.settingItem}>
-              <View style={styles.settingIcon}>
-                <Ionicons name={option.icon} size={20} color={theme.colors.primary} />
+              <View style={[styles.settingIcon, { backgroundColor: `${theme.colors.secondary}15` }]}>
+                <Ionicons name={option.icon} size={20} color={theme.colors.secondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingTitle}>{option.title}</Text>
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: `${theme.colors.primary}15`,
+    backgroundColor: `${theme.colors.secondary}15`,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: theme.spacing[3],

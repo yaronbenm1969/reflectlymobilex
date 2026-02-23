@@ -182,7 +182,7 @@ export const InstructionsScreen = () => {
             <Switch
               value={publishingEnabled}
               onValueChange={setPublishingEnabled}
-              trackColor={{ false: '#ddd', true: theme.colors.primary }}
+              trackColor={{ false: '#ddd', true: theme.colors.accent }}
               thumbColor={publishingEnabled ? theme.colors.white : '#f4f3f4'}
             />
           </View>
@@ -197,7 +197,7 @@ export const InstructionsScreen = () => {
             <Switch
               value={allowSocialMedia}
               onValueChange={setAllowSocialMedia}
-              trackColor={{ false: '#ddd', true: theme.colors.primary }}
+              trackColor={{ false: '#ddd', true: theme.colors.accent }}
               thumbColor={allowSocialMedia ? theme.colors.white : '#f4f3f4'}
             />
           </View>

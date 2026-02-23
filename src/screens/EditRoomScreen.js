@@ -317,7 +317,7 @@ export const EditRoomScreen = () => {
 
         <Card style={styles.statusCard}>
           <View style={styles.statusHeader}>
-            <Ionicons name="people" size={24} color={theme.colors.primary} />
+            <Ionicons name="people" size={24} color={theme.colors.accent} />
             <Text style={styles.statusTitle}>סטטוס שיקופים</Text>
           </View>
           
@@ -348,7 +348,7 @@ export const EditRoomScreen = () => {
           
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Ionicons name="musical-notes" size={20} color={theme.colors.primary} />
+              <Ionicons name="musical-notes" size={20} color={theme.colors.accent} />
               <Text style={styles.settingLabel}>מוזיקה</Text>
             </View>
             <Text style={styles.settingValue}>{selectedMusic || 'ללא'}</Text>
@@ -356,7 +356,7 @@ export const EditRoomScreen = () => {
 
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Ionicons name="cube" size={20} color={theme.colors.primary} />
+              <Ionicons name="cube" size={20} color={theme.colors.secondary} />
               <Text style={styles.settingLabel}>פורמט</Text>
             </View>
             <Text style={styles.settingValue}>{videoFormat || 'סטנדרטי'}</Text>
@@ -364,7 +364,7 @@ export const EditRoomScreen = () => {
 
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Ionicons name="lock-closed" size={20} color={theme.colors.primary} />
+              <Ionicons name="lock-closed" size={20} color={theme.colors.secondary} />
               <Text style={styles.settingLabel}>פרטיות</Text>
             </View>
             <Text style={styles.settingValue}>
@@ -415,7 +415,7 @@ export const EditRoomScreen = () => {
                             style={styles.clipActionButton}
                             onPress={() => handlePlayVideo(clip.videoUrl)}
                           >
-                            <Ionicons name="play" size={16} color={theme.colors.primary} />
+                            <Ionicons name="play" size={16} color={theme.colors.secondary} />
                             <Text style={styles.clipActionText}>צפה</Text>
                           </TouchableOpacity>
                           <TouchableOpacity 
@@ -425,7 +425,7 @@ export const EditRoomScreen = () => {
                             <Ionicons 
                               name={approved ? "checkmark-circle" : "add-circle-outline"} 
                               size={16} 
-                              color={approved ? "#4CAF50" : theme.colors.primary} 
+                              color={approved ? "#4CAF50" : theme.colors.accent} 
                             />
                             <Text style={[styles.clipActionText, approved && styles.clipActionTextApproved]}>
                               {approved ? "מאושר" : "הוסף"}
@@ -448,7 +448,7 @@ export const EditRoomScreen = () => {
             style={styles.actionRow}
             onPress={() => go('MusicSelection')}
           >
-            <Ionicons name="musical-notes" size={24} color={theme.colors.primary} />
+            <Ionicons name="musical-notes" size={24} color={theme.colors.accent} />
             <Text style={styles.actionText}>שנה מוזיקה</Text>
             <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
           </TouchableOpacity>
@@ -457,7 +457,7 @@ export const EditRoomScreen = () => {
             style={styles.actionRow}
             onPress={() => go('FormatSelection')}
           >
-            <Ionicons name="cube" size={24} color={theme.colors.primary} />
+            <Ionicons name="cube" size={24} color={theme.colors.secondary} />
             <Text style={styles.actionText}>שנה פורמט הקרנה</Text>
             <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
           </TouchableOpacity>
@@ -756,7 +756,7 @@ const styles = StyleSheet.create({
   },
   settingValue: {
     ...theme.typography.body,
-    color: theme.colors.primary,
+    color: theme.colors.secondary,
     fontWeight: 'bold',
   },
   videosCard: {
@@ -866,7 +866,7 @@ const styles = StyleSheet.create({
   },
   clipActionText: {
     fontSize: 10,
-    color: theme.colors.primary,
+    color: theme.colors.secondary,
   },
   clipActionTextApproved: {
     color: '#4CAF50',

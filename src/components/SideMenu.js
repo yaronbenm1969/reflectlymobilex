@@ -128,7 +128,7 @@ export const SideMenu = ({ isOpen, onClose }) => {
                   style={styles.menuItem}
                   onPress={() => handleMenuItemPress(item)}
                 >
-                  <View style={styles.menuItemIcon}>
+                  <View style={[styles.menuItemIcon, { backgroundColor: `${theme.colors.primary}15` }]}>
                     <Ionicons name={item.icon} size={20} color={theme.colors.primary} />
                   </View>
                   <Text style={styles.menuItemText}>{item.title}</Text>
@@ -145,8 +145,8 @@ export const SideMenu = ({ isOpen, onClose }) => {
                   style={styles.menuItem}
                   onPress={() => handleMenuItemPress(item)}
                 >
-                  <View style={styles.menuItemIcon}>
-                    <Ionicons name={item.icon} size={20} color={theme.colors.primary} />
+                  <View style={[styles.menuItemIcon, { backgroundColor: `${theme.colors.secondary}15` }]}>
+                    <Ionicons name={item.icon} size={20} color={theme.colors.secondary} />
                   </View>
                   <Text style={styles.menuItemText}>{item.title}</Text>
                   <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} />
@@ -162,8 +162,8 @@ export const SideMenu = ({ isOpen, onClose }) => {
                   style={styles.menuItem}
                   onPress={() => handleMenuItemPress(item)}
                 >
-                  <View style={styles.menuItemIcon}>
-                    <Ionicons name={item.icon} size={20} color={theme.colors.primary} />
+                  <View style={[styles.menuItemIcon, { backgroundColor: `${theme.colors.accent}15` }]}>
+                    <Ionicons name={item.icon} size={20} color={theme.colors.accent} />
                   </View>
                   <Text style={styles.menuItemText}>{item.title}</Text>
                   <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} />

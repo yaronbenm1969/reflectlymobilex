@@ -110,7 +110,7 @@ export const FormatSelectionScreen = ({ route }) => {
             <Ionicons 
               name={option.icon} 
               size={24} 
-              color={isSelected ? 'white' : theme.colors.primary} 
+              color={isSelected ? 'white' : theme.colors.secondary} 
             />
           </View>
           <View style={styles.formatInfo}>
@@ -129,13 +129,13 @@ export const FormatSelectionScreen = ({ route }) => {
             style={styles.previewButton}
             onPress={() => setPreviewFormat(option.id)}
           >
-            <Ionicons name="eye" size={16} color={theme.colors.primary} />
+            <Ionicons name="eye" size={16} color={theme.colors.secondary} />
             <Text style={styles.previewText}>דגימה</Text>
           </TouchableOpacity>
         </View>
         
         {isSelected && (
-          <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} style={styles.checkIcon} />
+          <Ionicons name="checkmark-circle" size={24} color={theme.colors.secondary} style={styles.checkIcon} />
         )}
       </View>
     </TouchableOpacity>
@@ -152,7 +152,7 @@ export const FormatSelectionScreen = ({ route }) => {
           <Ionicons 
             name={option.icon} 
             size={28} 
-            color={isSelected ? 'white' : theme.colors.primary} 
+            color={isSelected ? 'white' : theme.colors.secondary} 
           />
         </View>
         <View style={styles.optionInfo}>
@@ -162,7 +162,7 @@ export const FormatSelectionScreen = ({ route }) => {
           <Text style={styles.optionDescription}>{option.description}</Text>
         </View>
         {isSelected && (
-          <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
+          <Ionicons name="checkmark-circle" size={24} color={theme.colors.secondary} />
         )}
       </View>
     </TouchableOpacity>
@@ -366,11 +366,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 4,
-    backgroundColor: '#FFF0F6',
+    backgroundColor: `${theme.colors.secondary}10`,
   },
   previewText: {
     fontSize: 11,
-    color: theme.colors.primary,
+    color: theme.colors.secondary,
     marginLeft: 4,
   },
   checkIcon: {
@@ -390,13 +390,13 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FFF0F6',
+    backgroundColor: `${theme.colors.secondary}15`,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: theme.spacing[3],
   },
   iconContainerSelected: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.secondary,
   },
   optionInfo: {
     flex: 1,
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   optionNameSelected: {
-    color: theme.colors.primary,
+    color: theme.colors.secondary,
     fontWeight: '600',
   },
   optionDescription: {

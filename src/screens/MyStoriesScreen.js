@@ -97,7 +97,7 @@ export const MyStoriesScreen = () => {
         </TouchableOpacity>
         <Text style={styles.title}>הסיפורים שלי</Text>
         <TouchableOpacity style={styles.refreshButton} onPress={loadStories}>
-          <Ionicons name="refresh" size={24} color={theme.colors.primary} />
+          <Ionicons name="refresh" size={24} color={theme.colors.accent} />
         </TouchableOpacity>
       </View>
 
@@ -139,7 +139,7 @@ export const MyStoriesScreen = () => {
               >
                 <Card style={styles.storyCard}>
                   <View style={styles.storyThumbnail}>
-                    <Ionicons name="videocam" size={32} color={theme.colors.primary} />
+                    <Ionicons name="videocam" size={32} color={theme.colors.secondary} />
                   </View>
                   <View style={styles.storyInfo}>
                     <Text style={styles.storyTitle}>{story.name}</Text>
@@ -153,7 +153,7 @@ export const MyStoriesScreen = () => {
                     </View>
                   </View>
                   <View style={styles.playButton}>
-                    <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
+                    <Ionicons name="chevron-forward" size={20} color={theme.colors.accent} />
                   </View>
                 </Card>
               </TouchableOpacity>
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: theme.radii.md,
-    backgroundColor: `${theme.colors.primary}15`,
+    backgroundColor: `${theme.colors.secondary}15`,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: theme.spacing[3],
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: `${theme.colors.primary}15`,
+    backgroundColor: `${theme.colors.accent}15`,
     alignItems: 'center',
     justifyContent: 'center',
   },
