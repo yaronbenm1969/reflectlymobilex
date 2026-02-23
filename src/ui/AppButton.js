@@ -16,6 +16,7 @@ export const AppButton = ({
   fullWidth = false,
   disabled = false,
   loading = false,
+  icon,
   style,
 }) => {
   const buttonStyles = [
@@ -33,15 +34,22 @@ export const AppButton = ({
     disabled && styles.textDisabled,
   ];
 
+  const loaderColor = (variant === 'primary' || variant === 'accent')
+    ? theme.colors.white
+    : variant === 'secondary'
+      ? theme.colors.secondary
+      : theme.colors.primary;
+
   const renderContent = () => (
     <>
       {loading && (
         <ActivityIndicator
           size="small"
-          color={variant === 'primary' ? theme.colors.white : theme.colors.primary}
+          color={loaderColor}
           style={styles.loader}
         />
       )}
+      {icon && !loading && icon}
       <Text style={textStyles}>{title}</Text>
     </>
   );
@@ -58,10 +66,23 @@ export const AppButton = ({
           colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
-          style={[styles.gradient, disabled && styles.gradientDisabled]}
+          style={[styles.gradient, styles[`gradient${size.charAt(0).toUpperCase() + size.slice(1)}`], disabled && styles.gradientDisabled]}
         >
           {renderContent()}
         </LinearGradient>
+      </TouchableOpacity>
+    );
+  }
+
+  if (variant === 'accent') {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled || loading}
+        style={[buttonStyles, styles.accent]}
+        activeOpacity={0.8}
+      >
+        {renderContent()}
       </TouchableOpacity>
     );
   }
@@ -80,38 +101,44 @@ export const AppButton = ({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: theme.radii.lg,
+    borderRadius: theme.radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    ...theme.shadows.md,
   },
   sm: {
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[4],
     minHeight: 36,
   },
   md: {
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[5],
-    minHeight: 44,
+    minHeight: 48,
   },
   lg: {
-    paddingVertical: theme.spacing[4],
-    paddingHorizontal: theme.spacing[6],
-    minHeight: 52,
+    minHeight: 56,
   },
   fullWidth: {
     width: '100%',
   },
   gradient: {
     flex: 1,
-    borderRadius: theme.radii.lg,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    paddingVertical: theme.spacing[4],
+    ...theme.shadows.md,
+  },
+  gradientSm: {
+    borderRadius: theme.radii.pill,
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[5],
+  },
+  gradientMd: {
+    borderRadius: theme.radii.pill,
+    paddingVertical: theme.spacing[3],
     paddingHorizontal: theme.spacing[6],
+  },
+  gradientLg: {
+    borderRadius: theme.radii.pill,
+    paddingVertical: theme.spacing[4],
+    paddingHorizontal: theme.spacing[7],
   },
   gradientDisabled: {
     opacity: 0.5,
@@ -120,9 +147,27 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.white,
     borderWidth: 2,
     borderColor: theme.colors.secondary,
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[6],
+    ...theme.shadows.sm,
+  },
+  outline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: theme.colors.primary,
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[6],
+  },
+  accent: {
+    backgroundColor: theme.colors.accent,
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[6],
+    ...theme.shadows.md,
   },
   ghost: {
     backgroundColor: 'transparent',
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[6],
   },
   disabled: {
     opacity: 0.5,
@@ -133,18 +178,27 @@ const styles = StyleSheet.create({
   },
   textSm: {
     fontSize: 14,
+    fontFamily: theme.fonts.medium,
   },
   textMd: {
     fontSize: 16,
+    fontFamily: theme.fonts.semiBold,
   },
   textLg: {
     fontSize: 18,
+    fontFamily: theme.fonts.semiBold,
   },
   textPrimary: {
     color: theme.colors.white,
   },
   textSecondary: {
     color: theme.colors.secondary,
+  },
+  textOutline: {
+    color: theme.colors.primary,
+  },
+  textAccent: {
+    color: theme.colors.white,
   },
   textGhost: {
     color: theme.colors.primary,

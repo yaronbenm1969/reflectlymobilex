@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,0,0,0.8)',
     paddingHorizontal: theme.spacing[3],
     paddingVertical: theme.spacing[1],
-    borderRadius: theme.radii.full,
+    borderRadius: theme.radii.pill,
   },
   recordingDot: {
     width: 8,

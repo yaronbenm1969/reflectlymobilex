@@ -1,8 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet, Linking } from 'react-native';
+import { View, StyleSheet, Linking, Text, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useFonts } from 'expo-font';
+import { Rubik_400Regular } from '@expo-google-fonts/rubik/400Regular';
+import { Rubik_500Medium } from '@expo-google-fonts/rubik/500Medium';
+import { Rubik_600SemiBold } from '@expo-google-fonts/rubik/600SemiBold';
+import { Rubik_700Bold } from '@expo-google-fonts/rubik/700Bold';
 import { 
   AuthScreen,
   SplashScreen,
@@ -33,6 +38,13 @@ import { useAppState } from './src/state/appState';
 import { authService } from './src/services/authService';
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Rubik_400Regular,
+    Rubik_500Medium,
+    Rubik_600SemiBold,
+    Rubik_700Bold,
+  });
+
   console.log('🚀 Reflectly Mobile App Starting...');
   console.log('✅ Hamburger ready');
   
@@ -205,12 +217,20 @@ export default function App() {
     }
   };
 
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#8446b0" />
+      </View>
+    );
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AccessGate>
           <View style={styles.container}>
-            <StatusBar style="auto" backgroundColor="#FFEFF4" />
+            <StatusBar style="auto" backgroundColor="#F5F0FA" />
             {renderScreen()}
             
             <SideMenu 
@@ -225,8 +245,14 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#F5F0FA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#FFEFF4',
+    backgroundColor: '#F5F0FA',
   },
 });
