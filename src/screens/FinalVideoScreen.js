@@ -11,7 +11,7 @@ import {
   Linking,
   ScrollView,
 } from 'react-native';
-import { Video } from 'expo-av';
+import { Video, Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Sharing from 'expo-sharing';
@@ -26,6 +26,9 @@ import { AnimationPlayer } from '../components/animations';
 import { useReflectionAssets } from '../hooks/useReflectionAssets';
 import { storageService } from '../services/storageService';
 import theme from '../theme/theme';
+
+const STORAGE_BUCKET = 'reflectly-playback.firebasestorage.app';
+const MUSIC_BASE_URL = `https://storage.googleapis.com/${STORAGE_BUCKET}/music/library`;
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -43,6 +46,7 @@ export const FinalVideoScreen = () => {
   const videoFormat = useAppState((state) => state.videoFormat);
   const keyStoryUri = useAppState((state) => state.keyStoryUri);
   const currentStoryId = useAppState((state) => state.currentStoryId);
+  const selectedMusic = useAppState((state) => state.selectedMusic);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -73,6 +77,74 @@ export const FinalVideoScreen = () => {
   const clientRecordingSupportedRef = useRef(false);
   const videoRef = useRef(null);
   const cubeRef = useRef(null);
+  const ambientSoundRef = useRef(null);
+  const ambientPhaseIndexRef = useRef(0);
+
+  const isAmbientMusic = selectedMusic && selectedMusic !== 'none' && selectedMusic !== 'ai-generated';
+
+  const startAmbientMusic = async () => {
+    if (!isAmbientMusic) return;
+
+    try {
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+      });
+
+      const phaseNum = ambientPhaseIndexRef.current + 1;
+      const url = `${MUSIC_BASE_URL}/${selectedMusic}/phase${phaseNum > 3 ? 1 : phaseNum}.mp3`;
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: true, volume: 0.3, isLooping: false }
+      );
+
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.didJustFinish) {
+          ambientPhaseIndexRef.current = (ambientPhaseIndexRef.current + 1) % 3;
+          sound.unloadAsync().then(() => {
+            startAmbientMusic();
+          });
+        }
+      });
+
+      ambientSoundRef.current = sound;
+    } catch (err) {
+      console.error('Ambient music error:', err.message);
+    }
+  };
+
+  const stopAmbientMusic = async () => {
+    if (ambientSoundRef.current) {
+      try {
+        const status = await ambientSoundRef.current.getStatusAsync();
+        if (status.isLoaded) {
+          const startVol = status.volume || 0.3;
+          const steps = 10;
+          for (let i = steps; i >= 0; i--) {
+            if (!ambientSoundRef.current) break;
+            await ambientSoundRef.current.setVolumeAsync((startVol * i) / steps);
+            await new Promise(r => setTimeout(r, 100));
+          }
+        }
+        await ambientSoundRef.current.stopAsync();
+        await ambientSoundRef.current.unloadAsync();
+      } catch (e) {}
+      ambientSoundRef.current = null;
+    }
+    ambientPhaseIndexRef.current = 0;
+  };
+
+  useEffect(() => {
+    return () => {
+      if (ambientSoundRef.current) {
+        ambientSoundRef.current.stopAsync().catch(() => {});
+        ambientSoundRef.current.unloadAsync().catch(() => {});
+        ambientSoundRef.current = null;
+      }
+    };
+  }, []);
 
   const needsConversion = (url) => {
     if (!url) return false;
@@ -248,6 +320,7 @@ export const FinalVideoScreen = () => {
           setActiveVideoUrl(allConvertedUrls[0]);
           setShowVideoPlayer(true);
           setIsPlaying(true);
+          startAmbientMusic();
           console.log(`✅ All videos converted, starting playback`);
         } catch (error) {
           console.error('❌ Conversion failed:', error);
@@ -262,6 +335,7 @@ export const FinalVideoScreen = () => {
         setActiveVideoUrl(originalUrls[0]);
         setShowVideoPlayer(true);
         setIsPlaying(true);
+        startAmbientMusic();
       }
     }
   };
@@ -278,6 +352,7 @@ export const FinalVideoScreen = () => {
       setActiveVideoUrl(null);
       setIsPlaying(false);
       setCurrentVideoIndex(0);
+      stopAmbientMusic();
       console.log(`✅ Cube playback complete`);
     }
   };
@@ -286,8 +361,16 @@ export const FinalVideoScreen = () => {
     if (videoRef.current) {
       if (isPlaying) {
         await videoRef.current.pauseAsync();
+        if (ambientSoundRef.current) {
+          try { await ambientSoundRef.current.pauseAsync(); } catch (e) {}
+        }
       } else {
         await videoRef.current.playAsync();
+        if (ambientSoundRef.current) {
+          try { await ambientSoundRef.current.playAsync(); } catch (e) {}
+        } else {
+          startAmbientMusic();
+        }
       }
       setIsPlaying(!isPlaying);
     }
@@ -888,12 +971,14 @@ export const FinalVideoScreen = () => {
   };
 
   const handleNewStory = () => {
+    stopAmbientMusic();
     resetStory();
     go('Home');
   };
 
   const handlePlaybackComplete = () => {
     setPlaybackComplete(true);
+    stopAmbientMusic();
   };
 
   const videos3D = is3DFormat ? prepareVideosFor3D() : [];
@@ -922,6 +1007,7 @@ export const FinalVideoScreen = () => {
               console.log('🚀 Animation fullscreen mode ON');
               setIsCubeFullscreen(true);
               setCubeStarted(true);
+              startAmbientMusic();
               if (recordNextPlayback) {
                 setClientRecordingInProgress(true);
               }
@@ -930,6 +1016,7 @@ export const FinalVideoScreen = () => {
               console.log('✅ All videos finished - showing end screen');
               setIsCubeFullscreen(false);
               setVideoHasPlayed(true);
+              stopAmbientMusic();
               if (clientRecordingInProgress) {
                 console.log('📹 Playback complete during recording - waiting for data');
               } else if (isRecordingMode) {
