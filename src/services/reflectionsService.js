@@ -3,16 +3,39 @@ import {
   doc,
   getDoc,
   getDocs,
+  addDoc,
   query,
   where,
   orderBy,
-  onSnapshot
+  onSnapshot,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
 
 const REFLECTIONS_COLLECTION = 'reflections';
 
 export const reflectionsService = {
+  saveReflection: async (storyId, clipNumber, videoUrl, participantId, participantName) => {
+    try {
+      const docRef = await addDoc(collection(db, REFLECTIONS_COLLECTION), {
+        storyId,
+        clipNumber,
+        videoUrl,
+        convertedUrl: null,
+        conversionStatus: 'pending',
+        participantId,
+        participantName: participantName || `משתתף`,
+        createdAt: serverTimestamp(),
+        status: 'pending'
+      });
+      console.log(`✅ Reflection saved to Firestore: ${docRef.id}`);
+      return { success: true, docId: docRef.id };
+    } catch (error) {
+      console.error('❌ Save reflection error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
   getReflectionsForStory: async (storyId) => {
     try {
       console.log('📥 Fetching reflections for story:', storyId);
