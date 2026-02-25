@@ -90,6 +90,25 @@ ${webPlayerUrl}
     }
   };
 
+  const handleTestAsPlayer = async () => {
+    if (!currentStoryId) {
+      Alert.alert('שגיאה', 'אין סיפור פעיל');
+      return;
+    }
+    try {
+      const { storiesService } = require('../services/storiesService');
+      const result = await storiesService.getStory(currentStoryId);
+      if (result.success) {
+        const enterPlayerMode = useAppState.getState().enterPlayerMode;
+        enterPlayerMode(currentStoryId, result.story);
+      } else {
+        Alert.alert('שגיאה', 'לא נמצא סיפור');
+      }
+    } catch (err) {
+      Alert.alert('שגיאה', err.message);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -150,6 +169,24 @@ ${webPlayerUrl}
             תוכל להמשיך גם אם עדיין לא שיתפת
           </Text>
         </View>
+
+        <Card style={styles.testCard}>
+          <View style={styles.testHeader}>
+            <Ionicons name="flask" size={20} color={theme.colors.accent} />
+            <Text style={styles.testTitle}>מצב בדיקה</Text>
+          </View>
+          <Text style={styles.testDescription}>
+            היכנס כשחקן לסיפור הזה כדי לבדוק את הפלואו (כולל מוזיקה בהקלטה)
+          </Text>
+          <AppButton
+            title="בדוק כשחקן"
+            onPress={handleTestAsPlayer}
+            variant="secondary"
+            size="md"
+            fullWidth
+            icon="person-add"
+          />
+        </Card>
       </ScrollView>
     </View>
   );
@@ -275,5 +312,28 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.subtext,
     marginTop: theme.spacing[2],
+  },
+  testCard: {
+    padding: theme.spacing[4],
+    marginBottom: theme.spacing[4],
+    borderWidth: 1,
+    borderColor: `${theme.colors.accent}40`,
+    borderStyle: 'dashed',
+  },
+  testHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    marginBottom: theme.spacing[2],
+  },
+  testTitle: {
+    ...theme.typography.h4,
+    color: theme.colors.accent,
+  },
+  testDescription: {
+    ...theme.typography.small,
+    color: theme.colors.subtext,
+    textAlign: 'right',
+    marginBottom: theme.spacing[3],
   },
 });
