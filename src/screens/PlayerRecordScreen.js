@@ -109,7 +109,7 @@ export const PlayerRecordScreen = () => {
       setRecordingTimer(0);
       clipDurationRef.current = 0;
 
-      ambient.playPhase(clipIndex + 1);
+      await ambient.playPhase(clipIndex + 1);
 
       recordingTimerRef.current = setInterval(() => {
         clipDurationRef.current += 1;
