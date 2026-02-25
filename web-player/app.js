@@ -1009,6 +1009,8 @@ async function initApp() {
             if (inAppBrowser) {
                 console.log('📱 In-app browser detected, adding banner for recording');
                 addInAppBrowserBanner();
+            } else {
+                addOpenInAppBanner();
             }
         } else {
             // Story not found - show welcome screen (no code entry)
@@ -1064,6 +1066,56 @@ function addInAppBrowserBanner() {
         </button>
     `;
     watchScreen.insertBefore(banner, watchScreen.firstChild);
+}
+
+function addOpenInAppBanner() {
+    if (isInAppBrowser()) return;
+
+    const watchScreen = document.getElementById('watch-screen');
+    if (!watchScreen) return;
+    if (document.getElementById('open-in-app-banner')) return;
+
+    const storyId = currentStory?.id;
+    if (!storyId) return;
+
+    const deepLink = `reflectly://s/${encodeURIComponent(storyId)}`;
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isAndroid = /Android/i.test(navigator.userAgent);
+
+    let storeUrl = '#';
+    let storeName = '';
+    if (isIOS) {
+        storeUrl = 'https://apps.apple.com/app/reflectly';
+        storeName = 'App Store';
+    } else if (isAndroid) {
+        storeUrl = 'https://play.google.com/store/apps/details?id=com.reflectly.app';
+        storeName = 'Google Play';
+    }
+
+    const banner = document.createElement('div');
+    banner.id = 'open-in-app-banner';
+    banner.style.cssText = 'background: linear-gradient(135deg, #469bb015, #469bb025); border: 1px solid #469bb040; border-radius: 12px; padding: 12px 16px; margin: 8px 16px; display: flex; align-items: center; gap: 12px; direction: rtl;';
+    banner.innerHTML = `
+        <div style="font-size: 32px;">📱</div>
+        <div style="flex: 1; text-align: right;">
+            <div style="font-weight: 600; color: #1e1e1e; font-size: 14px;">יש לך את Reflectly?</div>
+            <div style="color: #666; font-size: 12px; margin-top: 2px;">פתח באפליקציה לחוויה טובה יותר</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+            <a href="${deepLink}" id="open-app-link" style="background: linear-gradient(135deg, #8446b0, #464fb0); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 13px; text-decoration: none; text-align: center; white-space: nowrap;">
+                פתח באפליקציה
+            </a>
+            ${(isIOS || isAndroid) ? `<a href="${storeUrl}" target="_blank" style="color: #469bb0; font-size: 11px; text-align: center; text-decoration: none;">הורד מ-${storeName}</a>` : ''}
+        </div>
+        <button onclick="this.parentElement.remove()" style="background: none; border: none; color: #999; font-size: 18px; cursor: pointer; padding: 4px; line-height: 1;">✕</button>
+    `;
+
+    const header = watchScreen.querySelector('.header');
+    if (header && header.nextSibling) {
+        watchScreen.insertBefore(banner, header.nextSibling);
+    } else {
+        watchScreen.appendChild(banner);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', init);
