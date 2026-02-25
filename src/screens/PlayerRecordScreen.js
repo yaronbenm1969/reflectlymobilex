@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
+import { useAmbientPlayback } from '../hooks/useAmbientPlayback';
 import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
@@ -17,10 +18,15 @@ import theme from '../theme/theme';
 export const PlayerRecordScreen = () => {
   const { go, back } = useNav();
   const navigationParams = useAppState((state) => state.navigationParams);
-  
+  const playerStoryData = useAppState((state) => state.playerStoryData);
+
   const video1Time = navigationParams?.video1Time || 30;
   const video2Time = navigationParams?.video2Time || 30;
   const video3Time = navigationParams?.video3Time || 30;
+
+  const storyMusic = playerStoryData?.music || navigationParams?.music || null;
+  const ambient = useAmbientPlayback(storyMusic);
+  const intervalRef = useRef(null);
 
   const [recordings, setRecordings] = useState({
     video1: null,
@@ -30,14 +36,22 @@ export const PlayerRecordScreen = () => {
   const [activeRecording, setActiveRecording] = useState(null);
   const [recordingTime, setRecordingTime] = useState(0);
 
+  const getPhaseForVideo = (videoId) => {
+    const map = { video1: 1, video2: 2, video3: 3 };
+    return map[videoId] || 1;
+  };
+
   const handleStartRecording = (videoId, maxTime) => {
     setActiveRecording(videoId);
     setRecordingTime(0);
+
+    const phase = getPhaseForVideo(videoId);
+    ambient.playPhase(phase);
     
-    const interval = setInterval(() => {
+    intervalRef.current = setInterval(() => {
       setRecordingTime((prev) => {
         if (prev >= maxTime) {
-          clearInterval(interval);
+          clearInterval(intervalRef.current);
           handleStopRecording(videoId);
           return maxTime;
         }
@@ -47,6 +61,11 @@ export const PlayerRecordScreen = () => {
   };
 
   const handleStopRecording = (videoId) => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    ambient.fadeOut(1500);
     setRecordings((prev) => ({
       ...prev,
       [videoId]: { recorded: true, duration: recordingTime },
@@ -56,6 +75,7 @@ export const PlayerRecordScreen = () => {
   };
 
   const handleSubmit = () => {
+    ambient.stop();
     const recordedCount = Object.values(recordings).filter(r => r?.recorded).length;
     
     if (recordedCount === 0) {
@@ -160,6 +180,21 @@ export const PlayerRecordScreen = () => {
           <Text style={styles.instructionsText}>
             לחץ על כל כפתור כדי להתחיל הקלטה. לחץ שוב לסיום.
           </Text>
+          {ambient.hasTrack && (
+            <View style={styles.musicIndicator}>
+              <Ionicons
+                name={ambient.isPlaying ? 'musical-notes' : 'musical-note'}
+                size={16}
+                color={ambient.isPlaying ? theme.colors.accent : theme.colors.subtext}
+              />
+              <Text style={[
+                styles.musicIndicatorText,
+                ambient.isPlaying && styles.musicIndicatorTextActive,
+              ]}>
+                {ambient.isPlaying ? 'מוזיקה מתנגנת' : 'מוזיקת רקע מוכנה'}
+              </Text>
+            </View>
+          )}
         </Card>
 
         <View style={styles.recordButtons}>
@@ -246,6 +281,24 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     textAlign: 'center',
     marginTop: theme.spacing[2],
+  },
+  musicIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme.spacing[3],
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[1],
+    backgroundColor: `${theme.colors.accent}10`,
+    borderRadius: theme.radii.pill,
+    gap: theme.spacing[1],
+  },
+  musicIndicatorText: {
+    ...theme.typography.caption,
+    color: theme.colors.subtext,
+  },
+  musicIndicatorTextActive: {
+    color: theme.colors.accent,
+    fontWeight: '600',
   },
   recordButtons: {
     gap: theme.spacing[3],
