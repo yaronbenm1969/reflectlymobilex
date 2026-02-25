@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Dimensions,
+  ActivityIndicator,
 } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
@@ -12,43 +15,49 @@ import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 
+const { width } = Dimensions.get('window');
+
 export const PlayerViewScreen = () => {
   const { go } = useNav();
   const navigationParams = useAppState((state) => state.navigationParams);
   const playerStoryData = useAppState((state) => state.playerStoryData);
-  
-  const [isPlaying, setIsPlaying] = useState(false);
+
   const [hasWatched, setHasWatched] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [isBuffering, setIsBuffering] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef(null);
 
   const storyData = playerStoryData || navigationParams || {};
   const storyName = storyData.name || storyData.storyName || 'הסיפור';
   const creatorName = storyData.creatorName || 'חבר';
   const instructions = storyData.instructions || 'שתף את החוויה שלך';
-  const videoUri = storyData.videoUri || storyData.videoUrl || null;
+  const videoUri = storyData.videoUri || storyData.videoUrl || storyData.keyStoryUrl || null;
 
-  useEffect(() => {
-    if (isPlaying) {
-      const interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 100) {
-            setIsPlaying(false);
-            setHasWatched(true);
-            clearInterval(interval);
-            return 100;
-          }
-          return prev + 2;
-        });
-      }, 100);
-      return () => clearInterval(interval);
+  const handlePlayPause = async () => {
+    if (!videoRef.current) return;
+    const status = await videoRef.current.getStatusAsync();
+    if (status.isPlaying) {
+      await videoRef.current.pauseAsync();
+      setIsPlaying(false);
+    } else {
+      if (status.didJustFinish || status.positionMillis >= status.durationMillis) {
+        await videoRef.current.replayAsync();
+      } else {
+        await videoRef.current.playAsync();
+      }
+      setIsPlaying(true);
     }
-  }, [isPlaying]);
+  };
 
-  const handlePlay = () => {
-    if (progress >= 100) {
-      setProgress(0);
+  const handlePlaybackStatusUpdate = (status) => {
+    if (status.isLoaded) {
+      setIsBuffering(status.isBuffering);
+      setIsPlaying(status.isPlaying);
+      if (status.didJustFinish) {
+        setHasWatched(true);
+        setIsPlaying(false);
+      }
     }
-    setIsPlaying(true);
   };
 
   const handleContinue = () => {
@@ -67,26 +76,42 @@ export const PlayerViewScreen = () => {
 
       <View style={styles.content}>
         <View style={styles.videoContainer}>
-          <View style={styles.videoPreview}>
-            {!isPlaying ? (
-              <TouchableOpacity style={styles.playButton} onPress={handlePlay}>
-                <Ionicons 
-                  name={hasWatched ? "refresh" : "play"} 
-                  size={48} 
-                  color="white" 
-                />
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.playingIndicator}>
-                <Ionicons name="volume-high" size={32} color="white" />
-                <Text style={styles.playingText}>מתנגן...</Text>
-              </View>
-            )}
-          </View>
-          
-          {isPlaying && (
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${progress}%` }]} />
+          {videoUri ? (
+            <TouchableOpacity
+              style={styles.videoWrapper}
+              activeOpacity={0.9}
+              onPress={handlePlayPause}
+            >
+              <Video
+                ref={videoRef}
+                source={{ uri: videoUri }}
+                style={styles.video}
+                resizeMode={ResizeMode.COVER}
+                shouldPlay={false}
+                onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+                onLoad={() => setIsBuffering(false)}
+              />
+              {isBuffering && (
+                <View style={styles.bufferingOverlay}>
+                  <ActivityIndicator size="large" color="white" />
+                </View>
+              )}
+              {!isPlaying && !isBuffering && (
+                <View style={styles.playOverlay}>
+                  <View style={styles.playButton}>
+                    <Ionicons
+                      name={hasWatched ? "refresh" : "play"}
+                      size={48}
+                      color="white"
+                    />
+                  </View>
+                </View>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.noVideoPlaceholder}>
+              <Ionicons name="videocam-off" size={48} color="#999" />
+              <Text style={styles.noVideoText}>הסרטון אינו זמין</Text>
             </View>
           )}
         </View>
@@ -150,14 +175,28 @@ const styles = StyleSheet.create({
     padding: theme.spacing[4],
   },
   videoContainer: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: '#000',
     borderRadius: theme.radii.lg,
     overflow: 'hidden',
     ...theme.shadows.md,
   },
-  videoPreview: {
-    height: 220,
-    backgroundColor: '#333',
+  videoWrapper: {
+    width: '100%',
+    aspectRatio: 9 / 16,
+    maxHeight: 300,
+  },
+  video: {
+    width: '100%',
+    height: '100%',
+  },
+  bufferingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playOverlay: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -169,21 +208,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playingIndicator: {
+  noVideoPlaceholder: {
+    height: 220,
+    backgroundColor: '#333',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: theme.spacing[2],
   },
-  playingText: {
-    color: 'white',
+  noVideoText: {
+    color: '#999',
     fontSize: 16,
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: '#ddd',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: theme.colors.primary,
   },
   storyInfo: {
     alignItems: 'center',

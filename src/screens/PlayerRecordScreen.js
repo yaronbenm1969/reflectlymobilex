@@ -1,164 +1,342 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Alert,
+  Dimensions,
+  Platform,
+  ActivityIndicator,
+  ScrollView,
 } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { useAmbientPlayback } from '../hooks/useAmbientPlayback';
-import { Card } from '../ui/Card';
+import storageService from '../services/storageService';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
+
+const isWeb = Platform.OS === 'web';
+const { width, height } = Dimensions.get('window');
+
+let Haptics;
+try {
+  Haptics = require('expo-haptics');
+} catch (error) {
+  Haptics = {
+    selectionAsync: async () => {},
+    notificationAsync: async () => {},
+    NotificationFeedbackType: { Success: 'success' },
+  };
+}
 
 export const PlayerRecordScreen = () => {
   const { go, back } = useNav();
   const navigationParams = useAppState((state) => state.navigationParams);
   const playerStoryData = useAppState((state) => state.playerStoryData);
+  const playerStoryId = useAppState((state) => state.playerStoryId);
 
-  const video1Time = navigationParams?.video1Time || 30;
-  const video2Time = navigationParams?.video2Time || 30;
-  const video3Time = navigationParams?.video3Time || 30;
+  const [permission, requestPermission] = useCameraPermissions();
+  const [facing, setFacing] = useState('front');
+
+  const clipTimes = [
+    navigationParams?.video1Time || 60,
+    navigationParams?.video2Time || 60,
+    navigationParams?.video3Time || 60,
+  ];
 
   const storyMusic = playerStoryData?.music || navigationParams?.music || null;
   const ambient = useAmbientPlayback(storyMusic);
-  const intervalRef = useRef(null);
 
-  const [recordings, setRecordings] = useState({
-    video1: null,
-    video2: null,
-    video3: null,
-  });
-  const [activeRecording, setActiveRecording] = useState(null);
-  const [recordingTime, setRecordingTime] = useState(0);
+  const cameraRef = useRef(null);
+  const recordingTimerRef = useRef(null);
 
-  const getPhaseForVideo = (videoId) => {
-    const map = { video1: 1, video2: 2, video3: 3 };
-    return map[videoId] || 1;
-  };
+  const [clipRecordings, setClipRecordings] = useState([null, null, null]);
+  const [activeClip, setActiveClip] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTimer, setRecordingTimer] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
 
-  const handleStartRecording = (videoId, maxTime) => {
-    setActiveRecording(videoId);
-    setRecordingTime(0);
-
-    const phase = getPhaseForVideo(videoId);
-    ambient.playPhase(phase);
-    
-    intervalRef.current = setInterval(() => {
-      setRecordingTime((prev) => {
-        if (prev >= maxTime) {
-          clearInterval(intervalRef.current);
-          handleStopRecording(videoId);
-          return maxTime;
-        }
-        return prev + 1;
-      });
-    }, 1000);
-  };
-
-  const handleStopRecording = (videoId) => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+  useEffect(() => {
+    if (!permission) {
+      requestPermission();
     }
-    ambient.fadeOut(1500);
-    setRecordings((prev) => ({
-      ...prev,
-      [videoId]: { recorded: true, duration: recordingTime },
-    }));
-    setActiveRecording(null);
-    setRecordingTime(0);
+  }, [permission]);
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      ambient.stop();
+    };
+  }, []);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleSubmit = () => {
-    ambient.stop();
-    const recordedCount = Object.values(recordings).filter(r => r?.recorded).length;
-    
-    if (recordedCount === 0) {
-      Alert.alert('אופס!', 'צריך להקליט לפחות סרטון אחד');
+  const startRecordingClip = async (clipIndex) => {
+    if (isWeb) {
+      setActiveClip(clipIndex);
+      setIsRecording(true);
+      setRecordingTimer(0);
+      ambient.playPhase(clipIndex + 1);
+      let timerVal = 0;
+      recordingTimerRef.current = setInterval(() => {
+        timerVal += 1;
+        setRecordingTimer(timerVal);
+        if (timerVal >= clipTimes[clipIndex]) {
+          stopRecordingClip(clipIndex);
+        }
+      }, 1000);
       return;
     }
 
-    go('ThankYou', {
-      recordedCount,
-      creatorName: navigationParams?.creatorName,
-      storyName: navigationParams?.storyName,
-    });
+    if (!cameraRef.current || isRecording) return;
+
+    try {
+      setActiveClip(clipIndex);
+      setIsRecording(true);
+      setRecordingTimer(0);
+
+      ambient.playPhase(clipIndex + 1);
+
+      let timerVal = 0;
+      recordingTimerRef.current = setInterval(() => {
+        timerVal += 1;
+        setRecordingTimer(timerVal);
+        if (timerVal >= clipTimes[clipIndex]) {
+          stopRecordingClip(clipIndex);
+        }
+      }, 1000);
+
+      const video = await cameraRef.current.recordAsync({
+        maxDuration: clipTimes[clipIndex],
+        codec: 'avc1',
+      });
+
+      if (video && video.uri) {
+        const updated = [...clipRecordings];
+        updated[clipIndex] = { uri: video.uri, duration: timerVal };
+        setClipRecordings(updated);
+        try {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (e) {}
+      }
+    } catch (error) {
+      console.error('Recording error:', error);
+      Alert.alert('שגיאה', 'ההקלטה נכשלה, נסה שוב');
+    }
   };
 
-  const renderRecordButton = (videoId, label, maxTime) => {
-    const isRecorded = recordings[videoId]?.recorded;
-    const isActive = activeRecording === videoId;
-    const isDisabled = activeRecording && !isActive;
+  const stopRecordingClip = async (clipIndex) => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
 
-    return (
-      <TouchableOpacity
-        style={[
-          styles.recordButton,
-          isRecorded && styles.recordButtonCompleted,
-          isActive && styles.recordButtonActive,
-          isDisabled && styles.recordButtonDisabled,
-        ]}
-        onPress={() => {
-          if (isActive) {
-            handleStopRecording(videoId);
-          } else if (!isDisabled) {
-            handleStartRecording(videoId, maxTime);
+    ambient.fadeOut(1500);
+    setIsRecording(false);
+    setActiveClip(null);
+
+    if (isWeb) {
+      const updated = [...clipRecordings];
+      updated[clipIndex] = { uri: 'web-demo', duration: recordingTimer };
+      setClipRecordings(updated);
+      return;
+    }
+
+    if (cameraRef.current) {
+      try {
+        await cameraRef.current.stopRecording();
+      } catch (e) {}
+    }
+  };
+
+  const toggleCameraType = async () => {
+    try { await Haptics.selectionAsync(); } catch (e) {}
+    setFacing(current => (current === 'back' ? 'front' : 'back'));
+  };
+
+  const handleSubmit = async () => {
+    ambient.stop();
+    const recorded = clipRecordings.filter(r => r !== null);
+
+    if (recorded.length === 0) {
+      Alert.alert('אופס!', 'צריך להקליט לפחות שיקוף אחד');
+      return;
+    }
+
+    if (!playerStoryId) {
+      go('ThankYou', {
+        recordedCount: recorded.length,
+        creatorName: playerStoryData?.creatorName || navigationParams?.creatorName,
+        storyName: playerStoryData?.name || navigationParams?.storyName,
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    const participantId = `participant_${Date.now()}`;
+    let uploadedCount = 0;
+
+    try {
+      for (let i = 0; i < clipRecordings.length; i++) {
+        const clip = clipRecordings[i];
+        if (!clip || clip.uri === 'web-demo') continue;
+
+        setUploadProgress(`מעלה שיקוף ${i + 1}...`);
+        const result = await storageService.uploadPlayerVideo(
+          clip.uri,
+          playerStoryId,
+          participantId,
+          i + 1,
+          (progress) => {
+            setUploadProgress(`מעלה שיקוף ${i + 1}... ${Math.round(progress)}%`);
           }
-        }}
-        disabled={isDisabled}
-      >
-        <View style={styles.recordButtonContent}>
-          <View style={[
-            styles.recordIcon,
-            isActive && styles.recordIconActive,
-            isRecorded && styles.recordIconCompleted,
-          ]}>
-            {isActive ? (
-              <View style={styles.stopIcon} />
-            ) : isRecorded ? (
-              <Ionicons name="checkmark" size={24} color="white" />
-            ) : (
-              <View style={styles.recordDot} />
-            )}
-          </View>
-          
-          <View style={styles.recordInfo}>
-            <Text style={[
-              styles.recordLabel,
-              isRecorded && styles.recordLabelCompleted,
-            ]}>
-              {label}
-            </Text>
-            <Text style={styles.recordDuration}>
-              {isActive 
-                ? `${recordingTime}s / ${maxTime}s` 
-                : isRecorded 
-                  ? `הוקלט (${recordings[videoId].duration}s)`
-                  : `עד ${maxTime} שניות`}
-            </Text>
-          </View>
-        </View>
+        );
 
-        {isActive && (
-          <View style={styles.progressContainer}>
-            <View 
-              style={[
-                styles.progressBar, 
-                { width: `${(recordingTime / maxTime) * 100}%` }
-              ]} 
-            />
-          </View>
-        )}
-      </TouchableOpacity>
-    );
+        if (result.success) {
+          uploadedCount++;
+        } else {
+          console.error(`Upload failed for clip ${i + 1}:`, result.error);
+        }
+      }
+
+      setIsUploading(false);
+      go('ThankYou', {
+        recordedCount: uploadedCount,
+        creatorName: playerStoryData?.creatorName || navigationParams?.creatorName,
+        storyName: playerStoryData?.name || navigationParams?.storyName,
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      setIsUploading(false);
+      Alert.alert('שגיאה בהעלאה', 'חלק מהסרטונים לא הועלו. נסה שוב.');
+    }
   };
 
-  const recordedCount = Object.values(recordings).filter(r => r?.recorded).length;
+  const recordedCount = clipRecordings.filter(r => r !== null).length;
+
+  if (!permission) {
+    return (
+      <View style={styles.permissionContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.permissionText}>בודק הרשאות מצלמה...</Text>
+      </View>
+    );
+  }
+
+  if (!permission.granted) {
+    return (
+      <View style={styles.permissionContainer}>
+        <Ionicons name="camera" size={64} color={theme.colors.primary} />
+        <Text style={styles.permissionText}>אנו זקוקים להרשאת מצלמה כדי להקליט</Text>
+        <AppButton
+          title="הענק הרשאה"
+          onPress={requestPermission}
+          variant="primary"
+          size="lg"
+        />
+      </View>
+    );
+  }
+
+  if (isUploading) {
+    return (
+      <View style={styles.permissionContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.permissionText}>{uploadProgress}</Text>
+      </View>
+    );
+  }
+
+  if (activeClip !== null) {
+    const maxTime = clipTimes[activeClip];
+    return (
+      <View style={styles.cameraContainer}>
+        <CameraView
+          style={styles.camera}
+          facing={facing}
+          ref={cameraRef}
+          mode="video"
+        >
+          <View style={styles.cameraHeader}>
+            <View style={styles.clipBadge}>
+              <Text style={styles.clipBadgeText}>שיקוף {activeClip + 1} מתוך 3</Text>
+            </View>
+
+            <TouchableOpacity style={styles.cameraHeaderButton} onPress={toggleCameraType}>
+              <Ionicons name="camera-reverse" size={24} color="white" />
+            </TouchableOpacity>
+          </View>
+
+          {isRecording && (
+            <View style={styles.recordingIndicator}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingText}>REC</Text>
+              <Text style={styles.timerText}>{formatTime(recordingTimer)}</Text>
+            </View>
+          )}
+
+          {isRecording && (
+            <View style={styles.progressContainer}>
+              <View
+                style={[
+                  styles.progressBar,
+                  { width: `${(recordingTimer / maxTime) * 100}%` },
+                ]}
+              />
+            </View>
+          )}
+
+          {ambient.hasTrack && ambient.isPlaying && (
+            <View style={styles.musicBadge}>
+              <Ionicons name="musical-notes" size={14} color="white" />
+              <Text style={styles.musicBadgeText}>מוזיקת רקע</Text>
+            </View>
+          )}
+
+          <View style={styles.cameraControls}>
+            <Text style={styles.maxTimeHint}>
+              {isRecording
+                ? `${formatTime(recordingTimer)} / ${formatTime(maxTime)}`
+                : `עד ${formatTime(maxTime)}`}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.recordBtn,
+                isRecording && styles.recordBtnActive,
+              ]}
+              onPress={() => {
+                if (isRecording) {
+                  stopRecordingClip(activeClip);
+                } else {
+                  startRecordingClip(activeClip);
+                }
+              }}
+            >
+              <View
+                style={[
+                  styles.recordBtnInner,
+                  isRecording && styles.recordBtnInnerActive,
+                ]}
+              />
+            </TouchableOpacity>
+            <Text style={styles.recordHint}>
+              {isRecording ? 'לחץ לעצירה' : 'לחץ להקלטה'}
+            </Text>
+          </View>
+        </CameraView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -173,47 +351,77 @@ export const PlayerRecordScreen = () => {
         <View style={styles.placeholder} />
       </LinearGradient>
 
-      <View style={styles.content}>
-        <Card style={styles.instructionsCard}>
-          <Ionicons name="videocam" size={32} color={theme.colors.primary} />
-          <Text style={styles.instructionsTitle}>הקלט 3 סרטוני שיקוף</Text>
-          <Text style={styles.instructionsText}>
-            לחץ על כל כפתור כדי להתחיל הקלטה. לחץ שוב לסיום.
-          </Text>
-          {ambient.hasTrack && (
-            <View style={styles.musicIndicator}>
-              <Ionicons
-                name={ambient.isPlaying ? 'musical-notes' : 'musical-note'}
-                size={16}
-                color={ambient.isPlaying ? theme.colors.accent : theme.colors.subtext}
-              />
-              <Text style={[
-                styles.musicIndicatorText,
-                ambient.isPlaying && styles.musicIndicatorTextActive,
-              ]}>
-                {ambient.isPlaying ? 'מוזיקה מתנגנת' : 'מוזיקת רקע מוכנה'}
-              </Text>
-            </View>
-          )}
-        </Card>
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
+        {ambient.hasTrack && (
+          <View style={styles.musicIndicator}>
+            <Ionicons name="musical-note" size={16} color={theme.colors.accent} />
+            <Text style={styles.musicIndicatorText}>מוזיקת רקע תנוגן בזמן ההקלטה</Text>
+          </View>
+        )}
 
-        <View style={styles.recordButtons}>
-          {renderRecordButton('video1', 'שיקוף ראשון', video1Time)}
-          {renderRecordButton('video2', 'שיקוף שני', video2Time)}
-          {renderRecordButton('video3', 'שיקוף שלישי', video3Time)}
+        <View style={styles.clipCards}>
+          {[0, 1, 2].map((i) => {
+            const clip = clipRecordings[i];
+            const isRecorded = clip !== null;
+            return (
+              <TouchableOpacity
+                key={i}
+                style={[
+                  styles.clipCard,
+                  isRecorded && styles.clipCardRecorded,
+                ]}
+                onPress={() => {
+                  setActiveClip(i);
+                }}
+              >
+                <View style={[
+                  styles.clipIcon,
+                  isRecorded && styles.clipIconRecorded,
+                ]}>
+                  {isRecorded ? (
+                    <Ionicons name="checkmark" size={28} color="white" />
+                  ) : (
+                    <Ionicons name="videocam" size={28} color={theme.colors.primary} />
+                  )}
+                </View>
+
+                <View style={styles.clipInfo}>
+                  <Text style={[
+                    styles.clipLabel,
+                    isRecorded && styles.clipLabelRecorded,
+                  ]}>
+                    שיקוף {i + 1}
+                  </Text>
+                  <Text style={styles.clipDuration}>
+                    {isRecorded
+                      ? `הוקלט (${clip.duration}s)`
+                      : `עד ${clipTimes[i]} שניות`}
+                  </Text>
+                </View>
+
+                <View style={styles.clipAction}>
+                  {isRecorded ? (
+                    <Text style={styles.reRecordText}>הקלט מחדש</Text>
+                  ) : (
+                    <Ionicons name="arrow-forward" size={24} color={theme.colors.primary} />
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <View style={styles.status}>
           <Text style={styles.statusText}>
-            הקלטת {recordedCount} מתוך 3 סרטונים
+            הקלטת {recordedCount} מתוך 3 שיקופים
           </Text>
           <View style={styles.statusDots}>
-            {[1, 2, 3].map((i) => (
+            {[0, 1, 2].map((i) => (
               <View
                 key={i}
                 style={[
                   styles.statusDot,
-                  recordings[`video${i}`]?.recorded && styles.statusDotFilled,
+                  clipRecordings[i] !== null && styles.statusDotFilled,
                 ]}
               />
             ))}
@@ -222,7 +430,7 @@ export const PlayerRecordScreen = () => {
 
         <View style={styles.actions}>
           <AppButton
-            title="שלח שיקופים"
+            title={recordedCount === 3 ? '🎉 שלח את כל השיקופים' : 'שלח שיקופים'}
             onPress={handleSubmit}
             variant="primary"
             size="lg"
@@ -230,7 +438,7 @@ export const PlayerRecordScreen = () => {
             disabled={recordedCount === 0}
           />
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 };
@@ -239,6 +447,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.bg,
+  },
+  permissionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.bg,
+    padding: theme.spacing[4],
+    gap: theme.spacing[4],
+  },
+  permissionText: {
+    fontSize: 18,
+    color: theme.colors.text,
+    textAlign: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -264,119 +485,76 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentInner: {
     padding: theme.spacing[4],
-  },
-  instructionsCard: {
-    padding: theme.spacing[4],
-    alignItems: 'center',
-    marginBottom: theme.spacing[4],
-  },
-  instructionsTitle: {
-    ...theme.typography.h3,
-    color: theme.colors.text,
-    marginTop: theme.spacing[2],
-  },
-  instructionsText: {
-    ...theme.typography.body,
-    color: theme.colors.subtext,
-    textAlign: 'center',
-    marginTop: theme.spacing[2],
+    paddingBottom: theme.spacing[8],
   },
   musicIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: theme.spacing[3],
+    justifyContent: 'center',
+    marginBottom: theme.spacing[4],
     paddingHorizontal: theme.spacing[3],
-    paddingVertical: theme.spacing[1],
-    backgroundColor: `${theme.colors.accent}10`,
+    paddingVertical: theme.spacing[2],
+    backgroundColor: `${theme.colors.accent}15`,
     borderRadius: theme.radii.pill,
-    gap: theme.spacing[1],
+    gap: theme.spacing[2],
+    alignSelf: 'center',
   },
   musicIndicatorText: {
     ...theme.typography.caption,
-    color: theme.colors.subtext,
-  },
-  musicIndicatorTextActive: {
     color: theme.colors.accent,
     fontWeight: '600',
   },
-  recordButtons: {
+  clipCards: {
     gap: theme.spacing[3],
   },
-  recordButton: {
+  clipCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: theme.colors.white,
     borderRadius: theme.radii.lg,
     padding: theme.spacing[4],
     ...theme.shadows.sm,
-    overflow: 'hidden',
   },
-  recordButtonCompleted: {
+  clipCardRecorded: {
     backgroundColor: '#E8F5E9',
   },
-  recordButtonActive: {
-    backgroundColor: '#FFEBEE',
-    borderWidth: 2,
-    borderColor: '#F44336',
-  },
-  recordButtonDisabled: {
-    opacity: 0.5,
-  },
-  recordButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing[3],
-  },
-  recordIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: theme.colors.bg,
+  clipIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: `${theme.colors.primary}15`,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recordIconActive: {
-    backgroundColor: '#F44336',
+  clipIconRecorded: {
+    backgroundColor: '#4CAF50',
   },
-  recordIconCompleted: {
-    backgroundColor: theme.colors.success,
-  },
-  recordDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#F44336',
-  },
-  stopIcon: {
-    width: 16,
-    height: 16,
-    backgroundColor: 'white',
-    borderRadius: 2,
-  },
-  recordInfo: {
+  clipInfo: {
     flex: 1,
+    marginLeft: theme.spacing[3],
   },
-  recordLabel: {
+  clipLabel: {
     ...theme.typography.h3,
     color: theme.colors.text,
   },
-  recordLabelCompleted: {
-    color: theme.colors.success,
+  clipLabelRecorded: {
+    color: '#2E7D32',
   },
-  recordDuration: {
+  clipDuration: {
     ...theme.typography.caption,
     color: theme.colors.subtext,
     marginTop: 2,
   },
-  progressContainer: {
-    height: 4,
-    backgroundColor: '#FFCDD2',
-    marginTop: theme.spacing[3],
-    borderRadius: 2,
+  clipAction: {
+    marginLeft: theme.spacing[2],
   },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#F44336',
-    borderRadius: 2,
+  reRecordText: {
+    ...theme.typography.caption,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
   status: {
     alignItems: 'center',
@@ -398,10 +576,140 @@ const styles = StyleSheet.create({
     backgroundColor: '#ddd',
   },
   statusDotFilled: {
-    backgroundColor: theme.colors.success,
+    backgroundColor: '#4CAF50',
   },
   actions: {
-    marginTop: 'auto',
-    paddingTop: theme.spacing[4],
+    marginTop: theme.spacing[6],
+  },
+  cameraContainer: {
+    flex: 1,
+    backgroundColor: 'black',
+  },
+  camera: {
+    flex: 1,
+  },
+  cameraHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: 50,
+  },
+  clipBadge: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[1],
+    borderRadius: theme.radii.pill,
+  },
+  clipBadgeText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  cameraHeaderButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recordingIndicator: {
+    position: 'absolute',
+    top: 100,
+    left: theme.spacing[4],
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,0,0,0.8)',
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[1],
+    borderRadius: theme.radii.pill,
+    gap: theme.spacing[2],
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'white',
+  },
+  recordingText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  timerText: {
+    color: 'white',
+    fontSize: 12,
+    fontFamily: 'monospace',
+  },
+  progressContainer: {
+    position: 'absolute',
+    top: 130,
+    left: theme.spacing[4],
+    right: theme.spacing[4],
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 2,
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#ff4444',
+    borderRadius: 2,
+  },
+  musicBadge: {
+    position: 'absolute',
+    top: 140,
+    right: theme.spacing[4],
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(70,155,176,0.7)',
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: 4,
+    borderRadius: theme.radii.pill,
+    gap: 4,
+  },
+  musicBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  cameraControls: {
+    position: 'absolute',
+    bottom: 50,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  maxTimeHint: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    marginBottom: theme.spacing[2],
+  },
+  recordBtn: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recordBtnActive: {
+    backgroundColor: 'rgba(255,0,0,0.8)',
+  },
+  recordBtnInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#ff4444',
+  },
+  recordBtnInnerActive: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+  },
+  recordHint: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    marginTop: theme.spacing[2],
   },
 });
