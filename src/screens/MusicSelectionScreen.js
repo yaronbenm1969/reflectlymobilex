@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, InteractionManage
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
+import { useAmbientPlayback } from '../hooks/useAmbientPlayback';
 import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
 import { storiesService } from '../services/storiesService';
@@ -117,30 +118,77 @@ export const MusicSelectionScreen = ({ route }) => {
   const currentStoryId = useAppState((state) => state.currentStoryId);
   const [currentSelection, setCurrentSelection] = useState(selectedMusic || null);
   const [isReady, setIsReady] = useState(false);
-
-  console.log('🎵 MusicSelectionScreen rendered');
+  const [playingPreview, setPlayingPreview] = useState(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const soundRef = useRef(null);
 
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
       setTimeout(() => {
         setIsReady(true);
-        console.log('✅ MusicSelectionScreen ready for interactions');
       }, 300);
     });
 
     return () => task.cancel();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      stopPreview();
+    };
+  }, []);
+
+  const stopPreview = async () => {
+    if (soundRef.current) {
+      try {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+      } catch (e) {}
+      soundRef.current = null;
+    }
+    setPlayingPreview(null);
+  };
+
   const handleSelect = (optionId) => {
     setCurrentSelection(optionId);
   };
 
-  const handleSave = async () => {
-    if (!isReady) {
-      console.log('⏸️ Save ignored - screen not ready');
+  const handlePreviewToggle = async (trackId) => {
+    if (playingPreview === trackId) {
+      await stopPreview();
       return;
     }
-    console.log('💾 Save music selection:', currentSelection, 'storyId:', currentStoryId);
+
+    await stopPreview();
+    setIsLoadingPreview(true);
+    setPlayingPreview(trackId);
+
+    try {
+      const { Audio } = require('expo-av');
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+      });
+
+      const url = `https://storage.googleapis.com/reflectly-playback.firebasestorage.app/music/library/${trackId}/phase1.mp3`;
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: true, volume: 0.4, isLooping: true }
+      );
+      soundRef.current = sound;
+      setIsLoadingPreview(false);
+    } catch (err) {
+      console.error('Preview error:', err.message);
+      setPlayingPreview(null);
+      setIsLoadingPreview(false);
+    }
+  };
+
+  const handleSave = async () => {
+    await stopPreview();
+    if (!isReady) {
+      return;
+    }
     if (currentSelection) {
       setSelectedMusic(currentSelection);
     }
@@ -251,10 +299,33 @@ export const MusicSelectionScreen = ({ route }) => {
                 {option.description}
               </Text>
 
-              <View style={styles.cardMeta}>
-                <Text style={styles.metaText}>{option.key}</Text>
-                <Text style={styles.metaDot}>·</Text>
-                <Text style={styles.metaText}>{option.bpm} BPM</Text>
+              <View style={styles.cardFooter}>
+                <View style={styles.cardMeta}>
+                  <Text style={styles.metaText}>{option.key}</Text>
+                  <Text style={styles.metaDot}>·</Text>
+                  <Text style={styles.metaText}>{option.bpm} BPM</Text>
+                </View>
+                <TouchableOpacity
+                  style={[
+                    styles.previewButton,
+                    playingPreview === option.id && styles.previewButtonActive,
+                  ]}
+                  onPress={(e) => {
+                    e.stopPropagation && e.stopPropagation();
+                    handlePreviewToggle(option.id);
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  {isLoadingPreview && playingPreview === option.id ? (
+                    <ActivityIndicator size={14} color={theme.colors.accent} />
+                  ) : (
+                    <Ionicons
+                      name={playingPreview === option.id ? 'pause' : 'play'}
+                      size={14}
+                      color={playingPreview === option.id ? '#fff' : theme.colors.accent}
+                    />
+                  )}
+                </TouchableOpacity>
               </View>
             </TouchableOpacity>
           ))}
@@ -403,10 +474,26 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginBottom: 8,
   },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   cardMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  previewButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: `${theme.colors.accent}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewButtonActive: {
+    backgroundColor: theme.colors.accent,
   },
   metaText: {
     fontSize: 10,
