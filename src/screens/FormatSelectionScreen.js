@@ -135,7 +135,7 @@ export const FormatSelectionScreen = ({ route }) => {
         </View>
         
         {isSelected && (
-          <Ionicons name="checkmark-circle" size={24} color={theme.colors.secondary} style={styles.checkIcon} />
+          <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} style={styles.checkIcon} />
         )}
       </View>
     </TouchableOpacity>
@@ -162,7 +162,7 @@ export const FormatSelectionScreen = ({ route }) => {
           <Text style={styles.optionDescription}>{option.description}</Text>
         </View>
         {isSelected && (
-          <Ionicons name="checkmark-circle" size={24} color={theme.colors.secondary} />
+          <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
         )}
       </View>
     </TouchableOpacity>
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
     marginRight: theme.spacing[3],
   },
   iconContainerSelected: {
-    backgroundColor: theme.colors.secondary,
+    backgroundColor: theme.colors.primary,
   },
   optionInfo: {
     flex: 1,
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   optionNameSelected: {
-    color: theme.colors.secondary,
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   optionDescription: {

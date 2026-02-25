@@ -892,7 +892,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing[4],
   },
   editNowButton: {
-    backgroundColor: '#FF9800',
+    backgroundColor: theme.colors.primary,
     borderRadius: theme.radii.lg,
     padding: theme.spacing[4],
     alignItems: 'center',
