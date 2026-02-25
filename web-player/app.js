@@ -71,6 +71,8 @@ let timerInterval = null;
 let currentRecordingClip = null;
 let maxRecordTime = 30;
 let autoStopTimeout = null;
+let ambientAudio = null;
+const MUSIC_BASE_URL = 'https://storage.googleapis.com/reflectly-playback.firebasestorage.app/music/library';
 
 const clipRecordings = {
     1: null,
@@ -526,6 +528,50 @@ async function handlePublishingApproval(approved) {
             showScreen('rejectionFinal');
         }
     }
+}
+
+function getAmbientTrackId() {
+    if (!currentStory) return null;
+    const music = currentStory.music;
+    if (!music || music === 'none' || music === 'ai-generated') return null;
+    return music;
+}
+
+function startAmbientMusic(clipNumber) {
+    const trackId = getAmbientTrackId();
+    if (!trackId) return;
+
+    stopAmbientMusic();
+
+    const phaseNum = Math.min(clipNumber, 3);
+    const url = `${MUSIC_BASE_URL}/${trackId}/phase${phaseNum}.mp3`;
+
+    ambientAudio = new Audio(url);
+    ambientAudio.volume = 0.25;
+    ambientAudio.loop = true;
+    ambientAudio.play().catch(err => {
+        console.warn('Ambient music autoplay blocked:', err.message);
+    });
+    console.log(`🎵 Web player: ambient phase ${phaseNum} playing (${trackId})`);
+}
+
+function stopAmbientMusic() {
+    if (!ambientAudio) return;
+
+    const fadingAudio = ambientAudio;
+    ambientAudio = null;
+
+    let vol = fadingAudio.volume;
+    const fadeInterval = setInterval(() => {
+        vol -= 0.025;
+        if (vol <= 0) {
+            clearInterval(fadeInterval);
+            fadingAudio.pause();
+            fadingAudio.src = '';
+        } else {
+            fadingAudio.volume = vol;
+        }
+    }, 50);
 }
 
 async function startCamera() {
