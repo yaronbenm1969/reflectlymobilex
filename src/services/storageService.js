@@ -143,15 +143,14 @@ export const storageService = {
 
   uploadPlayerVideo: async (uri, storyId, participantId, videoNumber, onProgress = null) => {
     try {
-      if (needsConversion(uri)) {
-        console.log('Player video needs conversion');
-        return await storageService.uploadPlayerWithConversion(uri, storyId, participantId, videoNumber, onProgress);
-      }
+      console.log(`Uploading player video ${videoNumber} directly to Firebase...`);
       
       const response = await fetch(uri);
       const blob = await response.blob();
       
-      const filename = `stories/${storyId}/players/${participantId}/video${videoNumber}_${Date.now()}.mp4`;
+      const lowerUri = uri.toLowerCase();
+      const extension = lowerUri.includes('.mov') ? 'mov' : lowerUri.includes('.webm') ? 'webm' : 'mp4';
+      const filename = `stories/${storyId}/players/${participantId}/video${videoNumber}_${Date.now()}.${extension}`;
       const storageRef = ref(storage, filename);
       
       return new Promise((resolve, reject) => {
@@ -227,7 +226,28 @@ export const storageService = {
     } catch (error) {
       console.error('Player conversion error:', error.message);
       console.log('Falling back to direct upload...');
-      return await storageService.uploadPlayerVideo(uri, storyId, participantId, videoNumber, onProgress);
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const lowerUri = uri.toLowerCase();
+      const extension = lowerUri.includes('.mov') ? 'mov' : 'mp4';
+      const filename = `stories/${storyId}/players/${participantId}/video${videoNumber}_${Date.now()}.${extension}`;
+      const storageRef = ref(storage, filename);
+      
+      return new Promise((resolve, reject) => {
+        const uploadTask = uploadBytesResumable(storageRef, blob);
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            if (onProgress) onProgress(progress);
+          },
+          (error) => reject({ success: false, error: error.message }),
+          async () => {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve({ success: true, url: downloadURL });
+          }
+        );
+      });
     }
   }
 };
