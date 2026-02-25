@@ -73,15 +73,6 @@ const AMBIENT_LIBRARY = [
     bpm: 55
   },
   { 
-    id: 'grounded-calm', 
-    name: 'Grounded Calm',
-    nameHe: 'רוגע מעוגן',
-    description: 'קרקוע, יציבות. מרחב נמוך, מינימום תנועה.',
-    icon: 'leaf-outline',
-    key: 'F',
-    bpm: 56
-  },
-  { 
     id: 'subtle-uplift', 
     name: 'Subtle Uplift',
     nameHe: 'התעלות עדינה',
@@ -98,6 +89,24 @@ const AMBIENT_LIBRARY = [
     icon: 'globe-outline',
     key: 'D',
     bpm: 75
+  },
+  { 
+    id: 'electric-pulse', 
+    name: 'Electric Pulse',
+    nameHe: 'פעימה חשמלית',
+    description: 'טכנו מינימלי, אנרגיה עולה. בס עמוק + סינתים אטמוספריים.',
+    icon: 'flash-outline',
+    key: 'Fm',
+    bpm: 122
+  },
+  { 
+    id: 'world-celebration', 
+    name: 'World Celebration',
+    nameHe: 'חגיגה עולמית',
+    description: 'מסיבה עולמית, ג\'מבה וקונגות. פיוז\'ן מזרח תיכוני-אפריקאי.',
+    icon: 'earth-outline',
+    key: 'G',
+    bpm: 110
   },
 ];
 

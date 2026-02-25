@@ -14,24 +14,28 @@ export const SettingsScreen = () => {
       title: 'Camera Settings',
       subtitle: 'Resolution, quality, and camera preferences',
       icon: 'camera',
+      color: theme.colors.primary,
     },
     {
       id: 'audio',
       title: 'Audio Settings',
       subtitle: 'Microphone and sound quality options',
       icon: 'mic',
+      color: theme.colors.primary,
     },
     {
       id: 'storage',
       title: 'Storage',
       subtitle: 'Manage video files and storage usage',
       icon: 'folder',
+      color: theme.colors.secondary,
     },
     {
       id: 'privacy',
       title: 'Privacy',
       subtitle: 'Data usage and sharing preferences',
       icon: 'shield-checkmark',
+      color: theme.colors.accent,
     },
   ];
 
@@ -50,8 +54,8 @@ export const SettingsScreen = () => {
           <Text style={styles.sectionTitle}>App Settings</Text>
           {settingsOptions.map((option) => (
             <TouchableOpacity key={option.id} style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: `${theme.colors.secondary}15` }]}>
-                <Ionicons name={option.icon} size={20} color={theme.colors.secondary} />
+              <View style={[styles.settingIcon, { backgroundColor: `${option.color}15` }]}>
+                <Ionicons name={option.icon} size={20} color={option.color} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingTitle}>{option.title}</Text>

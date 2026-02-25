@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   optionSelected: {
-    backgroundColor: '#FFF5F9',
+    backgroundColor: `${theme.colors.primary}08`,
   },
   formatContent: {
     flexDirection: 'row',

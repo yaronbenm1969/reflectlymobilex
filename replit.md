@@ -80,16 +80,23 @@ Reflectly is a mobile journaling application built with React Native/Expo, desig
 5. Quiet Strength (E, 62bpm) - כוח שקט
 6. Light Movement (A, 80bpm) - תנועה עדינה
 7. Floating Memory (Dm, 55bpm) - זיכרון מרחף
-8. Grounded Calm (F, 56bpm) - רוגע מעוגן
 9. Subtle Uplift (Bb, 72bpm) - התעלות עדינה
 10. Open Horizon (D, 75bpm) - אופק פתוח
+11. Electric Pulse (Fm, 122bpm) - פעימה חשמלית (טכנו)
+12. World Celebration (G, 110bpm) - חגיגה עולמית
+
+### Ambient Library Storage
+- 11 tracks created in Suno AI, split into 3 phases each (33 files total)
+- Phase splitting: phase1=start, phase2=middle, phase3=end (1 min each, with overlaps for short tracks)
+- Uploaded to Firebase Storage: `music/library/{trackId}/phase{1,2,3}.mp3`
+- Public URLs: `https://storage.googleapis.com/reflectly-playback.firebasestorage.app/music/library/{trackId}/phase{N}.mp3`
+- Config: `server/music/ambient-library.js` exports `getPresetById()`, `getAllPresets()`, `getPhaseUrl()`
 
 ### Music API Endpoints (on video-converter-api.js, port 3001)
 - `POST /api/generate-music` - Start async full score generation
 - `GET /api/music-status/:jobId` - Poll generation progress
 - `POST /api/mix-music-with-video` - Mix music with rendered video
-- `GET /api/ambient-library` - Get all ambient presets metadata
-- `POST /api/generate-ambient-library` - Generate all 10 tracks (one-time)
+- `GET /api/ambient-library` - Get all 11 ambient presets with phase URLs
 - `GET /api/ambient-track/:trackId` - Get specific track URL and metadata
 
 ### Pipeline Order (no conflicts with existing video processing)
@@ -102,16 +109,17 @@ Individual videos → convertVideo() [noise filter] → clean videos → Format 
 - `story.musicAmbient` = { id, name, key, bpm, url }
 - `settings/ambientLibrary` = { tracks: { [presetId]: { url, key, bpm, name } }, generatedAt, trackCount }
 
-## Current Status / Next Steps (Feb 22, 2026)
-- **DONE**: MusicSelectionScreen UI with 10 Hebrew presets, ambient-library.js with MusicGen prompts, API endpoints, Firestore integration for saving selection + URL
-- **DONE**: Fixed `firestoreDb` variable name in ambient endpoints (was `db`), fixed Replicate token lazy initialization
-- **BLOCKED**: Replicate API token returning 401 Unauthorized. User needs to verify/refresh token at replicate.com/account/api-tokens and update the REPLICATE_API_TOKEN secret
-- **NEXT after token fix**: Run `/api/generate-ambient-library` to create all 10 tracks and upload to Firebase
-- **THEN**: Implement ambient playback during recording, build Stage 2 full dynamic score pipeline
+## Current Status / Next Steps (Feb 25, 2026)
+- **DONE**: 11 ambient tracks created in Suno AI, split to 3 phases each, uploaded to Firebase Storage (33 files)
+- **DONE**: ambient-library.js updated with all 11 presets and phase URLs
+- **DONE**: MusicSelectionScreen updated with 11 presets (removed Grounded Calm #8, added Electric Pulse #11 and World Celebration #12)
+- **DONE**: UI color guide applied across all screens (SideMenu, MyStories, Home, FormatSelection, Instructions, EditRoom, Settings)
+- **DONE**: Typography system with Rubik font family (4 weights), pill-shaped buttons
+- **NEXT**: Implement ambient playback during recording (play correct phase per video clip number)
+- **NEXT**: Build background replacement feature (MediaPipe Selfie Segmentation)
+- **THEN**: Build Stage 2 full dynamic score pipeline
 
 ### Commercial Licensing Decision
-- **For development**: Using MusicGen (Meta) via Replicate - NOT commercially licensed (CC-BY-NC)
-- **For production/commercial launch**: Plan to switch to Beatoven.ai API (~$0.12-0.15/min, ~₪0.40-0.55 per 1min video) - fully commercially licensed, ethically trained
-- **Alternative considered**: Suno AI ($10/mo Pro for manual creation), Mubert API ($99+/mo)
-- **Ambient library (10 tracks)**: Can create manually in Suno ($10 one-time) for commercial use
+- **Ambient library**: Created with Suno AI Pro ($10/mo) - commercially licensed
+- **For production/commercial launch**: Plan to switch to Beatoven.ai API (~$0.12-0.15/min) for dynamic score
 - **Code is modular**: music-service.js can be swapped to different provider without changing rest of pipeline
