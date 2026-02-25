@@ -81,17 +81,19 @@ export const PlayerRecordScreen = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const clipDurationRef = useRef(0);
+
   const startRecordingClip = async (clipIndex) => {
     if (isWeb) {
       setActiveClip(clipIndex);
       setIsRecording(true);
       setRecordingTimer(0);
+      clipDurationRef.current = 0;
       ambient.playPhase(clipIndex + 1);
-      let timerVal = 0;
       recordingTimerRef.current = setInterval(() => {
-        timerVal += 1;
-        setRecordingTimer(timerVal);
-        if (timerVal >= clipTimes[clipIndex]) {
+        clipDurationRef.current += 1;
+        setRecordingTimer(clipDurationRef.current);
+        if (clipDurationRef.current >= clipTimes[clipIndex]) {
           stopRecordingClip(clipIndex);
         }
       }, 1000);
@@ -104,16 +106,13 @@ export const PlayerRecordScreen = () => {
       setActiveClip(clipIndex);
       setIsRecording(true);
       setRecordingTimer(0);
+      clipDurationRef.current = 0;
 
       ambient.playPhase(clipIndex + 1);
 
-      let timerVal = 0;
       recordingTimerRef.current = setInterval(() => {
-        timerVal += 1;
-        setRecordingTimer(timerVal);
-        if (timerVal >= clipTimes[clipIndex]) {
-          stopRecordingClip(clipIndex);
-        }
+        clipDurationRef.current += 1;
+        setRecordingTimer(clipDurationRef.current);
       }, 1000);
 
       const video = await cameraRef.current.recordAsync({
@@ -121,34 +120,48 @@ export const PlayerRecordScreen = () => {
         codec: 'avc1',
       });
 
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      ambient.fadeOut(1500);
+
       if (video && video.uri) {
-        const updated = [...clipRecordings];
-        updated[clipIndex] = { uri: video.uri, duration: timerVal };
-        setClipRecordings(updated);
+        console.log(`✅ Clip ${clipIndex + 1} recorded: ${video.uri} (${clipDurationRef.current}s)`);
+        setClipRecordings(prev => {
+          const updated = [...prev];
+          updated[clipIndex] = { uri: video.uri, duration: clipDurationRef.current };
+          return updated;
+        });
         try {
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (e) {}
       }
+
+      setIsRecording(false);
+      setActiveClip(null);
     } catch (error) {
       console.error('Recording error:', error);
+      setIsRecording(false);
+      setActiveClip(null);
       Alert.alert('שגיאה', 'ההקלטה נכשלה, נסה שוב');
     }
   };
 
   const stopRecordingClip = async (clipIndex) => {
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
-    }
-
-    ambient.fadeOut(1500);
-    setIsRecording(false);
-    setActiveClip(null);
-
     if (isWeb) {
-      const updated = [...clipRecordings];
-      updated[clipIndex] = { uri: 'web-demo', duration: recordingTimer };
-      setClipRecordings(updated);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      ambient.fadeOut(1500);
+      setClipRecordings(prev => {
+        const updated = [...prev];
+        updated[clipIndex] = { uri: 'web-demo', duration: clipDurationRef.current };
+        return updated;
+      });
+      setIsRecording(false);
+      setActiveClip(null);
       return;
     }
 
