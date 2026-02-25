@@ -17,6 +17,7 @@ import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { useAmbientPlayback } from '../hooks/useAmbientPlayback';
 import storageService from '../services/storageService';
+import reflectionsService from '../services/reflectionsService';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 
@@ -216,6 +217,14 @@ export const PlayerRecordScreen = () => {
         );
 
         if (result.success) {
+          const participantName = playerStoryData?.participantName || navigationParams?.participantName || null;
+          await reflectionsService.saveReflection(
+            playerStoryId,
+            i + 1,
+            result.url,
+            participantId,
+            participantName
+          );
           uploadedCount++;
         } else {
           console.error(`Upload failed for clip ${i + 1}:`, result.error);
