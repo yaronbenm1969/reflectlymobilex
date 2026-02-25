@@ -1232,7 +1232,7 @@ app.get('/api/music-status/:jobId', (req, res) => {
 });
 
 app.post('/api/mix-music-with-video', async (req, res) => {
-  const { videoUrl, musicUrl, musicVolume = 0.3, storyId } = req.body;
+  const { videoUrl, musicUrl, musicVolume = 0.08, storyId } = req.body;
   
   if (!videoUrl || !musicUrl) {
     return res.status(400).json({ error: 'videoUrl and musicUrl are required' });

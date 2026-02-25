@@ -188,7 +188,7 @@ async function applySingleStemDynamics(stemPath, stemName, timeline, outputPath)
   });
 }
 
-async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume = 0.12) {
+async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume = 0.08) {
   console.log('🎬 Mixing music with video...');
   console.log(`Video: ${videoPath}`);
   console.log(`Music: ${musicPath}`);
@@ -199,7 +199,7 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
       '-i', videoPath,
       '-i', musicPath,
       '-filter_complex',
-      `[0:a]volume=1.0[voice];[1:a]volume=${musicVolume}[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=3[aout]`,
+      `[0:a]volume=1.8[voice];[1:a]volume=${musicVolume}[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=3:normalize=0[aout]`,
       '-map', '0:v',
       '-map', '[aout]',
       '-c:v', 'copy',
