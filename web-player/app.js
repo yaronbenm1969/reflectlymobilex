@@ -635,6 +635,8 @@ function startRecordingClip(clipNumber) {
     mediaRecorder.start(1000);
     recordingStartTime = Date.now();
     
+    startAmbientMusic(clipNumber);
+    
     document.getElementById('recording-indicator').classList.add('active');
     document.getElementById('single-record-btn').classList.add('recording');
     document.getElementById('single-record-status').textContent = 'לחץ לעצירה';
@@ -652,6 +654,8 @@ function stopRecordingClip() {
         clearTimeout(autoStopTimeout);
         autoStopTimeout = null;
     }
+    
+    stopAmbientMusic();
     
     if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
