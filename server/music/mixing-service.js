@@ -199,7 +199,7 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
       '-i', videoPath,
       '-i', musicPath,
       '-filter_complex',
-      `[0:a]loudnorm=I=-16:LRA=7:TP=-1.5[voice];[1:a]loudnorm=I=-24:LRA=7:TP=-1.5[music];[music][voice]sidechaincompress=threshold=0.02:ratio=6:attack=20:release=300:makeup=1[ducked];[voice][ducked]amix=inputs=2:duration=first:dropout_transition=3[aout]`,
+      `[0:a]volume=2.0[voice];[1:a]volume=0.05[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=3:normalize=0[aout]`,
       '-map', '0:v',
       '-map', '[aout]',
       '-c:v', 'copy',
