@@ -10,6 +10,7 @@ export const useAmbientPlayback = (trackId) => {
   const [currentPhase, setCurrentPhase] = useState(null);
   const [error, setError] = useState(null);
   const soundRef = useRef(null);
+  const soundIdRef = useRef(0);
   const isUnmountedRef = useRef(false);
 
   useEffect(() => {
@@ -51,6 +52,7 @@ export const useAmbientPlayback = (trackId) => {
 
     try {
       await unloadSound();
+      soundIdRef.current += 1;
 
       console.log(`🎵 Loading ambient phase ${phaseNumber}: ${trackId}`);
       const { sound } = await Audio.Sound.createAsync(
@@ -87,25 +89,39 @@ export const useAmbientPlayback = (trackId) => {
   }, []);
 
   const fadeOut = useCallback(async (durationMs = 1500) => {
-    if (!soundRef.current) return;
+    const fadingSound = soundRef.current;
+    if (!fadingSound) return;
+
+    const fadeId = soundIdRef.current;
+    soundRef.current = null;
+    setIsPlaying(false);
+    setCurrentPhase(null);
 
     try {
       const steps = 15;
       const stepTime = durationMs / steps;
-      const status = await soundRef.current.getStatusAsync();
+      const status = await fadingSound.getStatusAsync();
       const startVolume = status.isLoaded ? status.volume : 0.3;
 
       for (let i = steps; i >= 0; i--) {
-        if (isUnmountedRef.current || !soundRef.current) break;
-        await soundRef.current.setVolumeAsync((startVolume * i) / steps);
+        if (isUnmountedRef.current || fadeId !== soundIdRef.current) break;
+        try {
+          await fadingSound.setVolumeAsync((startVolume * i) / steps);
+        } catch (e) { break; }
         await new Promise(r => setTimeout(r, stepTime));
       }
 
-      await stop();
+      try {
+        await fadingSound.stopAsync();
+        await fadingSound.unloadAsync();
+      } catch (e) {}
     } catch (e) {
-      await stop();
+      try {
+        await fadingSound.stopAsync();
+        await fadingSound.unloadAsync();
+      } catch (e2) {}
     }
-  }, [stop]);
+  }, []);
 
   return {
     playPhase,
