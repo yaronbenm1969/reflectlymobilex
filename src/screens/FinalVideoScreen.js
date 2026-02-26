@@ -86,12 +86,6 @@ export const FinalVideoScreen = () => {
     if (!isAmbientMusic) return;
 
     try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-      });
-
       const phaseNum = ambientPhaseIndexRef.current + 1;
       const url = `${MUSIC_BASE_URL}/${selectedMusic}/phase${phaseNum > 3 ? 1 : phaseNum}.mp3`;
 
@@ -137,6 +131,12 @@ export const FinalVideoScreen = () => {
   };
 
   useEffect(() => {
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+    }).catch(() => {});
+
     return () => {
       if (ambientSoundRef.current) {
         ambientSoundRef.current.stopAsync().catch(() => {});
