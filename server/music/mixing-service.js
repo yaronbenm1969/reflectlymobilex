@@ -188,18 +188,63 @@ async function applySingleStemDynamics(stemPath, stemName, timeline, outputPath)
   });
 }
 
+async function analyzeLoudness(videoPath) {
+  return new Promise((resolve) => {
+    const args = [
+      '-i', videoPath,
+      '-af', 'loudnorm=I=-16:LRA=7:TP=-1.5:print_format=json',
+      '-f', 'null',
+      '-'
+    ];
+    execFile('ffmpeg', args, { timeout: 60000 }, (err, stdout, stderr) => {
+      const combined = (stdout || '') + (stderr || '');
+      const jsonMatch = combined.match(/\{[\s\S]*?"input_i"[\s\S]*?\}/);
+      if (jsonMatch) {
+        try {
+          const stats = JSON.parse(jsonMatch[0]);
+          console.log('📊 Loudness analysis:', JSON.stringify(stats));
+          resolve(stats);
+        } catch (e) {
+          console.warn('⚠️ Could not parse loudnorm JSON, using defaults');
+          resolve(null);
+        }
+      } else {
+        console.warn('⚠️ No loudnorm stats found in FFmpeg output');
+        resolve(null);
+      }
+    });
+  });
+}
+
 async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume = 0.08) {
-  console.log('🎬 Mixing music with video...');
-  console.log(`Video: ${videoPath}`);
-  console.log(`Music: ${musicPath}`);
-  console.log(`Music volume: ${musicVolume}`);
+  console.log('🎬 Pass 1: Analyzing speech loudness...');
+
+  const stats = await analyzeLoudness(videoPath);
+
+  let voiceFilter;
+  if (stats && stats.input_i && stats.input_i !== '-inf') {
+    const measuredI = parseFloat(stats.input_i);
+    const measuredLRA = parseFloat(stats.input_lra);
+    const measuredTP = parseFloat(stats.input_tp);
+    const measuredThresh = parseFloat(stats.input_thresh);
+    const offset = parseFloat(stats.target_offset);
+    console.log(`📊 Pass 2: Normalizing speech from ${measuredI.toFixed(1)} LUFS → -14 LUFS`);
+    voiceFilter = `loudnorm=I=-14:LRA=7:TP=-1.5:measured_I=${measuredI}:measured_LRA=${measuredLRA}:measured_TP=${measuredTP}:measured_thresh=${measuredThresh}:offset=${offset}:linear=true`;
+  } else {
+    console.log('📊 Pass 2: No valid levels detected, using volume boost fallback');
+    voiceFilter = 'volume=2.0';
+  }
+
+  const filterComplex = `[0:a]${voiceFilter}[voice];[1:a]volume=0.06[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`;
+
+  console.log('🎬 Pass 2: Mixing with music...');
+  console.log(`Music: ${musicPath} at 0.06`);
 
   return new Promise((resolve, reject) => {
     const args = [
       '-i', videoPath,
       '-i', musicPath,
-      '-filter_complex',
-      `[0:a]volume=2.0[voice];[1:a]volume=0.05[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=3:normalize=0[aout]`,
+      '-filter_complex', filterComplex,
       '-map', '0:v',
       '-map', '[aout]',
       '-c:v', 'copy',
@@ -210,9 +255,7 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
       '-y', outputPath
     ];
 
-    console.log('FFmpeg video+music command starting...');
-
-    execFile('ffmpeg', args, { timeout: 180000 }, (err, stdout, stderr) => {
+    execFile('ffmpeg', args, { timeout: 300000 }, (err, stdout, stderr) => {
       if (err) {
         console.error('❌ Video+music mixing failed:', err.message);
         console.error('FFmpeg stderr:', stderr?.substring(0, 500));
