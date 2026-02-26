@@ -17,7 +17,7 @@ export const useAmbientPlayback = (trackId) => {
     isUnmountedRef.current = false;
 
     Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
+      allowsRecordingIOS: false,
       playsInSilentModeIOS: true,
       staysActiveInBackground: false,
       shouldDuckAndroid: true,
