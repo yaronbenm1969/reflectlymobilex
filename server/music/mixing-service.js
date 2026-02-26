@@ -243,6 +243,7 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
   return new Promise((resolve, reject) => {
     const args = [
       '-i', videoPath,
+      '-stream_loop', '-1',
       '-i', musicPath,
       '-filter_complex', filterComplex,
       '-map', '0:v',
