@@ -6,7 +6,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CUBE_SIZE = Math.min(SCREEN_WIDTH * 0.85, 340);
 
-const CUBE_HTML_DIR = FileSystem.cacheDirectory + 'cube_v4/';
+const CUBE_HTML_DIR = FileSystem.cacheDirectory + 'cube/';
 
 const CubeWebView = ({
   faces = [],
@@ -18,90 +18,19 @@ const CubeWebView = ({
   onPlaybackStart,
   onPlaybackComplete,
   onReadyToPlay,
-  onRecordingSupport,
-  onRecordingComplete,
-  onRecordingProgress,
   isFullscreen = false,
   currentPlayingFaceIndex = -1,
-  triggerAutoPlay = false,
-  recordNextPlayback = false,
 }) => {
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [htmlFilePath, setHtmlFilePath] = useState(null);
-  
-  const [initialFaces, setInitialFaces] = useState(null);
-  const hasInitializedRef = useRef(false);
-  const webViewKeyRef = useRef(Date.now());
-  
-  const recordingChunksRef = useRef([]);
-  const recordingMetaRef = useRef(null);
-  
-  useEffect(() => {
-    if (hasInitializedRef.current) return;
-    const first4 = faces.slice(0, 4);
-    const minRequired = Math.min(4, faces.length);
-    const readyCount = first4.filter(f => f?.videoUrl).length;
-    
-    if (minRequired > 0 && readyCount >= minRequired) {
-      console.log(`🎲 All ${minRequired} initial videos ready - initializing cube`);
-      hasInitializedRef.current = true;
-      setInitialFaces([...faces]);
-    }
-  }, [faces]);
 
-  useEffect(() => {
-    if (!hasInitializedRef.current || !initialFaces || !webViewRef.current) return;
-    const newFaces = faces.filter(f => f?.videoUrl).slice(initialFaces.length);
-    if (newFaces.length > 0) {
-      const newVideos = newFaces.map((face, i) => ({
-        index: initialFaces.length + i,
-        videoUrl: face.videoUrl,
-        playerName: face?.playerName || `סרטון ${initialFaces.length + i + 1}`,
-      }));
-      console.log(`🎲 Sending ${newVideos.length} additional videos to cube WebView`);
-      webViewRef.current.injectJavaScript(`
-        if (window.addVideosToQueue) {
-          window.addVideosToQueue(${JSON.stringify(newVideos)});
-        }
-        true;
-      `);
-      setInitialFaces([...faces]);
-    }
-  }, [faces, initialFaces]);
-
-  useEffect(() => {
-    if (triggerAutoPlay && webViewRef.current) {
-      console.log('🎲 Auto-play triggered via prop');
-      webViewRef.current.injectJavaScript(`
-        if (typeof handlePlayClick === 'function') {
-          hasUserStarted = false;
-          isPlaying = false;
-          handlePlayClick();
-        }
-        true;
-      `);
-    }
-  }, [triggerAutoPlay]);
-
-  useEffect(() => {
-    if (recordNextPlayback && webViewRef.current) {
-      console.log('📹 Enabling recording for next playback');
-      webViewRef.current.injectJavaScript(`
-        window._recEnabled = true;
-        true;
-      `);
-    }
-  }, [recordNextPlayback]);
-
-  // Use initial faces for HTML generation - prevents WebView reload on face updates
   const cubeHTML = useMemo(() => {
-    if (!initialFaces || initialFaces.length === 0) return null;
-    
-    const facesJSON = JSON.stringify(initialFaces.map((face, index) => ({
+    const facesJSON = JSON.stringify(faces.map((face, index) => ({
       index,
       videoUrl: face?.videoUrl || null,
+      thumbnailUrl: face?.thumbnailUrl || face?.posterThumbUri || null,
       playerName: face?.playerName || `סרטון ${index + 1}`,
     })));
 
@@ -218,32 +147,15 @@ const CubeWebView = ({
       overflow: hidden;
       background: linear-gradient(145deg, rgba(255,107,157,0.95), rgba(192,111,187,0.95));
       box-shadow: 0 0 30px rgba(0,0,0,0.3);
-      backface-visibility: hidden;
-      -webkit-backface-visibility: hidden;
     }
-    .cube-face {
-      background: #000;
-    }
-    .cube-face video {
+    .cube-face video,
+    .cube-face img {
       width: 100%; 
       height: 100%;
       object-fit: cover;
       position: absolute;
       top: 0;
       left: 0;
-      background: #000;
-    }
-    /* Top/bottom faces - force GPU rendering on iOS */
-    .top video, .bottom video {
-      -webkit-transform: translateZ(0);
-      transform: translateZ(0);
-      -webkit-backface-visibility: visible;
-      backface-visibility: visible;
-    }
-    /* Force redraw on top/bottom faces */
-    .top, .bottom {
-      -webkit-transform-style: flat;
-      transform-style: flat;
     }
     .cube-face .placeholder {
       display: flex; 
@@ -256,6 +168,20 @@ const CubeWebView = ({
     }
     .cube-face .placeholder .icon { font-size: 60px; margin-bottom: 12px; }
     .cube-face .placeholder .label { font-size: 18px; opacity: 0.9; font-weight: 600; }
+    .player-badge {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
+      background: rgba(0,0,0,0.65);
+      padding: 8px 12px;
+      border-radius: 10px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: center;
+      z-index: 10;
+    }
     .front  { transform: rotateY(0deg) translateZ(${CUBE_SIZE/2}px); }
     .back   { transform: rotateY(180deg) translateZ(${CUBE_SIZE/2}px); }
     .right  { transform: rotateY(90deg) translateZ(${CUBE_SIZE/2}px); }
@@ -363,38 +289,6 @@ const CubeWebView = ({
     .play-button.hidden {
       display: none;
     }
-    .replay-button {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.95);
-      border: none;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .replay-button:hover {
-      transform: translate(-50%, -50%) scale(1.1);
-      box-shadow: 0 6px 25px rgba(0,0,0,0.4);
-    }
-    .replay-button:active {
-      transform: translate(-50%, -50%) scale(0.95);
-    }
-    .replay-button .replay-icon {
-      font-size: 36px;
-      color: #FF6B9D;
-    }
-    .replay-button.hidden {
-      display: none;
-    }
   </style>
 </head>
 <body>
@@ -406,9 +300,6 @@ const CubeWebView = ({
   <div class="depth-grid"></div>
   <button class="play-button hidden" id="play-button" onclick="handlePlayClick()">
     <div class="play-icon"></div>
-  </button>
-  <button class="replay-button hidden" id="replay-button" onclick="handleReplayClick()">
-    <div class="replay-icon">↻</div>
   </button>
   <div class="scene">
     <div class="float-wrapper">
@@ -425,43 +316,16 @@ const CubeWebView = ({
     </div>
   </div>
   <script>
-    // ============ MINIMAL CUBE V2 ============
-    // Simple state machine: currentIndex triggers everything
-    // Rotation only happens when video 'ended' fires
-    
     const faces = ${facesJSON};
-    let fullVideoQueue = faces.filter(f => f && f.videoUrl);
+    let videos = [];
+    let videoDurations = [];
+    let animationStarted = false;
+    let animationId = null;
+    let totalDuration = 0;
+    let cycleStartTime = 0;
+    let lastFrontFace = -1;
     
-    window.addVideosToQueue = function(newVideos) {
-      newVideos.forEach(function(v) {
-        fullVideoQueue.push(v);
-      });
-      console.log('🎲 Queue updated: now ' + fullVideoQueue.length + ' videos');
-    };
-    
-    // 4-face rotation path with dynamic tilt for visual interest
-    // iOS WebView cannot render video on rotateX faces, so we use only side faces
-    // but add slight X rotation for depth effect while keeping video on working faces
-    const ROTATION_PATH = [
-      { faceId: 0, rotX: 0, rotY: 0 },         // Front - straight
-      { faceId: 2, rotX: 12, rotY: -90 },      // Right - slight tilt up
-      { faceId: 1, rotX: -35, rotY: -180 },    // Top-tilt - looking down at cube (pseudo-top)
-      { faceId: 3, rotX: 10, rotY: -270 },     // Left - slight tilt up
-    ];
-    
-    // STATE
-    let currentIndex = 0;          // Current video in queue
-    let isPlaying = false;         // Is playback active?
-    let isRotating = false;        // Is rotation animation in progress?
-    let faceVideos = {};           // faceId -> { element, queueIdx }
-    let floatAnimId = null;        // Float animation frame ID
-    let floatStartTime = 0;        // Float animation start
-    
-    // Current rotation angles
-    let currentRotX = 0;
-    let currentRotY = 0;
-    
-    console.log('🎲 Cube V2 init: ' + fullVideoQueue.length + ' videos');
+    const DEFAULT_VIDEO_DURATION = 5;
     
     function postMessage(type, data) {
       if (window.ReactNativeWebView) {
@@ -469,396 +333,121 @@ const CubeWebView = ({
       }
     }
     
-    // Get which physical face should show video at queueIdx
-    function getFaceForIndex(queueIdx) {
-      return ROTATION_PATH[queueIdx % 4].faceId;
+    function getFrontFaceFromRotation(rotX, rotY) {
+      const normY = ((rotY % 360) + 360) % 360;
+      const normX = ((rotX % 360) + 360) % 360;
+      
+      if (normX > 45 && normX < 135) return 5;
+      if (normX > 225 && normX < 315) return 4;
+      
+      if (normY >= 315 || normY < 45) return 0;
+      if (normY >= 45 && normY < 135) return 3;
+      if (normY >= 135 && normY < 225) return 1;
+      if (normY >= 225 && normY < 315) return 2;
+      
+      return 0;
     }
     
-    // Get target rotation for queueIdx
-    function getTargetRotation(queueIdx) {
-      const cycleNum = Math.floor(queueIdx / 4);
-      const step = ROTATION_PATH[queueIdx % 4];
-      return {
-        rotX: step.rotX,
-        rotY: step.rotY - (cycleNum * 360)
-      };
-    }
-    
-    // ============ VIDEO LOADING ============
-    // Persistent video elements - created once, src changed
-    let faceVideoElements = {}; // faceId -> video element (persistent)
-    
-    // Initialize video elements once on each face
-    function initFaceVideoElements() {
-      [0, 1, 2, 3].forEach(faceId => {
-        const el = document.getElementById('face-' + faceId);
-        if (el && !faceVideoElements[faceId]) {
-          const video = document.createElement('video');
-          video.muted = true;
-          video.playsInline = true;
-          video.setAttribute('playsinline', '');
-          video.setAttribute('crossorigin', 'anonymous');
-          video.crossOrigin = 'anonymous';
-          video.preload = 'auto';
-          video.style.cssText = 'width:100%;height:100%;object-fit:cover;';
-          el.appendChild(video);
-          faceVideoElements[faceId] = video;
-          console.log('📺 Created persistent video element on face ' + faceId);
-        }
-      });
+    function animate(timestamp) {
+      if (!cycleStartTime) cycleStartTime = timestamp;
       
-      // Add thumbnail images to top and bottom faces for visual effect during tilts
-      initTopBottomFaces();
-    }
-    
-    // Populate top/bottom faces with video thumbnails
-    function initTopBottomFaces() {
-      const topFace = document.getElementById('face-4');
-      const bottomFace = document.getElementById('face-5');
+      const elapsed = (timestamp - cycleStartTime) / 1000;
+      const progress = Math.min(elapsed / totalDuration, 1);
       
-      if (!topFace || !bottomFace || fullVideoQueue.length === 0) return;
-      
-      // Use first two videos for top/bottom thumbnails
-      const topVideoUrl = fullVideoQueue[0]?.videoUrl;
-      const bottomVideoUrl = fullVideoQueue[Math.min(1, fullVideoQueue.length - 1)]?.videoUrl;
-      
-      // Create video element for top face (shows first frame as thumbnail)
-      if (topVideoUrl && !topFace.querySelector('video')) {
-        const topVideo = document.createElement('video');
-        topVideo.muted = true;
-        topVideo.playsInline = true;
-        topVideo.setAttribute('playsinline', '');
-        topVideo.setAttribute('crossorigin', 'anonymous');
-        topVideo.crossOrigin = 'anonymous';
-        topVideo.preload = 'metadata';
-        topVideo.src = topVideoUrl;
-        topVideo.style.cssText = 'width:100%;height:100%;object-fit:cover;opacity:0.85;';
-        topVideo.currentTime = 0.5;
-        topFace.appendChild(topVideo);
-        console.log('🖼️ Added thumbnail to TOP face');
+      if (progress >= 1) {
+        console.log('All videos completed! Animation finished.');
+        postMessage('allVideosComplete', {});
+        videos.forEach(v => v.element.pause());
+        animationStarted = false;
+        showPlayButton();
+        return;
       }
       
-      if (bottomVideoUrl && !bottomFace.querySelector('video')) {
-        const bottomVideo = document.createElement('video');
-        bottomVideo.muted = true;
-        bottomVideo.playsInline = true;
-        bottomVideo.setAttribute('playsinline', '');
-        bottomVideo.setAttribute('crossorigin', 'anonymous');
-        bottomVideo.crossOrigin = 'anonymous';
-        bottomVideo.preload = 'metadata';
-        bottomVideo.src = bottomVideoUrl;
-        bottomVideo.style.cssText = 'width:100%;height:100%;object-fit:cover;opacity:0.85;';
-        bottomVideo.currentTime = 0.5;
-        bottomFace.appendChild(bottomVideo);
-        console.log('🖼️ Added thumbnail to BOTTOM face');
-      }
-    }
-    
-    // Load video onto a face - reuses existing video element, waits for canplay
-    function loadVideoOnFace(faceId, queueIdx) {
-      return new Promise((resolve, reject) => {
-        if (queueIdx >= fullVideoQueue.length) {
-          reject('No video at index ' + queueIdx);
-          return;
-        }
-        
-        const videoData = fullVideoQueue[queueIdx];
-        const video = faceVideoElements[faceId];
-        
-        if (!video) {
-          reject('No video element on face ' + faceId);
-          return;
-        }
-        
-        // Check if already loaded with correct video
-        if (faceVideos[faceId] && faceVideos[faceId].queueIdx === queueIdx && video.readyState >= 2) {
-          console.log('📹 Face ' + faceId + ' already has queue[' + queueIdx + '] ready');
-          resolve(video);
-          return;
-        }
-        
-        // Add cache-busting parameter
-        const cacheBuster = '_t=' + Date.now() + '_' + queueIdx;
-        const videoUrl = videoData.videoUrl + (videoData.videoUrl.includes('?') ? '&' + cacheBuster : '?' + cacheBuster);
-        
-        // Clean up old listeners
-        video.oncanplay = null;
-        video.onerror = null;
-        video.onloadedmetadata = null;
-        
-        let resolved = false;
-        
-        // Wait for canplay (video is ready to play without buffering)
-        video.oncanplay = function() {
-          if (resolved) return;
-          resolved = true;
-          video.oncanplay = null;
-          video.onerror = null;
-          
-          // Tiny seek to trigger iOS to paint first frame (no play/pause needed)
-          video.currentTime = 0.001;
-          
-          console.log('📹 Face ' + faceId + ' READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
-          resolve(video);
-        };
-        
-        video.onerror = function() {
-          if (resolved) return;
-          resolved = true;
-          video.oncanplay = null;
-          video.onerror = null;
-          console.log('❌ Face ' + faceId + ' error loading queue[' + queueIdx + ']');
-          reject('Video load error');
-        };
-        
-        // Update tracking
-        faceVideos[faceId] = { element: video, queueIdx: queueIdx };
-        
-        // Change source (doesn't recreate element)
-        video.src = videoUrl;
-        video.load();
-        
-        // Fallback timeout
-        setTimeout(() => {
-          if (!resolved && video.readyState >= 2) {
-            resolved = true;
-            video.oncanplay = null;
-            video.onerror = null;
-            console.log('📹 Face ' + faceId + ' timeout-ready: queue[' + queueIdx + ']');
-            resolve(video);
-          }
-        }, 4000);
-      });
-    }
-    
-    // Pause all videos and reset to first frame
-    function pauseAllVideos() {
-      Object.values(faceVideos).forEach(fv => {
-        if (fv && fv.element) {
-          fv.element.pause();
-          fv.element.muted = true;
-          fv.element.currentTime = 0;
-        }
-      });
-    }
-    
-    // ============ ROTATION STATE ============
-    // Active video being used for rotation sync
-    let activeVideo = null;
-    let activeVideoIndex = -1;
-    let rotationFromX = 0, rotationFromY = 0;
-    let rotationToX = 0, rotationToY = 0;
-    
-    // ============ FLOAT & ROTATION ANIMATION ============
-    function updateCubeTransform(timestamp) {
-      if (!floatStartTime) floatStartTime = timestamp;
-      const elapsed = (timestamp - floatStartTime) / 1000;
+      const baseSpeed = 2 * Math.PI / totalDuration;
       
-      // Float effects
-      const floatX = Math.sin(elapsed * 0.5) * 22 + Math.sin(elapsed * 0.3) * 13;
-      const floatY = Math.sin(elapsed * 0.4 + 1) * 26 + Math.cos(elapsed * 0.25) * 16;
-      const floatZ = Math.sin(elapsed * 0.35 + 2) * 38 + Math.cos(elapsed * 0.2) * 20;
+      const rotY = elapsed * baseSpeed * 57.3 * 1.5 + 
+                   Math.sin(elapsed * 0.3) * 25 + 
+                   Math.sin(elapsed * 0.7) * 15;
       
-      // Depth effects
-      const depthPhase1 = Math.sin(elapsed * 0.15) * 0.22;
-      const depthPhase2 = Math.sin(elapsed * 0.4 + 1.5) * 0.11;
-      const depthScale = 0.95 + depthPhase1 + depthPhase2;
-      const depthTranslateZ = Math.sin(elapsed * 0.18 + 2) * 110 + Math.cos(elapsed * 0.12) * 70;
+      const rotX = Math.sin(elapsed * 0.4) * 35 + 
+                   Math.sin(elapsed * 0.15) * 20 +
+                   Math.cos(elapsed * 0.25) * 10;
       
-      // VIDEO-SYNCED ROTATION: Update rotation based on current video progress
-      if (activeVideo && activeVideoIndex >= 0) {
-        const duration = activeVideo.duration;
-        const currentTime = activeVideo.currentTime;
-        
-        if (duration && duration > 0 && isFinite(duration)) {
-          // Calculate progress (0 to 1)
-          const progress = Math.min(currentTime / duration, 1);
-          
-          // Smooth easing for rotation
-          const ease = progress < 0.5 
-            ? 2 * progress * progress 
-            : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-          
-          // Interpolate rotation based on video progress
-          currentRotX = rotationFromX + (rotationToX - rotationFromX) * ease;
-          currentRotY = rotationFromY + (rotationToY - rotationFromY) * ease;
-        }
-      }
+      const rotZ = Math.sin(elapsed * 0.2) * 12 + 
+                   Math.cos(elapsed * 0.35) * 8;
+      
+      const floatX = Math.sin(elapsed * 0.5) * 25 + 
+                     Math.sin(elapsed * 0.3) * 15;
+      const floatY = Math.sin(elapsed * 0.4 + 1) * 30 + 
+                     Math.cos(elapsed * 0.25) * 20;
+      const floatZ = Math.sin(elapsed * 0.35 + 2) * 45 + 
+                     Math.cos(elapsed * 0.2) * 25;
+      
+      // Z-depth movement - cube moves forward (closer/larger) and backward (farther/smaller)
+      // Using multiple sine waves with different frequencies for varied trajectories
+      const depthPhase1 = Math.sin(elapsed * 0.15) * 0.3;  // Slow deep wave
+      const depthPhase2 = Math.sin(elapsed * 0.4 + 1.5) * 0.15;  // Medium wave
+      const depthPhase3 = Math.cos(elapsed * 0.25 + 0.8) * 0.1;  // Subtle variation
+      
+      // Scale ranges from 0.6 (far away) to 1.3 (very close)
+      // Base scale is 0.95, depth adds variation of ±0.35
+      const depthScale = 0.95 + depthPhase1 + depthPhase2 + depthPhase3;
+      
+      // Additional Z translation for parallax depth effect (moves in 3D space)
+      const depthTranslateZ = Math.sin(elapsed * 0.18 + 2) * 150 + 
+                              Math.cos(elapsed * 0.12) * 100;
       
       const spinWrapper = document.getElementById('spin-wrapper');
       const floatWrapper = document.querySelector('.float-wrapper');
       
       if (spinWrapper) {
-        spinWrapper.style.transform = 'rotateX(' + currentRotX + 'deg) rotateY(' + currentRotY + 'deg)';
+        spinWrapper.style.transform = 
+          'rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg) rotateZ(' + rotZ + 'deg)';
       }
+      
       if (floatWrapper) {
-        floatWrapper.style.transform = 'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + (floatZ + depthTranslateZ) + 'px) scale(' + depthScale + ')';
-      }
-    }
-    
-    function floatLoop(timestamp) {
-      if (!isPlaying) return;
-      updateCubeTransform(timestamp);
-      floatAnimId = requestAnimationFrame(floatLoop);
-    }
-    
-    // ============ PLAYBACK CONTROL ============
-    let videoTimeoutId = null;
-    const MAX_VIDEO_DURATION = 60; // Safety timeout: max 60 seconds per video
-    
-    // Set up rotation sync for a video - "HALF TO HALF" mode
-    // Video starts when face is at +45° (entering), ends when face is at -45° (exiting)
-    // This creates smooth overlap where next video starts as current exits
-    const HALF_ANGLE = 45; // Offset for half-to-half transitions
-    
-    function setupRotationSync(video, videoIndex) {
-      // Get rotation targets for current and next face
-      const fromTarget = getTargetRotation(videoIndex);
-      const toTarget = getTargetRotation(videoIndex + 1);
-      
-      // HALF-TO-HALF: Offset Y rotation by 45° so video plays from "entering" to "exiting"
-      // Instead of 0° to -90°, we do +45° to -45° (face enters from right, exits to left)
-      rotationFromX = fromTarget.rotX;
-      rotationFromY = fromTarget.rotY + HALF_ANGLE; // Start 45° before center
-      rotationToX = toTarget.rotX;
-      rotationToY = toTarget.rotY + HALF_ANGLE; // End 45° after center (same offset)
-      
-      // Set current position to start
-      currentRotX = rotationFromX;
-      currentRotY = rotationFromY;
-      
-      // Activate video for rotation sync
-      activeVideo = video;
-      activeVideoIndex = videoIndex;
-      
-      console.log('🔄 Half-to-half sync: idx=' + videoIndex + ' from(' + rotationFromX + ',' + rotationFromY + ') to(' + rotationToX + ',' + rotationToY + ')');
-    }
-    
-    function clearRotationSync() {
-      activeVideo = null;
-      activeVideoIndex = -1;
-    }
-    
-    function preloadUpcoming(fromIndex) {
-      const prevFace = fromIndex > 0 ? getFaceForIndex(fromIndex - 1) : -1;
-      for (let ahead = 1; ahead <= 3; ahead++) {
-        const idx = fromIndex + ahead;
-        if (idx >= fullVideoQueue.length) break;
-        const fId = getFaceForIndex(idx);
-        const existing = faceVideos[fId];
-        if (!existing || existing.queueIdx !== idx) {
-          if (fId === prevFace) {
-            console.log('🔮 Delayed preload queue[' + idx + '] onto face ' + fId + ' (just finished)');
-            setTimeout(() => {
-              loadVideoOnFace(fId, idx).catch(() => {});
-            }, 2500);
-          } else {
-            console.log('🔮 Preloading queue[' + idx + '] onto face ' + fId);
-            loadVideoOnFace(fId, idx).catch(() => {});
-          }
-        }
-      }
-    }
-    
-    async function playCurrentVideo() {
-      const faceId = getFaceForIndex(currentIndex);
-      let fv = faceVideos[faceId];
-      
-      if (videoTimeoutId) {
-        clearTimeout(videoTimeoutId);
-        videoTimeoutId = null;
+        floatWrapper.style.transform = 
+          'translate3d(' + floatX + 'px, ' + floatY + 'px, ' + (floatZ + depthTranslateZ) + 'px) scale(' + depthScale + ')';
       }
       
-      if (!fv || !fv.element || fv.queueIdx !== currentIndex) {
-        console.log('🔄 Face ' + faceId + ' has wrong video (has ' + (fv ? fv.queueIdx : 'none') + ', need ' + currentIndex + '), reloading...');
-        try {
-          await loadVideoOnFace(faceId, currentIndex);
-          fv = faceVideos[faceId];
-        } catch (e) {
-          console.log('❌ Failed to load video for queue[' + currentIndex + ']: ' + e);
-          advanceToNext();
-          return;
-        }
+      const currentFrontFace = getFrontFaceFromRotation(rotX, rotY);
+      if (currentFrontFace !== lastFrontFace) {
+        lastFrontFace = currentFrontFace;
+        updateAudioForFace(currentFrontFace);
+        postMessage('faceChanged', { faceIndex: currentFrontFace });
       }
       
-      if (!fv || !fv.element) {
-        console.log('❌ No video on face ' + faceId + ' for queue[' + currentIndex + ']');
-        advanceToNext();
-        return;
-      }
-      
-      const video = fv.element;
-      const playingIndex = currentIndex;
-      
-      Object.entries(faceVideos).forEach(([id, v]) => {
-        if (parseInt(id) !== faceId && v && v.element) {
-          v.element.pause();
+      animationId = requestAnimationFrame(animate);
+    }
+    
+    function updateAudioForFace(faceIndex) {
+      videos.forEach(v => {
+        if (v.faceId === faceIndex) {
+          v.element.muted = false;
+          v.element.volume = 1;
+        } else {
           v.element.muted = true;
         }
       });
-      
-      video.muted = false;
-      video.volume = 1;
-      
-      video.onended = function() {
-        if (videoTimeoutId) clearTimeout(videoTimeoutId);
-        clearRotationSync();
-        console.log('🎬 Video ended naturally: queue[' + playingIndex + ']');
-        if (currentIndex === playingIndex) advanceToNext();
-      };
-      
-      console.log('▶️ Playing queue[' + currentIndex + '] on face ' + faceId);
-      
-      video.play().then(() => {
-        console.log('✅ Play started: queue[' + currentIndex + ']');
-        postMessage('videoStart', { faceId, queueIndex: currentIndex });
-        
-        setupRotationSync(video, playingIndex);
-        
-        preloadUpcoming(playingIndex);
-        
-        const duration = video.duration;
-        const timeout = (duration && isFinite(duration) && duration > 0) 
-          ? (duration + 2) * 1000 
-          : MAX_VIDEO_DURATION * 1000;
-        
-        videoTimeoutId = setTimeout(() => {
-          console.log('⏰ Timeout: queue[' + playingIndex + '] - forcing advance');
-          clearRotationSync();
-          if (currentIndex === playingIndex) advanceToNext();
-        }, timeout);
-        
-      }).catch(e => {
-        console.log('❌ Play failed: ' + e.message + ', advancing...');
-        setTimeout(() => advanceToNext(), 500);
-      });
     }
     
-    function advanceToNext() {
-      currentIndex++;
-      console.log('⏭️ Advancing to queue[' + currentIndex + ']');
+    function startAnimation() {
+      if (animationStarted) return;
       
-      if (currentIndex >= fullVideoQueue.length) {
-        console.log('🏁 All ' + fullVideoQueue.length + ' videos complete!');
-        postMessage('allVideosComplete', { playedCount: fullVideoQueue.length });
-        isPlaying = false;
-        if (floatAnimId) cancelAnimationFrame(floatAnimId);
-        showReplayButton();
-        return;
-      }
+      totalDuration = videoDurations.reduce((sum, d) => sum + (d || DEFAULT_VIDEO_DURATION), 0);
+      if (totalDuration < 10) totalDuration = 30;
       
-      clearRotationSync();
+      console.log('Starting continuous animation. Total duration: ' + totalDuration + 's');
+      postMessage('animationStarted', { totalDuration });
       
-      playCurrentVideo();
+      animationStarted = true;
+      cycleStartTime = 0;
+      animationId = requestAnimationFrame(animate);
     }
     
-    // ============ INITIALIZATION ============
     let isReady = false;
-    let hasUserStarted = false; // Prevent play button from showing again after user clicks
     
     function showPlayButton() {
-      // Don't show if user already started playback
-      if (hasUserStarted || isPlaying) return;
       const btn = document.getElementById('play-button');
       if (btn) btn.classList.remove('hidden');
     }
@@ -868,564 +457,144 @@ const CubeWebView = ({
       if (btn) btn.classList.add('hidden');
     }
     
-    function showReplayButton() {
-      const btn = document.getElementById('replay-button');
-      if (btn) btn.classList.remove('hidden');
-    }
-    
-    function hideReplayButton() {
-      const btn = document.getElementById('replay-button');
-      if (btn) btn.classList.add('hidden');
-    }
-    
-    async function handleReplayClick() {
-      hideReplayButton();
-      console.log('🔄 Replaying: ' + fullVideoQueue.length + ' videos');
-      
-      // Reset all videos to start
-      Object.values(faceVideos).forEach(fv => {
-        if (fv && fv.element) {
-          fv.element.pause();
-          fv.element.currentTime = 0.001;
-        }
-      });
-      
-      // Reset state
-      currentIndex = 0;
-      isPlaying = true;
-      
-      // Set initial rotation with half-to-half offset
-      const initial = getTargetRotation(0);
-      currentRotX = initial.rotX;
-      currentRotY = initial.rotY + HALF_ANGLE;
-      updateCubeTransform(performance.now());
-      
-      // Start float animation
-      floatStartTime = 0;
-      if (floatAnimId) cancelAnimationFrame(floatAnimId);
-      floatAnimId = requestAnimationFrame(floatLoop);
-      
-      // Start first video
-      playCurrentVideo();
-      
-      postMessage('replayStarted', { videoCount: fullVideoQueue.length });
-    }
-    
-    async function handlePlayClick() {
-      if (!isReady || isPlaying || hasUserStarted) return;
-      hasUserStarted = true; // Block any future showPlayButton calls
+    function handlePlayClick() {
+      if (!isReady) return;
       hidePlayButton();
       
-      console.log('🎬 Starting playback: ' + fullVideoQueue.length + ' videos');
+      videos.forEach(v => {
+        v.element.currentTime = 0;
+        v.element.play().catch(() => {});
+      });
       
-      // Ensure video elements exist
-      initFaceVideoElements();
-      
-      // Reset state (but DON'T clear faceVideos - they're already loaded!)
-      currentIndex = 0;
-      isPlaying = true;
-      
-      // Set initial rotation to face 0 with half-to-half offset
-      const initial = getTargetRotation(0);
-      currentRotX = initial.rotX;
-      currentRotY = initial.rotY + HALF_ANGLE; // Start at +45° for half-to-half
-      updateCubeTransform(performance.now());
-      
-      // Videos are already preloaded from init() - no need to reload!
-      // Just verify they're ready
-      console.log('📦 Using pre-loaded videos (no reload needed)');
-      
-      postMessage('animationStarted', { videoCount: fullVideoQueue.length });
-      
-      // Start float animation
-      floatStartTime = 0;
-      floatAnimId = requestAnimationFrame(floatLoop);
-      
-      // Play first video immediately (already loaded)
-      playCurrentVideo();
+      startAnimation();
     }
     
-    async function init() {
-      console.log('🎲 Cube init: ' + fullVideoQueue.length + ' videos');
-      
-      // Create persistent video elements on each face (once)
-      initFaceVideoElements();
-      
-      postMessage('cubeReady', { faceCount: fullVideoQueue.length });
-      
-      if (fullVideoQueue.length > 0) {
-        // Wait for ALL first 4 videos to be fully ready (canplay) before showing play button
-        const preloadCount = Math.min(4, fullVideoQueue.length);
-        console.log('⏳ Preloading first ' + preloadCount + ' videos...');
-        
-        const loadPromises = [];
-        for (let i = 0; i < preloadCount; i++) {
-          const faceId = getFaceForIndex(i);
-          loadPromises.push(loadVideoOnFace(faceId, i).catch(e => {
-            console.log('⚠️ Preload failed for ' + i + ': ' + e);
-            return null;
-          }));
-        }
-        
-        // Wait for all to be ready
-        await Promise.all(loadPromises);
-        console.log('✅ All ' + preloadCount + ' initial videos READY');
-        
+    function tryStartAnimation() {
+      const validDurations = videoDurations.filter(d => d > 0);
+      if (validDurations.length >= Math.min(faces.length, 4)) {
         isReady = true;
-        postMessage('readyToPlay', { videoCount: fullVideoQueue.length });
+        console.log('Videos ready! Waiting for play button click.');
+        postMessage('readyToPlay', { videoCount: validDurations.length });
         showPlayButton();
       }
+    }
+    
+    function setFaceContent(faceId, face) {
+      const el = document.getElementById('face-' + faceId);
+      if (!el) return;
+      
+      const existingVideo = el.querySelector('video');
+      if (existingVideo) {
+        existingVideo.pause();
+        existingVideo.src = '';
+        existingVideo.load();
+      }
+      
+      if (face.thumbnailUrl || face.videoUrl) {
+        let html = '';
+        
+        if (face.thumbnailUrl) {
+          html += '<img src="' + face.thumbnailUrl + '" alt="Thumbnail" />';
+        }
+        
+        if (face.videoUrl) {
+          html += '<video muted loop playsinline preload="auto" style="opacity:0"></video>';
+        }
+        
+        html += '<div class="player-badge">' + (face.playerName || 'סרטון') + '</div>';
+        el.innerHTML = html;
+        
+        const video = el.querySelector('video');
+        if (video && face.videoUrl) {
+          videos.push({ element: video, faceId, duration: 0 });
+          
+          let retryCount = 0;
+          const maxRetries = 3;
+          
+          function tryPlay() {
+            video.play().then(() => {
+              video.style.opacity = '1';
+            }).catch((e) => {
+              if (retryCount < maxRetries) {
+                retryCount++;
+                setTimeout(tryPlay, 500);
+              }
+            });
+          }
+          
+          video.addEventListener('loadedmetadata', () => {
+            const duration = video.duration || 0;
+            videoDurations[faceId] = duration;
+            console.log('Video ' + faceId + ' duration: ' + duration + 's');
+            
+            if (videoDurations.filter(d => d > 0).length >= Math.min(faces.length, 4)) {
+              tryStartAnimation();
+            }
+          });
+          
+          video.addEventListener('loadeddata', () => {
+            video.style.opacity = '1';
+            postMessage('videoLoaded', { faceId });
+          });
+          
+          video.addEventListener('canplay', () => {
+          });
+          
+          video.addEventListener('error', (e) => {
+            console.error('Video error on face ' + faceId + ':', e);
+            postMessage('videoError', { faceId, error: e.message });
+          });
+          
+          video.addEventListener('play', () => {
+            video.style.opacity = '1';
+            postMessage('videoStart', { faceId });
+          });
+          
+          video.addEventListener('ended', () => {
+            postMessage('videoEnd', { faceId });
+          });
+          
+          video.src = face.videoUrl;
+          video.load();
+        }
+      } else {
+        el.innerHTML = '<div class="placeholder"><span class="icon">🎬</span><span class="label">סרטון ' + (faceId + 1) + '</span></div>';
+      }
+    }
+    
+    function init() {
+      faces.forEach((face, index) => {
+        setFaceContent(index, face);
+      });
+      
+      postMessage('cubeReady', { faceCount: faces.filter(f => f.videoUrl).length });
     }
     
     window.updateFaces = function(newFaces) {
-      const validFaces = newFaces.filter(f => f && f.videoUrl);
-      const prevLen = fullVideoQueue.length;
-      
-      // Check if any URLs changed (not just length)
-      let hasChanges = validFaces.length !== prevLen;
-      if (!hasChanges) {
-        for (let i = 0; i < validFaces.length; i++) {
-          if (!fullVideoQueue[i] || fullVideoQueue[i].videoUrl !== validFaces[i].videoUrl) {
-            hasChanges = true;
-            break;
-          }
-        }
-      }
-      
-      // Always update the queue when there are changes
-      if (hasChanges) {
-        fullVideoQueue = validFaces;
-        console.log('📥 Queue updated: ' + prevLen + ' → ' + fullVideoQueue.length + ' videos');
-        
-        // Force reload faces with new URLs
-        if (!isPlaying) {
-          for (let i = 0; i < Math.min(fullVideoQueue.length, 4); i++) {
-            const faceId = getFaceForIndex(i);
-            loadVideoOnFace(faceId, i).catch(() => {});
-          }
-        }
-      }
-      
-      if (!isReady && fullVideoQueue.length > 0) {
-        isReady = true;
-        console.log('✅ Ready with ' + fullVideoQueue.length + ' videos total');
-        postMessage('readyToPlay', { videoCount: fullVideoQueue.length });
-        showPlayButton();
-      }
+      newFaces.forEach((face, index) => {
+        setFaceContent(index, face);
+      });
     };
     
     window.pauseCube = function() {
-      if (floatAnimId) {
-        cancelAnimationFrame(floatAnimId);
-        floatAnimId = null;
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
       }
     };
     
     window.resumeCube = function() {
-      if (!floatAnimId && isPlaying) {
-        floatAnimId = requestAnimationFrame(floatLoop);
+      if (!animationId && animationStarted) {
+        animationId = requestAnimationFrame(animate);
       }
     };
-    
-    // ============ CLIENT-SIDE RECORDING MODULE ============
-    window._recEnabled = false;
-    var _recModule = (function() {
-      var hasRecorder = typeof MediaRecorder !== 'undefined';
-      var hasCapture = HTMLCanvasElement.prototype && 
-                       typeof HTMLCanvasElement.prototype.captureStream === 'function';
-      var supported = hasRecorder && hasCapture;
-      
-      setTimeout(function() {
-        postMessage('recordingSupport', { supported: supported });
-      }, 200);
-      
-      if (!supported) {
-        console.log('📹 Recording not supported in this WebView');
-        return { supported: false, start: function(){}, stop: function(){}, isRec: function(){ return false; } };
-      }
-      
-      console.log('📹 Client-side recording available');
-      
-      var RW = 720, RH = 1280;
-      var cvs = document.createElement('canvas');
-      cvs.width = RW; cvs.height = RH;
-      var ctx = cvs.getContext('2d');
-      
-      var recorder = null;
-      var chunks = [];
-      var recAnimId = null;
-      var recState = 'idle';
-      
-      var CUBE_PX = ${CUBE_SIZE};
-      var HALF_PX = CUBE_PX / 2;
-      var SF = RW / (CUBE_PX + 80);
-      var PERSP = 800;
-      
-      var FACE_CORNERS = [
-        [[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],
-        [[1,-1,-1],[-1,-1,-1],[-1,1,-1],[1,1,-1]],
-        [[1,-1,1],[1,-1,-1],[1,1,-1],[1,1,1]],
-        [[-1,-1,-1],[-1,-1,1],[-1,1,1],[-1,1,-1]],
-        [[-1,-1,-1],[1,-1,-1],[1,-1,1],[-1,-1,1]],
-        [[-1,1,1],[1,1,1],[1,1,-1],[-1,1,-1]]
-      ];
-      
-      var bgStars = [];
-      for (var si = 0; si < 60; si++) {
-        bgStars.push({ x: Math.random()*RW, y: Math.random()*RH, r: Math.random()*1.5+0.5, a: Math.random()*0.5+0.2 });
-      }
-      
-      function rY(p, deg) {
-        var r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
-        return [p[0]*c + p[2]*s, p[1], -p[0]*s + p[2]*c];
-      }
-      function rX(p, deg) {
-        var r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
-        return [p[0], p[1]*c - p[2]*s, p[1]*s + p[2]*c];
-      }
-      function lrp(a, b, t) { return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t]; }
-      
-      function computeFace(faceIdx, fx, fy, fz, ds) {
-        var corners = FACE_CORNERS[faceIdx];
-        var tr = [];
-        for (var i = 0; i < 4; i++) {
-          var p = rY(corners[i], currentRotY);
-          p = rX(p, currentRotX);
-          tr.push([p[0]*ds, p[1]*ds, p[2]*ds]);
-        }
-        var e1 = [tr[1][0]-tr[0][0], tr[1][1]-tr[0][1], tr[1][2]-tr[0][2]];
-        var e2 = [tr[3][0]-tr[0][0], tr[3][1]-tr[0][1], tr[3][2]-tr[0][2]];
-        var nz = e1[0]*e2[1] - e1[1]*e2[0];
-        if (nz <= 0) return null;
-        
-        var proj = [];
-        for (var i = 0; i < 4; i++) {
-          var xPx = (tr[i][0] * HALF_PX + fx) * SF;
-          var yPx = (tr[i][1] * HALF_PX + fy) * SF;
-          var zPx = (tr[i][2] * HALF_PX + fz) * SF;
-          var factor = (PERSP * SF) / (PERSP * SF - zPx);
-          if (factor < 0.01) return null;
-          proj.push([RW/2 + xPx * factor, RH/2 + yPx * factor]);
-        }
-        var avgZ = (tr[0][2]+tr[1][2]+tr[2][2]+tr[3][2])/4;
-        return { id: faceIdx, proj: proj, z: avgZ };
-      }
-      
-      function getDrawSource(faceId) {
-        if (faceId < 4) {
-          var v = faceVideoElements[faceId];
-          if (v && v.readyState >= 2) return v;
-          return null;
-        }
-        var faceEl = document.getElementById('face-' + faceId);
-        if (faceEl) {
-          var v = faceEl.querySelector('video');
-          if (v && v.readyState >= 2) return v;
-        }
-        return null;
-      }
-      
-      function drawTriTextured(src, sx, sy, sw, sh, p0, p1, p2) {
-        var dw = sw || 1;
-        var dh = sh || 1;
-        var x0 = (sx) / dw, y0 = (sy) / dh;
-        var x1 = (sx + sw) / dw, y1 = y0;
-        var x2 = x0, y2 = (sy + sh) / dh;
-        
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(p0[0], p0[1]);
-        ctx.lineTo(p1[0], p1[1]);
-        ctx.lineTo(p2[0], p2[1]);
-        ctx.closePath();
-        ctx.clip();
-        
-        var vw = src.videoWidth || src.width || 720;
-        var vh = src.videoHeight || src.height || 720;
-        
-        var a1 = (p1[0] - p0[0]) / vw;
-        var b1 = (p1[1] - p0[1]) / vw;
-        var c1 = (p2[0] - p0[0]) / vh;
-        var d1 = (p2[1] - p0[1]) / vh;
-        ctx.setTransform(a1, b1, c1, d1, p0[0], p0[1]);
-        try { ctx.drawImage(src, 0, 0); } catch(ex) {}
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.restore();
-      }
-      
-      function drawQuad(fd) {
-        var proj = fd.proj;
-        var src = getDrawSource(fd.id);
-        
-        if (src) {
-          var vw = src.videoWidth || src.width || 720;
-          var vh = src.videoHeight || src.height || 720;
-          var tl = proj[0], tr = proj[1], br = proj[2], bl = proj[3];
-          
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(tl[0], tl[1]);
-          ctx.lineTo(tr[0], tr[1]);
-          ctx.lineTo(br[0], br[1]);
-          ctx.lineTo(bl[0], bl[1]);
-          ctx.closePath();
-          ctx.clip();
-          
-          var a1 = (tr[0] - tl[0]) / vw;
-          var b1 = (tr[1] - tl[1]) / vw;
-          var c1 = (bl[0] - tl[0]) / vh;
-          var d1 = (bl[1] - tl[1]) / vh;
-          ctx.setTransform(a1, b1, c1, d1, tl[0], tl[1]);
-          try { ctx.drawImage(src, 0, 0); } catch(ex) {}
-          
-          var c2 = (br[0] - tr[0]) / vh;
-          var d2 = (br[1] - tr[1]) / vh;
-          var e2 = bl[0] - c2 * vh;
-          var f2 = bl[1] - d2 * vh;
-          var a2 = (tr[0] - e2) / vw;
-          var b2 = (tr[1] - f2) / vw;
-          ctx.setTransform(a2, b2, c2, d2, e2, f2);
-          try { ctx.drawImage(src, 0, 0); } catch(ex) {}
-          
-          ctx.setTransform(1, 0, 0, 1, 0, 0);
-          ctx.restore();
-        } else {
-          ctx.fillStyle = '#1a1a2e';
-          ctx.beginPath();
-          ctx.moveTo(proj[0][0],proj[0][1]);
-          for (var i = 1; i < 4; i++) ctx.lineTo(proj[i][0],proj[i][1]);
-          ctx.closePath(); ctx.fill();
-        }
-        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-        ctx.lineWidth = 3;
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(proj[0][0],proj[0][1]);
-        for (var i = 1; i < 4; i++) ctx.lineTo(proj[i][0],proj[i][1]);
-        ctx.closePath(); ctx.stroke();
-      }
-      
-      function renderRecFrame() {
-        if (recState !== 'recording') return;
-        
-        var elapsed = floatStartTime ? (performance.now() - floatStartTime) / 1000 : 0;
-        var fx = Math.sin(elapsed*0.5)*22 + Math.sin(elapsed*0.3)*13;
-        var fy = Math.sin(elapsed*0.4+1)*26 + Math.cos(elapsed*0.25)*16;
-        var fz = Math.sin(elapsed*0.35+2)*38 + Math.cos(elapsed*0.2)*20;
-        var dp1 = Math.sin(elapsed*0.15)*0.22;
-        var dp2 = Math.sin(elapsed*0.4+1.5)*0.11;
-        var ds = 0.95 + dp1 + dp2;
-        var dtz = Math.sin(elapsed*0.18+2)*110 + Math.cos(elapsed*0.12)*70;
-        
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, RW, RH);
-        var grad = ctx.createRadialGradient(RW/2, RH*0.45, 0, RW/2, RH*0.45, RW*0.85);
-        grad.addColorStop(0, '#0a0a1a');
-        grad.addColorStop(1, '#000');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, RW, RH);
-        
-        ctx.fillStyle = '#fff';
-        for (var si = 0; si < bgStars.length; si++) {
-          var st = bgStars[si];
-          ctx.globalAlpha = st.a * (0.4 + 0.6 * Math.sin(elapsed*(0.8+si*0.05)));
-          ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, Math.PI*2); ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-        
-        var visible = [];
-        for (var f = 0; f < 6; f++) {
-          var fd = computeFace(f, fx, fy, fz + dtz, ds);
-          if (fd) visible.push(fd);
-        }
-        visible.sort(function(a,b) { return a.z - b.z; });
-        for (var i = 0; i < visible.length; i++) drawQuad(visible[i]);
-        
-        recAnimId = requestAnimationFrame(renderRecFrame);
-      }
-      
-      var _audioCtx = null;
-      var _audioSources = new Map();
-      
-      function setupAudioCapture(stream) {
-        try {
-          _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          var dest = _audioCtx.createMediaStreamDestination();
-          
-          Object.values(faceVideos).forEach(function(fv) {
-            if (fv && fv.element && !_audioSources.has(fv.element)) {
-              try {
-                var source = _audioCtx.createMediaElementSource(fv.element);
-                var gain = _audioCtx.createGain();
-                gain.gain.value = 1.0;
-                source.connect(gain);
-                gain.connect(dest);
-                gain.connect(_audioCtx.destination);
-                _audioSources.set(fv.element, { source: source, gain: gain });
-              } catch(e) {
-                console.warn('📹 Audio source error:', e.message);
-              }
-            }
-          });
-          
-          dest.stream.getAudioTracks().forEach(function(track) {
-            stream.addTrack(track);
-          });
-          console.log('🔊 Audio capture added (' + _audioSources.size + ' sources)');
-          return true;
-        } catch(e) {
-          console.warn('🔇 Audio capture failed:', e.message);
-          return false;
-        }
-      }
-      
-      function waitForFaceVideos() {
-        return new Promise(function(resolve) {
-          var attempts = 0;
-          function check() {
-            var ready = 0;
-            var total = 0;
-            for (var fid = 0; fid < 4; fid++) {
-              var v = faceVideoElements[fid];
-              if (v && v.src) {
-                total++;
-                if (v.readyState >= 2) ready++;
-              }
-            }
-            if (ready >= total && total > 0) {
-              console.log('📹 All ' + ready + ' face videos ready for recording');
-              resolve(true);
-            } else if (attempts > 50) {
-              console.warn('📹 Timeout waiting for videos: ' + ready + '/' + total + ' ready');
-              resolve(false);
-            } else {
-              attempts++;
-              setTimeout(check, 100);
-            }
-          }
-          check();
-        });
-      }
-      
-      function startRec() {
-        if (recState !== 'idle') return;
-        
-        waitForFaceVideos().then(function(allReady) {
-          if (!allReady) {
-            console.warn('📹 Not all videos ready but proceeding anyway');
-          }
-          actualStartRec();
-        });
-      }
-      
-      function actualStartRec() {
-        if (recState !== 'idle') return;
-        recState = 'recording';
-        chunks = [];
-        
-        var stream = cvs.captureStream(30);
-        setupAudioCapture(stream);
-        
-        var mimeType = '';
-        ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm', 'video/mp4'].some(function(m) {
-          if (MediaRecorder.isTypeSupported(m)) { mimeType = m; return true; }
-        });
-        if (!mimeType) {
-          postMessage('recordingError', { error: 'No supported format' });
-          recState = 'idle'; return;
-        }
-        
-        recorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 8000000 });
-        recorder.ondataavailable = function(e) {
-          if (e.data && e.data.size > 0) chunks.push(e.data);
-        };
-        recorder.onstop = function() {
-          recState = 'processing';
-          var blob = new Blob(chunks, { type: mimeType });
-          var sizeMB = (blob.size/1024/1024).toFixed(2);
-          console.log('📹 Recording blob: ' + sizeMB + 'MB (' + blob.size + ' bytes, ' + chunks.length + ' chunks)');
-          if (blob.size < 50000) {
-            console.warn('📹 Recording too small (' + blob.size + 'b) - captureStream likely not working on this device');
-            postMessage('recordingFailed', { error: 'Recording too small', sizeBytes: blob.size });
-            recState = 'idle';
-            return;
-          }
-          postMessage('recordingProcessing', { sizeBytes: blob.size });
-          
-          var reader = new FileReader();
-          reader.onloadend = function() {
-            var b64Marker = ';base64,';
-            var b64Idx = reader.result.indexOf(b64Marker);
-            var b64 = b64Idx >= 0 ? reader.result.substring(b64Idx + b64Marker.length) : reader.result.split(',').slice(1).join(',');
-            console.log('📹 Cube base64 length: ' + b64.length + ' chars');
-            var CHUNK = 64 * 1024;
-            var total = Math.ceil(b64.length / CHUNK);
-            postMessage('recordingMeta', { totalChunks: total, sizeBytes: blob.size, mimeType: mimeType });
-            
-            var sendIdx = 0;
-            function sendNext() {
-              if (sendIdx >= total) {
-                postMessage('recordingComplete', { totalChunks: total, sizeBytes: blob.size });
-                recState = 'idle';
-                return;
-              }
-              var data = b64.substring(sendIdx * CHUNK, (sendIdx+1) * CHUNK);
-              postMessage('recordingChunk', { index: sendIdx, data: data, total: total });
-              sendIdx++;
-              setTimeout(sendNext, 5);
-            }
-            sendNext();
-          };
-          reader.readAsDataURL(blob);
-        };
-        
-        recorder.start(1000);
-        recAnimId = requestAnimationFrame(renderRecFrame);
-        postMessage('recordingStarted', {});
-        console.log('📹 Recording started: ' + mimeType);
-      }
-      
-      function stopRec() {
-        if (recState !== 'recording' || !recorder) return;
-        console.log('📹 Stopping recording...');
-        if (recAnimId) cancelAnimationFrame(recAnimId);
-        recorder.stop();
-        if (_audioCtx) {
-          try { _audioCtx.close(); } catch(e) {}
-          _audioCtx = null;
-          _audioSources.clear();
-        }
-      }
-      
-      return {
-        supported: true,
-        start: startRec,
-        stop: stopRec,
-        isRec: function() { return recState === 'recording'; }
-      };
-    })();
-    
-    var _origPostMsg = postMessage;
-    postMessage = function(type, data) {
-      _origPostMsg(type, data);
-      if (type === 'animationStarted' && window._recEnabled) {
-        window._recEnabled = false;
-        _recModule.start();
-      }
-      if (type === 'allVideosComplete' && _recModule.isRec()) {
-        setTimeout(function() { _recModule.stop(); }, 500);
-      }
-    };
-    
-    window.startClientRecording = function() { _recModule.start(); };
-    window.stopClientRecording = function() { _recModule.stop(); };
     
     init();
   </script>
 </body>
 </html>
     `;
-  }, [initialFaces]); // Only regenerate when initialFaces is first set
+  }, [faces]);
 
   const onMessage = useCallback((event) => {
     try {
@@ -1456,66 +625,11 @@ const CubeWebView = ({
           console.log('✅ Cube playback complete');
           onPlaybackComplete?.();
           break;
-        case 'replayStarted':
-          console.log('🔄 Cube replay started');
-          onPlaybackStart?.();
-          break;
-        case 'recordingSupport':
-          console.log('📹 Recording support:', data.supported);
-          onRecordingSupport?.(data.supported);
-          break;
-        case 'recordingStarted':
-          console.log('📹 Recording started in WebView');
-          break;
-        case 'recordingMeta':
-          recordingMetaRef.current = { ...data };
-          recordingChunksRef.current = [];
-          onRecordingProgress?.({ phase: 'transferring', progress: 0 });
-          break;
-        case 'recordingChunk':
-          recordingChunksRef.current.push(data.data);
-          if (recordingMetaRef.current) {
-            const pct = Math.round(((data.index + 1) / data.total) * 100);
-            onRecordingProgress?.({ phase: 'transferring', progress: pct });
-          }
-          break;
-        case 'recordingProcessing':
-          onRecordingProgress?.({ phase: 'processing', progress: 0 });
-          break;
-        case 'recordingComplete': {
-          console.log('📹 All recording chunks received:', data.totalChunks);
-          onRecordingProgress?.({ phase: 'saving', progress: 90 });
-          const base64Data = recordingChunksRef.current.join('');
-          const recMime = recordingMetaRef.current?.mimeType || '';
-          const recExt = recMime.includes('mp4') ? '.mp4' : '.webm';
-          console.log('📹 Recording mimeType:', recMime, 'extension:', recExt);
-          const fileUri = FileSystem.cacheDirectory + 'cube_recording_' + Date.now() + recExt;
-          FileSystem.writeAsStringAsync(fileUri, base64Data, {
-            encoding: FileSystem.EncodingType.Base64,
-          }).then(() => {
-            console.log('📹 Recording saved:', fileUri);
-            onRecordingComplete?.(fileUri);
-            recordingChunksRef.current = [];
-            recordingMetaRef.current = null;
-          }).catch(err => {
-            console.error('📹 Failed to save recording:', err);
-            onRecordingComplete?.(null);
-          });
-          break;
-        }
-        case 'recordingFailed':
-          console.warn('📹 Recording failed (too small):', data.sizeBytes, 'bytes');
-          onRecordingComplete?.(null);
-          break;
-        case 'recordingError':
-          console.error('📹 Recording error:', data.error);
-          onRecordingComplete?.(null);
-          break;
       }
     } catch (e) {
       console.warn('WebView message parse error:', e);
     }
-  }, [onFaceChange, onVideoStart, onVideoEnd, onReadyToPlay, onPlaybackStart, onPlaybackComplete, onRecordingSupport, onRecordingComplete, onRecordingProgress]);
+  }, [onFaceChange, onVideoStart, onVideoEnd, onReadyToPlay, onPlaybackStart, onPlaybackComplete]);
 
   useEffect(() => {
     if (webViewRef.current) {
@@ -1536,6 +650,7 @@ const CubeWebView = ({
       const facesData = faces.map((face, index) => ({
         index,
         videoUrl: face?.videoUrl || null,
+        thumbnailUrl: face?.thumbnailUrl || face?.posterThumbUri || null,
         playerName: face?.playerName || `סרטון ${index + 1}`,
       }));
       const js = `window.updateFaces && window.updateFaces(${JSON.stringify(facesData)}); true;`;
@@ -1544,7 +659,6 @@ const CubeWebView = ({
     }
   }, [faces]);
 
-  // Save HTML to file only once when cubeHTML is generated
   useEffect(() => {
     const saveHtmlToFile = async () => {
       if (Platform.OS === 'web') {
@@ -1569,39 +683,23 @@ const CubeWebView = ({
       }
     };
     
-    if (cubeHTML) {
+    if (cubeHTML && faces.some(f => f?.videoUrl)) {
       saveHtmlToFile();
     }
-  }, [cubeHTML]); // Only depends on cubeHTML, not faces
+  }, [cubeHTML, faces]);
 
-  // Use html content with baseUrl for iOS to allow file:// video access
   const webViewSource = useMemo(() => {
-    // Always use html content with baseUrl - this allows file:// video access on iOS
-    if (cubeHTML) {
-      return { 
-        html: cubeHTML, 
-        baseUrl: Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined 
-      };
+    if (Platform.OS === 'web' || !htmlFilePath) {
+      return { html: cubeHTML };
     }
-    return { html: '<html><body></body></html>' };
-  }, [cubeHTML]);
+    return { uri: htmlFilePath };
+  }, [cubeHTML, htmlFilePath]);
 
-  // Show loading while waiting for initial faces or cubeHTML
-  if (!cubeHTML) {
-    return (
-      <View style={[styles.container, isFullscreen && styles.fullscreenContainer]}>
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#FF6B9D" />
-          <Text style={styles.loadingText}>טוען סרטונים...</Text>
-        </View>
-      </View>
-    );
-  }
+  const baseUrl = Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined;
 
   return (
     <View style={[styles.container, isFullscreen && styles.fullscreenContainer]}>
       <WebView
-        key={webViewKeyRef.current}
         ref={webViewRef}
         source={webViewSource}
         style={[styles.webView, isFullscreen && styles.fullscreenWebView]}
@@ -1626,7 +724,7 @@ const CubeWebView = ({
         allowFileAccess={true}
         allowFileAccessFromFileURLs={true}
         allowUniversalAccessFromFileURLs={true}
-        allowingReadAccessToURL={Platform.OS === 'ios' ? FileSystem.cacheDirectory : undefined}
+        allowingReadAccessToURL={baseUrl}
       />
       {isLoading && (
         <View style={styles.loadingOverlay}>
