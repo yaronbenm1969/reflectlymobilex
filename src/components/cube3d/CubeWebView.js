@@ -218,8 +218,6 @@ const CubeWebView = ({
       overflow: hidden;
       background: linear-gradient(145deg, rgba(255,107,157,0.95), rgba(192,111,187,0.95));
       box-shadow: 0 0 30px rgba(0,0,0,0.3);
-      backface-visibility: hidden;
-      -webkit-backface-visibility: hidden;
     }
     .cube-face {
       background: #000;
@@ -232,18 +230,6 @@ const CubeWebView = ({
       top: 0;
       left: 0;
       background: #000;
-    }
-    /* Top/bottom faces - force GPU rendering on iOS */
-    .top video, .bottom video {
-      -webkit-transform: translateZ(0);
-      transform: translateZ(0);
-      -webkit-backface-visibility: visible;
-      backface-visibility: visible;
-    }
-    /* Force redraw on top/bottom faces */
-    .top, .bottom {
-      -webkit-transform-style: flat;
-      transform-style: flat;
     }
     .cube-face .placeholder {
       display: flex; 
