@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -724,13 +724,11 @@ export const FinalVideoScreen = () => {
     }
   };
 
-  const handleRecordingProgress = (progress) => {
-    if (progress.phase === 'transferring') {
-      setDownloadProgress(`מעבד הקלטה... ${progress.progress}%`);
-    } else if (progress.phase === 'saving') {
+  const handleRecordingProgress = useCallback((progress) => {
+    if (progress.phase === 'saving') {
       setDownloadProgress('שומר הקלטה...');
     }
-  };
+  }, []);
 
   const getVideoForSharing = async (label = 'מכין סרטון') => {
     if (isUploadingRef.current) {

@@ -54,13 +54,20 @@ export const useAmbientPlayback = (trackId) => {
       await unloadSound();
       soundIdRef.current += 1;
 
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+      }).catch(() => {});
+
       console.log(`🎵 Loading ambient phase ${phaseNumber}: ${trackId}`);
       const { sound } = await Audio.Sound.createAsync(
         { uri: url },
         {
           shouldPlay: true,
           isLooping: true,
-          volume: 0.07,
+          volume: 0.2,
         }
       );
 

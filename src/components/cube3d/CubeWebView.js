@@ -219,9 +219,6 @@ const CubeWebView = ({
       background: linear-gradient(145deg, rgba(255,107,157,0.95), rgba(192,111,187,0.95));
       box-shadow: 0 0 30px rgba(0,0,0,0.3);
     }
-    .cube-face {
-      background: #000;
-    }
     .cube-face video {
       width: 100%; 
       height: 100%;
