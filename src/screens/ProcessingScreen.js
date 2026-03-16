@@ -26,7 +26,9 @@ export const ProcessingScreen = () => {
   const videoFormat = useAppState((state) => state.videoFormat);
   const currentStoryId = useAppState((state) => state.currentStoryId);
   const reflections = useAppState((state) => state.reflections);
+  const clipRenderOrder = useAppState((state) => state.clipRenderOrder);
   const keyStoryUri = useAppState((state) => state.keyStoryUri);
+  const generatedMusicUrl = useAppState((state) => state.generatedMusicUrl);
   const setFinalVideoUri = useAppState((state) => state.setFinalVideoUri);
   
   const [progress, setProgress] = useState(0);
@@ -63,45 +65,46 @@ export const ProcessingScreen = () => {
       setStatus('אוסף את הסרטונים...');
       setProgress(5);
       
-      const videos = [];
-      
-      if (keyStoryUri) {
-        videos.push({
-          url: keyStoryUri,
-          participantId: 'creator',
-          type: 'key_story'
+      let requestBody;
+
+      if (clipRenderOrder && clipRenderOrder.length > 0) {
+        // Use the user's chosen order — send as videoUrls so server preserves order (no shuffle)
+        const videoUrls = [];
+        if (keyStoryUri) videoUrls.push(keyStoryUri);
+        clipRenderOrder.forEach(clip => {
+          if (clip.videoUrl) videoUrls.push(clip.videoUrl);
         });
-      }
-      
-      reflections.forEach(reflection => {
-        if (reflection.videoUrl) {
-          videos.push({
-            url: reflection.videoUrl,
-            participantId: reflection.recipientId || reflection.playerName || 'unknown',
-            clipNumber: reflection.clipNumber,
-            type: 'reflection'
-          });
+        if (videoUrls.length === 0) { setError('אין סרטונים לעריכה'); return; }
+        requestBody = { videoUrls, format: videoFormat || 'standard', ...(generatedMusicUrl && { musicUrl: generatedMusicUrl }) };
+        console.log('Starting render with ordered', videoUrls.length, 'videos (user order preserved)');
+      } else {
+        // Fallback: send with participant data and let server shuffle
+        const videos = [];
+        if (keyStoryUri) {
+          videos.push({ url: keyStoryUri, participantId: 'creator', type: 'key_story' });
         }
-      });
-      
-      if (videos.length === 0) {
-        setError('אין סרטונים לעריכה');
-        return;
+        reflections.forEach(reflection => {
+          if (reflection.videoUrl) {
+            videos.push({
+              url: reflection.videoUrl,
+              participantId: reflection.recipientId || reflection.playerName || 'unknown',
+              clipNumber: reflection.clipNumber,
+              type: 'reflection'
+            });
+          }
+        });
+        if (videos.length === 0) { setError('אין סרטונים לעריכה'); return; }
+        requestBody = { videos, format: videoFormat || 'standard', ...(generatedMusicUrl && { musicUrl: generatedMusicUrl }) };
+        console.log('Starting render with', videos.length, 'videos (server shuffle)');
       }
-      
+
       setStatus('שולח לשרת העריכה...');
       setProgress(10);
-      
-      console.log('Starting render with', videos.length, 'videos');
-      
+
       const response = await fetch(getApiUrl(`/api/stories/${currentStoryId}/render`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          videos,
-          format: videoFormat || 'standard',
-          musicUrl: selectedMusic ? `music/${selectedMusic}.mp3` : null
-        })
+        body: JSON.stringify(requestBody),
       });
       
       if (!response.ok) {
@@ -152,12 +155,41 @@ export const ProcessingScreen = () => {
         
         if (job.status === 'completed') {
           clearInterval(pollingRef.current);
+          setProgress(95);
+
+          let finalUrl = job.finalUrl;
+
+          // Mix AI-generated music into the rendered video
+          if (finalUrl && generatedMusicUrl) {
+            try {
+              setStatus('מוסיף מוזיקה מותאמת...');
+              const mixRes = await fetch(getApiUrl('/api/mix-music-with-video'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  videoUrl: finalUrl,
+                  musicUrl: generatedMusicUrl,
+                  musicVolume: 0.12,
+                  storyId: currentStoryId,
+                }),
+              });
+              if (mixRes.ok) {
+                const mixJson = await mixRes.json();
+                if (mixJson.finalUrl || mixJson.url) {
+                  finalUrl = mixJson.finalUrl || mixJson.url;
+                  console.log('✅ Music mixed into video:', finalUrl);
+                }
+              }
+            } catch (mixErr) {
+              console.warn('Music mixing failed, using unmixed video:', mixErr.message);
+            }
+          }
+
           setProgress(100);
           setStatus('הסרטון מוכן!');
           setIsComplete(true);
-          
-          if (job.finalUrl) {
-            setFinalVideoUri(job.finalUrl);
+          if (finalUrl) {
+            setFinalVideoUri(finalUrl);
           }
         } else if (job.status === 'failed') {
           clearInterval(pollingRef.current);

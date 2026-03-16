@@ -4,12 +4,16 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+// CHUNK_DURATION: MusicGen is capped at 30s per call
+const CHUNK_DURATION = 30;
+
 async function analyzeEmotionalTimeline(transcriptionSegments, totalDuration) {
   console.log('🎭 Analyzing emotional timeline...');
   console.log(`Total duration: ${totalDuration}s, Segments: ${transcriptionSegments.length}`);
 
-  const segmentsText = transcriptionSegments.map(seg => 
-    `[${seg.start?.toFixed(1) || 0}s - ${seg.end?.toFixed(1) || 0}s]: ${seg.text}`
+  const numChunks = Math.max(1, Math.ceil(totalDuration / CHUNK_DURATION));
+  const segmentsText = transcriptionSegments.map(seg =>
+    `[${(seg.start || 0).toFixed(1)}s - ${(seg.end || 0).toFixed(1)}s]: ${seg.text}`
   ).join('\n');
 
   try {
@@ -18,35 +22,46 @@ async function analyzeEmotionalTimeline(transcriptionSegments, totalDuration) {
       messages: [
         {
           role: 'system',
-          content: `You are an expert music producer and emotional analyst. Given video transcription segments with timestamps, create a detailed emotional timeline for background music composition.
+          content: `You are an expert music producer. Given video transcription segments, you will:
 
-For each emotional segment, specify:
-- Time range (start/end in seconds)
-- Primary emotion (e.g., gentle, dramatic, nostalgic, joyful, melancholic, energetic, peaceful, tense)
-- Intensity level (1-10, where 1 is very subtle and 10 is overwhelming)
-- Suggested instruments emphasis: drums (0-100), bass (0-100), melody (0-100)
-- EQ preset: "warm" (boost low-mids), "bright" (boost highs), "deep" (boost lows), "neutral"
-- Reverb level: "dry" (0.1), "medium" (0.4), "spacious" (0.7), "cathedral" (0.9)
-- Stereo width: "narrow" (0.3), "normal" (0.6), "wide" (0.9)
+1. Define a single "Musical DNA" for the entire project — one consistent musical world that all chunks share:
+   - musicalKey: e.g. "A minor", "C major"
+   - bpm: integer 60–130
+   - instruments: e.g. "piano, acoustic guitar, soft strings, gentle percussion"
+   - style: e.g. "cinematic ambient", "warm acoustic folk", "introspective piano ballad"
+   - basePrompt: a short base description used in every chunk (e.g. "piano, acoustic guitar, A minor, 78 BPM, cinematic ambient")
 
-Also provide:
-- Overall musical key suggestion (e.g., "C major", "A minor")
-- BPM suggestion (60-140)
-- Primary instrument palette (e.g., "piano, strings, soft drums")
-- A single continuous MusicGen prompt that describes the full emotional journey as one piece (critical for musical coherence)
+2. Divide the total duration into ${numChunks} chunk(s) of ${CHUNK_DURATION} seconds each.
+   For each chunk, write a MusicGen prompt that:
+   - STARTS with the exact same basePrompt (same instruments, key, BPM)
+   - Has a gentle neutral opening (2–3 seconds soft fade-in, calm)
+   - Builds to the emotional peak matching the transcription content for that time window
+   - Returns to a gentle neutral close (2–3 seconds soft fade-out, calm)
+   - Ends with ", 30 seconds"
 
-The MusicGen prompt must describe the ENTIRE piece as one flowing composition, mentioning how it evolves over time. Do NOT split into separate prompts.
+   This ensures all chunks can be crossfaded seamlessly.
 
-Return JSON format.`
+Return a JSON object with:
+{
+  "musicalDNA": {
+    "musicalKey": string,
+    "bpm": number,
+    "instruments": string,
+    "style": string,
+    "basePrompt": string
+  },
+  "chunkPrompts": [string, ...],  // one per ${CHUNK_DURATION}s chunk, length = ${numChunks}
+  "timeline": [{ "start": number, "end": number, "emotion": string, "intensity": number }]
+}`
         },
         {
           role: 'user',
-          content: `Total video duration: ${totalDuration} seconds.
+          content: `Total video duration: ${totalDuration} seconds. Number of 30s chunks needed: ${numChunks}.
 
 Transcription segments:
 ${segmentsText}
 
-Create the emotional timeline and MusicGen prompt for this content.`
+Create the Musical DNA and ${numChunks} chunk prompt(s) for this content.`
         }
       ],
       response_format: { type: 'json_object' },
@@ -54,73 +69,69 @@ Create the emotional timeline and MusicGen prompt for this content.`
     });
 
     const analysis = JSON.parse(response.choices[0].message.content);
-    console.log('✅ Emotional timeline created:', JSON.stringify(analysis).substring(0, 200));
+    console.log('✅ Musical DNA:', JSON.stringify(analysis.musicalDNA || {}).substring(0, 150));
+    console.log(`✅ ${(analysis.chunkPrompts || []).length} chunk prompts generated`);
 
-    const result = {
-      success: true,
-      timeline: analysis.timeline || analysis.segments || analysis.emotionalSegments || [],
-      musicPrompt: analysis.musicPrompt || analysis.musicGenPrompt || analysis.prompt || '',
-      musicalKey: analysis.musicalKey || analysis.key || 'C major',
-      bpm: analysis.bpm || analysis.tempo || 90,
-      instruments: analysis.instruments || analysis.instrumentPalette || 'piano, strings, soft percussion',
-      raw: analysis
-    };
+    const dna = analysis.musicalDNA || {};
+    const chunkPrompts = analysis.chunkPrompts || [];
 
-    if (!result.timeline.length) {
-      result.timeline = [{
-        start: 0,
-        end: totalDuration,
-        emotion: 'gentle',
-        intensity: 5,
-        drums: 30,
-        bass: 40,
-        melody: 80,
-        eq: 'warm',
-        reverb: 'medium',
-        stereoWidth: 'normal'
-      }];
+    // Fallback: if GPT didn't return enough chunk prompts, pad with base prompt
+    while (chunkPrompts.length < numChunks) {
+      const base = dna.basePrompt || 'gentle piano and strings, C major, 80 BPM, ambient';
+      chunkPrompts.push(`${base}, begins softly, gentle emotional journey, returns to calm, 30 seconds`);
     }
 
-    result.timeline = result.timeline.map(seg => ({
-      start: seg.start || seg.startTime || 0,
-      end: seg.end || seg.endTime || totalDuration,
-      emotion: seg.emotion || seg.mood || 'neutral',
+    const timeline = (analysis.timeline || []).map(seg => ({
+      start: seg.start || 0,
+      end: seg.end || totalDuration,
+      emotion: seg.emotion || 'neutral',
       intensity: seg.intensity || 5,
-      drums: seg.drums ?? seg.drumsLevel ?? 50,
-      bass: seg.bass ?? seg.bassLevel ?? 50,
-      melody: seg.melody ?? seg.melodyLevel ?? 70,
-      eq: seg.eq || seg.eqPreset || 'neutral',
-      reverb: seg.reverb || seg.reverbLevel || 'medium',
-      stereoWidth: seg.stereoWidth || seg.width || 'normal'
     }));
 
-    return result;
+    if (!timeline.length) {
+      timeline.push({ start: 0, end: totalDuration, emotion: 'gentle', intensity: 5 });
+    }
+
+    return {
+      success: true,
+      musicalDNA: {
+        musicalKey: dna.musicalKey || 'C major',
+        bpm: dna.bpm || 80,
+        instruments: dna.instruments || 'piano, strings',
+        style: dna.style || 'ambient',
+        basePrompt: dna.basePrompt || 'gentle piano and strings, C major, 80 BPM, ambient',
+      },
+      chunkPrompts,
+      timeline,
+      // Legacy fields (kept for compatibility)
+      musicPrompt: chunkPrompts[0] || '',
+      musicalKey: dna.musicalKey || 'C major',
+      bpm: dna.bpm || 80,
+      instruments: dna.instruments || 'piano, strings',
+    };
   } catch (error) {
     console.error('❌ Emotional analysis failed:', error);
+    const fallbackPrompt = `gentle piano and strings, C major, 80 BPM, ambient, begins softly, gentle emotional journey, returns to calm, 30 seconds`;
+    const fallbackChunks = Array(numChunks).fill(fallbackPrompt);
     return {
       success: false,
       error: error.message,
-      timeline: [{
-        start: 0,
-        end: totalDuration,
-        emotion: 'gentle',
-        intensity: 5,
-        drums: 30,
-        bass: 40,
-        melody: 80,
-        eq: 'warm',
-        reverb: 'medium',
-        stereoWidth: 'normal'
-      }],
-      musicPrompt: `gentle ambient piano and strings, peaceful and warm, ${Math.round(totalDuration)} seconds`,
+      musicalDNA: { musicalKey: 'C major', bpm: 80, instruments: 'piano, strings', style: 'ambient', basePrompt: fallbackPrompt },
+      chunkPrompts: fallbackChunks,
+      timeline: [{ start: 0, end: totalDuration, emotion: 'gentle', intensity: 5 }],
+      musicPrompt: fallbackPrompt,
       musicalKey: 'C major',
       bpm: 80,
-      instruments: 'piano, strings'
+      instruments: 'piano, strings',
     };
   }
 }
 
 async function buildMusicPrompt(emotionData, totalDuration) {
+  // Returns the first chunk prompt (legacy single-chunk usage)
+  if (emotionData.chunkPrompts && emotionData.chunkPrompts.length > 0) {
+    return emotionData.chunkPrompts[0];
+  }
   if (emotionData.musicPrompt) {
     let prompt = emotionData.musicPrompt;
     if (!prompt.includes('second') && !prompt.includes('duration')) {
@@ -128,28 +139,14 @@ async function buildMusicPrompt(emotionData, totalDuration) {
     }
     return prompt;
   }
-
-  const timeline = emotionData.timeline || [];
   const key = emotionData.musicalKey || 'C major';
   const bpm = emotionData.bpm || 90;
   const instruments = emotionData.instruments || 'piano, strings';
-
-  let description = `${instruments}, ${key}, ${bpm} BPM, `;
-  
-  if (timeline.length === 1) {
-    description += `${timeline[0].emotion} mood throughout, ${Math.round(totalDuration)} seconds`;
-  } else {
-    const phases = timeline.map(seg => {
-      const duration = Math.round(seg.end - seg.start);
-      return `${seg.emotion} (${duration}s)`;
-    });
-    description += `emotional journey: ${phases.join(' then ')}, smooth transitions between sections, ${Math.round(totalDuration)} seconds`;
-  }
-
-  return description;
+  return `${instruments}, ${key}, ${bpm} BPM, gentle ambient, begins softly, returns to calm, ${Math.round(totalDuration)} seconds`;
 }
 
 module.exports = {
   analyzeEmotionalTimeline,
-  buildMusicPrompt
+  buildMusicPrompt,
+  CHUNK_DURATION,
 };

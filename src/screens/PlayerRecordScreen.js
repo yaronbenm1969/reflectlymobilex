@@ -20,8 +20,12 @@ import storageService from '../services/storageService';
 import reflectionsService from '../services/reflectionsService';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
+import Constants from 'expo-constants';
 
 const isWeb = Platform.OS === 'web';
+const API_BASE_URL = Constants.expoConfig?.extra?.videoConverterUrl ||
+  'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
+const getApiUrl = (endpoint) => `${API_BASE_URL}${endpoint}`;
 const { width, height } = Dimensions.get('window');
 
 let Haptics;
@@ -57,6 +61,9 @@ export const PlayerRecordScreen = () => {
   const recordingTimerRef = useRef(null);
 
   const [clipRecordings, setClipRecordings] = useState([null, null, null]);
+  const musicMode = useAppState((state) => state.clipMusicMode);
+  const setMusicMode = useAppState((state) => state.setClipMusicMode);
+  const setGeneratedMusicUrl = useAppState((state) => state.setGeneratedMusicUrl);
   const [activeClip, setActiveClip] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTimer, setRecordingTimer] = useState(0);
@@ -86,11 +93,12 @@ export const PlayerRecordScreen = () => {
 
   const startRecordingClip = async (clipIndex) => {
     if (isWeb) {
+      if (musicMode === 'none') { ambient.stop(); }
+      else { ambient.playPhase(1, musicMode === 'performance' ? 0.10 : 0.03, true); }
       setActiveClip(clipIndex);
       setIsRecording(true);
       setRecordingTimer(0);
       clipDurationRef.current = 0;
-      ambient.playPhase(clipIndex + 1);
       recordingTimerRef.current = setInterval(() => {
         clipDurationRef.current += 1;
         setRecordingTimer(clipDurationRef.current);
@@ -109,12 +117,13 @@ export const PlayerRecordScreen = () => {
       setRecordingTimer(0);
       clipDurationRef.current = 0;
 
-      await ambient.playPhase(clipIndex + 1);
-
       recordingTimerRef.current = setInterval(() => {
         clipDurationRef.current += 1;
         setRecordingTimer(clipDurationRef.current);
       }, 1000);
+
+      if (musicMode === 'none') { ambient.stop(); }
+      else { ambient.playPhase(1, musicMode === 'performance' ? 0.10 : 0.03, true); }
 
       const video = await cameraRef.current.recordAsync({
         maxDuration: clipTimes[clipIndex],
@@ -155,7 +164,7 @@ export const PlayerRecordScreen = () => {
         clearInterval(recordingTimerRef.current);
         recordingTimerRef.current = null;
       }
-      ambient.fadeOut(1500);
+      ambient.fadeOut(1000);
       setClipRecordings(prev => {
         const updated = [...prev];
         updated[clipIndex] = { uri: 'web-demo', duration: clipDurationRef.current };
@@ -199,6 +208,7 @@ export const PlayerRecordScreen = () => {
     setIsUploading(true);
     const participantId = `participant_${Date.now()}`;
     let uploadedCount = 0;
+    const uploadedUrls = [];
 
     try {
       for (let i = 0; i < clipRecordings.length; i++) {
@@ -217,6 +227,7 @@ export const PlayerRecordScreen = () => {
         );
 
         if (result.success) {
+          uploadedUrls.push(result.url);
           const participantName = playerStoryData?.participantName || navigationParams?.participantName || null;
           await reflectionsService.saveReflection(
             playerStoryId,
@@ -228,6 +239,64 @@ export const PlayerRecordScreen = () => {
           uploadedCount++;
         } else {
           console.error(`Upload failed for clip ${i + 1}:`, result.error);
+        }
+      }
+
+      // AI music generation after upload
+      if (musicMode === 'ai' && playerStoryId && uploadedUrls.length > 0) {
+        try {
+          // Step 1: Transcribe clips
+          setUploadProgress('מתמלל שיקופים...');
+          let transcriptionSegments = null;
+          let totalDuration = clipRecordings.filter(Boolean).reduce((sum, c) => sum + (c.duration || 30), 0);
+
+          try {
+            const transcribeRes = await fetch(getApiUrl('/api/transcribe-from-urls'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ clipUrls: uploadedUrls }),
+            });
+            const transcribeJson = await transcribeRes.json();
+            if (transcribeJson.success && transcribeJson.segments?.length > 0) {
+              transcriptionSegments = transcribeJson.segments;
+              totalDuration = transcribeJson.totalDuration || totalDuration;
+              console.log(`✅ Transcribed ${transcriptionSegments.length} segments`);
+            }
+          } catch (transcribeErr) {
+            console.warn('Transcription failed, continuing without:', transcribeErr.message);
+          }
+
+          // Step 2: Generate music with transcription
+          setUploadProgress('מייצר מוזיקה מותאמת...');
+          const genRes = await fetch(getApiUrl('/api/generate-music'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              storyId: playerStoryId,
+              totalDuration,
+              ...(transcriptionSegments && { transcriptionSegments }),
+            }),
+          });
+          const genJson = await genRes.json();
+          const jobId = genJson.jobId;
+
+          if (jobId) {
+            let attempts = 0;
+            while (attempts < 60) {
+              await new Promise(r => setTimeout(r, 3000));
+              const statusRes = await fetch(getApiUrl(`/api/music-status/${jobId}`));
+              const statusJson = await statusRes.json();
+              setUploadProgress(`מייצר מוזיקה... ${statusJson.progress || 0}%`);
+              if (statusJson.status === 'completed' && statusJson.musicUrl) {
+                setGeneratedMusicUrl(statusJson.musicUrl);
+                break;
+              }
+              if (statusJson.status === 'failed') break;
+              attempts++;
+            }
+          }
+        } catch (musicErr) {
+          console.warn('AI music generation failed:', musicErr.message);
         }
       }
 
@@ -374,10 +443,54 @@ export const PlayerRecordScreen = () => {
       </LinearGradient>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
+
+        <View style={styles.introCard}>
+          <Text style={styles.introTitle}>עכשיו תורך ✨</Text>
+          <Text style={styles.introBody}>
+            צלם 3 שיקופים קצרים — תגובתך האישית לסרטון שזה עתה צפית בו.{'\n'}
+            דבר, שיר, נוע, רקוד — בכל קליפ אפשר לאמץ גישה שונה לחלוטין.
+          </Text>
+          <Text style={styles.introEmphasize}>אך תמיד נעצים את המספר ✨</Text>
+          {!!(playerStoryData?.instructions || navigationParams?.instructions) && (
+            <View style={styles.introInstructions}>
+              <Ionicons name="chatbubble-ellipses" size={16} color={theme.colors.primary} />
+              <Text style={styles.introInstructionsText}>
+                {playerStoryData?.instructions || navigationParams?.instructions}
+              </Text>
+            </View>
+          )}
+        </View>
+
         {ambient.hasTrack && (
-          <View style={styles.musicIndicator}>
-            <Ionicons name="musical-note" size={16} color={theme.colors.accent} />
-            <Text style={styles.musicIndicatorText}>מוזיקת רקע תנוגן בזמן ההקלטה</Text>
+          <View style={styles.musicPanel}>
+            <View style={styles.musicPanelHeader}>
+              <Ionicons name="musical-notes" size={18} color={theme.colors.accent} />
+              <Text style={styles.musicPanelTitle}>
+                {ambient.isPlaying ? '● מוזיקה מנגנת' : '🎵 מוזיקה תנגן בזמן ההקלטה'}
+              </Text>
+            </View>
+            <View style={styles.musicModeRow}>
+              {[
+                { key: 'headphones', icon: 'headset',       label: 'אוזניות' },
+                { key: 'none',       icon: 'volume-mute',   label: 'ללא' },
+                { key: 'performance',icon: 'mic',           label: 'שירה/תנועה' },
+                { key: 'ai',         icon: 'color-wand',    label: 'AI ✨' },
+              ].map(({ key, icon, label }) => {
+                const active = musicMode === key;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={[styles.musicModeBtn, active && styles.musicModeBtnActive]}
+                    onPress={() => setMusicMode(key)}
+                  >
+                    <Ionicons name={icon} size={16} color={active ? '#fff' : theme.colors.accent} />
+                    <Text style={[styles.musicModeBtnText, active && styles.musicModeBtnTextActive]}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         )}
 
@@ -386,49 +499,48 @@ export const PlayerRecordScreen = () => {
             const clip = clipRecordings[i];
             const isRecorded = clip !== null;
             return (
-              <TouchableOpacity
-                key={i}
-                style={[
-                  styles.clipCard,
-                  isRecorded && styles.clipCardRecorded,
-                ]}
-                onPress={() => {
-                  setActiveClip(i);
-                }}
-              >
-                <View style={[
-                  styles.clipIcon,
-                  isRecorded && styles.clipIconRecorded,
-                ]}>
-                  {isRecorded ? (
-                    <Ionicons name="checkmark" size={28} color="white" />
-                  ) : (
-                    <Ionicons name="videocam" size={28} color={theme.colors.primary} />
-                  )}
-                </View>
-
-                <View style={styles.clipInfo}>
-                  <Text style={[
-                    styles.clipLabel,
-                    isRecorded && styles.clipLabelRecorded,
+              <React.Fragment key={i}>
+                <TouchableOpacity
+                  style={[
+                    styles.clipCard,
+                    isRecorded && styles.clipCardRecorded,
+                  ]}
+                  onPress={() => { setActiveClip(i); }}
+                >
+                  <View style={[
+                    styles.clipIcon,
+                    isRecorded && styles.clipIconRecorded,
                   ]}>
-                    שיקוף {i + 1}
-                  </Text>
-                  <Text style={styles.clipDuration}>
-                    {isRecorded
-                      ? `הוקלט (${clip.duration}s)`
-                      : `עד ${clipTimes[i]} שניות`}
-                  </Text>
-                </View>
+                    {isRecorded ? (
+                      <Ionicons name="checkmark" size={28} color="white" />
+                    ) : (
+                      <Ionicons name="videocam" size={28} color={theme.colors.primary} />
+                    )}
+                  </View>
 
-                <View style={styles.clipAction}>
-                  {isRecorded ? (
-                    <Text style={styles.reRecordText}>הקלט מחדש</Text>
-                  ) : (
-                    <Ionicons name="arrow-forward" size={24} color={theme.colors.primary} />
-                  )}
-                </View>
-              </TouchableOpacity>
+                  <View style={styles.clipInfo}>
+                    <Text style={[
+                      styles.clipLabel,
+                      isRecorded && styles.clipLabelRecorded,
+                    ]}>
+                      שיקוף {i + 1}
+                    </Text>
+                    <Text style={styles.clipDuration}>
+                      {isRecorded
+                        ? `הוקלט (${clip.duration}s)`
+                        : `עד ${clipTimes[i]} שניות`}
+                    </Text>
+                  </View>
+
+                  <View style={styles.clipAction}>
+                    {isRecorded ? (
+                      <Text style={styles.reRecordText}>הקלט מחדש</Text>
+                    ) : (
+                      <Ionicons name="arrow-forward" size={24} color={theme.colors.primary} />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </React.Fragment>
             );
           })}
         </View>
@@ -512,6 +624,51 @@ const styles = StyleSheet.create({
     padding: theme.spacing[4],
     paddingBottom: theme.spacing[8],
   },
+  introCard: {
+    backgroundColor: 'white',
+    borderRadius: theme.radii.lg,
+    padding: theme.spacing[4],
+    marginBottom: theme.spacing[4],
+    borderRightWidth: 4,
+    borderRightColor: theme.colors.primary,
+    ...theme.shadows.sm,
+  },
+  introTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+    marginBottom: theme.spacing[2],
+    textAlign: 'right',
+  },
+  introBody: {
+    fontSize: 14,
+    color: theme.colors.text,
+    lineHeight: 22,
+    textAlign: 'right',
+  },
+  introEmphasize: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+    textAlign: 'right',
+    marginTop: theme.spacing[2],
+  },
+  introInstructions: {
+    flexDirection: 'row-reverse',
+    alignItems: 'flex-start',
+    gap: theme.spacing[2],
+    marginTop: theme.spacing[3],
+    paddingTop: theme.spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  introInstructionsText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.subtext,
+    textAlign: 'right',
+    lineHeight: 20,
+  },
   musicIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -527,6 +684,80 @@ const styles = StyleSheet.create({
   musicIndicatorText: {
     ...theme.typography.caption,
     color: theme.colors.accent,
+    fontWeight: '600',
+    flex: 1,
+  },
+  musicModeChange: {
+    paddingHorizontal: theme.spacing[2],
+  },
+  musicModeChangeText: {
+    ...theme.typography.caption,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  musicModeOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+    padding: theme.spacing[4],
+  },
+  musicModeCard: {
+    backgroundColor: theme.colors.surface || '#1a1a2e',
+    borderRadius: theme.radii.lg || 16,
+    padding: theme.spacing[5] || 20,
+    width: '100%',
+    gap: theme.spacing[3] || 12,
+  },
+  musicModeTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.text,
+    textAlign: 'center',
+  },
+  musicModeSubtitle: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary || '#888',
+    textAlign: 'center',
+    marginBottom: theme.spacing[2],
+  },
+  musicModeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing[3] || 12,
+    borderRadius: theme.radii.md || 12,
+    backgroundColor: `${theme.colors.primary}15`,
+    gap: theme.spacing[3],
+  },
+  musicModeOptionPremium: {
+    backgroundColor: 'rgba(255,215,0,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,0,0.3)',
+  },
+  musicModeOptionNone: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  musicModeIcon: {
+    fontSize: 28,
+  },
+  musicModeInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  musicModeLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  musicModeDesc: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary || '#888',
+  },
+  premiumTag: {
+    fontSize: 12,
+    color: '#FFD700',
     fontWeight: '600',
   },
   clipCards: {
@@ -577,6 +808,113 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.primary,
     fontWeight: '600',
+  },
+  musicBoostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: `${theme.colors.accent}18`,
+    gap: 5,
+  },
+  musicBoostRowActive: {
+    backgroundColor: theme.colors.accent,
+  },
+  musicBoostText: {
+    fontSize: 11,
+    color: theme.colors.accent,
+    fontWeight: '500',
+  },
+  musicBoostTextActive: {
+    color: '#fff',
+  },
+  musicPanel: {
+    backgroundColor: `${theme.colors.primary}12`,
+    borderRadius: theme.radii.lg,
+    padding: theme.spacing[3],
+    marginBottom: theme.spacing[4],
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}25`,
+    gap: theme.spacing[2],
+  },
+  musicPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
+  musicModeRow: {
+    flexDirection: 'row',
+    gap: theme.spacing[2],
+    marginTop: theme.spacing[1],
+  },
+  musicModeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 7,
+    borderRadius: theme.radii.md,
+    backgroundColor: `${theme.colors.accent}18`,
+    borderWidth: 1,
+    borderColor: `${theme.colors.accent}35`,
+  },
+  musicModeBtnActive: {
+    backgroundColor: theme.colors.accent,
+    borderColor: theme.colors.accent,
+  },
+  musicModeBtnText: {
+    fontSize: 12,
+    color: theme.colors.accent,
+    fontWeight: '600',
+  },
+  musicModeBtnTextActive: {
+    color: '#fff',
+  },
+  musicPlayBtn: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  musicPanelInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  musicPanelTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  musicPanelHint: {
+    fontSize: 11,
+    color: theme.colors.subtext || theme.colors.textSecondary || '#888',
+  },
+  boostBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: `${theme.colors.accent}18`,
+    borderWidth: 1,
+    borderColor: `${theme.colors.accent}40`,
+  },
+  boostBtnActive: {
+    backgroundColor: theme.colors.accent,
+    borderColor: theme.colors.accent,
+  },
+  boostText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.accent,
+  },
+  boostTextActive: {
+    color: '#fff',
   },
   status: {
     alignItems: 'center',

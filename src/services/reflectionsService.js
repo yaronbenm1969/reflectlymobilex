@@ -1,9 +1,10 @@
-import { 
+import {
   collection,
   doc,
   getDoc,
   getDocs,
   addDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -146,6 +147,7 @@ export const reflectionsService = {
       }
       
       grouped[participantId].clips.push({
+        id: reflection.id,
         clipNumber: reflection.clipNumber,
         videoUrl: reflection.videoUrl,
         convertedUrl: reflection.convertedUrl,
@@ -154,6 +156,7 @@ export const reflectionsService = {
         status: reflection.status || 'received'
       });
       
+      grouped[participantId].clips.sort((a, b) => (a.clipNumber || 0) - (b.clipNumber || 0));
       grouped[participantId].totalClips = grouped[participantId].clips.length;
       
       if (grouped[participantId].clips.length === 3) {
@@ -164,6 +167,17 @@ export const reflectionsService = {
     });
     
     return Object.values(grouped);
+  },
+
+  deleteReflection: async (reflectionId) => {
+    try {
+      await deleteDoc(doc(db, REFLECTIONS_COLLECTION, reflectionId));
+      console.log(`🗑️ Reflection deleted: ${reflectionId}`);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Delete reflection error:', error.message);
+      return { success: false, error: error.message };
+    }
   },
 
   getReflectionStats: (reflections) => {

@@ -191,8 +191,8 @@ async function convertVideo(inputPath, outputPath) {
   
   console.log(`Using video filter: ${vfFilters}`);
   
-  const audioFilter = 'highpass=f=80,lowpass=f=13000,afftdn=nf=-25:nr=12:nt=w,acompressor=threshold=-20dB:ratio=3:attack=5:release=50,volume=1.1';
-  console.log(`🔊 Audio noise reduction filter: ${audioFilter}`);
+  const audioFilter = 'highpass=f=80,lowpass=f=12000,afftdn=nf=-25:nr=12:nt=w,volume=20.0,acompressor=threshold=0.01:ratio=12:attack=2:release=50:makeup=8,dynaudnorm=f=100:g=11:p=0.95:m=30';
+  console.log(`🔊 Audio filter (denoise+amplify+normalize): ${audioFilter}`);
   
   if (!hasAudio) {
     console.log('⚠️ No audio track found - adding silent audio via raw ffmpeg for iOS compatibility');
@@ -203,6 +203,7 @@ async function convertVideo(inputPath, outputPath) {
         '-c:v', 'libx264',
         '-profile:v', 'baseline',
         '-level', '3.1',
+        '-g', '30',
         '-c:a', 'aac',
         '-preset', 'fast',
         '-crf', '23',
@@ -234,6 +235,7 @@ async function convertVideo(inputPath, outputPath) {
         '-c:v', 'libx264',
         '-profile:v', 'baseline',
         '-level', '3.1',
+        '-g', '30',
         '-c:a', 'aac',
         '-preset', 'fast',
         '-crf', '23',
@@ -511,6 +513,48 @@ app.post('/api/transcribe', upload.single('video'), async (req, res) => {
   }
 });
 
+app.post('/api/transcribe-from-urls', async (req, res) => {
+  const { clipUrls } = req.body;
+  if (!clipUrls || !Array.isArray(clipUrls) || clipUrls.length === 0) {
+    return res.status(400).json({ error: 'clipUrls array is required' });
+  }
+
+  try {
+    const allSegments = [];
+    let timeOffset = 0;
+
+    for (let i = 0; i < clipUrls.length; i++) {
+      const url = clipUrls[i];
+      const localPath = path.join(tempDir, `transcribe_${Date.now()}_${i}.mp4`);
+      console.log(`📥 Downloading clip ${i + 1}/${clipUrls.length} for transcription`);
+      await downloadFile(url, localPath);
+
+      const result = await aiService.transcribeVideo(localPath);
+      try { fs.unlinkSync(localPath); } catch (e) {}
+
+      const clipDuration = result.duration || 30;
+      if (result.success && result.segments && result.segments.length > 0) {
+        result.segments.forEach(seg => {
+          allSegments.push({
+            start: timeOffset + (seg.start || 0),
+            end: timeOffset + (seg.end || clipDuration),
+            text: seg.text || '',
+          });
+        });
+      } else if (result.success && result.text) {
+        allSegments.push({ start: timeOffset, end: timeOffset + clipDuration, text: result.text });
+      }
+      timeOffset += clipDuration;
+    }
+
+    console.log(`✅ Transcribed ${clipUrls.length} clips, ${allSegments.length} segments, total ${timeOffset}s`);
+    res.json({ success: true, segments: allSegments, totalDuration: timeOffset });
+  } catch (error) {
+    console.error('❌ Transcribe-from-urls error:', error);
+    res.status(500).json({ error: 'Transcription failed', details: error.message });
+  }
+});
+
 app.post('/api/analyze-story', async (req, res) => {
   const { transcriptions } = req.body;
   
@@ -606,6 +650,7 @@ async function concatenateVideos(inputPaths, outputPath) {
       .inputOptions(['-f', 'concat', '-safe', '0'])
       .outputOptions([
         '-c:v', 'libx264',
+        '-g', '30',
         '-c:a', 'aac',
         '-preset', 'fast',
         '-crf', '23',
@@ -768,6 +813,7 @@ async function concatenateWithTransitions(inputPaths, outputPath, format) {
         '-map', '[vout]',
         '-map', '[aout]',
         '-c:v', 'libx264',
+        '-g', '30',
         '-c:a', 'aac',
         '-preset', 'fast',
         '-crf', '23',
@@ -793,13 +839,19 @@ async function concatenateWithTransitions(inputPaths, outputPath, format) {
 
 function shuffleVideosAvoidConsecutive(videos) {
   if (videos.length <= 1) return videos;
-  
+
+  // Single participant — keep natural clip order (1→2→3)
+  const uniqueParticipants = new Set(videos.map(v => v.participantId).filter(Boolean));
+  if (uniqueParticipants.size <= 1) {
+    return [...videos].sort((a, b) => (a.clipNumber || 0) - (b.clipNumber || 0));
+  }
+
   const shuffled = [...videos];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
-  
+
   for (let i = 1; i < shuffled.length; i++) {
     if (shuffled[i].participantId && shuffled[i].participantId === shuffled[i-1].participantId) {
       for (let j = i + 1; j < shuffled.length; j++) {
@@ -810,7 +862,7 @@ function shuffleVideosAvoidConsecutive(videos) {
       }
     }
   }
-  
+
   return shuffled;
 }
 
@@ -1231,6 +1283,130 @@ app.get('/api/music-status/:jobId', (req, res) => {
   res.json(job);
 });
 
+/**
+ * POST /api/enhance-clip-audio
+ *
+ * Full pipeline: separate clean vocals from a recorded clip (using local Demucs),
+ * then mix those vocals with a background music track.
+ *
+ * Body:
+ *   videoUrl     {string}  Firebase URL of the recorded clip
+ *   musicUrl     {string}  Firebase URL of the ambient music track
+ *   storyId      {string}  Used for Firebase Storage path
+ *   musicVolume  {number}  Music volume (default 0.15)
+ *   musicSource  {string}  'ambient' (default) | 'ai_generated' | 'suno' (future)
+ *
+ * Returns:
+ *   { success: true, videoUrl: <Firebase URL of enhanced clip> }
+ */
+app.post('/api/enhance-clip-audio', async (req, res) => {
+  const {
+    videoUrl,
+    musicUrl,
+    storyId,
+    musicVolume = 0.15,
+    musicSource = 'ambient',
+    // For ai_generated: pass transcription segments
+    transcriptionSegments,
+    totalDuration,
+    style
+  } = req.body;
+
+  if (!videoUrl) {
+    return res.status(400).json({ error: 'videoUrl is required' });
+  }
+
+  const jobDir = path.join(tempDir, `enhance_${Date.now()}`);
+  fs.mkdirSync(jobDir, { recursive: true });
+
+  try {
+    const { separateVocals } = require('./music/vocal-separator');
+    const { mixVocalsWithMusic } = require('./music/mixing-service');
+
+    // 1. Download the recorded video clip
+    const videoPath = path.join(jobDir, 'clip.mp4');
+    await downloadFile(videoUrl, videoPath);
+    console.log('📥 Clip downloaded:', path.basename(videoPath));
+
+    // 2. Extract audio from video for Demucs input
+    const audioPath = path.join(jobDir, 'clip_audio.wav');
+    await new Promise((resolve, reject) => {
+      const { execFile } = require('child_process');
+      execFile('ffmpeg', [
+        '-i', videoPath,
+        '-vn',
+        '-acodec', 'pcm_s16le',
+        '-ar', '44100',
+        '-ac', '2',
+        '-y', audioPath
+      ], { timeout: 60000 }, (err) => err ? reject(err) : resolve());
+    });
+    console.log('🔊 Audio extracted from clip');
+
+    // 3. Separate vocals from music bleed using local Demucs (free)
+    const stemsDir = path.join(jobDir, 'stems');
+    const { vocalsPath } = await separateVocals(audioPath, stemsDir);
+    console.log('🎤 Vocals separated:', path.basename(vocalsPath));
+
+    // 4. Resolve background music based on musicSource
+    let finalMusicPath;
+    switch (musicSource) {
+      case 'ai_generated': {
+        // Use existing GPT-4o → MusicGen → stem mixing pipeline
+        if (!transcriptionSegments || !totalDuration) {
+          return res.status(400).json({ error: 'ai_generated requires transcriptionSegments and totalDuration' });
+        }
+        const { generateMusicForVideo } = require('./music/music-service');
+        const aiResult = await generateMusicForVideo(transcriptionSegments, totalDuration, style);
+        if (!aiResult.success) throw new Error(`AI music generation failed: ${aiResult.error}`);
+        finalMusicPath = aiResult.musicPath;
+        console.log('🤖 AI-generated music ready');
+        break;
+      }
+
+      case 'suno':
+        // TODO: Suno API integration
+        // When implemented:
+        //   const sunoResult = await callSunoApi({ prompt, duration, style });
+        //   finalMusicPath = sunoResult.audioPath;
+        // For now, fall through to ambient
+        console.log('🎵 Suno not yet integrated — falling back to ambient track');
+        // fall through
+
+      case 'ambient':
+      default: {
+        if (!musicUrl) {
+          return res.status(400).json({ error: 'musicUrl is required for ambient musicSource' });
+        }
+        finalMusicPath = path.join(jobDir, 'music.mp3');
+        await downloadFile(musicUrl, finalMusicPath);
+        console.log('🎵 Ambient track downloaded');
+        break;
+      }
+    }
+
+    // 5. Mix clean vocals + music → new video
+    const outputPath = path.join(jobDir, 'enhanced_clip.mp4');
+    await mixVocalsWithMusic(videoPath, vocalsPath, finalMusicPath, outputPath, musicVolume);
+
+    // 6. Upload to Firebase Storage
+    let finalUrl = null;
+    if (bucket) {
+      const storagePath = `enhanced/${storyId || 'unknown'}/clip_${Date.now()}.mp4`;
+      finalUrl = await uploadToFirebase(outputPath, storagePath);
+      console.log('☁️ Enhanced clip uploaded:', finalUrl);
+    }
+
+    fs.rmSync(jobDir, { recursive: true, force: true });
+    res.json({ success: true, videoUrl: finalUrl });
+
+  } catch (error) {
+    console.error('❌ enhance-clip-audio failed:', error.message);
+    try { fs.rmSync(jobDir, { recursive: true, force: true }); } catch (_) {}
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/mix-music-with-video', async (req, res) => {
   const { videoUrl, musicUrl, musicVolume = 0.08, storyId } = req.body;
   
@@ -1366,6 +1542,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log('AI endpoints: /api/transcribe, /api/analyze-story, /api/editing-suggestions, /api/generate-title');
   console.log('Music: /api/generate-music, /api/music-status/:jobId, /api/mix-music-with-video');
+  console.log('Audio enhance: /api/enhance-clip-audio (Demucs vocal separation + music mix)');
   console.log('Ambient: /api/ambient-library, /api/generate-ambient-library, /api/ambient-track/:id');
   console.log('New: /api/convert-url - Convert webm to mp4');
 });

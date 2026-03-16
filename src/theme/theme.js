@@ -1,8 +1,8 @@
 export const fonts = {
-  regular: 'Rubik_400Regular',
-  medium: 'Rubik_500Medium',
-  semiBold: 'Rubik_600SemiBold',
-  bold: 'Rubik_700Bold',
+  regular: 'Quicksand_400Regular',
+  medium: 'Quicksand_500Medium',
+  semiBold: 'Quicksand_600SemiBold',
+  bold: 'Quicksand_700Bold',
 };
 
 export const theme = {

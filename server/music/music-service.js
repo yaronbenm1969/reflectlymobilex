@@ -3,7 +3,8 @@ const https = require('https');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { analyzeEmotionalTimeline, buildMusicPrompt } = require('./emotion-analysis');
+const ffmpeg = require('fluent-ffmpeg');
+const { analyzeEmotionalTimeline, buildMusicPrompt, CHUNK_DURATION } = require('./emotion-analysis');
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN
@@ -157,36 +158,104 @@ async function separateInstruments(musicFilePath) {
   }
 }
 
+async function concatenateChunks(chunkPaths) {
+  if (chunkPaths.length === 1) return chunkPaths[0];
+
+  const outputPath = path.join(MUSIC_TEMP_DIR, `music_full_${Date.now()}.wav`);
+  const crossfade = 2; // seconds of crossfade between chunks
+
+  return new Promise((resolve, reject) => {
+    let cmd = ffmpeg();
+    chunkPaths.forEach(p => { cmd = cmd.input(p); });
+
+    if (chunkPaths.length === 2) {
+      cmd
+        .complexFilter(`[0][1]acrossfade=d=${crossfade}:c1=tri:c2=tri[out]`, 'out')
+        .output(outputPath)
+        .on('end', () => { console.log(`✅ Concatenated ${chunkPaths.length} chunks`); resolve(outputPath); })
+        .on('error', reject)
+        .run();
+    } else {
+      // Chain N-way acrossfade
+      const filters = [];
+      let lastOut = '[0]';
+      for (let i = 1; i < chunkPaths.length; i++) {
+        const outLabel = i === chunkPaths.length - 1 ? '[out]' : `[cf${i}]`;
+        filters.push(`${lastOut}[${i}]acrossfade=d=${crossfade}:c1=tri:c2=tri${outLabel}`);
+        lastOut = outLabel;
+      }
+      cmd
+        .complexFilter(filters, 'out')
+        .output(outputPath)
+        .on('end', () => { console.log(`✅ Concatenated ${chunkPaths.length} chunks`); resolve(outputPath); })
+        .on('error', reject)
+        .run();
+    }
+  });
+}
+
 async function generateMusicForVideo(transcriptionSegments, totalDuration, style) {
   console.log('🎶 Starting full music generation pipeline...');
   console.log(`Duration: ${totalDuration}s, Style hint: ${style || 'auto'}`);
 
   const emotionData = await analyzeEmotionalTimeline(transcriptionSegments, totalDuration);
-  
   if (!emotionData.success) {
     console.warn('⚠️ Emotion analysis had issues, using fallback');
   }
 
-  const musicPrompt = await buildMusicPrompt(emotionData, totalDuration);
-  console.log(`🎵 Final MusicGen prompt: ${musicPrompt}`);
+  const { chunkPrompts = [], musicalDNA = {} } = emotionData;
+  console.log(`🎵 Musical DNA: ${musicalDNA.basePrompt || '—'}`);
+  console.log(`🎵 Generating ${chunkPrompts.length} chunk(s) of ${CHUNK_DURATION}s each`);
 
-  const musicResult = await generateMusic(musicPrompt, totalDuration);
-  if (!musicResult.success) {
-    return { success: false, error: `Music generation failed: ${musicResult.error}` };
+  // Generate each chunk sequentially
+  const chunkPaths = [];
+  for (let i = 0; i < chunkPrompts.length; i++) {
+    console.log(`🎵 Chunk ${i + 1}/${chunkPrompts.length}: ${chunkPrompts[i].substring(0, 80)}...`);
+    const result = await generateMusic(chunkPrompts[i], CHUNK_DURATION);
+    if (!result.success) {
+      console.warn(`⚠️ Chunk ${i + 1} failed: ${result.error}`);
+      // Try fallback with base DNA prompt
+      const fallback = await generateMusic(
+        `${musicalDNA.basePrompt || 'gentle piano, C major, 80 BPM'}, begins softly, returns to calm, 30 seconds`,
+        CHUNK_DURATION
+      );
+      if (!fallback.success) {
+        return { success: false, error: `Chunk ${i + 1} generation failed: ${result.error}` };
+      }
+      chunkPaths.push(fallback.path);
+    } else {
+      chunkPaths.push(result.path);
+    }
   }
 
-  const stemsResult = await separateInstruments(musicResult.path);
-  
+  // Concatenate all chunks with crossfade
+  ensureTempDir();
+  let finalMusicPath;
+  try {
+    finalMusicPath = await concatenateChunks(chunkPaths);
+  } catch (concatErr) {
+    console.warn('⚠️ Concatenation failed, using first chunk:', concatErr.message);
+    finalMusicPath = chunkPaths[0];
+  }
+
+  // Clean up intermediate chunk files (keep only the final)
+  chunkPaths.forEach(p => {
+    if (p !== finalMusicPath) try { fs.unlinkSync(p); } catch (e) {}
+  });
+
+  const stemsResult = await separateInstruments(finalMusicPath);
+
   return {
     success: true,
-    musicPath: musicResult.path,
-    musicUrl: musicResult.url,
+    musicPath: finalMusicPath,
+    musicUrl: null, // caller uploads to Firebase
     stems: stemsResult.stems,
     stemModel: stemsResult.model,
     emotionTimeline: emotionData.timeline,
-    musicPrompt: musicPrompt,
-    musicalKey: emotionData.musicalKey,
-    bpm: emotionData.bpm
+    musicPrompt: chunkPrompts[0] || '',
+    musicalKey: musicalDNA.musicalKey || emotionData.musicalKey,
+    bpm: musicalDNA.bpm || emotionData.bpm,
+    chunkCount: chunkPaths.length,
   };
 }
 

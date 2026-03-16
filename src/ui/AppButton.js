@@ -49,7 +49,7 @@ export const AppButton = ({
           style={styles.loader}
         />
       )}
-      {icon && !loading && icon}
+      {icon && !loading && typeof icon !== 'string' && icon}
       <Text style={textStyles}>{title}</Text>
     </>
   );

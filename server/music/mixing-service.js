@@ -300,8 +300,61 @@ async function mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, musicV
   });
 }
 
+/**
+ * Mix clean vocals (from Demucs separation) with a background music track.
+ * The original video audio is completely replaced.
+ *
+ * @param {string} videoPath   - Original video (its audio track is discarded)
+ * @param {string} vocalsPath  - Clean vocals WAV from Demucs
+ * @param {string} musicPath   - Background music file (MP3/M4A/WAV)
+ * @param {string} outputPath  - Output MP4 path
+ * @param {number} musicVolume - Music volume relative to vocals (default 0.15)
+ */
+async function mixVocalsWithMusic(videoPath, vocalsPath, musicPath, outputPath, musicVolume = 0.15) {
+  console.log('🎚️ Mixing clean vocals + music into video...');
+  console.log(`Vocals: ${vocalsPath}`);
+  console.log(`Music:  ${musicPath} at vol=${musicVolume}`);
+
+  // loudnorm on vocals for consistent levels, then mix with music
+  const filterComplex = [
+    `[1:a]loudnorm=I=-14:LRA=7:TP=-1.5[voice]`,
+    `[2:a]volume=${musicVolume}[music]`,
+    `[voice][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
+  ].join(';');
+
+  return new Promise((resolve, reject) => {
+    const args = [
+      '-i', videoPath,         // [0] video (audio ignored via map)
+      '-i', vocalsPath,        // [1] clean vocals
+      '-stream_loop', '-1',
+      '-i', musicPath,         // [2] background music (looped)
+      '-filter_complex', filterComplex,
+      '-map', '0:v',
+      '-map', '[aout]',
+      '-c:v', 'copy',
+      '-c:a', 'aac',
+      '-b:a', '192k',
+      '-movflags', '+faststart',
+      '-shortest',
+      '-y', outputPath
+    ];
+
+    execFile('ffmpeg', args, { timeout: 300000 }, (err, stdout, stderr) => {
+      if (err) {
+        console.error('❌ mixVocalsWithMusic failed:', err.message);
+        console.error('FFmpeg stderr:', stderr?.substring(0, 500));
+        reject(err);
+      } else {
+        console.log('✅ Vocals + music mixed:', outputPath);
+        resolve(outputPath);
+      }
+    });
+  });
+}
+
 module.exports = {
   mixStemsWithTimeline,
   mixMusicWithVideo,
-  mixMusicWithVideoNoAudio
+  mixMusicWithVideoNoAudio,
+  mixVocalsWithMusic
 };

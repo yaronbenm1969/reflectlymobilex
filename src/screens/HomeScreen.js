@@ -28,12 +28,9 @@ export const HomeScreen = () => {
   const setStoryName = useAppState((state) => state.setStoryName);
   const setCurrentStoryId = useAppState((state) => state.setCurrentStoryId);
   const setCurrentInviteCode = useAppState((state) => state.setCurrentInviteCode);
-  const enterPlayerMode = useAppState((state) => state.enterPlayerMode);
   const user = useAppState((state) => state.user);
   const [localStoryName, setLocalStoryName] = useState(storyName || '');
-  const [inviteCodeInput, setInviteCodeInput] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-  const [isJoining, setIsJoining] = useState(false);
   
   const navigateToRecord = async () => {
     if (!localStoryName.trim()) {
@@ -71,26 +68,6 @@ export const HomeScreen = () => {
     go('Record');
   };
 
-  const handleJoinWithCode = async () => {
-    const code = inviteCodeInput.trim().toUpperCase();
-    if (code.length < 4) {
-      Alert.alert('שגיאה', 'הקוד קצר מדי');
-      return;
-    }
-    
-    setIsJoining(true);
-    
-    const result = await storiesService.getStoryByInviteCode(code);
-    
-    if (result.success) {
-      console.log('🎬 Found story:', result.story.name);
-      enterPlayerMode(result.story.id, result.story);
-    } else {
-      Alert.alert('שגיאה', 'קוד לא נמצא. בדוק ונסה שוב.');
-    }
-    
-    setIsJoining(false);
-  };
 
   return (
     <KeyboardAvoidingView 
@@ -173,33 +150,6 @@ export const HomeScreen = () => {
             />
           </Card>
 
-          <Card style={styles.playerCard}>
-            <View style={styles.playerHeader}>
-              <Ionicons name="people" size={24} color={theme.colors.accent} />
-              <Text style={styles.playerTitle}>קיבלת הזמנה מחבר?</Text>
-            </View>
-            <Text style={styles.playerDescription}>
-              הכנס את הקוד שקיבלת ב-WhatsApp
-            </Text>
-            <TextInput
-              style={styles.inviteCodeInput}
-              placeholder="הכנס קוד..."
-              placeholderTextColor={theme.colors.subtext}
-              value={inviteCodeInput}
-              onChangeText={(text) => setInviteCodeInput(text.toUpperCase())}
-              maxLength={8}
-              autoCapitalize="characters"
-            />
-            <AppButton
-              title={isJoining ? "מחפש..." : "הצטרף לסיפור"}
-              onPress={handleJoinWithCode}
-              variant="secondary"
-              size="lg"
-              fullWidth
-              icon="play-circle-outline"
-              disabled={inviteCodeInput.length < 4 || isJoining}
-            />
-          </Card>
 
           <Card style={styles.infoCard}>
             <View style={styles.infoHeader}>
@@ -310,42 +260,6 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     marginTop: theme.spacing[2],
-  },
-  playerCard: {
-    padding: theme.spacing[5],
-    borderWidth: 2,
-    borderColor: theme.colors.accent,
-    borderStyle: 'dashed',
-  },
-  playerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing[2],
-  },
-  playerTitle: {
-    ...theme.typography.h3,
-    color: theme.colors.text,
-    marginLeft: theme.spacing[2],
-  },
-  playerDescription: {
-    ...theme.typography.body,
-    color: theme.colors.subtext,
-    textAlign: 'right',
-    marginBottom: theme.spacing[3],
-  },
-  inviteCodeInput: {
-    width: '100%',
-    backgroundColor: theme.colors.white,
-    borderWidth: 2,
-    borderColor: theme.colors.accent,
-    borderRadius: theme.radii.lg,
-    padding: theme.spacing[3],
-    fontSize: 20,
-    color: theme.colors.text,
-    marginBottom: theme.spacing[3],
-    textAlign: 'center',
-    letterSpacing: 4,
-    fontWeight: '600',
   },
   infoCard: {
     padding: theme.spacing[5],

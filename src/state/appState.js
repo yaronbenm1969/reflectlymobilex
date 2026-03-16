@@ -25,6 +25,8 @@ export const useAppState = create((set, get) => ({
   selectedMusic: null,
   videoFormat: null,
   backgroundStyle: null,
+  clipMusicMode: 'headphones', // 'headphones' | 'none' | 'performance' | 'ai'
+  generatedMusicUrl: null,
   
   // Player instructions
   playerInstructions: {
@@ -49,6 +51,7 @@ export const useAppState = create((set, get) => ({
   reflections: [],
   reflectionsLoading: false,
   reflectionsError: null,
+  clipRenderOrder: [],
   
   // Processing state
   processingStatus: 'idle',
@@ -101,6 +104,8 @@ export const useAppState = create((set, get) => ({
   // Format & Style actions
   setVideoFormat: (format) => set({ videoFormat: format }),
   setBackgroundStyle: (style) => set({ backgroundStyle: style }),
+  setClipMusicMode: (mode) => set({ clipMusicMode: mode }),
+  setGeneratedMusicUrl: (url) => set({ generatedMusicUrl: url }),
   
   // Player instructions actions
   setPlayerInstructions: (instructions) => set({ 
@@ -129,6 +134,7 @@ export const useAppState = create((set, get) => ({
   setReflections: (reflections) => set({ reflections }),
   setReflectionsLoading: (loading) => set({ reflectionsLoading: loading }),
   setReflectionsError: (error) => set({ reflectionsError: error }),
+  setClipRenderOrder: (order) => set({ clipRenderOrder: order }),
   
   // Processing actions
   setProcessingStatus: (status) => set({ processingStatus: status }),
@@ -188,6 +194,7 @@ export const useAppState = create((set, get) => ({
     },
     participants: [],
     receivedVideos: [],
+    clipRenderOrder: [],
     processingStatus: 'idle',
     processingProgress: 0,
     finalVideoUri: null,

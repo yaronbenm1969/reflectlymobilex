@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
@@ -15,6 +15,7 @@ export const MyStoriesScreen = () => {
   
   const [stories, setStories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
 
   useEffect(() => {
     loadStories();
@@ -44,23 +45,11 @@ export const MyStoriesScreen = () => {
   };
 
   const deleteStory = async (storyId) => {
-    Alert.alert(
-      'מחיקת סיפור',
-      'האם אתה בטוח שברצונך למחוק את הסיפור?',
-      [
-        { text: 'ביטול', style: 'cancel' },
-        {
-          text: 'מחק',
-          style: 'destructive',
-          onPress: async () => {
-            const result = await storiesService.deleteStory(storyId);
-            if (result.success) {
-              setStories(stories.filter(s => s.id !== storyId));
-            }
-          },
-        },
-      ]
-    );
+    const result = await storiesService.deleteStory(storyId);
+    if (result.success) {
+      setStories(stories.filter(s => s.id !== storyId));
+    }
+    setConfirmingDeleteId(null);
   };
 
   const formatDate = (timestamp) => {
@@ -132,12 +121,8 @@ export const MyStoriesScreen = () => {
         ) : (
           <View style={styles.storiesGrid}>
             {stories.map((story) => (
-              <TouchableOpacity 
-                key={story.id} 
-                onPress={() => openStory(story)}
-                onLongPress={() => deleteStory(story.id)}
-              >
-                <Card style={styles.storyCard}>
+              <Card key={story.id} style={styles.storyCard}>
+                <TouchableOpacity style={styles.storyMain} onPress={() => openStory(story)}>
                   <View style={styles.storyThumbnail}>
                     <Ionicons name="videocam" size={32} color={theme.colors.secondary} />
                   </View>
@@ -155,8 +140,24 @@ export const MyStoriesScreen = () => {
                   <View style={styles.playButton}>
                     <Ionicons name="chevron-forward" size={20} color={theme.colors.accent} />
                   </View>
-                </Card>
-              </TouchableOpacity>
+                </TouchableOpacity>
+
+                {confirmingDeleteId === story.id ? (
+                  <View style={styles.deleteConfirm}>
+                    <Text style={styles.deleteConfirmText}>למחוק?</Text>
+                    <TouchableOpacity style={styles.confirmYes} onPress={() => deleteStory(story.id)}>
+                      <Text style={styles.confirmYesText}>מחק</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.confirmNo} onPress={() => setConfirmingDeleteId(null)}>
+                      <Text style={styles.confirmNoText}>ביטול</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.deleteButton} onPress={() => setConfirmingDeleteId(story.id)}>
+                    <Ionicons name="trash-outline" size={20} color="#e74c3c" />
+                  </TouchableOpacity>
+                )}
+              </Card>
             ))}
           </View>
         )}
@@ -242,6 +243,10 @@ const styles = StyleSheet.create({
     gap: theme.spacing[3],
   },
   storyCard: {
+    padding: 0,
+    overflow: 'hidden',
+  },
+  storyMain: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: theme.spacing[4],
@@ -288,5 +293,48 @@ const styles = StyleSheet.create({
     backgroundColor: `${theme.colors.accent}15`,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  deleteButton: {
+    alignSelf: 'stretch',
+    paddingHorizontal: theme.spacing[4],
+    paddingBottom: theme.spacing[3],
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  deleteConfirm: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: theme.spacing[4],
+    paddingBottom: theme.spacing[3],
+    gap: theme.spacing[2],
+  },
+  deleteConfirmText: {
+    fontSize: 13,
+    color: '#e74c3c',
+    fontWeight: '500',
+    marginRight: theme.spacing[1],
+  },
+  confirmYes: {
+    backgroundColor: '#e74c3c',
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: 6,
+    borderRadius: theme.radii.sm,
+  },
+  confirmYesText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  confirmNo: {
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: 6,
+    borderRadius: theme.radii.sm,
+  },
+  confirmNoText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: '500',
   },
 });

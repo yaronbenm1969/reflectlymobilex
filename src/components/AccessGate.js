@@ -17,9 +17,14 @@ export const AccessGate = ({ children }) => {
 
   const checkAccess = async () => {
     setStatus('loading');
-    
+
+    if (!accessService.isAccessCodeConfigured()) {
+      setStatus('unlocked');
+      return;
+    }
+
     const storedCode = await accessService.getStoredCode();
-    
+
     if (storedCode) {
       const verifyResult = await accessService.verifyAccessCode(storedCode);
       if (verifyResult.valid) {
@@ -29,7 +34,7 @@ export const AccessGate = ({ children }) => {
         await accessService.clearStoredCode();
       }
     }
-    
+
     setStatus('locked');
   };
 

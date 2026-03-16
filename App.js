@@ -4,10 +4,10 @@ import { View, StyleSheet, Linking, Text, ActivityIndicator } from 'react-native
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
-import { Rubik_400Regular } from '@expo-google-fonts/rubik/400Regular';
-import { Rubik_500Medium } from '@expo-google-fonts/rubik/500Medium';
-import { Rubik_600SemiBold } from '@expo-google-fonts/rubik/600SemiBold';
-import { Rubik_700Bold } from '@expo-google-fonts/rubik/700Bold';
+import { Quicksand_400Regular } from '@expo-google-fonts/quicksand/400Regular';
+import { Quicksand_500Medium } from '@expo-google-fonts/quicksand/500Medium';
+import { Quicksand_600SemiBold } from '@expo-google-fonts/quicksand/600SemiBold';
+import { Quicksand_700Bold } from '@expo-google-fonts/quicksand/700Bold';
 import { 
   AuthScreen,
   SplashScreen,
@@ -39,10 +39,10 @@ import { authService } from './src/services/authService';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    Rubik_400Regular,
-    Rubik_500Medium,
-    Rubik_600SemiBold,
-    Rubik_700Bold,
+    Quicksand_400Regular,
+    Quicksand_500Medium,
+    Quicksand_600SemiBold,
+    Quicksand_700Bold,
   });
 
   console.log('🚀 Reflectly Mobile App Starting...');

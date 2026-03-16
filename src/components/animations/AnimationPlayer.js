@@ -2,6 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import CubeWebView from '../cube3d/CubeWebView';
 import { FlipPagesWebView } from './FlipPagesWebView';
+import { CarouselWebView } from './CarouselWebView';
+import { FilmStripWebView } from './FilmStripWebView';
 
 const AnimationPlayer = ({
   format = 'cube-3d',
@@ -24,6 +26,45 @@ const AnimationPlayer = ({
   console.log('🎬 AnimationPlayer rendering format:', format);
   
   switch (format) {
+    case 'film-strip':
+      return (
+        <FilmStripWebView
+          faces={faces}
+          storyName={storyName}
+          onFaceChange={onFaceChange}
+          onVideoStart={onVideoStart}
+          onVideoEnd={onVideoEnd}
+          onPlaybackStart={onPlaybackStart}
+          onPlaybackComplete={onPlaybackComplete}
+          onReadyToPlay={onReadyToPlay}
+          onRecordingSupport={onRecordingSupport}
+          onRecordingComplete={onRecordingComplete}
+          onRecordingProgress={onRecordingProgress}
+          isFullscreen={isFullscreen}
+          triggerAutoPlay={triggerAutoPlay}
+          recordNextPlayback={recordNextPlayback}
+        />
+      );
+
+    case 'carousel-3d':
+      return (
+        <CarouselWebView
+          faces={faces}
+          onFaceChange={onFaceChange}
+          onVideoStart={onVideoStart}
+          onVideoEnd={onVideoEnd}
+          onPlaybackStart={onPlaybackStart}
+          onPlaybackComplete={onPlaybackComplete}
+          onReadyToPlay={onReadyToPlay}
+          onRecordingSupport={onRecordingSupport}
+          onRecordingComplete={onRecordingComplete}
+          onRecordingProgress={onRecordingProgress}
+          isFullscreen={isFullscreen}
+          triggerAutoPlay={triggerAutoPlay}
+          recordNextPlayback={recordNextPlayback}
+        />
+      );
+
     case 'flip-pages':
       return (
         <FlipPagesWebView

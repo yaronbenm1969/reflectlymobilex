@@ -53,6 +53,7 @@ export const FormatSelectionScreen = ({ route }) => {
   const formatOptions = [
     { id: 'cube-3d', name: 'קוביה תלת מימד', description: 'סיבוב דינמי על קוביה', icon: 'cube' },
     { id: 'carousel-3d', name: 'קרוסלה תלת מימד', description: 'מעבר חלק בין קטעים', icon: 'albums' },
+    { id: 'film-strip', name: 'סרט קולנוע', description: 'גלילת פריימים כמו סרט פילם', icon: 'film-outline' },
     { id: 'flip-pages', name: 'דפים מתהפכים', description: 'כמו אלבום תמונות', icon: 'book' },
     { id: 'standard', name: 'רגיל', description: 'וידאו ליניארי קלאסי', icon: 'film' },
     { id: 'stack-cards', name: 'כרטיסים נערמים', description: 'ערימת כרטיסים', icon: 'layers' },

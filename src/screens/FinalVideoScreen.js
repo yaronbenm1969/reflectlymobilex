@@ -11,7 +11,8 @@ import {
   Linking,
   ScrollView,
 } from 'react-native';
-import { Video, Audio } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
+import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Sharing from 'expo-sharing';
@@ -32,7 +33,7 @@ const MUSIC_BASE_URL = `https://storage.googleapis.com/${STORAGE_BUCKET}/music/l
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const VIDEO_CONVERTER_URL = 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
+const VIDEO_CONVERTER_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
 
 const convertedUrlCache = new Map();
 
@@ -69,18 +70,49 @@ export const FinalVideoScreen = () => {
   const [recordingFirebaseUrl, setRecordingFirebaseUrl] = useState(null);
   const [isUploadingRecording, setIsUploadingRecording] = useState(false);
   const [conversionSucceeded, setConversionSucceeded] = useState(false);
+  const [localVideoUri, setLocalVideoUri] = useState(null);
+  const [isLoadingVideo, setIsLoadingVideo] = useState(false);
   const clientRecordingResolveRef = useRef(null);
   const autoRecordTriggeredRef = useRef(false);
   const isUploadingRef = useRef(false);
   const cachedRecordingRef = useRef(null);
   const firebaseUrlRef = useRef(null);
   const clientRecordingSupportedRef = useRef(false);
-  const videoRef = useRef(null);
   const cubeRef = useRef(null);
   const ambientSoundRef = useRef(null);
   const ambientPhaseIndexRef = useRef(0);
 
-  const isAmbientMusic = selectedMusic && selectedMusic !== 'none' && selectedMusic !== 'ai-generated';
+  // Download final video locally for smooth playback (avoids network buffering)
+  useEffect(() => {
+    const isAnim = videoFormat && videoFormat !== 'standard';
+    if (!finalVideoUri || isAnim) return;
+    setIsLoadingVideo(true);
+    const localPath = FileSystem.cacheDirectory + `final_video_${Date.now()}.mp4`;
+    FileSystem.downloadAsync(finalVideoUri, localPath)
+      .then(result => {
+        if (result.status === 200) {
+          setLocalVideoUri(result.uri);
+        } else {
+          setLocalVideoUri(finalVideoUri); // fallback to remote
+        }
+      })
+      .catch(() => setLocalVideoUri(finalVideoUri)) // fallback to remote
+      .finally(() => setIsLoadingVideo(false));
+  }, [finalVideoUri]);
+
+  const player = useVideoPlayer(localVideoUri ? { uri: localVideoUri } : null, p => {
+    p.loop = false;
+  });
+
+  useEffect(() => {
+    if (!player) return;
+    const sub1 = player.addListener('playingChange', ({ isPlaying: playing }) => {
+      setIsPlaying(prev => playing !== prev ? playing : prev);
+    });
+    return () => { sub1.remove(); };
+  }, [player]);
+
+  const isAmbientMusic = false; // Music is captured via microphone during recording — no extra layer needed
 
   const startAmbientMusic = async () => {
     if (!isAmbientMusic) return;
@@ -204,7 +236,9 @@ export const FinalVideoScreen = () => {
   const is3DFormat = videoFormat && videoFormat !== 'standard';
   const isCube3D = videoFormat === 'cube-3d';
   const isFlipPages = videoFormat === 'flip-pages';
-  const isAnimatedFormat = isCube3D || isFlipPages;
+  const isCarousel = videoFormat === 'carousel-3d';
+  const isFilmStrip = videoFormat === 'film-strip';
+  const isAnimatedFormat = isCube3D || isFlipPages || isCarousel || isFilmStrip;
   
   console.log('🎬 FinalVideoScreen format:', videoFormat, 'isAnimatedFormat:', isAnimatedFormat, 'isFlipPages:', isFlipPages);
 
@@ -357,22 +391,20 @@ export const FinalVideoScreen = () => {
     }
   };
 
-  const handlePlayPause = async () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        await videoRef.current.pauseAsync();
-        if (ambientSoundRef.current) {
-          try { await ambientSoundRef.current.pauseAsync(); } catch (e) {}
-        }
-      } else {
-        await videoRef.current.playAsync();
-        if (ambientSoundRef.current) {
-          try { await ambientSoundRef.current.playAsync(); } catch (e) {}
-        } else {
-          startAmbientMusic();
-        }
+  const handlePlayPause = () => {
+    if (!player) return;
+    if (isPlaying) {
+      player.pause();
+      if (ambientSoundRef.current) {
+        try { ambientSoundRef.current.pauseAsync(); } catch (e) {}
       }
-      setIsPlaying(!isPlaying);
+    } else {
+      player.play();
+      if (ambientSoundRef.current) {
+        try { ambientSoundRef.current.playAsync(); } catch (e) {}
+      } else {
+        startAmbientMusic();
+      }
     }
   };
 
@@ -1332,16 +1364,19 @@ export const FinalVideoScreen = () => {
               onComplete={handlePlaybackComplete}
             />
           ) : finalVideoUri ? (
-            <Video
-              ref={videoRef}
-              source={{ uri: finalVideoUri }}
-              style={styles.videoPlayer}
-              useNativeControls
-              resizeMode="contain"
-              onPlaybackStatusUpdate={(status) => {
-                setIsPlaying(status.isPlaying);
-              }}
-            />
+            isLoadingVideo ? (
+              <View style={styles.videoPlayer}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text style={{ color: theme.colors.subtext, marginTop: 12 }}>טוען סרטון...</Text>
+              </View>
+            ) : (
+              <VideoView
+                player={player}
+                style={styles.videoPlayer}
+                nativeControls
+                contentFit="contain"
+              />
+            )
           ) : (
             <View style={styles.videoPreview}>
               <TouchableOpacity
@@ -1767,6 +1802,8 @@ const styles = StyleSheet.create({
   videoPlayer: {
     width: '100%',
     height: 220,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   videoPreview: {
     height: 220,

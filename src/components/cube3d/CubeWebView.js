@@ -560,57 +560,76 @@ const CubeWebView = ({
           return;
         }
         
-        // Add cache-busting parameter
-        const cacheBuster = '_t=' + Date.now() + '_' + queueIdx;
-        const videoUrl = videoData.videoUrl + (videoData.videoUrl.includes('?') ? '&' + cacheBuster : '?' + cacheBuster);
+        const videoUrl = videoData.videoUrl;
         
         // Clean up old listeners
         video.oncanplay = null;
         video.onerror = null;
         video.onloadedmetadata = null;
+        video.ontimeupdate = null;
+        video.onwaiting = null;
+        video.onplaying = null;
         
         let resolved = false;
-        
-        // Wait for canplay (video is ready to play without buffering)
-        video.oncanplay = function() {
+
+        function doResolve() {
           if (resolved) return;
           resolved = true;
+          video.oncanplaythrough = null;
           video.oncanplay = null;
           video.onerror = null;
-          
-          // Tiny seek to trigger iOS to paint first frame (no play/pause needed)
+          // Tiny seek to trigger iOS to paint first frame
           video.currentTime = 0.001;
-          
-          console.log('📹 Face ' + faceId + ' READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's');
+          console.log('📹 Face ' + faceId + ' READY: queue[' + queueIdx + '] dur=' + (video.duration || 0).toFixed(1) + 's readyState=' + video.readyState);
           resolve(video);
+        }
+
+        // canplaythrough = browser has enough data to play without mid-video stall
+        // This is the key fix for first-playback freezes (network load vs cache)
+        video.oncanplaythrough = function() { doResolve(); };
+
+        // canplay fallback: if canplaythrough never fires (some iOS builds),
+        // wait an extra 800ms to let the buffer fill a bit more, then resolve anyway
+        video.oncanplay = function() {
+          setTimeout(function() { doResolve(); }, 800);
         };
-        
+
         video.onerror = function() {
           if (resolved) return;
           resolved = true;
+          video.oncanplaythrough = null;
           video.oncanplay = null;
           video.onerror = null;
           console.log('❌ Face ' + faceId + ' error loading queue[' + queueIdx + ']');
           reject('Video load error');
         };
-        
+
         // Update tracking
         faceVideos[faceId] = { element: video, queueIdx: queueIdx };
-        
+
         // Change source (doesn't recreate element)
         video.src = videoUrl;
         video.load();
-        
-        // Fallback timeout
+
+        // Fallback timeout — always resolves or rejects (no hanging promise)
         setTimeout(() => {
-          if (!resolved && video.readyState >= 2) {
+          if (!resolved) {
             resolved = true;
+            video.oncanplaythrough = null;
             video.oncanplay = null;
             video.onerror = null;
-            console.log('📹 Face ' + faceId + ' timeout-ready: queue[' + queueIdx + ']');
-            resolve(video);
+            if (video.readyState >= 3) {
+              console.log('📹 Face ' + faceId + ' timeout-ready (HAVE_FUTURE_DATA): queue[' + queueIdx + ']');
+              resolve(video);
+            } else if (video.readyState >= 2) {
+              console.log('⚠️ Face ' + faceId + ' timeout-partial (HAVE_CURRENT_DATA): queue[' + queueIdx + '] - may stall');
+              resolve(video);
+            } else {
+              console.log('❌ Face ' + faceId + ' timeout: readyState=' + video.readyState + ', rejecting');
+              reject('Timeout: video not ready (readyState=' + video.readyState + ')');
+            }
           }
-        }, 4000);
+        }, 8000);
       });
     }
     
@@ -695,26 +714,26 @@ const CubeWebView = ({
     const HALF_ANGLE = 45; // Offset for half-to-half transitions
     
     function setupRotationSync(video, videoIndex) {
-      // Get rotation targets for current and next face
-      const fromTarget = getTargetRotation(videoIndex);
       const toTarget = getTargetRotation(videoIndex + 1);
-      
-      // HALF-TO-HALF: Offset Y rotation by 45° so video plays from "entering" to "exiting"
-      // Instead of 0° to -90°, we do +45° to -45° (face enters from right, exits to left)
-      rotationFromX = fromTarget.rotX;
-      rotationFromY = fromTarget.rotY + HALF_ANGLE; // Start 45° before center
       rotationToX = toTarget.rotX;
-      rotationToY = toTarget.rotY + HALF_ANGLE; // End 45° after center (same offset)
-      
-      // Set current position to start
-      currentRotX = rotationFromX;
-      currentRotY = rotationFromY;
-      
-      // Activate video for rotation sync
+      rotationToY = toTarget.rotY + HALF_ANGLE;
+
+      if (videoIndex === 0) {
+        // First video: snap to expected start position
+        const fromTarget = getTargetRotation(0);
+        rotationFromX = fromTarget.rotX;
+        rotationFromY = fromTarget.rotY + HALF_ANGLE;
+        currentRotX = rotationFromX;
+        currentRotY = rotationFromY;
+      } else {
+        // Subsequent videos: start from wherever rotation currently is (no snap/jump)
+        rotationFromX = currentRotX;
+        rotationFromY = currentRotY;
+      }
+
       activeVideo = video;
       activeVideoIndex = videoIndex;
-      
-      console.log('🔄 Half-to-half sync: idx=' + videoIndex + ' from(' + rotationFromX + ',' + rotationFromY + ') to(' + rotationToX + ',' + rotationToY + ')');
+      console.log('🔄 Sync: idx=' + videoIndex + ' from(' + rotationFromX.toFixed(1) + ',' + rotationFromY.toFixed(1) + ') to(' + rotationToX + ',' + rotationToY + ')');
     }
     
     function clearRotationSync() {
@@ -724,7 +743,7 @@ const CubeWebView = ({
     
     function preloadUpcoming(fromIndex) {
       const prevFace = fromIndex > 0 ? getFaceForIndex(fromIndex - 1) : -1;
-      for (let ahead = 1; ahead <= 3; ahead++) {
+      for (let ahead = 1; ahead <= 2; ahead++) {
         const idx = fromIndex + ahead;
         if (idx >= fullVideoQueue.length) break;
         const fId = getFaceForIndex(idx);
@@ -752,8 +771,8 @@ const CubeWebView = ({
         videoTimeoutId = null;
       }
       
-      if (!fv || !fv.element || fv.queueIdx !== currentIndex) {
-        console.log('🔄 Face ' + faceId + ' has wrong video (has ' + (fv ? fv.queueIdx : 'none') + ', need ' + currentIndex + '), reloading...');
+      if (!fv || !fv.element || fv.queueIdx !== currentIndex || fv.element.readyState < 2) {
+        console.log('🔄 Face ' + faceId + ' not ready (queueIdx=' + (fv ? fv.queueIdx : 'none') + ' need=' + currentIndex + ' readyState=' + (fv && fv.element ? fv.element.readyState : '?') + '), loading...');
         try {
           await loadVideoOnFace(faceId, currentIndex);
           fv = faceVideos[faceId];
@@ -782,36 +801,102 @@ const CubeWebView = ({
       
       video.muted = false;
       video.volume = 1;
-      
-      video.onended = function() {
-        if (videoTimeoutId) clearTimeout(videoTimeoutId);
+
+      let stallTimerId = null;
+      let startupTimerId = null;
+      let hasStartedPlaying = false;
+      const clearStall = () => { if (stallTimerId) { clearTimeout(stallTimerId); stallTimerId = null; } };
+      const clearStartupTimer = () => { if (startupTimerId) { clearTimeout(startupTimerId); startupTimerId = null; } };
+      const armStall = () => {
+        clearStall();
+        const stallAt = video.currentTime;
+        stallTimerId = setTimeout(() => {
+          if (video.currentTime > stallAt + 0.1) {
+            // Video actually progressed — false alarm (onplaying didn't fire)
+            console.log('✅ False stall cleared: progressed to ' + video.currentTime.toFixed(1) + 's');
+            return;
+          }
+          console.log('⚠️ Stall confirmed: queue[' + playingIndex + '] frozen at ' + video.currentTime.toFixed(1) + 's');
+          cleanup();
+          if (currentIndex === playingIndex) advanceToNext();
+        }, 3000);
+      };
+      const cleanup = () => {
+        video.ontimeupdate = null;
+        video.onwaiting = null;
+        video.onplaying = null;
+        video.onended = null;
+        video.pause();
+        video.muted = true;
+        clearStall();
+        clearStartupTimer();
+        if (videoTimeoutId) { clearTimeout(videoTimeoutId); videoTimeoutId = null; }
         clearRotationSync();
+      };
+
+      video.onended = function() {
+        cleanup();
         console.log('🎬 Video ended naturally: queue[' + playingIndex + ']');
         if (currentIndex === playingIndex) advanceToNext();
       };
-      
+
+      // iOS WKWebView backup: ontimeupdate fires reliably even when onended doesn't
+      video.ontimeupdate = function() {
+        if (video.duration > 0 && video.currentTime >= video.duration - 0.3) {
+          cleanup();
+          console.log('🎬 Video end via timeupdate: queue[' + playingIndex + ']');
+          if (currentIndex === playingIndex) advanceToNext();
+        }
+      };
+
+      // Stall detector: only fires after video has already started playing (mid-video stalls only)
+      // Ignores initial onwaiting before first frame — avoids premature advance on slow load
+      video.onwaiting = function() {
+        if (!hasStartedPlaying) return;
+        console.log('⏳ Mid-video stall: queue[' + playingIndex + '] at ' + video.currentTime.toFixed(1) + 's');
+        armStall();
+      };
+      video.onplaying = function() {
+        hasStartedPlaying = true;
+        clearStartupTimer();
+        clearStall();
+      };
+
+      // Set up rotation sync BEFORE play() so cube starts rotating immediately (no freeze)
+      setupRotationSync(video, playingIndex);
+
       console.log('▶️ Playing queue[' + currentIndex + '] on face ' + faceId);
-      
+
       video.play().then(() => {
         console.log('✅ Play started: queue[' + currentIndex + ']');
         postMessage('videoStart', { faceId, queueIndex: currentIndex });
-        
-        setupRotationSync(video, playingIndex);
-        
+
+        // Startup stall: if onplaying never fires within 6s, the video is stuck
+        // before the first frame (initial buffering stall — ignored by onwaiting guard).
+        // Force advance so playback doesn't hang forever on first load.
+        startupTimerId = setTimeout(function() {
+          if (!hasStartedPlaying) {
+            console.log('⚠️ Startup stall: queue[' + playingIndex + '] never started playing, advancing');
+            cleanup();
+            if (currentIndex === playingIndex) advanceToNext();
+          }
+        }, 6000);
+
         preloadUpcoming(playingIndex);
-        
+
         const duration = video.duration;
-        const timeout = (duration && isFinite(duration) && duration > 0) 
-          ? (duration + 2) * 1000 
+        const timeout = (duration && isFinite(duration) && duration > 0)
+          ? (duration + 2) * 1000
           : MAX_VIDEO_DURATION * 1000;
-        
+
         videoTimeoutId = setTimeout(() => {
           console.log('⏰ Timeout: queue[' + playingIndex + '] - forcing advance');
-          clearRotationSync();
+          cleanup();
           if (currentIndex === playingIndex) advanceToNext();
         }, timeout);
-        
+
       }).catch(e => {
+        cleanup();
         console.log('❌ Play failed: ' + e.message + ', advancing...');
         setTimeout(() => advanceToNext(), 500);
       });
@@ -829,8 +914,6 @@ const CubeWebView = ({
         showReplayButton();
         return;
       }
-      
-      clearRotationSync();
       
       playCurrentVideo();
     }
@@ -864,15 +947,31 @@ const CubeWebView = ({
     async function handleReplayClick() {
       hideReplayButton();
       console.log('🔄 Replaying: ' + fullVideoQueue.length + ' videos');
-      
-      // Reset all videos to start
+
+      // iOS gesture unlock: play() on face 0 synchronously unlocks the audio context
+      // for the entire WebView — no need to unlock all 4 faces (which causes them all
+      // to start playing simultaneously on back/invisible faces)
+      var _unlockFaceId = getFaceForIndex(0);
+      var _unlockV = faceVideoElements[_unlockFaceId];
+      if (_unlockV && _unlockV.readyState >= 2) {
+        _unlockV.muted = false;
+        _unlockV.volume = 0;
+        var _unlockP = _unlockV.play();
+        if (_unlockP) _unlockP.catch(function(){});
+      }
+
+      // Stop and mute all video elements, then clear the face map
+      // so playCurrentVideo re-loads fresh (uses HTTP cache — fast)
       Object.values(faceVideos).forEach(fv => {
         if (fv && fv.element) {
           fv.element.pause();
-          fv.element.currentTime = 0.001;
+          fv.element.muted = true;
+          fv.element.removeAttribute('src');
+          fv.element.load();
         }
       });
-      
+      faceVideos = {};
+
       // Reset state
       currentIndex = 0;
       isPlaying = true;
@@ -887,11 +986,19 @@ const CubeWebView = ({
       floatStartTime = 0;
       if (floatAnimId) cancelAnimationFrame(floatAnimId);
       floatAnimId = requestAnimationFrame(floatLoop);
-      
-      // Start first video
-      playCurrentVideo();
-      
+
       postMessage('replayStarted', { videoCount: fullVideoQueue.length });
+
+      // Preload first 2 videos before starting (HTTP cache makes this fast)
+      const replayCount = Math.min(2, fullVideoQueue.length);
+      const reloadPromises = [];
+      for (var ri = 0; ri < replayCount; ri++) {
+        reloadPromises.push(loadVideoOnFace(getFaceForIndex(ri), ri).catch(function() {}));
+      }
+      await Promise.all(reloadPromises);
+      console.log('✅ Replay preload done, starting');
+
+      playCurrentVideo();
     }
     
     async function handlePlayClick() {
@@ -914,10 +1021,19 @@ const CubeWebView = ({
       currentRotY = initial.rotY + HALF_ANGLE; // Start at +45° for half-to-half
       updateCubeTransform(performance.now());
       
-      // Videos are already preloaded from init() - no need to reload!
-      // Just verify they're ready
+      // iOS gesture unlock: play() on face 0 synchronously unlocks the audio context
+      // for the entire WebView — playing all 4 causes videos to start on back faces
+      var _unlockFaceId2 = getFaceForIndex(0);
+      var _unlockV2 = faceVideoElements[_unlockFaceId2];
+      if (_unlockV2 && _unlockV2.readyState >= 2) {
+        _unlockV2.muted = false;
+        _unlockV2.volume = 0;
+        var _unlockP2 = _unlockV2.play();
+        if (_unlockP2) _unlockP2.catch(function(){});
+      }
+
       console.log('📦 Using pre-loaded videos (no reload needed)');
-      
+
       postMessage('animationStarted', { videoCount: fullVideoQueue.length });
       
       // Start float animation
@@ -950,10 +1066,9 @@ const CubeWebView = ({
           }));
         }
         
-        // Wait for all to be ready
         await Promise.all(loadPromises);
-        console.log('✅ All ' + preloadCount + ' initial videos READY');
-        
+        console.log('✅ All ' + preloadCount + ' initial videos ready (canplay)');
+
         isReady = true;
         postMessage('readyToPlay', { videoCount: fullVideoQueue.length });
         showPlayButton();

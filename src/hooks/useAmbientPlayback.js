@@ -44,32 +44,45 @@ export const useAmbientPlayback = (trackId) => {
     return `${BASE_URL}/${trackId}/phase${phaseNumber}.mp3`;
   };
 
-  const playPhase = useCallback(async (phaseNumber) => {
+  const playPhase = useCallback(async (phaseNumber, volume = 0.2, duringRecording = false) => {
     if (!trackId || trackId === 'none') return;
 
     const url = getPhaseUrl(phaseNumber);
     if (!url) return;
+
+    const loadUrl = async (uri) => {
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true, isLooping: true, volume }
+      );
+      return sound;
+    };
 
     try {
       await unloadSound();
       soundIdRef.current += 1;
 
       await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
+        allowsRecordingIOS: duringRecording,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
         shouldDuckAndroid: true,
       }).catch(() => {});
 
-      console.log(`🎵 Loading ambient phase ${phaseNumber}: ${trackId}`);
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: url },
-        {
-          shouldPlay: true,
-          isLooping: true,
-          volume: 0.2,
+      console.log(`🎵 Loading ambient phase ${phaseNumber}: ${trackId} vol=${volume}`);
+
+      let sound;
+      try {
+        sound = await loadUrl(url);
+      } catch (loadErr) {
+        if (phaseNumber !== 1) {
+          console.warn(`⚠️ phase${phaseNumber} failed, falling back to phase1`);
+          const fallbackUrl = getPhaseUrl(1);
+          sound = await loadUrl(fallbackUrl);
+        } else {
+          throw loadErr;
         }
-      );
+      }
 
       if (isUnmountedRef.current) {
         await sound.unloadAsync();
@@ -77,6 +90,7 @@ export const useAmbientPlayback = (trackId) => {
       }
 
       soundRef.current = sound;
+
       setCurrentPhase(phaseNumber);
       setIsPlaying(true);
       setIsLoaded(true);
@@ -91,6 +105,13 @@ export const useAmbientPlayback = (trackId) => {
 
   const stop = useCallback(async () => {
     await unloadSound();
+    // Reset audio session so WebView video 'onended' events fire correctly on iOS
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: false,
+    }).catch(() => {});
     setIsPlaying(false);
     setCurrentPhase(null);
   }, []);
@@ -127,6 +148,15 @@ export const useAmbientPlayback = (trackId) => {
         await fadingSound.stopAsync();
         await fadingSound.unloadAsync();
       } catch (e2) {}
+    }
+    // Only reset audio session if no new sound was started after this fade began
+    if (fadeId === soundIdRef.current) {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: false,
+      }).catch(() => {});
     }
   }, []);
 

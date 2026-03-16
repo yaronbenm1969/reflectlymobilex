@@ -1,25 +1,71 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
   Modal,
+  Image,
 } from 'react-native';
+import { NestableScrollContainer, NestableDraggableFlatList, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { Video } from 'expo-av';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
-import { AppButton } from '../ui/AppButton';
+
 import theme from '../theme/theme';
 import { reflectionsService } from '../services/reflectionsService';
 import { storiesService } from '../services/storiesService';
 import { db } from '../services/firebase';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+
+function shuffleAvoidConsecutive(clips) {
+  if (clips.length <= 1) return clips;
+  const uniqueParticipants = new Set(clips.map(c => c.participantId).filter(Boolean));
+  if (uniqueParticipants.size <= 1) {
+    return [...clips].sort((a, b) => (a.clipNumber || 0) - (b.clipNumber || 0));
+  }
+  const shuffled = [...clips];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  for (let i = 1; i < shuffled.length; i++) {
+    if (shuffled[i].participantId && shuffled[i].participantId === shuffled[i - 1].participantId) {
+      for (let j = i + 1; j < shuffled.length; j++) {
+        if (shuffled[j].participantId !== shuffled[i - 1].participantId) {
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          break;
+        }
+      }
+    }
+  }
+  return shuffled;
+}
+
+const ClipThumbnail = ({ videoUrl, style }) => {
+  const [uri, setUri] = useState(null);
+
+  useEffect(() => {
+    if (!videoUrl) return;
+    VideoThumbnails.getThumbnailAsync(videoUrl, { time: 0 })
+      .then(({ uri }) => setUri(uri))
+      .catch(() => {});
+  }, [videoUrl]);
+
+  if (uri) {
+    return <Image source={{ uri }} style={style} resizeMode="cover" />;
+  }
+  return (
+    <View style={[style, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#1a1a2e' }]}>
+      <Ionicons name="videocam" size={24} color="white" />
+    </View>
+  );
+};
 
 export const EditRoomScreen = () => {
   const { go, back } = useNav();
@@ -39,16 +85,26 @@ export const EditRoomScreen = () => {
   const reflections = useAppState((state) => state.reflections);
   const reflectionsLoading = useAppState((state) => state.reflectionsLoading);
   
+  const setClipRenderOrder = useAppState((state) => state.setClipRenderOrder);
+
   const [editConfirmStep, setEditConfirmStep] = useState(0);
-  const [publishConfirmStep, setPublishConfirmStep] = useState(0);
   const [previewVideo, setPreviewVideo] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [approvedClips, setApprovedClips] = useState({});
+
   const [storyVideoUrl, setStoryVideoUrl] = useState(null);
   const [isConverting, setIsConverting] = useState(false);
   const [rejectionData, setRejectionData] = useState(null);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
-  
+  const [confirmingDeleteClipId, setConfirmingDeleteClipId] = useState(null);
+  const [orderedClips, setOrderedClips] = useState([]);
+  const orderedClipsRef = useRef([]);
+
+  const updateOrderedClips = useCallback((clips) => {
+    orderedClipsRef.current = clips;
+    setOrderedClips(clips);
+    setClipRenderOrder(clips);
+  }, [setClipRenderOrder]);
+
   const setPrivacySettings = useAppState((state) => state.setPrivacySettings);
   const unsubscribeRef = useRef(null);
   const storyUnsubscribeRef = useRef(null);
@@ -139,7 +195,46 @@ export const EditRoomScreen = () => {
       }
     };
   }, [currentStoryId]);
-  
+
+  // Build/update ordered flat clip list when reflections change
+  useEffect(() => {
+    const allStats = reflectionsService.getReflectionStats(reflections);
+    const allClips = [];
+    allStats.participants.forEach(p => {
+      p.clips.forEach(clip => {
+        allClips.push({
+          id: clip.id,
+          videoUrl: clip.videoUrl,
+          clipNumber: clip.clipNumber,
+          participantId: p.id,
+          participantName: p.name,
+        });
+      });
+    });
+
+    if (allClips.length === 0) {
+      updateOrderedClips([]);
+      return;
+    }
+
+    const current = orderedClipsRef.current;
+    const existingIds = new Set(current.map(c => c.id));
+    const allIds = new Set(allClips.map(c => c.id));
+    const newClips = allClips.filter(c => !existingIds.has(c.id));
+    const cleaned = current.filter(c => allIds.has(c.id)); // remove deleted
+
+    if (cleaned.length === 0) {
+      // First load: shuffle all
+      updateOrderedClips(shuffleAvoidConsecutive(allClips));
+    } else if (newClips.length > 0) {
+      // New clips arrived: keep existing order, append new ones at end
+      updateOrderedClips([...cleaned, ...shuffleAvoidConsecutive(newClips)]);
+    } else if (cleaned.length !== current.length) {
+      // Only deletions: update without reordering
+      updateOrderedClips(cleaned);
+    }
+  }, [reflections]);
+
   const effectiveKeyStoryUri = storyVideoUrl || keyStoryUri;
 
   console.log('📊 Raw reflections count:', reflections.length);
@@ -160,6 +255,11 @@ export const EditRoomScreen = () => {
 
   const is3DFormat = videoFormat && videoFormat !== 'standard';
 
+  const handleDeleteClip = async (reflectionId) => {
+    await reflectionsService.deleteReflection(reflectionId);
+    setConfirmingDeleteClipId(null);
+  };
+
   const handleEditNow = () => {
     if (totalClips === 0) {
       Alert.alert('אין שיקופים', 'עדיין לא התקבלו שיקופים מהמשתתפים');
@@ -179,24 +279,6 @@ export const EditRoomScreen = () => {
       } else {
         go('Processing');
       }
-    }
-  };
-
-  const handleExport = () => {
-    if (privacySettings.allowSocialMedia) {
-      if (publishConfirmStep === 0) {
-        setPublishConfirmStep(1);
-        setTimeout(() => {
-          setPublishConfirmStep((prev) => (prev === 1 ? 0 : prev));
-        }, 3000);
-      } else if (publishConfirmStep === 1) {
-        setPublishConfirmStep(0);
-        setKeyStoryUri(effectiveKeyStoryUri);
-        go('FinalVideo');
-      }
-    } else {
-      setKeyStoryUri(effectiveKeyStoryUri);
-      go('FinalVideo');
     }
   };
 
@@ -257,23 +339,6 @@ export const EditRoomScreen = () => {
     setPreviewVideo(null);
   };
 
-  const getClipKey = (participantId, clipNumber) => `${participantId}_${clipNumber}`;
-
-  const toggleClipApproval = (participantId, clipNumber) => {
-    const key = getClipKey(participantId, clipNumber);
-    setApprovedClips(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
-
-  const isClipApproved = (participantId, clipNumber) => {
-    const key = getClipKey(participantId, clipNumber);
-    return approvedClips[key] === true;
-  };
-
-  const approvedCount = Object.values(approvedClips).filter(Boolean).length;
-
   const formatDate = (date) => {
     if (!date) return '';
     const d = new Date(date);
@@ -295,32 +360,79 @@ export const EditRoomScreen = () => {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.content}>
-        <Card style={styles.previewCard}>
-          <View style={styles.videoPreview}>
-            {effectiveKeyStoryUri ? (
-              <Video
-                source={{ uri: effectiveKeyStoryUri }}
-                style={styles.previewVideoPlayer}
-                useNativeControls
-                resizeMode="contain"
-              />
-            ) : (
-              <View style={styles.noVideoPlaceholder}>
-                <Ionicons name="videocam-off" size={48} color="#999" />
-                <Text style={styles.noVideoText}>אין סרטון מפתח</Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.previewTitle}>{storyName}</Text>
+      <NestableScrollContainer style={styles.content}>
+        <Text style={styles.storyHeading}>{storyName}</Text>
+
+        <Card style={styles.videosCard}>
+          <Text style={styles.sectionTitle}>שיקופים שהתקבלו</Text>
+          {orderedClips.length > 0 && (
+            <Text style={styles.dragHint}>לחיצה ארוכה וגרירה לשינוי סדר העריכה</Text>
+          )}
+
+          {reflectionsLoading ? (
+            <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginVertical: 20 }} />
+          ) : orderedClips.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="hourglass-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyText}>ממתין לשיקופים מהמשתתפים...</Text>
+              <Text style={styles.emptySubtext}>שלח את הלינק לחברים כדי שיוכלו להקליט</Text>
+            </View>
+          ) : (
+            <NestableDraggableFlatList
+              data={orderedClips}
+              keyExtractor={(item) => item.id}
+              onDragEnd={({ data }) => updateOrderedClips(data)}
+              renderItem={({ item, drag, isActive, getIndex }) => {
+                const index = getIndex();
+                return (
+                  <ScaleDecorator>
+                    <View style={[styles.clipRow, isActive && styles.clipRowActive]}>
+                      {/* Drag zone: pos + thumb + info — long press triggers drag */}
+                      <TouchableOpacity
+                        style={styles.clipRowDragZone}
+                        onLongPress={drag}
+                        disabled={isActive}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.clipRowPos}>
+                          <Text style={styles.clipRowPosText}>{index + 1}</Text>
+                        </View>
+                        <View style={styles.clipRowThumb}>
+                          <ClipThumbnail videoUrl={item.videoUrl} style={{ width: '100%', height: '100%' }} />
+                        </View>
+                        <View style={styles.clipRowInfo}>
+                          <Text style={styles.clipRowName} numberOfLines={1}>{item.participantName}</Text>
+                          <Text style={styles.clipRowSub}>קליפ {item.clipNumber}</Text>
+                        </View>
+                        <Ionicons name="reorder-three" size={22} color={theme.colors.primary + '80'} />
+                      </TouchableOpacity>
+                      {/* Action buttons */}
+                      <TouchableOpacity style={styles.clipRowPlay} onPress={() => handlePlayVideo(item.videoUrl)}>
+                        <Ionicons name="play-circle" size={28} color={theme.colors.secondary} />
+                      </TouchableOpacity>
+                      {confirmingDeleteClipId === item.id ? (
+                        <View style={styles.clipRowDeleteConfirm}>
+                          <TouchableOpacity style={styles.clipConfirmYes} onPress={() => handleDeleteClip(item.id)}>
+                            <Text style={styles.clipConfirmYesText}>מחק</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.clipConfirmNo} onPress={() => setConfirmingDeleteClipId(null)}>
+                            <Text style={styles.clipConfirmNoText}>לא</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity style={styles.clipRowDelete} onPress={() => setConfirmingDeleteClipId(item.id)}>
+                          <Ionicons name="trash-outline" size={20} color="#e74c3c" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </ScaleDecorator>
+                );
+              }}
+            />
+          )}
         </Card>
 
         <Card style={styles.statusCard}>
-          <View style={styles.statusHeader}>
-            <Ionicons name="people" size={24} color={theme.colors.accent} />
-            <Text style={styles.statusTitle}>סטטוס שיקופים</Text>
-          </View>
-          
           {reflectionsLoading ? (
             <ActivityIndicator size="small" color={theme.colors.primary} />
           ) : (
@@ -328,9 +440,7 @@ export const EditRoomScreen = () => {
               <Text style={styles.statusCount}>
                 {totalClips} קליפים מ-{totalParticipants} משתתפים
               </Text>
-              <Text style={styles.statusSubtext}>
-                {completeParticipants} השלימו 3 שיקופים
-              </Text>
+
               <View style={styles.progressBar}>
                 <View 
                   style={[
@@ -344,14 +454,19 @@ export const EditRoomScreen = () => {
         </Card>
 
         <Card style={styles.settingsCard}>
-          <Text style={styles.sectionTitle}>הגדרות נוכחיות</Text>
-          
+          <Text style={styles.sectionTitle}>הגדרות</Text>
+
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
               <Ionicons name="musical-notes" size={20} color={theme.colors.accent} />
               <Text style={styles.settingLabel}>מוזיקה</Text>
             </View>
-            <Text style={styles.settingValue}>{selectedMusic || 'ללא'}</Text>
+            <View style={styles.settingRight}>
+              <Text style={styles.settingValue}>{selectedMusic || 'ללא'}</Text>
+              <TouchableOpacity style={styles.inlineChangeButton} onPress={() => go('MusicSelection')}>
+                <Text style={styles.inlineChangeText}>שנה</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.settingRow}>
@@ -359,7 +474,12 @@ export const EditRoomScreen = () => {
               <Ionicons name="cube" size={20} color={theme.colors.secondary} />
               <Text style={styles.settingLabel}>פורמט</Text>
             </View>
-            <Text style={styles.settingValue}>{videoFormat || 'סטנדרטי'}</Text>
+            <View style={styles.settingRight}>
+              <Text style={styles.settingValue}>{videoFormat || 'סטנדרטי'}</Text>
+              <TouchableOpacity style={styles.inlineChangeButton} onPress={() => go('FormatSelection')}>
+                <Text style={styles.inlineChangeText}>שנה</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.settingRow}>
@@ -373,96 +493,6 @@ export const EditRoomScreen = () => {
           </View>
         </Card>
 
-        <Card style={styles.videosCard}>
-          <Text style={styles.sectionTitle}>שיקופים שהתקבלו</Text>
-          
-          {reflectionsLoading ? (
-            <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginVertical: 20 }} />
-          ) : participants.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="hourglass-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>ממתין לשיקופים מהמשתתפים...</Text>
-              <Text style={styles.emptySubtext}>שלח את הלינק לחברים כדי שיוכלו להקליט</Text>
-            </View>
-          ) : (
-            participants.map((participant) => (
-              <View key={participant.id} style={styles.participantSection}>
-                <View style={styles.participantHeader}>
-                  <View style={[
-                    styles.statusDot,
-                    participant.status === 'complete' ? styles.statusComplete : styles.statusPartial
-                  ]} />
-                  <Text style={styles.participantName}>{participant.name}</Text>
-                  <Text style={styles.clipCount}>{participant.totalClips}/3 קליפים</Text>
-                </View>
-                
-                <View style={styles.clipsRow}>
-                  {participant.clips.map((clip, index) => {
-                    const approved = isClipApproved(participant.id, clip.clipNumber);
-                    return (
-                      <View key={index} style={styles.clipContainer}>
-                        <View style={[styles.clipPreview, approved && styles.clipPreviewApproved]}>
-                          <Ionicons name="videocam" size={24} color="white" />
-                          {approved && (
-                            <View style={styles.approvedBadge}>
-                              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-                            </View>
-                          )}
-                        </View>
-                        <Text style={styles.clipLabel}>שיקוף {clip.clipNumber}</Text>
-                        <View style={styles.clipActions}>
-                          <TouchableOpacity 
-                            style={styles.clipActionButton}
-                            onPress={() => handlePlayVideo(clip.videoUrl)}
-                          >
-                            <Ionicons name="play" size={16} color={theme.colors.secondary} />
-                            <Text style={styles.clipActionText}>צפה</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity 
-                            style={[styles.clipActionButton, approved && styles.clipActionButtonApproved]}
-                            onPress={() => toggleClipApproval(participant.id, clip.clipNumber)}
-                          >
-                            <Ionicons 
-                              name={approved ? "checkmark-circle" : "add-circle-outline"} 
-                              size={16} 
-                              color={approved ? "#4CAF50" : theme.colors.accent} 
-                            />
-                            <Text style={[styles.clipActionText, approved && styles.clipActionTextApproved]}>
-                              {approved ? "מאושר" : "הוסף"}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-            ))
-          )}
-        </Card>
-
-        <Card style={styles.actionsCard}>
-          <Text style={styles.sectionTitle}>פעולות</Text>
-          
-          <TouchableOpacity 
-            style={styles.actionRow}
-            onPress={() => go('MusicSelection')}
-          >
-            <Ionicons name="musical-notes" size={24} color={theme.colors.accent} />
-            <Text style={styles.actionText}>שנה מוזיקה</Text>
-            <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.actionRow}
-            onPress={() => go('FormatSelection')}
-          >
-            <Ionicons name="cube" size={24} color={theme.colors.secondary} />
-            <Text style={styles.actionText}>שנה פורמט הקרנה</Text>
-            <Ionicons name="chevron-forward" size={20} color={theme.colors.subtext} />
-          </TouchableOpacity>
-        </Card>
-
         <View style={styles.exportActions}>
           <TouchableOpacity
             style={[
@@ -474,15 +504,15 @@ export const EditRoomScreen = () => {
             disabled={totalClips === 0}
           >
             <View style={styles.editNowContent}>
-              <Ionicons 
-                name={editConfirmStep === 1 ? "checkmark-circle" : "color-wand"} 
-                size={24} 
-                color="white" 
+              <Ionicons
+                name={editConfirmStep === 1 ? "checkmark-circle" : "color-wand"}
+                size={24}
+                color="white"
               />
               <Text style={styles.editNowText}>
-                {editConfirmStep === 1 
-                  ? 'לחץ שוב לאישור עריכה' 
-                  : `ערוך עכשיו (${approvedCount > 0 ? approvedCount : totalClips} קליפים)`}
+                {editConfirmStep === 1
+                  ? 'לחץ שוב לאישור עריכה'
+                  : `ערוך וצור סרטון (${totalClips} קליפים)`}
               </Text>
             </View>
             {editConfirmStep === 0 && totalClips > 0 && completeParticipants < totalParticipants && (
@@ -491,43 +521,8 @@ export const EditRoomScreen = () => {
               </Text>
             )}
           </TouchableOpacity>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>או</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {privacySettings.allowSocialMedia ? (
-            <TouchableOpacity
-              style={[
-                styles.publishButton,
-                publishConfirmStep === 1 && styles.publishButtonConfirm,
-              ]}
-              onPress={handleExport}
-            >
-              <Ionicons 
-                name={publishConfirmStep === 1 ? "checkmark-circle" : "share-social"} 
-                size={24} 
-                color="white" 
-              />
-              <Text style={styles.publishButtonText}>
-                {publishConfirmStep === 1 
-                  ? 'לחץ שוב לאישור פרסום' 
-                  : 'ייצא ופרסם'}
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <AppButton
-              title="ייצא סרטון סופי"
-              onPress={handleExport}
-              variant="primary"
-              size="lg"
-              fullWidth
-            />
-          )}
         </View>
-      </ScrollView>
+      </NestableScrollContainer>
 
       <Modal
         visible={isConverting}
@@ -710,12 +705,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: 'bold',
   },
-  statusSubtext: {
-    ...theme.typography.caption,
-    color: theme.colors.subtext,
-    textAlign: 'center',
-    marginBottom: theme.spacing[2],
-  },
   progressBar: {
     height: 8,
     backgroundColor: '#e0e0e0',
@@ -724,7 +713,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: theme.colors.success,
+    backgroundColor: theme.colors.primary,
     borderRadius: 4,
   },
   settingsCard: {
@@ -734,13 +723,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...theme.typography.h3,
     color: theme.colors.text,
-    marginBottom: theme.spacing[3],
     textAlign: 'right',
   },
   settingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    minHeight: 44,
     paddingVertical: theme.spacing[2],
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
@@ -754,10 +743,33 @@ const styles = StyleSheet.create({
     ...theme.typography.body,
     color: theme.colors.text,
   },
+  settingRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
+  inlineChangeButton: {
+    backgroundColor: theme.colors.accent + '18',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  inlineChangeText: {
+    fontSize: 12,
+    color: theme.colors.accent,
+    fontWeight: '600',
+  },
   settingValue: {
     ...theme.typography.body,
     color: theme.colors.secondary,
     fontWeight: 'bold',
+  },
+  storyHeading: {
+    ...theme.typography.h1,
+    color: theme.colors.text,
+    textAlign: 'center',
+    marginBottom: theme.spacing[4],
+    marginTop: theme.spacing[2],
   },
   videosCard: {
     padding: theme.spacing[4],
@@ -812,81 +824,100 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
     color: theme.colors.subtext,
   },
-  clipsRow: {
-    flexDirection: 'row',
-    gap: theme.spacing[3],
-    flexWrap: 'wrap',
-  },
-  clipContainer: {
-    alignItems: 'center',
-    width: 90,
-  },
-  clipPreview: {
-    width: 80,
-    height: 60,
-    backgroundColor: '#333',
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  clipPreviewApproved: {
-    borderWidth: 2,
-    borderColor: '#4CAF50',
-  },
-  approvedBadge: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: 'white',
-    borderRadius: 10,
-  },
-  clipLabel: {
-    ...theme.typography.caption,
-    color: theme.colors.subtext,
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  clipActions: {
-    flexDirection: 'row',
-    gap: 4,
-    marginTop: 4,
-  },
-  clipActionButton: {
+  clipRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 4,
-  },
-  clipActionButtonApproved: {
-    backgroundColor: '#E8F5E9',
-  },
-  clipActionText: {
-    fontSize: 10,
-    color: theme.colors.secondary,
-  },
-  clipActionTextApproved: {
-    color: '#4CAF50',
-  },
-  actionsCard: {
-    padding: theme.spacing[4],
-    marginBottom: theme.spacing[4],
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
-    gap: theme.spacing[3],
+    gap: theme.spacing[2],
   },
-  actionText: {
-    ...theme.typography.body,
-    color: theme.colors.text,
+  clipRowActive: {
+    backgroundColor: '#f5f0ff',
+    borderRadius: 8,
+  },
+  clipRowPos: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clipRowPosText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  clipRowThumb: {
+    width: 64,
+    height: 48,
+    borderRadius: 6,
+    overflow: 'hidden',
+    backgroundColor: '#1a1a2e',
+  },
+  clipRowInfo: {
     flex: 1,
+  },
+  clipRowName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  clipRowSub: {
+    fontSize: 11,
+    color: theme.colors.subtext,
+    marginTop: 2,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing[3],
+  },
+  dragHint: {
+    fontSize: 11,
+    color: theme.colors.subtext,
+    fontStyle: 'italic',
+  },
+  clipRowDragZone: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
+  clipRowPlay: {
+    padding: 4,
+  },
+  clipRowDelete: {
+    padding: 4,
+  },
+  clipRowDeleteConfirm: {
+    flexDirection: 'row',
+    gap: 4,
+    alignItems: 'center',
+  },
+  clipConfirmYes: {
+    backgroundColor: '#e74c3c',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  clipConfirmYesText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  clipConfirmNo: {
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  clipConfirmNoText: {
+    color: theme.colors.text,
+    fontSize: 11,
+    fontWeight: '500',
   },
   exportActions: {
     paddingVertical: theme.spacing[4],
@@ -917,38 +948,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 12,
     marginTop: theme.spacing[1],
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: theme.spacing[4],
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#ddd',
-  },
-  dividerText: {
-    paddingHorizontal: theme.spacing[3],
-    color: theme.colors.subtext,
-    fontSize: 14,
-  },
-  publishButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.radii.lg,
-    padding: theme.spacing[4],
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-  },
-  publishButtonConfirm: {
-    backgroundColor: '#4CAF50',
-  },
-  publishButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
   },
   loadingOverlay: {
     flex: 1,

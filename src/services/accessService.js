@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
+const EXPECTED_ACCESS_CODE = process.env.EXPO_PUBLIC_ACCESS_CODE;
 const STORAGE_KEY = '@reflectly/access_code';
 
 let storedAccessCode = null;
@@ -19,19 +20,21 @@ export const accessService = {
 
   async verifyAccessCode(code) {
     try {
-      const response = await fetch(`${API_URL}/api/verify-access`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
-      });
-      const data = await response.json();
-      
-      if (data.valid) {
-        storedAccessCode = code;
-        await AsyncStorage.setItem(STORAGE_KEY, code);
+      const expected = typeof EXPECTED_ACCESS_CODE === 'string' ? EXPECTED_ACCESS_CODE.trim() : '';
+      if (!expected) {
+        console.warn('⚠️ Access code missing in env - skipping gate');
+        return { valid: true, codeRequired: false };
       }
-      
-      return data;
+
+      const entered = typeof code === 'string' ? code.trim() : '';
+      const isValid = entered === expected;
+
+      if (isValid) {
+        storedAccessCode = entered;
+        await AsyncStorage.setItem(STORAGE_KEY, entered);
+      }
+
+      return { valid: isValid, codeRequired: true };
     } catch (error) {
       console.error('Failed to verify access code:', error);
       return { valid: false, error: true };
@@ -62,6 +65,10 @@ export const accessService = {
 
   getAccessCode() {
     return storedAccessCode;
+  },
+
+  isAccessCodeConfigured() {
+    return typeof EXPECTED_ACCESS_CODE === 'string' && EXPECTED_ACCESS_CODE.trim().length > 0;
   },
 
   getAuthHeaders() {
