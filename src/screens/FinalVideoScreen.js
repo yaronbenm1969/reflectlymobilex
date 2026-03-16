@@ -48,6 +48,7 @@ export const FinalVideoScreen = () => {
   const keyStoryUri = useAppState((state) => state.keyStoryUri);
   const currentStoryId = useAppState((state) => state.currentStoryId);
   const selectedMusic = useAppState((state) => state.selectedMusic);
+  const generatedMusicUrl = useAppState((state) => state.generatedMusicUrl);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -81,6 +82,7 @@ export const FinalVideoScreen = () => {
   const cubeRef = useRef(null);
   const ambientSoundRef = useRef(null);
   const ambientPhaseIndexRef = useRef(0);
+  const aiMusicSoundRef = useRef(null);
 
   // Download final video locally for smooth playback (avoids network buffering)
   useEffect(() => {
@@ -162,6 +164,35 @@ export const FinalVideoScreen = () => {
     ambientPhaseIndexRef.current = 0;
   };
 
+  const startAiMusic = async () => {
+    console.log('🎵 startAiMusic called, generatedMusicUrl:', generatedMusicUrl ? 'exists' : 'null');
+    if (!generatedMusicUrl) return;
+    try {
+      if (aiMusicSoundRef.current) {
+        await aiMusicSoundRef.current.stopAsync().catch(() => {});
+        await aiMusicSoundRef.current.unloadAsync().catch(() => {});
+        aiMusicSoundRef.current = null;
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: generatedMusicUrl },
+        { shouldPlay: true, volume: 0.5, isLooping: true }
+      );
+      aiMusicSoundRef.current = sound;
+      console.log('🎵 AI music started for cube playback');
+    } catch (err) {
+      console.warn('AI music playback failed:', err.message);
+    }
+  };
+
+  const stopAiMusic = async () => {
+    if (!aiMusicSoundRef.current) return;
+    try {
+      await aiMusicSoundRef.current.stopAsync();
+      await aiMusicSoundRef.current.unloadAsync();
+    } catch (e) {}
+    aiMusicSoundRef.current = null;
+  };
+
   useEffect(() => {
     Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
@@ -174,6 +205,11 @@ export const FinalVideoScreen = () => {
         ambientSoundRef.current.stopAsync().catch(() => {});
         ambientSoundRef.current.unloadAsync().catch(() => {});
         ambientSoundRef.current = null;
+      }
+      if (aiMusicSoundRef.current) {
+        aiMusicSoundRef.current.stopAsync().catch(() => {});
+        aiMusicSoundRef.current.unloadAsync().catch(() => {});
+        aiMusicSoundRef.current = null;
       }
     };
   }, []);
@@ -282,16 +318,6 @@ export const FinalVideoScreen = () => {
     return videos;
   };
 
-  useEffect(() => {
-    if (isAnimatedFormat && assetsReady) {
-      console.log(`🎲 Cube faces ready: ${cubeFaces.filter(f => f !== null).length} faces with pre-converted videos`);
-      cubeFaces.forEach((face, i) => {
-        if (face) {
-          console.log(`  Face ${i}: ${face.playerName}, hasVideo=${!!face.videoUrl}, status=${face.status}`);
-        }
-      });
-    }
-  }, [isCube3D, assetsReady, cubeFaces]);
 
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
@@ -1038,6 +1064,7 @@ export const FinalVideoScreen = () => {
               setIsCubeFullscreen(true);
               setCubeStarted(true);
               startAmbientMusic();
+              startAiMusic();
               if (recordNextPlayback) {
                 setClientRecordingInProgress(true);
               }
@@ -1047,6 +1074,7 @@ export const FinalVideoScreen = () => {
               setIsCubeFullscreen(false);
               setVideoHasPlayed(true);
               stopAmbientMusic();
+              stopAiMusic();
               if (clientRecordingInProgress) {
                 console.log('📹 Playback complete during recording - waiting for data');
               } else if (isRecordingMode) {

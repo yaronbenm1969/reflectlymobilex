@@ -604,12 +604,27 @@ const CubeWebView = ({
           reject('Video load error');
         };
 
+        // Release previous blob URL before loading new one
+        revokeFaceBlobUrl(faceId);
+
         // Update tracking
         faceVideos[faceId] = { element: video, queueIdx: queueIdx };
 
-        // Change source (doesn't recreate element)
-        video.src = videoUrl;
-        video.load();
+        // Pre-fetch video as Blob so iOS has it fully in memory before playback
+        // This eliminates first-play network stalls (canplaythrough fires instantly on blob URLs)
+        fetch(videoUrl)
+          .then(function(r) { return r.blob(); })
+          .then(function(blob) {
+            var blobUrl = URL.createObjectURL(blob);
+            faceVideos[faceId].blobUrl = blobUrl; // track for cleanup
+            video.src = blobUrl;
+            video.load();
+          })
+          .catch(function() {
+            // Fallback: use direct URL if fetch fails
+            video.src = videoUrl;
+            video.load();
+          });
 
         // Fallback timeout — always resolves or rejects (no hanging promise)
         setTimeout(() => {
@@ -633,6 +648,15 @@ const CubeWebView = ({
       });
     }
     
+    // Revoke a blob URL when a face is reloaded (prevents memory leak)
+    function revokeFaceBlobUrl(faceId) {
+      var existing = faceVideos[faceId];
+      if (existing && existing.blobUrl) {
+        URL.revokeObjectURL(existing.blobUrl);
+        existing.blobUrl = null;
+      }
+    }
+
     // Pause all videos and reset to first frame
     function pauseAllVideos() {
       Object.values(faceVideos).forEach(fv => {
@@ -843,7 +867,15 @@ const CubeWebView = ({
       // iOS WKWebView backup: ontimeupdate fires reliably even when onended doesn't
       video.ontimeupdate = function() {
         if (video.duration > 0 && video.currentTime >= video.duration - 0.3) {
-          cleanup();
+          // Remove listeners only — don't pause, let video finish naturally (no freeze)
+          video.ontimeupdate = null;
+          video.onended = null;
+          video.onwaiting = null;
+          video.onplaying = null;
+          clearStall();
+          clearStartupTimer();
+          if (videoTimeoutId) { clearTimeout(videoTimeoutId); videoTimeoutId = null; }
+          clearRotationSync();
           console.log('🎬 Video end via timeupdate: queue[' + playingIndex + ']');
           if (currentIndex === playingIndex) advanceToNext();
         }

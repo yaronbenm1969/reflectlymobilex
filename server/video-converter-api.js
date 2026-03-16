@@ -1438,7 +1438,7 @@ app.post('/api/mix-music-with-video', async (req, res) => {
 
     fs.rmSync(jobDir, { recursive: true, force: true });
 
-    res.json({ success: true, videoUrl: finalUrl });
+    res.json({ success: true, finalUrl, videoUrl: finalUrl });
   } catch (error) {
     console.error('❌ Mix music with video failed:', error);
     res.status(500).json({ error: error.message });

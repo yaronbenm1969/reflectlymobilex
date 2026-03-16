@@ -4,7 +4,24 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const CHROMIUM_PATH = execSync('which chromium 2>/dev/null || find /nix -name "chromium" -type f 2>/dev/null | head -1').toString().trim();
+function findChromiumPath() {
+  if (process.platform === 'win32') {
+    const candidates = [
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) return p;
+    }
+    return '';
+  }
+  try {
+    return execSync('which chromium 2>/dev/null || find /nix -name "chromium" -type f 2>/dev/null | head -1').toString().trim();
+  } catch {
+    return '';
+  }
+}
+const CHROMIUM_PATH = findChromiumPath();
 const FRAME_RATE = 12;
 const VIEWPORT_WIDTH = 540;
 const VIEWPORT_HEIGHT = 960;
