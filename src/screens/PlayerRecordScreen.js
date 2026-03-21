@@ -18,6 +18,7 @@ import { useAppState } from '../state/appState';
 import { useAmbientPlayback } from '../hooks/useAmbientPlayback';
 import storageService from '../services/storageService';
 import reflectionsService from '../services/reflectionsService';
+import { storiesService } from '../services/storiesService';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 import Constants from 'expo-constants';
@@ -44,6 +45,8 @@ export const PlayerRecordScreen = () => {
   const navigationParams = useAppState((state) => state.navigationParams);
   const playerStoryData = useAppState((state) => state.playerStoryData);
   const playerStoryId = useAppState((state) => state.playerStoryId);
+  const currentStoryId = useAppState((state) => state.currentStoryId);
+  const storyIdForMusic = playerStoryId || currentStoryId;
 
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState('front');
@@ -71,6 +74,8 @@ export const PlayerRecordScreen = () => {
   const [uploadProgress, setUploadProgress] = useState('');
 
   useEffect(() => {
+    // Clear any AI music URL from a previous session
+    setGeneratedMusicUrl(null);
     if (!permission) {
       requestPermission();
     }
@@ -196,7 +201,7 @@ export const PlayerRecordScreen = () => {
       return;
     }
 
-    if (!playerStoryId) {
+    if (!storyIdForMusic) {
       go('ThankYou', {
         recordedCount: recorded.length,
         creatorName: playerStoryData?.creatorName || navigationParams?.creatorName,
@@ -218,7 +223,7 @@ export const PlayerRecordScreen = () => {
         setUploadProgress(`מעלה שיקוף ${i + 1}...`);
         const result = await storageService.uploadPlayerVideo(
           clip.uri,
-          playerStoryId,
+          storyIdForMusic,
           participantId,
           i + 1,
           (progress) => {
@@ -242,8 +247,8 @@ export const PlayerRecordScreen = () => {
         }
       }
 
-      // AI music generation after upload
-      if (musicMode === 'ai' && playerStoryId && uploadedUrls.length > 0) {
+      // AI music generation after upload — for headphones/none modes (not performance, where music is already in recording)
+      if (musicMode !== 'performance' && storyIdForMusic && uploadedUrls.length > 0) {
         try {
           // Step 1: Transcribe clips
           setUploadProgress('מתמלל שיקופים...');
@@ -272,7 +277,7 @@ export const PlayerRecordScreen = () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              storyId: playerStoryId,
+              storyId: storyIdForMusic,
               totalDuration,
               ...(transcriptionSegments && { transcriptionSegments }),
             }),
@@ -287,8 +292,12 @@ export const PlayerRecordScreen = () => {
               const statusRes = await fetch(getApiUrl(`/api/music-status/${jobId}`));
               const statusJson = await statusRes.json();
               setUploadProgress(`מייצר מוזיקה... ${statusJson.progress || 0}%`);
-              if (statusJson.status === 'completed' && statusJson.musicUrl) {
-                setGeneratedMusicUrl(statusJson.musicUrl);
+              if (statusJson.status === 'completed') {
+                if (statusJson.musicUrl) {
+                  setGeneratedMusicUrl(statusJson.musicUrl);
+                  // Save to Firestore so the creator can pick it up from any device
+                  storiesService.updateStory(storyIdForMusic, { generatedMusicUrl: statusJson.musicUrl }).catch(() => {});
+                }
                 break;
               }
               if (statusJson.status === 'failed') break;
@@ -474,7 +483,6 @@ export const PlayerRecordScreen = () => {
                 { key: 'headphones', icon: 'headset',       label: 'אוזניות' },
                 { key: 'none',       icon: 'volume-mute',   label: 'ללא' },
                 { key: 'performance',icon: 'mic',           label: 'שירה/תנועה' },
-                { key: 'ai',         icon: 'color-wand',    label: 'AI ✨' },
               ].map(({ key, icon, label }) => {
                 const active = musicMode === key;
                 return (

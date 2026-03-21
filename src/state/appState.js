@@ -25,7 +25,7 @@ export const useAppState = create((set, get) => ({
   selectedMusic: null,
   videoFormat: null,
   backgroundStyle: null,
-  clipMusicMode: 'headphones', // 'headphones' | 'none' | 'performance' | 'ai'
+  clipMusicMode: 'headphones', // 'headphones' | 'none' | 'performance'
   generatedMusicUrl: null,
   
   // Player instructions
@@ -198,5 +198,7 @@ export const useAppState = create((set, get) => ({
     processingStatus: 'idle',
     processingProgress: 0,
     finalVideoUri: null,
+    generatedMusicUrl: null,
+    clipMusicMode: 'headphones',
   }),
 }));

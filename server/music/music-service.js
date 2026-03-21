@@ -51,7 +51,7 @@ async function generateMusic(prompt, durationSeconds) {
 
   try {
     const output = await replicate.run(
-      'facebook/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedbb',
+      'meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb',
       {
         input: {
           prompt: prompt,

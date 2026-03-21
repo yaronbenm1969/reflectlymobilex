@@ -26,6 +26,7 @@ import CubeWebView from '../components/cube3d/CubeWebView';
 import { AnimationPlayer } from '../components/animations';
 import { useReflectionAssets } from '../hooks/useReflectionAssets';
 import { storageService } from '../services/storageService';
+import { storiesService } from '../services/storiesService';
 import theme from '../theme/theme';
 
 const STORAGE_BUCKET = 'reflectly-playback.firebasestorage.app';
@@ -49,7 +50,8 @@ export const FinalVideoScreen = () => {
   const currentStoryId = useAppState((state) => state.currentStoryId);
   const selectedMusic = useAppState((state) => state.selectedMusic);
   const generatedMusicUrl = useAppState((state) => state.generatedMusicUrl);
-  
+  const setGeneratedMusicUrl = useAppState((state) => state.setGeneratedMusicUrl);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [playbackComplete, setPlaybackComplete] = useState(false);
@@ -83,6 +85,19 @@ export const FinalVideoScreen = () => {
   const ambientSoundRef = useRef(null);
   const ambientPhaseIndexRef = useRef(0);
   const aiMusicSoundRef = useRef(null);
+  const generatedMusicUrlRef = useRef(generatedMusicUrl);
+  useEffect(() => { generatedMusicUrlRef.current = generatedMusicUrl; }, [generatedMusicUrl]);
+
+  // Load generatedMusicUrl from Firestore in case it was generated in a previous session
+  useEffect(() => {
+    if (!currentStoryId || generatedMusicUrl) return;
+    storiesService.getStory(currentStoryId).then((res) => {
+      if (res.success && res.story?.generatedMusicUrl) {
+        setGeneratedMusicUrl(res.story.generatedMusicUrl);
+        console.log('🎵 Loaded generatedMusicUrl from Firestore:', res.story.generatedMusicUrl.substring(0, 60));
+      }
+    }).catch(() => {});
+  }, [currentStoryId]);
 
   // Download final video locally for smooth playback (avoids network buffering)
   useEffect(() => {
@@ -749,13 +764,38 @@ export const FinalVideoScreen = () => {
           const convertResult = await convertResponse.json();
           if (convertResult.success && convertResult.convertedUrl) {
             console.log('📹 Converted mp4 ready:', convertResult.convertedUrl.substring(0, 60));
-            setRecordingFirebaseUrl(convertResult.convertedUrl);
-            firebaseUrlRef.current = convertResult.convertedUrl;
+            let finalMp4Url = convertResult.convertedUrl;
+
+            // Mix AI music into the cube recording if available
+            const musicUrl = generatedMusicUrlRef.current;
+            if (musicUrl) {
+              console.log('🎵 Mixing AI music into cube recording...');
+              try {
+                const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.35 }),
+                });
+                if (mixRes.ok) {
+                  const mixResult = await mixRes.json();
+                  const mixedUrl = mixResult.finalUrl || mixResult.videoUrl;
+                  if (mixedUrl) {
+                    finalMp4Url = mixedUrl;
+                    console.log('✅ AI music mixed into cube recording');
+                  }
+                }
+              } catch (mixErr) {
+                console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
+              }
+            }
+
+            setRecordingFirebaseUrl(finalMp4Url);
+            firebaseUrlRef.current = finalMp4Url;
             setConversionSucceeded(true);
-            
+
             const mp4LocalPath = FileSystem.cacheDirectory + `recording_mp4_${Date.now()}.mp4`;
             try {
-              const dlResult = await FileSystem.downloadAsync(convertResult.convertedUrl, mp4LocalPath);
+              const dlResult = await FileSystem.downloadAsync(finalMp4Url, mp4LocalPath);
               if (dlResult.status === 200) {
                 console.log('📹 Mp4 cached locally:', mp4LocalPath);
                 setCachedRecordingUri(mp4LocalPath);

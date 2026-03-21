@@ -71,7 +71,7 @@ export const storageService = {
       
       if (onProgress) onProgress(10);
       
-      const uploadResponse = await fetch(`${VIDEO_CONVERTER_URL}:3001/api/convert-and-upload`, {
+      const uploadResponse = await fetch(`${VIDEO_CONVERTER_URL}/api/convert-and-upload`, {
         method: 'POST',
         body: formData,
         headers: {
@@ -197,7 +197,7 @@ export const storageService = {
       
       if (onProgress) onProgress(10);
       
-      const uploadResponse = await fetch(`${VIDEO_CONVERTER_URL}:3001/api/convert-and-upload`, {
+      const uploadResponse = await fetch(`${VIDEO_CONVERTER_URL}/api/convert-and-upload`, {
         method: 'POST',
         body: formData,
         headers: {

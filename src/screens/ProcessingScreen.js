@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
+import { storiesService } from '../services/storiesService';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 
@@ -29,8 +30,9 @@ export const ProcessingScreen = () => {
   const clipRenderOrder = useAppState((state) => state.clipRenderOrder);
   const keyStoryUri = useAppState((state) => state.keyStoryUri);
   const generatedMusicUrl = useAppState((state) => state.generatedMusicUrl);
+  const setGeneratedMusicUrl = useAppState((state) => state.setGeneratedMusicUrl);
   const setFinalVideoUri = useAppState((state) => state.setFinalVideoUri);
-  
+
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('מתחיל עיבוד...');
   const [isComplete, setIsComplete] = useState(false);
@@ -49,6 +51,17 @@ export const ProcessingScreen = () => {
       })
     ).start();
   }, []);
+
+  // Load generatedMusicUrl from Firestore (set by player on their own device)
+  useEffect(() => {
+    if (!currentStoryId || generatedMusicUrl) return;
+    storiesService.getStory(currentStoryId).then((res) => {
+      if (res.success && res.story?.generatedMusicUrl) {
+        setGeneratedMusicUrl(res.story.generatedMusicUrl);
+        console.log('🎵 Loaded generatedMusicUrl from Firestore');
+      }
+    }).catch(() => {});
+  }, [currentStoryId]);
 
   useEffect(() => {
     startRendering();

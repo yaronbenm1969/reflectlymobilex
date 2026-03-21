@@ -229,16 +229,16 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
     const measuredThresh = parseFloat(stats.input_thresh);
     const offset = parseFloat(stats.target_offset);
     console.log(`📊 Pass 2: Normalizing speech from ${measuredI.toFixed(1)} LUFS → -14 LUFS`);
-    voiceFilter = `loudnorm=I=-14:LRA=7:TP=-1.5:measured_I=${measuredI}:measured_LRA=${measuredLRA}:measured_TP=${measuredTP}:measured_thresh=${measuredThresh}:offset=${offset}:linear=true`;
+    voiceFilter = `loudnorm=I=-12:LRA=7:TP=-1.5:measured_I=${measuredI}:measured_LRA=${measuredLRA}:measured_TP=${measuredTP}:measured_thresh=${measuredThresh}:offset=${offset}:linear=true`;
   } else {
     console.log('📊 Pass 2: No valid levels detected, using volume boost fallback');
     voiceFilter = 'volume=2.0';
   }
 
-  const filterComplex = `[0:a]${voiceFilter}[voice];[1:a]volume=0.06[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`;
+  const filterComplex = `[0:a]${voiceFilter}[voice];[1:a]volume=${musicVolume}[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`;
 
   console.log('🎬 Pass 2: Mixing with music...');
-  console.log(`Music: ${musicPath} at 0.06`);
+  console.log(`Music: ${musicPath} at ${musicVolume}`);
 
   return new Promise((resolve, reject) => {
     const args = [
