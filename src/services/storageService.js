@@ -1,6 +1,7 @@
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from './firebase';
 import Constants from 'expo-constants';
+import { accessService } from './accessService';
 
 const VIDEO_CONVERTER_URL = Constants.expoConfig?.extra?.videoConverterUrl || 
   'https://reflectly-mobile-x--yaronbenm1.replit.app';
@@ -76,20 +77,21 @@ export const storageService = {
         body: formData,
         headers: {
           'Accept': 'application/json',
+          ...accessService.getAuthHeaders(),
         }
       });
-      
+
       if (onProgress) onProgress(90);
-      
+
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json();
         throw new Error(errorData.error || 'Conversion failed');
       }
-      
+
       const result = await uploadResponse.json();
-      
+
       if (onProgress) onProgress(100);
-      
+
       console.log('Video converted and uploaded:', result.url);
       return { 
         success: true, 
@@ -202,11 +204,12 @@ export const storageService = {
         body: formData,
         headers: {
           'Accept': 'application/json',
+          ...accessService.getAuthHeaders(),
         }
       });
-      
+
       if (onProgress) onProgress(90);
-      
+
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json();
         throw new Error(errorData.error || 'Conversion failed');

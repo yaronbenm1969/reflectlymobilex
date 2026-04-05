@@ -4,6 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
+const { execFile } = require('child_process');
 const { analyzeEmotionalTimeline, buildMusicPrompt, CHUNK_DURATION } = require('./emotion-analysis');
 
 const replicate = new Replicate({
@@ -20,17 +21,19 @@ function ensureTempDir() {
 }
 
 async function downloadFile(url, outputPath) {
+  // Replicate SDK may return URL objects instead of strings
+  const urlStr = typeof url === 'string' ? url : url.toString();
   return new Promise((resolve, reject) => {
-    const protocol = url.startsWith('https') ? https : http;
+    const protocol = urlStr.startsWith('https') ? https : http;
     const file = fs.createWriteStream(outputPath);
-    
-    protocol.get(url, (response) => {
+
+    protocol.get(urlStr, (response) => {
       if (response.statusCode === 301 || response.statusCode === 302) {
         file.close();
         fs.unlinkSync(outputPath);
         return downloadFile(response.headers.location, outputPath).then(resolve).catch(reject);
       }
-      
+
       response.pipe(file);
       file.on('finish', () => {
         file.close();
@@ -68,17 +71,23 @@ async function generateMusic(prompt, durationSeconds) {
     ensureTempDir();
     const musicPath = path.join(MUSIC_TEMP_DIR, `musicgen_${Date.now()}.wav`);
     
-    const musicUrl = typeof output === 'string' ? output : output?.output || output;
-    
-    if (typeof musicUrl === 'string' && musicUrl.startsWith('http')) {
+    // Normalize output to a URL string — handles string, URL object, FileOutput, or {output} wrapper
+    let musicUrl;
+    if (typeof output === 'string') {
+      musicUrl = output;
+    } else if (output && typeof output.url === 'function') {
+      // Replicate SDK v1+ FileOutput
+      musicUrl = output.url().toString();
+    } else if (output && output.url) {
+      musicUrl = output.url.toString();
+    } else if (output && output.output) {
+      musicUrl = output.output.toString();
+    }
+
+    if (musicUrl && musicUrl.startsWith('http')) {
       await downloadFile(musicUrl, musicPath);
       console.log(`✅ Music downloaded: ${musicPath}`);
       return { success: true, path: musicPath, url: musicUrl };
-    }
-
-    if (output && typeof output === 'object' && output.url) {
-      await downloadFile(output.url, musicPath);
-      return { success: true, path: musicPath, url: output.url };
     }
 
     console.log('MusicGen output type:', typeof output, JSON.stringify(output).substring(0, 200));
@@ -194,8 +203,33 @@ async function concatenateChunks(chunkPaths) {
   });
 }
 
+async function applyFade(inputPath, totalDuration) {
+  const outputPath = inputPath.replace('.wav', '_final.m4a');
+  const fadeOutStart = Math.max(0, totalDuration - 2);
+
+  return new Promise((resolve) => {
+    const args = [
+      '-i', inputPath,
+      '-af', `afade=t=in:d=1,afade=t=out:st=${fadeOutStart}:d=2`,
+      '-c:a', 'aac',
+      '-b:a', '192k',
+      '-ar', '44100',
+      '-y', outputPath
+    ];
+    execFile('ffmpeg', args, { timeout: 60000 }, (err) => {
+      if (err) {
+        console.warn('⚠️ Fade apply failed, using original wav:', err.message);
+        resolve(inputPath);
+      } else {
+        console.log('✅ Fade applied:', outputPath);
+        resolve(outputPath);
+      }
+    });
+  });
+}
+
 async function generateMusicForVideo(transcriptionSegments, totalDuration, style) {
-  console.log('🎶 Starting full music generation pipeline...');
+  console.log('🎶 Starting music generation pipeline...');
   console.log(`Duration: ${totalDuration}s, Style hint: ${style || 'auto'}`);
 
   const emotionData = await analyzeEmotionalTimeline(transcriptionSegments, totalDuration);
@@ -214,7 +248,6 @@ async function generateMusicForVideo(transcriptionSegments, totalDuration, style
     const result = await generateMusic(chunkPrompts[i], CHUNK_DURATION);
     if (!result.success) {
       console.warn(`⚠️ Chunk ${i + 1} failed: ${result.error}`);
-      // Try fallback with base DNA prompt
       const fallback = await generateMusic(
         `${musicalDNA.basePrompt || 'gentle piano, C major, 80 BPM'}, begins softly, returns to calm, 30 seconds`,
         CHUNK_DURATION
@@ -228,29 +261,31 @@ async function generateMusicForVideo(transcriptionSegments, totalDuration, style
     }
   }
 
-  // Concatenate all chunks with crossfade
+  // Concatenate chunks if more than one
   ensureTempDir();
-  let finalMusicPath;
+  let rawMusicPath;
   try {
-    finalMusicPath = await concatenateChunks(chunkPaths);
+    rawMusicPath = await concatenateChunks(chunkPaths);
   } catch (concatErr) {
     console.warn('⚠️ Concatenation failed, using first chunk:', concatErr.message);
-    finalMusicPath = chunkPaths[0];
+    rawMusicPath = chunkPaths[0];
   }
 
-  // Clean up intermediate chunk files (keep only the final)
+  // Clean up intermediate chunk files
   chunkPaths.forEach(p => {
-    if (p !== finalMusicPath) try { fs.unlinkSync(p); } catch (e) {}
+    if (p !== rawMusicPath) try { fs.unlinkSync(p); } catch (e) {}
   });
 
-  const stemsResult = await separateInstruments(finalMusicPath);
+  // Apply fade-in/out and convert to m4a
+  const finalMusicPath = await applyFade(rawMusicPath, totalDuration);
+  if (finalMusicPath !== rawMusicPath) {
+    try { fs.unlinkSync(rawMusicPath); } catch (e) {}
+  }
 
   return {
     success: true,
     musicPath: finalMusicPath,
-    musicUrl: null, // caller uploads to Firebase
-    stems: stemsResult.stems,
-    stemModel: stemsResult.model,
+    musicUrl: null,
     emotionTimeline: emotionData.timeline,
     musicPrompt: chunkPrompts[0] || '',
     musicalKey: musicalDNA.musicalKey || emotionData.musicalKey,
@@ -259,21 +294,10 @@ async function generateMusicForVideo(transcriptionSegments, totalDuration, style
   };
 }
 
-function cleanupMusicFiles(musicPath, stems) {
+function cleanupMusicFiles(musicPath) {
   try {
     if (musicPath && fs.existsSync(musicPath)) {
       fs.unlinkSync(musicPath);
-    }
-    if (stems) {
-      for (const stemPath of Object.values(stems)) {
-        if (stemPath && fs.existsSync(stemPath)) {
-          fs.unlinkSync(stemPath);
-        }
-      }
-      const stemDir = path.dirname(Object.values(stems)[0] || '');
-      if (stemDir && fs.existsSync(stemDir)) {
-        fs.rmdirSync(stemDir, { recursive: true });
-      }
     }
   } catch (err) {
     console.warn('Cleanup warning:', err.message);

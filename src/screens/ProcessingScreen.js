@@ -15,10 +15,15 @@ import { storiesService } from '../services/storiesService';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 
-const API_BASE_URL = Constants.expoConfig?.extra?.videoConverterUrl || 
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ||
+  Constants.expoConfig?.extra?.videoConverterUrl ||
   'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
-  
+
 const getApiUrl = (endpoint) => `${API_BASE_URL}${endpoint}`;
+const SERVER_HEADERS = {
+  'Content-Type': 'application/json',
+  ...(process.env.EXPO_PUBLIC_ACCESS_CODE ? { 'x-app-access-code': process.env.EXPO_PUBLIC_ACCESS_CODE } : {}),
+};
 
 export const ProcessingScreen = () => {
   const { go } = useNav();
@@ -31,6 +36,8 @@ export const ProcessingScreen = () => {
   const keyStoryUri = useAppState((state) => state.keyStoryUri);
   const generatedMusicUrl = useAppState((state) => state.generatedMusicUrl);
   const setGeneratedMusicUrl = useAppState((state) => state.setGeneratedMusicUrl);
+  const generatedMusicUrlRef = useRef(null);
+  useEffect(() => { generatedMusicUrlRef.current = generatedMusicUrl; }, [generatedMusicUrl]);
   const setFinalVideoUri = useAppState((state) => state.setFinalVideoUri);
 
   const [progress, setProgress] = useState(0);
@@ -52,15 +59,29 @@ export const ProcessingScreen = () => {
     ).start();
   }, []);
 
-  // Load generatedMusicUrl from Firestore (set by player on their own device)
+  // Load generatedMusicUrl from Firestore — retries up to 5× in case PlayerRecordScreen
+  // hasn't finished writing yet when this screen mounts
   useEffect(() => {
     if (!currentStoryId || generatedMusicUrl) return;
-    storiesService.getStory(currentStoryId).then((res) => {
-      if (res.success && res.story?.generatedMusicUrl) {
-        setGeneratedMusicUrl(res.story.generatedMusicUrl);
-        console.log('🎵 Loaded generatedMusicUrl from Firestore');
+    let cancelled = false;
+    let attempts = 0;
+    const tryLoad = async () => {
+      if (cancelled || generatedMusicUrlRef.current) return;
+      try {
+        const res = await storiesService.getStory(currentStoryId);
+        if (res.success && res.story?.generatedMusicUrl) {
+          setGeneratedMusicUrl(res.story.generatedMusicUrl);
+          console.log('🎵 Loaded generatedMusicUrl from Firestore');
+          return;
+        }
+      } catch (e) {}
+      if (attempts < 5) {
+        attempts++;
+        setTimeout(tryLoad, 2000);
       }
-    }).catch(() => {});
+    };
+    tryLoad();
+    return () => { cancelled = true; };
   }, [currentStoryId]);
 
   useEffect(() => {
@@ -173,15 +194,16 @@ export const ProcessingScreen = () => {
           let finalUrl = job.finalUrl;
 
           // Mix AI-generated music into the rendered video
-          if (finalUrl && generatedMusicUrl) {
+          const musicUrl = generatedMusicUrlRef.current;
+          if (finalUrl && musicUrl) {
             try {
               setStatus('מוסיף מוזיקה מותאמת...');
               const mixRes = await fetch(getApiUrl('/api/mix-music-with-video'), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: SERVER_HEADERS,
                 body: JSON.stringify({
                   videoUrl: finalUrl,
-                  musicUrl: generatedMusicUrl,
+                  musicUrl,
                   musicVolume: 0.12,
                   storyId: currentStoryId,
                 }),

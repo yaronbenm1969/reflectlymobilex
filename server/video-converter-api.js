@@ -1219,7 +1219,6 @@ app.post('/api/generate-music', async (req, res) => {
   (async () => {
     try {
       const { generateMusicForVideo, cleanupMusicFiles } = require('./music/music-service');
-      const { mixStemsWithTimeline } = require('./music/mixing-service');
 
       musicJobs.get(jobId).progress = 10;
       musicJobs.get(jobId).stage = 'analyzing_emotions';
@@ -1227,30 +1226,36 @@ app.post('/api/generate-music', async (req, res) => {
       const segments = transcriptionSegments || [{ start: 0, end: totalDuration, text: '' }];
 
       const result = await generateMusicForVideo(segments, totalDuration, style);
-      
+
       if (!result.success) {
         musicJobs.set(jobId, { status: 'failed', error: result.error });
         return;
       }
 
-      musicJobs.get(jobId).progress = 60;
-      musicJobs.get(jobId).stage = 'mixing_stems';
-
-      const mixedPath = result.musicPath.replace('.wav', '_mixed.m4a');
-      await mixStemsWithTimeline(result.stems, result.emotionTimeline, totalDuration, mixedPath);
-
       musicJobs.get(jobId).progress = 80;
       musicJobs.get(jobId).stage = 'uploading';
 
-      let musicUrl = null;
-      if (bucket) {
-        const storagePath = `music/${storyId}/ai_music_${Date.now()}.m4a`;
-        musicUrl = await uploadToFirebase(mixedPath, storagePath);
-        console.log(`✅ Music uploaded to Firebase: ${musicUrl}`);
+      if (!bucket) {
+        cleanupMusicFiles(result.musicPath);
+        musicJobs.set(jobId, { status: 'failed', error: 'Firebase Storage bucket not configured' });
+        console.error('❌ Music generation failed: no Firebase bucket');
+        return;
       }
 
-      cleanupMusicFiles(result.musicPath, result.stems);
-      if (fs.existsSync(mixedPath)) fs.unlinkSync(mixedPath);
+      let musicUrl;
+      try {
+        const ext = result.musicPath.endsWith('.m4a') ? 'm4a' : 'wav';
+        const storagePath = `music/${storyId}/ai_music_${Date.now()}.${ext}`;
+        musicUrl = await uploadToFirebase(result.musicPath, storagePath);
+        console.log(`✅ Music uploaded to Firebase: ${musicUrl}`);
+      } catch (uploadErr) {
+        cleanupMusicFiles(result.musicPath);
+        musicJobs.set(jobId, { status: 'failed', error: `Firebase upload failed: ${uploadErr.message}` });
+        console.error('❌ Music upload failed:', uploadErr.message);
+        return;
+      }
+
+      cleanupMusicFiles(result.musicPath);
 
       musicJobs.set(jobId, {
         status: 'completed',

@@ -35,6 +35,10 @@ const MUSIC_BASE_URL = `https://storage.googleapis.com/${STORAGE_BUCKET}/music/l
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const VIDEO_CONVERTER_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
+const SERVER_HEADERS = {
+  'Content-Type': 'application/json',
+  ...(process.env.EXPO_PUBLIC_ACCESS_CODE ? { 'x-app-access-code': process.env.EXPO_PUBLIC_ACCESS_CODE } : {}),
+};
 
 const convertedUrlCache = new Map();
 
@@ -88,15 +92,29 @@ export const FinalVideoScreen = () => {
   const generatedMusicUrlRef = useRef(generatedMusicUrl);
   useEffect(() => { generatedMusicUrlRef.current = generatedMusicUrl; }, [generatedMusicUrl]);
 
-  // Load generatedMusicUrl from Firestore in case it was generated in a previous session
+  // Load generatedMusicUrl from Firestore — retries up to 5× in case PlayerRecordScreen
+  // hasn't finished writing yet when this screen mounts
   useEffect(() => {
     if (!currentStoryId || generatedMusicUrl) return;
-    storiesService.getStory(currentStoryId).then((res) => {
-      if (res.success && res.story?.generatedMusicUrl) {
-        setGeneratedMusicUrl(res.story.generatedMusicUrl);
-        console.log('🎵 Loaded generatedMusicUrl from Firestore:', res.story.generatedMusicUrl.substring(0, 60));
+    let cancelled = false;
+    let attempts = 0;
+    const tryLoad = async () => {
+      if (cancelled || generatedMusicUrlRef.current) return;
+      try {
+        const res = await storiesService.getStory(currentStoryId);
+        if (res.success && res.story?.generatedMusicUrl) {
+          setGeneratedMusicUrl(res.story.generatedMusicUrl);
+          console.log('🎵 Loaded generatedMusicUrl from Firestore:', res.story.generatedMusicUrl.substring(0, 60));
+          return;
+        }
+      } catch (e) {}
+      if (attempts < 5) {
+        attempts++;
+        setTimeout(tryLoad, 2000);
       }
-    }).catch(() => {});
+    };
+    tryLoad();
+    return () => { cancelled = true; };
   }, [currentStoryId]);
 
   // Download final video locally for smooth playback (avoids network buffering)
@@ -725,11 +743,36 @@ export const FinalVideoScreen = () => {
           'animated_export',
           (progress) => console.log(`📹 Upload progress: ${progress.toFixed(0)}%`)
         );
-        
+
         if (uploadResult.success && uploadResult.url) {
           console.log('📹 MP4 uploaded to Firebase:', uploadResult.url.substring(0, 60));
-          setRecordingFirebaseUrl(uploadResult.url);
-          firebaseUrlRef.current = uploadResult.url;
+          let finalMp4Url = uploadResult.url;
+
+          // Mix AI music into the iOS cube recording if available
+          const musicUrl = generatedMusicUrlRef.current;
+          if (musicUrl) {
+            console.log('🎵 Mixing AI music into iOS cube recording...');
+            try {
+              const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
+                method: 'POST',
+                headers: SERVER_HEADERS,
+                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.35 }),
+              });
+              if (mixRes.ok) {
+                const mixResult = await mixRes.json();
+                const mixedUrl = mixResult.finalUrl || mixResult.videoUrl;
+                if (mixedUrl) {
+                  finalMp4Url = mixedUrl;
+                  console.log('✅ AI music mixed into iOS cube recording');
+                }
+              }
+            } catch (mixErr) {
+              console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
+            }
+          }
+
+          setRecordingFirebaseUrl(finalMp4Url);
+          firebaseUrlRef.current = finalMp4Url;
           setConversionSucceeded(true);
         } else {
           console.warn('📹 Firebase upload failed:', uploadResult.error);
@@ -751,20 +794,47 @@ export const FinalVideoScreen = () => {
       }
       
       const webmUrl = uploadResult.url;
-      console.log('📹 Step 2: Converting webm→mp4 via server...', webmUrl.substring(0, 60));
-      
+      console.log('📹 Step 2: Converting webm→mp4 via server (async)...', webmUrl.substring(0, 60));
+
       try {
+        // Send async request to avoid Cloudflare tunnel timeout on large files
         const convertResponse = await fetch(`${VIDEO_CONVERTER_URL}/api/convert-url`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: webmUrl }),
+          body: JSON.stringify({ url: webmUrl, async: true }),
         });
-        
+
         if (convertResponse.ok) {
-          const convertResult = await convertResponse.json();
-          if (convertResult.success && convertResult.convertedUrl) {
-            console.log('📹 Converted mp4 ready:', convertResult.convertedUrl.substring(0, 60));
-            let finalMp4Url = convertResult.convertedUrl;
+          const convertQueued = await convertResponse.json();
+          const jobId = convertQueued.jobId;
+          console.log('📹 Conversion queued, jobId:', jobId);
+
+          // Poll until done (max 5 min)
+          let convertedUrl = null;
+          const maxAttempts = 100;
+          for (let i = 0; i < maxAttempts; i++) {
+            await new Promise(r => setTimeout(r, 3000));
+            try {
+              const statusRes = await fetch(`${VIDEO_CONVERTER_URL}/api/queue/job/${jobId}`);
+              if (statusRes.ok) {
+                const statusJson = await statusRes.json();
+                console.log(`📹 Conversion status [${i+1}]:`, statusJson.status, statusJson.progress || '');
+                if (statusJson.status === 'completed' && statusJson.result?.convertedUrl) {
+                  convertedUrl = statusJson.result.convertedUrl;
+                  break;
+                } else if (statusJson.status === 'failed') {
+                  console.warn('📹 Conversion job failed:', statusJson.error);
+                  break;
+                }
+              }
+            } catch (pollErr) {
+              console.warn('📹 Poll error:', pollErr.message);
+            }
+          }
+
+          if (convertedUrl) {
+            console.log('📹 Converted mp4 ready:', convertedUrl.substring(0, 60));
+            let finalMp4Url = convertedUrl;
 
             // Mix AI music into the cube recording if available
             const musicUrl = generatedMusicUrlRef.current;
@@ -773,7 +843,7 @@ export const FinalVideoScreen = () => {
               try {
                 const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: SERVER_HEADERS,
                   body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.35 }),
                 });
                 if (mixRes.ok) {
@@ -839,7 +909,7 @@ export const FinalVideoScreen = () => {
             resolve();
           }
         }, 1000);
-        setTimeout(() => { clearInterval(checkInterval); resolve(); }, 60000);
+        setTimeout(() => { clearInterval(checkInterval); resolve(); }, 5 * 60 * 1000); // wait up to 5 min for conversion
       });
       setDownloadProgress('');
     }

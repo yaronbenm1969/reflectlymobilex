@@ -19,14 +19,20 @@ import { useAmbientPlayback } from '../hooks/useAmbientPlayback';
 import storageService from '../services/storageService';
 import reflectionsService from '../services/reflectionsService';
 import { storiesService } from '../services/storiesService';
+
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 import Constants from 'expo-constants';
 
 const isWeb = Platform.OS === 'web';
-const API_BASE_URL = Constants.expoConfig?.extra?.videoConverterUrl ||
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ||
+  Constants.expoConfig?.extra?.videoConverterUrl ||
   'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
 const getApiUrl = (endpoint) => `${API_BASE_URL}${endpoint}`;
+const SERVER_HEADERS = {
+  'Content-Type': 'application/json',
+  ...(process.env.EXPO_PUBLIC_ACCESS_CODE ? { 'x-app-access-code': process.env.EXPO_PUBLIC_ACCESS_CODE } : {}),
+};
 const { width, height } = Dimensions.get('window');
 
 let Haptics;
@@ -258,7 +264,7 @@ export const PlayerRecordScreen = () => {
           try {
             const transcribeRes = await fetch(getApiUrl('/api/transcribe-from-urls'), {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: SERVER_HEADERS,
               body: JSON.stringify({ clipUrls: uploadedUrls }),
             });
             const transcribeJson = await transcribeRes.json();
@@ -286,22 +292,36 @@ export const PlayerRecordScreen = () => {
           const jobId = genJson.jobId;
 
           if (jobId) {
-            let attempts = 0;
-            while (attempts < 60) {
+            let musicSaved = false;
+            const maxAttempts = 100; // 5 minutes (100 × 3s)
+            for (let attempts = 0; attempts < maxAttempts; attempts++) {
               await new Promise(r => setTimeout(r, 3000));
-              const statusRes = await fetch(getApiUrl(`/api/music-status/${jobId}`));
-              const statusJson = await statusRes.json();
-              setUploadProgress(`מייצר מוזיקה... ${statusJson.progress || 0}%`);
-              if (statusJson.status === 'completed') {
-                if (statusJson.musicUrl) {
-                  setGeneratedMusicUrl(statusJson.musicUrl);
-                  // Save to Firestore so the creator can pick it up from any device
-                  storiesService.updateStory(storyIdForMusic, { generatedMusicUrl: statusJson.musicUrl }).catch(() => {});
+              try {
+                const statusRes = await fetch(getApiUrl(`/api/music-status/${jobId}`));
+                const statusJson = await statusRes.json();
+                setUploadProgress(`מייצר מוזיקה... ${statusJson.progress || 0}%`);
+                if (statusJson.status === 'completed') {
+                  if (statusJson.musicUrl) {
+                    setGeneratedMusicUrl(statusJson.musicUrl);
+                    // Save to Firestore — await so ProcessingScreen finds it immediately
+                    await storiesService.updateStory(storyIdForMusic, { generatedMusicUrl: statusJson.musicUrl }).catch(() => {});
+                    console.log('✅ AI music URL saved to Firestore');
+                    musicSaved = true;
+                  } else {
+                    console.warn('⚠️ Music job completed but no musicUrl returned');
+                  }
+                  break;
                 }
-                break;
+                if (statusJson.status === 'failed') {
+                  console.warn('⚠️ Music generation failed:', statusJson.error);
+                  break;
+                }
+              } catch (pollErr) {
+                console.warn('Music status poll error:', pollErr.message);
               }
-              if (statusJson.status === 'failed') break;
-              attempts++;
+            }
+            if (!musicSaved) {
+              console.warn('⚠️ Music generation did not complete in time — continuing without music');
             }
           }
         } catch (musicErr) {
