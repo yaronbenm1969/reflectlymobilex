@@ -9,6 +9,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import * as FileSystem from 'expo-file-system';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { storiesService } from '../services/storiesService';
@@ -224,7 +225,21 @@ export const ProcessingScreen = () => {
           setStatus('הסרטון מוכן!');
           setIsComplete(true);
           if (finalUrl) {
-            setFinalVideoUri(finalUrl);
+            // Pre-cache the final video locally so FinalVideoScreen plays instantly
+            try {
+              setStatus('מכין לצפייה...');
+              const localPath = FileSystem.cacheDirectory + `final_video_${Date.now()}.mp4`;
+              const downloadResult = await FileSystem.downloadAsync(finalUrl, localPath);
+              if (downloadResult.status === 200) {
+                console.log('✅ Final video pre-cached locally');
+                setFinalVideoUri(downloadResult.uri);
+              } else {
+                setFinalVideoUri(finalUrl);
+              }
+            } catch (cacheErr) {
+              console.warn('Pre-cache failed, using remote URL:', cacheErr.message);
+              setFinalVideoUri(finalUrl);
+            }
           }
         } else if (job.status === 'failed') {
           clearInterval(pollingRef.current);

@@ -121,6 +121,11 @@ export const FinalVideoScreen = () => {
   useEffect(() => {
     const isAnim = videoFormat && videoFormat !== 'standard';
     if (!finalVideoUri || isAnim) return;
+    // Already local (pre-cached by ProcessingScreen) — use directly
+    if (finalVideoUri.startsWith('file://') || finalVideoUri.startsWith(FileSystem.cacheDirectory)) {
+      setLocalVideoUri(finalVideoUri);
+      return;
+    }
     setIsLoadingVideo(true);
     const localPath = FileSystem.cacheDirectory + `final_video_${Date.now()}.mp4`;
     FileSystem.downloadAsync(finalVideoUri, localPath)
