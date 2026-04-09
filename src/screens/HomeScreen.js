@@ -22,15 +22,25 @@ import theme from '../theme/theme';
 
 const logoImage = require('../../assets/logo.png');
 
+const PARTICIPANT_OPTIONS = [
+  { label: '1-10', clipCount: 3, maxClipDuration: 60 },
+  { label: '11-20', clipCount: 1, maxClipDuration: 30 },
+  { label: '21-40', clipCount: 1, maxClipDuration: 15 },
+  { label: '40+', clipCount: 1, maxClipDuration: 10 },
+];
+
 export const HomeScreen = () => {
   const { go } = useNav();
   const storyName = useAppState((state) => state.storyName);
   const setStoryName = useAppState((state) => state.setStoryName);
   const setCurrentStoryId = useAppState((state) => state.setCurrentStoryId);
   const setCurrentInviteCode = useAppState((state) => state.setCurrentInviteCode);
+  const setStoryClipCount = useAppState((state) => state.setStoryClipCount);
+  const setStoryMaxClipDuration = useAppState((state) => state.setStoryMaxClipDuration);
   const user = useAppState((state) => state.user);
   const [localStoryName, setLocalStoryName] = useState(storyName || '');
   const [isCreating, setIsCreating] = useState(false);
+  const [participantRange, setParticipantRange] = useState('1-10');
   
   const navigateToRecord = async () => {
     if (!localStoryName.trim()) {
@@ -45,17 +55,24 @@ export const HomeScreen = () => {
     
     setIsCreating(true);
     setStoryName(localStoryName.trim());
-    
+
+    const selectedOption = PARTICIPANT_OPTIONS.find(o => o.label === participantRange) || PARTICIPANT_OPTIONS[0];
+
     const result = await storiesService.createStory(user.uid, {
       name: localStoryName.trim(),
+      maxParticipants: participantRange,
+      clipCount: selectedOption.clipCount,
+      maxClipDuration: selectedOption.maxClipDuration,
     }, {
       displayName: user.displayName || '',
       email: user.email || '',
     });
-    
+
     if (result.success) {
       setCurrentStoryId(result.storyId);
       setCurrentInviteCode(result.inviteCode);
+      setStoryClipCount(selectedOption.clipCount);
+      setStoryMaxClipDuration(selectedOption.maxClipDuration);
       console.log('🎬 Story created in Firebase:', result.storyId);
       console.log('📎 Invite code:', result.inviteCode);
     } else {
@@ -126,6 +143,27 @@ export const HomeScreen = () => {
               textAlign="right"
             />
             
+            <Text style={styles.participantLabel}>כמה משתתפים?</Text>
+            <View style={styles.participantSelector}>
+              {PARTICIPANT_OPTIONS.map((opt) => (
+                <TouchableOpacity
+                  key={opt.label}
+                  style={[
+                    styles.participantOption,
+                    participantRange === opt.label && styles.participantOptionActive,
+                  ]}
+                  onPress={() => setParticipantRange(opt.label)}
+                >
+                  <Text style={[
+                    styles.participantOptionText,
+                    participantRange === opt.label && styles.participantOptionTextActive,
+                  ]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <Text style={styles.cardDescription}>
               הקלט סיפור אישי והזמן חברים לשתף את השיקופים שלהם
             </Text>
@@ -247,6 +285,39 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: theme.colors.text,
     marginBottom: theme.spacing[4],
+  },
+  participantLabel: {
+    ...theme.typography.h4,
+    color: theme.colors.text,
+    textAlign: 'right',
+    alignSelf: 'flex-end',
+    marginBottom: theme.spacing[2],
+  },
+  participantSelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: theme.spacing[4],
+    gap: 8,
+  },
+  participantOption: {
+    flex: 1,
+    paddingVertical: theme.spacing[2],
+    borderRadius: theme.radii.md,
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+    alignItems: 'center',
+  },
+  participantOptionActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  participantOptionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  participantOptionTextActive: {
+    color: theme.colors.white,
   },
   cardDescription: {
     ...theme.typography.body,

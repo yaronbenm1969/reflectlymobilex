@@ -54,14 +54,17 @@ export const PlayerRecordScreen = () => {
   const currentStoryId = useAppState((state) => state.currentStoryId);
   const storyIdForMusic = playerStoryId || currentStoryId;
 
+  const storyClipCount = useAppState((state) => state.storyClipCount);
+  const storyMaxClipDuration = useAppState((state) => state.storyMaxClipDuration);
+
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState('front');
 
-  const clipTimes = [
-    navigationParams?.video1Time || 60,
-    navigationParams?.video2Time || 60,
-    navigationParams?.video3Time || 60,
-  ];
+  // Clip count: from playerStoryData (deep link), Zustand (creator flow), or default 3
+  const clipCount = playerStoryData?.clipCount || storyClipCount || 3;
+  // Clip duration: from playerStoryData, Zustand, or per-clip navigationParams, or default 60
+  const maxClipDuration = playerStoryData?.maxClipDuration || storyMaxClipDuration || 60;
+  const clipTimes = Array.from({ length: clipCount }, () => maxClipDuration);
 
   const storyMusic = playerStoryData?.music || navigationParams?.music || null;
   const ambient = useAmbientPlayback(storyMusic);
@@ -69,7 +72,16 @@ export const PlayerRecordScreen = () => {
   const cameraRef = useRef(null);
   const recordingTimerRef = useRef(null);
 
-  const [clipRecordings, setClipRecordings] = useState([null, null, null]);
+  const [clipRecordings, setClipRecordings] = useState(() => Array(clipCount).fill(null));
+  // Reset clip slots if clipCount changes (e.g. story data arrives from Firestore after mount)
+  const prevClipCountRef = useRef(clipCount);
+  useEffect(() => {
+    if (prevClipCountRef.current !== clipCount) {
+      prevClipCountRef.current = clipCount;
+      setClipRecordings(Array(clipCount).fill(null));
+    }
+  }, [clipCount]);
+
   const musicMode = useAppState((state) => state.clipMusicMode);
   const setMusicMode = useAppState((state) => state.setClipMusicMode);
   const setGeneratedMusicUrl = useAppState((state) => state.setGeneratedMusicUrl);
@@ -238,7 +250,6 @@ export const PlayerRecordScreen = () => {
         );
 
         if (result.success) {
-          uploadedUrls.push(result.url);
           const participantName = playerStoryData?.participantName || navigationParams?.participantName || null;
           await reflectionsService.saveReflection(
             playerStoryId,
@@ -247,86 +258,53 @@ export const PlayerRecordScreen = () => {
             participantId,
             participantName
           );
+          uploadedUrls.push(result.url);
           uploadedCount++;
         } else {
           console.error(`Upload failed for clip ${i + 1}:`, result.error);
         }
       }
 
-      // AI music generation after upload — for headphones/none modes (not performance, where music is already in recording)
-      if (musicMode !== 'performance' && storyIdForMusic && uploadedUrls.length > 0) {
-        try {
-          // Step 1: Transcribe clips
-          setUploadProgress('מתמלל שיקופים...');
-          let transcriptionSegments = null;
-          let totalDuration = clipRecordings.filter(Boolean).reduce((sum, c) => sum + (c.duration || 30), 0);
-
+      // Fire-and-forget: generate AI music in background from uploaded clips
+      if (uploadedUrls.length > 0 && storyIdForMusic) {
+        (async () => {
           try {
-            const transcribeRes = await fetch(getApiUrl('/api/transcribe-from-urls'), {
-              method: 'POST',
-              headers: SERVER_HEADERS,
-              body: JSON.stringify({ clipUrls: uploadedUrls }),
+            console.log(`🎵 Starting background music generation (${uploadedUrls.length} clips)...`);
+            let transcriptionSegments = null;
+            let totalDuration = 60;
+            try {
+              const transcribeRes = await fetch(getApiUrl('/api/transcribe-from-urls'), {
+                method: 'POST', headers: SERVER_HEADERS,
+                body: JSON.stringify({ clipUrls: uploadedUrls }),
+              });
+              const transcribeJson = await transcribeRes.json();
+              if (transcribeJson.success && transcribeJson.segments?.length > 0) {
+                transcriptionSegments = transcribeJson.segments;
+                totalDuration = transcribeJson.totalDuration || totalDuration;
+              }
+            } catch (e) { console.warn('Transcription failed:', e.message); }
+            const genRes = await fetch(getApiUrl('/api/generate-music'), {
+              method: 'POST', headers: SERVER_HEADERS,
+              body: JSON.stringify({ storyId: storyIdForMusic, totalDuration, ...(transcriptionSegments && { transcriptionSegments }) }),
             });
-            const transcribeJson = await transcribeRes.json();
-            if (transcribeJson.success && transcribeJson.segments?.length > 0) {
-              transcriptionSegments = transcribeJson.segments;
-              totalDuration = transcribeJson.totalDuration || totalDuration;
-              console.log(`✅ Transcribed ${transcriptionSegments.length} segments`);
-            }
-          } catch (transcribeErr) {
-            console.warn('Transcription failed, continuing without:', transcribeErr.message);
-          }
-
-          // Step 2: Generate music with transcription
-          setUploadProgress('מייצר מוזיקה מותאמת...');
-          const genRes = await fetch(getApiUrl('/api/generate-music'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              storyId: storyIdForMusic,
-              totalDuration,
-              ...(transcriptionSegments && { transcriptionSegments }),
-            }),
-          });
-          const genJson = await genRes.json();
-          const jobId = genJson.jobId;
-
-          if (jobId) {
-            let musicSaved = false;
-            const maxAttempts = 100; // 5 minutes (100 × 3s)
-            for (let attempts = 0; attempts < maxAttempts; attempts++) {
+            const genJson = await genRes.json();
+            const musicJobId = genJson.jobId;
+            if (!musicJobId) { console.warn('No music jobId'); return; }
+            for (let i = 0; i < 100; i++) {
               await new Promise(r => setTimeout(r, 3000));
               try {
-                const statusRes = await fetch(getApiUrl(`/api/music-status/${jobId}`));
+                const statusRes = await fetch(getApiUrl(`/api/music-status/${musicJobId}`), { headers: SERVER_HEADERS });
                 const statusJson = await statusRes.json();
-                setUploadProgress(`מייצר מוזיקה... ${statusJson.progress || 0}%`);
-                if (statusJson.status === 'completed') {
-                  if (statusJson.musicUrl) {
-                    setGeneratedMusicUrl(statusJson.musicUrl);
-                    // Save to Firestore — await so ProcessingScreen finds it immediately
-                    await storiesService.updateStory(storyIdForMusic, { generatedMusicUrl: statusJson.musicUrl }).catch(() => {});
-                    console.log('✅ AI music URL saved to Firestore');
-                    musicSaved = true;
-                  } else {
-                    console.warn('⚠️ Music job completed but no musicUrl returned');
-                  }
-                  break;
+                if (statusJson.status === 'completed' && statusJson.musicUrl) {
+                  await storiesService.updateStory(storyIdForMusic, { generatedMusicUrl: statusJson.musicUrl });
+                  console.log('✅ Background music saved to Firestore:', statusJson.musicUrl.substring(0, 60));
+                  return;
                 }
-                if (statusJson.status === 'failed') {
-                  console.warn('⚠️ Music generation failed:', statusJson.error);
-                  break;
-                }
-              } catch (pollErr) {
-                console.warn('Music status poll error:', pollErr.message);
-              }
+                if (statusJson.status === 'failed') return;
+              } catch (e) {}
             }
-            if (!musicSaved) {
-              console.warn('⚠️ Music generation did not complete in time — continuing without music');
-            }
-          }
-        } catch (musicErr) {
-          console.warn('AI music generation failed:', musicErr.message);
-        }
+          } catch (err) { console.warn('Background music generation error:', err.message); }
+        })();
       }
 
       setIsUploading(false);
@@ -523,7 +501,7 @@ export const PlayerRecordScreen = () => {
         )}
 
         <View style={styles.clipCards}>
-          {[0, 1, 2].map((i) => {
+          {Array.from({ length: clipCount }, (_, i) => i).map((i) => {
             const clip = clipRecordings[i];
             const isRecorded = clip !== null;
             return (

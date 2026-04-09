@@ -16,6 +16,8 @@ export const useAppState = create((set, get) => ({
   currentInviteCode: null,
   lastRecordingUri: null,
   keyStoryUri: null,
+  storyClipCount: 3,
+  storyMaxClipDuration: 60,
   
   // Recording settings
   isCountdownEnabled: true,
@@ -92,6 +94,8 @@ export const useAppState = create((set, get) => ({
   // Story actions
   setStoryName: (name) => set({ storyName: name }),
   setKeyStoryUri: (uri) => set({ keyStoryUri: uri }),
+  setStoryClipCount: (n) => set({ storyClipCount: n }),
+  setStoryMaxClipDuration: (n) => set({ storyMaxClipDuration: n }),
   
   // Recording actions
   setLastRecording: (uri) => set({ lastRecordingUri: uri }),
@@ -157,15 +161,16 @@ export const useAppState = create((set, get) => ({
   setCurrentInviteCode: (code) => set({ currentInviteCode: code }),
   
   // Player mode actions
-  enterPlayerMode: (storyId, storyData = null) => set({ 
-    isPlayerMode: true, 
+  enterPlayerMode: (storyId, storyData = null) => set({
+    isPlayerMode: true,
     playerStoryId: storyId,
     playerStoryData: storyData,
     currentScreen: 'PlayerView',
     screenHistory: [],
   }),
-  exitPlayerMode: () => set({ 
-    isPlayerMode: false, 
+  setPlayerStoryData: (data) => set({ playerStoryData: data }),
+  exitPlayerMode: () => set({
+    isPlayerMode: false,
     playerStoryId: null,
     playerStoryData: null
   }),
@@ -178,6 +183,8 @@ export const useAppState = create((set, get) => ({
     storyName: '',
     keyStoryUri: null,
     lastRecordingUri: null,
+    storyClipCount: 3,
+    storyMaxClipDuration: 60,
     selectedMusic: null,
     videoFormat: null,
     backgroundStyle: null,

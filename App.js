@@ -36,6 +36,7 @@ import { SideMenu } from './src/components/SideMenu';
 import { AccessGate } from './src/components/AccessGate';
 import { useAppState } from './src/state/appState';
 import { authService } from './src/services/authService';
+import { storiesService } from './src/services/storiesService';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -119,7 +120,14 @@ export default function App() {
       
       if (storyId) {
         console.log('🎬 Entering player mode for story:', storyId);
-        enterPlayerMode(storyId);
+        enterPlayerMode(storyId, null); // navigate immediately
+        // Fetch story data in background so PlayerRecordScreen gets clipCount etc.
+        storiesService.getStory(storyId).then(res => {
+          if (res.success && res.story) {
+            useAppState.getState().setPlayerStoryData(res.story);
+            console.log('📖 Player story data loaded:', res.story.name, 'clips:', res.story.clipCount);
+          }
+        }).catch(() => {});
       } else {
         console.log('⚠️ No storyId found in URL');
       }

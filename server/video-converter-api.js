@@ -1420,8 +1420,7 @@ app.post('/api/mix-music-with-video', async (req, res) => {
   }
 
   try {
-    const { mixMusicWithVideo } = require('./music/mixing-service');
-    const { downloadVideo } = require('./video-converter-api') || {};
+    const { mixMusicWithVideo, mixMusicWithVideoNoAudio } = require('./music/mixing-service');
 
     const jobDir = path.join(tempDir, `mix_${Date.now()}`);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -1433,7 +1432,15 @@ app.post('/api/mix-music-with-video', async (req, res) => {
     await downloadFile(videoUrl, videoPath);
     await downloadFile(musicUrl, musicPath);
 
-    await mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume);
+    // Try standard mix (voice + music). Fall back to music-only if video has no audio track.
+    try {
+      await mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume);
+    } catch (mixErr) {
+      console.log(`⚠️ Standard mix failed (video may have no audio): ${mixErr.message}`);
+      console.log('🎵 Falling back to music-only mix...');
+      // Use higher volume when there is no voice to balance against
+      await mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, Math.max(musicVolume, 0.5));
+    }
 
     let finalUrl = null;
     if (bucket) {

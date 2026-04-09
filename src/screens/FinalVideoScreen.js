@@ -93,11 +93,56 @@ export const FinalVideoScreen = () => {
   useEffect(() => { generatedMusicUrlRef.current = generatedMusicUrl; }, [generatedMusicUrl]);
 
   // Load generatedMusicUrl from Firestore — retries up to 5× in case PlayerRecordScreen
-  // hasn't finished writing yet when this screen mounts
+  // hasn't finished writing yet when this screen mounts.
+  // If all retries fail (e.g. cube-3d skips ProcessingScreen), generate music here.
   useEffect(() => {
     if (!currentStoryId || generatedMusicUrl) return;
     let cancelled = false;
     let attempts = 0;
+    const generateMusicInBackground = async () => {
+      try {
+        const reflectionUrls = reflections.map(r => r.videoUrl).filter(Boolean);
+        const urlsForMusic = reflectionUrls.length > 0 ? reflectionUrls : (keyStoryUri ? [keyStoryUri] : []);
+        if (urlsForMusic.length === 0) return;
+        console.log(`🎵 Generating AI music in FinalVideoScreen (${urlsForMusic.length} clips)...`);
+        let transcriptionSegments = null;
+        let totalDuration = 60;
+        try {
+          const transcribeRes = await fetch(`${VIDEO_CONVERTER_URL}/api/transcribe-from-urls`, {
+            method: 'POST', headers: SERVER_HEADERS,
+            body: JSON.stringify({ clipUrls: urlsForMusic }),
+          });
+          const transcribeJson = await transcribeRes.json();
+          if (transcribeJson.success && transcribeJson.segments?.length > 0) {
+            transcriptionSegments = transcribeJson.segments;
+            totalDuration = transcribeJson.totalDuration || totalDuration;
+          }
+        } catch (e) { console.warn('Transcription failed:', e.message); }
+        const genRes = await fetch(`${VIDEO_CONVERTER_URL}/api/generate-music`, {
+          method: 'POST', headers: SERVER_HEADERS,
+          body: JSON.stringify({ storyId: currentStoryId, totalDuration, ...(transcriptionSegments && { transcriptionSegments }) }),
+        });
+        const genJson = await genRes.json();
+        const musicJobId = genJson.jobId;
+        if (!musicJobId) { console.warn('No music jobId'); return; }
+        for (let i = 0; i < 100; i++) {
+          if (cancelled) return;
+          await new Promise(r => setTimeout(r, 3000));
+          try {
+            const statusRes = await fetch(`${VIDEO_CONVERTER_URL}/api/music-status/${musicJobId}`, { headers: SERVER_HEADERS });
+            const statusJson = await statusRes.json();
+            if (statusJson.status === 'completed' && statusJson.musicUrl) {
+              setGeneratedMusicUrl(statusJson.musicUrl);
+              generatedMusicUrlRef.current = statusJson.musicUrl;
+              storiesService.updateStory(currentStoryId, { generatedMusicUrl: statusJson.musicUrl }).catch(() => {});
+              console.log('✅ AI music generated in FinalVideoScreen:', statusJson.musicUrl.substring(0, 60));
+              return;
+            }
+            if (statusJson.status === 'failed') return;
+          } catch (e) {}
+        }
+      } catch (err) { console.warn('FinalVideoScreen music generation error:', err.message); }
+    };
     const tryLoad = async () => {
       if (cancelled || generatedMusicUrlRef.current) return;
       try {
@@ -111,6 +156,9 @@ export const FinalVideoScreen = () => {
       if (attempts < 5) {
         attempts++;
         setTimeout(tryLoad, 2000);
+      } else if (!cancelled) {
+        // All Firestore retries exhausted — generate music now (cube-3d bypasses ProcessingScreen)
+        generateMusicInBackground();
       }
     };
     tryLoad();
@@ -232,8 +280,11 @@ export const FinalVideoScreen = () => {
   };
 
   useEffect(() => {
+    // allowsRecordingIOS: false is critical — PlayerRecordScreen may have left it true,
+    // which routes audio to the earpiece (inaudible) instead of the speaker.
     Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
+      allowsRecordingIOS: false,
       staysActiveInBackground: false,
       shouldDuckAndroid: true,
     }).catch(() => {});
@@ -753,6 +804,17 @@ export const FinalVideoScreen = () => {
           console.log('📹 MP4 uploaded to Firebase:', uploadResult.url.substring(0, 60));
           let finalMp4Url = uploadResult.url;
 
+          // Wait for AI music generation if still in progress (up to 5 min)
+          if (!generatedMusicUrlRef.current) {
+            console.log('🎵 Waiting for AI music generation before mixing...');
+            const deadline = Date.now() + 5 * 60 * 1000;
+            while (!generatedMusicUrlRef.current && Date.now() < deadline) {
+              await new Promise(r => setTimeout(r, 5000));
+            }
+            if (generatedMusicUrlRef.current) console.log('🎵 Music ready, proceeding to mix');
+            else console.log('⚠️ Music not ready after 5min, mixing without');
+          }
+
           // Mix AI music into the iOS cube recording if available
           const musicUrl = generatedMusicUrlRef.current;
           if (musicUrl) {
@@ -761,7 +823,7 @@ export const FinalVideoScreen = () => {
               const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                 method: 'POST',
                 headers: SERVER_HEADERS,
-                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.35 }),
+                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.12 }),
               });
               if (mixRes.ok) {
                 const mixResult = await mixRes.json();
@@ -841,6 +903,17 @@ export const FinalVideoScreen = () => {
             console.log('📹 Converted mp4 ready:', convertedUrl.substring(0, 60));
             let finalMp4Url = convertedUrl;
 
+            // Wait for AI music generation if still in progress (up to 5 min)
+            if (!generatedMusicUrlRef.current) {
+              console.log('🎵 Waiting for AI music generation before mixing...');
+              const deadline = Date.now() + 5 * 60 * 1000;
+              while (!generatedMusicUrlRef.current && Date.now() < deadline) {
+                await new Promise(r => setTimeout(r, 5000));
+              }
+              if (generatedMusicUrlRef.current) console.log('🎵 Music ready, proceeding to mix');
+              else console.log('⚠️ Music not ready after 5min, mixing without');
+            }
+
             // Mix AI music into the cube recording if available
             const musicUrl = generatedMusicUrlRef.current;
             if (musicUrl) {
@@ -849,7 +922,7 @@ export const FinalVideoScreen = () => {
                 const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                   method: 'POST',
                   headers: SERVER_HEADERS,
-                  body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.35 }),
+                  body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.12 }),
                 });
                 if (mixRes.ok) {
                   const mixResult = await mixRes.json();
@@ -1157,9 +1230,9 @@ export const FinalVideoScreen = () => {
   return (
     <View style={[styles.container, isCubeFullscreen && styles.fullscreenMode]}>
       {/* ANIMATION PLAYER - supports cube-3d and flip-pages */}
-      {isAnimatedFormat && assetsReady && (
+      {isAnimatedFormat && assetsReady && generatedMusicUrl && (
         <View style={[
-          styles.cubeContainer, 
+          styles.cubeContainer,
           isCubeFullscreen && styles.fullscreenCubeOverlay
         ]}>
           <AnimationPlayer
@@ -1210,6 +1283,14 @@ export const FinalVideoScreen = () => {
             onRecordingProgress={handleRecordingProgress}
             currentPlayingFaceIndex={currentPlayingFaceIndex}
           />
+        </View>
+      )}
+
+      {/* Music Generating Banner */}
+      {isAnimatedFormat && !generatedMusicUrl && (
+        <View style={styles.musicGeneratingBanner}>
+          <ActivityIndicator size="small" color="white" />
+          <Text style={styles.musicGeneratingText}>מייצר מוזיקה... הסרטון יוקלט אוטומטית</Text>
         </View>
       )}
 
@@ -1747,6 +1828,25 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  musicGeneratingBanner: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+    zIndex: 100,
+  },
+  musicGeneratingText: {
+    color: 'white',
+    fontSize: 14,
+    flex: 1,
+    textAlign: 'right',
   },
   cubePlayButton: {
     position: 'absolute',

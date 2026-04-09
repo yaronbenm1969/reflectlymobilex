@@ -90,6 +90,7 @@ const AnimationPlayer = ({
       return (
         <CubeWebView
           faces={faces}
+          storyName={storyName}
           onFaceChange={onFaceChange}
           onVideoStart={onVideoStart}
           onVideoEnd={onVideoEnd}

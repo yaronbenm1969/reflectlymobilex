@@ -221,6 +221,9 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
 
   const stats = await analyzeLoudness(videoPath);
 
+  // Voice enhancement chain: denoise → compress → normalize
+  const voiceEnhance = 'highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50';
+
   let voiceFilter;
   if (stats && stats.input_i && stats.input_i !== '-inf') {
     const measuredI = parseFloat(stats.input_i);
@@ -228,11 +231,11 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
     const measuredTP = parseFloat(stats.input_tp);
     const measuredThresh = parseFloat(stats.input_thresh);
     const offset = parseFloat(stats.target_offset);
-    console.log(`📊 Pass 2: Normalizing speech from ${measuredI.toFixed(1)} LUFS → -14 LUFS`);
-    voiceFilter = `loudnorm=I=-12:LRA=7:TP=-1.5:measured_I=${measuredI}:measured_LRA=${measuredLRA}:measured_TP=${measuredTP}:measured_thresh=${measuredThresh}:offset=${offset}:linear=true`;
+    console.log(`📊 Pass 2: Normalizing speech from ${measuredI.toFixed(1)} LUFS → -14 LUFS + denoise`);
+    voiceFilter = `${voiceEnhance},loudnorm=I=-14:LRA=7:TP=-1.5:measured_I=${measuredI}:measured_LRA=${measuredLRA}:measured_TP=${measuredTP}:measured_thresh=${measuredThresh}:offset=${offset}:linear=true`;
   } else {
-    console.log('📊 Pass 2: No valid levels detected, using volume boost fallback');
-    voiceFilter = 'volume=2.0';
+    console.log('📊 Pass 2: No valid levels detected, using enhanced fallback');
+    voiceFilter = `${voiceEnhance},volume=2.5`;
   }
 
   const filterComplex = `[0:a]${voiceFilter}[voice];[1:a]volume=${musicVolume}[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`;

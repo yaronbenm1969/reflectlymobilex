@@ -10,6 +10,7 @@ const CUBE_HTML_DIR = FileSystem.cacheDirectory + 'cube_v4/';
 
 const CubeWebView = ({
   faces = [],
+  storyName = '',
   autoRotate = true,
   rotationSpeed = 12000,
   onFaceChange,
@@ -378,6 +379,40 @@ const CubeWebView = ({
     .replay-button.hidden {
       display: none;
     }
+    .face-intro {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .face-intro-label {
+      color: #FF6B9D;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      opacity: 0.9;
+    }
+    .face-intro-text {
+      color: #ffffff;
+      font-size: 22px;
+      font-weight: 700;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.7);
+      letter-spacing: 0.3px;
+      line-height: 1.3;
+      word-break: break-word;
+      text-align: center;
+      padding: 0 20px;
+    }
+    .face-intro.hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -397,7 +432,12 @@ const CubeWebView = ({
     <div class="float-wrapper">
       <div class="spin-wrapper" id="spin-wrapper">
         <div class="cube" id="cube">
-          <div class="cube-face front" id="face-0"></div>
+          <div class="cube-face front" id="face-0">
+            <div class="face-intro" id="face-intro">
+              <span class="face-intro-label">Reflectly</span>
+              <span class="face-intro-text" id="face-intro-text"></span>
+            </div>
+          </div>
           <div class="cube-face back" id="face-1"></div>
           <div class="cube-face right" id="face-2"></div>
           <div class="cube-face left" id="face-3"></div>
@@ -413,6 +453,8 @@ const CubeWebView = ({
     // Rotation only happens when video 'ended' fires
     
     const faces = ${facesJSON};
+    const storyTitle = '${(storyName || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, ' ')}';
+    (function() { var el = document.getElementById('face-intro-text'); if (el) el.textContent = storyTitle; })();
     let fullVideoQueue = faces.filter(f => f && f.videoUrl);
     
     window.addVideosToQueue = function(newVideos) {
@@ -494,46 +536,24 @@ const CubeWebView = ({
       initTopBottomFaces();
     }
     
-    // Populate top/bottom faces with video thumbnails
+    // Populate top/bottom faces - bottom gets a title card, top gets a gradient
     function initTopBottomFaces() {
       const topFace = document.getElementById('face-4');
       const bottomFace = document.getElementById('face-5');
-      
-      if (!topFace || !bottomFace || fullVideoQueue.length === 0) return;
-      
-      // Use first two videos for top/bottom thumbnails
-      const topVideoUrl = fullVideoQueue[0]?.videoUrl;
-      const bottomVideoUrl = fullVideoQueue[Math.min(1, fullVideoQueue.length - 1)]?.videoUrl;
-      
-      // Create video element for top face (shows first frame as thumbnail)
-      if (topVideoUrl && !topFace.querySelector('video')) {
-        const topVideo = document.createElement('video');
-        topVideo.muted = true;
-        topVideo.playsInline = true;
-        topVideo.setAttribute('playsinline', '');
-        topVideo.setAttribute('crossorigin', 'anonymous');
-        topVideo.crossOrigin = 'anonymous';
-        topVideo.preload = 'metadata';
-        topVideo.src = topVideoUrl;
-        topVideo.style.cssText = 'width:100%;height:100%;object-fit:cover;opacity:0.85;';
-        topVideo.currentTime = 0.5;
-        topFace.appendChild(topVideo);
-        console.log('🖼️ Added thumbnail to TOP face');
+
+      // Bottom face: title card (shown when cube tilts to reveal it at end)
+      if (bottomFace && !bottomFace.querySelector('.face-intro')) {
+        const div = document.createElement('div');
+        div.className = 'face-intro';
+        div.innerHTML = '<span class="face-intro-label">Reflectly</span>' +
+          (storyTitle ? '<span class="face-intro-text">' + storyTitle + '</span>' : '');
+        bottomFace.appendChild(div);
+        console.log('🎬 Title card added to BOTTOM face');
       }
-      
-      if (bottomVideoUrl && !bottomFace.querySelector('video')) {
-        const bottomVideo = document.createElement('video');
-        bottomVideo.muted = true;
-        bottomVideo.playsInline = true;
-        bottomVideo.setAttribute('playsinline', '');
-        bottomVideo.setAttribute('crossorigin', 'anonymous');
-        bottomVideo.crossOrigin = 'anonymous';
-        bottomVideo.preload = 'metadata';
-        bottomVideo.src = bottomVideoUrl;
-        bottomVideo.style.cssText = 'width:100%;height:100%;object-fit:cover;opacity:0.85;';
-        bottomVideo.currentTime = 0.5;
-        bottomFace.appendChild(bottomVideo);
-        console.log('🖼️ Added thumbnail to BOTTOM face');
+
+      // Top face: simple gradient (no video thumbnail — avoids CORS black face)
+      if (topFace) {
+        topFace.style.background = 'linear-gradient(145deg, rgba(255,107,157,0.6), rgba(192,111,187,0.6))';
       }
     }
     
@@ -940,10 +960,13 @@ const CubeWebView = ({
       
       if (currentIndex >= fullVideoQueue.length) {
         console.log('🏁 All ' + fullVideoQueue.length + ' videos complete!');
-        postMessage('allVideosComplete', { playedCount: fullVideoQueue.length });
         isPlaying = false;
         if (floatAnimId) cancelAnimationFrame(floatAnimId);
-        showReplayButton();
+        // Tilt cube to reveal title face (bottom), then fire complete
+        revealTitleFace(function() {
+          postMessage('allVideosComplete', { playedCount: fullVideoQueue.length });
+          showReplayButton();
+        });
         return;
       }
       
@@ -960,24 +983,57 @@ const CubeWebView = ({
       const btn = document.getElementById('play-button');
       if (btn) btn.classList.remove('hidden');
     }
-    
+
     function hidePlayButton() {
       const btn = document.getElementById('play-button');
       if (btn) btn.classList.add('hidden');
     }
-    
+
     function showReplayButton() {
       const btn = document.getElementById('replay-button');
       if (btn) btn.classList.remove('hidden');
     }
-    
+
     function hideReplayButton() {
       const btn = document.getElementById('replay-button');
       if (btn) btn.classList.add('hidden');
     }
+
+    function hideFaceIntro() {
+      const intro = document.getElementById('face-intro');
+      if (intro) intro.classList.add('hidden');
+    }
+
+    // Animate cube to reveal the bottom (title) face, then call callback
+    function revealTitleFace(callback) {
+      var spinWrapper = document.getElementById('spin-wrapper');
+      var startRotX = currentRotX;
+      var startRotY = currentRotY;
+      var targetRotX = 90; // tilt forward to show bottom face
+      var duration = 1500;
+      var startTime = null;
+      function animate(timestamp) {
+        if (!startTime) startTime = timestamp;
+        var elapsed = timestamp - startTime;
+        var progress = Math.min(elapsed / duration, 1);
+        var ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        currentRotX = startRotX + (targetRotX - startRotX) * ease;
+        if (spinWrapper) {
+          spinWrapper.style.transition = 'none';
+          spinWrapper.style.transform = 'rotateX(' + currentRotX + 'deg) rotateY(' + currentRotY + 'deg)';
+        }
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          setTimeout(callback, 1500); // hold on title face for 1.5s
+        }
+      }
+      requestAnimationFrame(animate);
+    }
     
     async function handleReplayClick() {
       hideReplayButton();
+      hideFaceIntro();
       console.log('🔄 Replaying: ' + fullVideoQueue.length + ' videos');
 
       // iOS gesture unlock: play() on face 0 synchronously unlocks the audio context
@@ -1037,7 +1093,8 @@ const CubeWebView = ({
       if (!isReady || isPlaying || hasUserStarted) return;
       hasUserStarted = true; // Block any future showPlayButton calls
       hidePlayButton();
-      
+      hideFaceIntro();
+
       console.log('🎬 Starting playback: ' + fullVideoQueue.length + ' videos');
       
       // Ensure video elements exist
@@ -1555,7 +1612,7 @@ const CubeWebView = ({
 </body>
 </html>
     `;
-  }, [initialFaces]); // Only regenerate when initialFaces is first set
+  }, [initialFaces, storyName]); // Regenerate when faces or story name changes
 
   const onMessage = useCallback((event) => {
     try {

@@ -60,30 +60,7 @@ export const ProcessingScreen = () => {
     ).start();
   }, []);
 
-  // Load generatedMusicUrl from Firestore — retries up to 5× in case PlayerRecordScreen
-  // hasn't finished writing yet when this screen mounts
-  useEffect(() => {
-    if (!currentStoryId || generatedMusicUrl) return;
-    let cancelled = false;
-    let attempts = 0;
-    const tryLoad = async () => {
-      if (cancelled || generatedMusicUrlRef.current) return;
-      try {
-        const res = await storiesService.getStory(currentStoryId);
-        if (res.success && res.story?.generatedMusicUrl) {
-          setGeneratedMusicUrl(res.story.generatedMusicUrl);
-          console.log('🎵 Loaded generatedMusicUrl from Firestore');
-          return;
-        }
-      } catch (e) {}
-      if (attempts < 5) {
-        attempts++;
-        setTimeout(tryLoad, 2000);
-      }
-    };
-    tryLoad();
-    return () => { cancelled = true; };
-  }, [currentStoryId]);
+  // (Music is now generated here on the creator side, not by players)
 
   useEffect(() => {
     startRendering();
@@ -95,11 +72,105 @@ export const ProcessingScreen = () => {
     };
   }, []);
 
+  // Generate AI music from all reflection URLs — called before render
+  const generateMusicFromReflections = async (reflectionUrls) => {
+    if (!reflectionUrls || reflectionUrls.length === 0) return null;
+    try {
+      // Step 1: Transcribe all clips
+      setStatus('מתמלל שיקופים...');
+      let transcriptionSegments = null;
+      let totalDuration = 60;
+      try {
+        const transcribeRes = await fetch(getApiUrl('/api/transcribe-from-urls'), {
+          method: 'POST',
+          headers: SERVER_HEADERS,
+          body: JSON.stringify({ clipUrls: reflectionUrls }),
+        });
+        const transcribeJson = await transcribeRes.json();
+        if (transcribeJson.success && transcribeJson.segments?.length > 0) {
+          transcriptionSegments = transcribeJson.segments;
+          totalDuration = transcribeJson.totalDuration || totalDuration;
+          console.log(`✅ Transcribed ${transcriptionSegments.length} segments from ${reflectionUrls.length} clips`);
+        }
+      } catch (e) {
+        console.warn('Transcription failed, continuing without:', e.message);
+      }
+
+      // Step 2: Start music generation job
+      setStatus('מייצר מוזיקה מותאמת...');
+      const genRes = await fetch(getApiUrl('/api/generate-music'), {
+        method: 'POST',
+        headers: SERVER_HEADERS,
+        body: JSON.stringify({
+          storyId: currentStoryId,
+          totalDuration,
+          ...(transcriptionSegments && { transcriptionSegments }),
+        }),
+      });
+      const genJson = await genRes.json();
+      const jobId = genJson.jobId;
+      if (!jobId) { console.warn('No music jobId returned'); return null; }
+
+      // Step 3: Poll until done (max 5 min)
+      for (let attempts = 0; attempts < 100; attempts++) {
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+          const statusRes = await fetch(getApiUrl(`/api/music-status/${jobId}`), { headers: SERVER_HEADERS });
+          const statusJson = await statusRes.json();
+          setStatus(`מייצר מוזיקה... ${statusJson.progress || 0}%`);
+          if (statusJson.status === 'completed' && statusJson.musicUrl) {
+            console.log('✅ AI music generated:', statusJson.musicUrl);
+            return statusJson.musicUrl;
+          }
+          if (statusJson.status === 'failed') {
+            console.warn('⚠️ Music generation failed:', statusJson.error);
+            return null;
+          }
+        } catch (pollErr) {
+          console.warn('Music poll error:', pollErr.message);
+        }
+      }
+      console.warn('⚠️ Music generation timed out');
+      return null;
+    } catch (err) {
+      console.warn('Music generation error:', err.message);
+      return null;
+    }
+  };
+
   const startRendering = async () => {
     try {
       setStatus('אוסף את הסרטונים...');
       setProgress(5);
-      
+
+      // Collect all reflection video URLs for music generation
+      const reflectionUrls = reflections
+        .map(r => r.videoUrl)
+        .filter(Boolean);
+
+      // If no player reflections, fall back to creator's own video
+      const urlsForMusic = reflectionUrls.length > 0
+        ? reflectionUrls
+        : (keyStoryUri ? [keyStoryUri] : []);
+
+      console.log(`🎵 Music source: ${reflectionUrls.length} reflections, ${urlsForMusic.length} total urls`);
+
+      // Generate AI music before rendering
+      let musicUrlForRender = null;
+      if (urlsForMusic.length > 0) {
+        musicUrlForRender = await generateMusicFromReflections(urlsForMusic);
+        if (musicUrlForRender) {
+          setGeneratedMusicUrl(musicUrlForRender);
+          generatedMusicUrlRef.current = musicUrlForRender;
+          storiesService.updateStory(currentStoryId, { generatedMusicUrl: musicUrlForRender }).catch(() => {});
+        }
+      } else {
+        console.log('⚠️ No video URLs available for music generation');
+      }
+
+      setStatus('אוסף את הסרטונים...');
+      setProgress(10);
+
       let requestBody;
 
       if (clipRenderOrder && clipRenderOrder.length > 0) {
@@ -110,7 +181,7 @@ export const ProcessingScreen = () => {
           if (clip.videoUrl) videoUrls.push(clip.videoUrl);
         });
         if (videoUrls.length === 0) { setError('אין סרטונים לעריכה'); return; }
-        requestBody = { videoUrls, format: videoFormat || 'standard', ...(generatedMusicUrl && { musicUrl: generatedMusicUrl }) };
+        requestBody = { videoUrls, format: videoFormat || 'standard', ...(musicUrlForRender && { musicUrl: musicUrlForRender }) };
         console.log('Starting render with ordered', videoUrls.length, 'videos (user order preserved)');
       } else {
         // Fallback: send with participant data and let server shuffle
@@ -129,12 +200,12 @@ export const ProcessingScreen = () => {
           }
         });
         if (videos.length === 0) { setError('אין סרטונים לעריכה'); return; }
-        requestBody = { videos, format: videoFormat || 'standard', ...(generatedMusicUrl && { musicUrl: generatedMusicUrl }) };
+        requestBody = { videos, format: videoFormat || 'standard', ...(musicUrlForRender && { musicUrl: musicUrlForRender }) };
         console.log('Starting render with', videos.length, 'videos (server shuffle)');
       }
 
       setStatus('שולח לשרת העריכה...');
-      setProgress(10);
+      setProgress(20);
 
       const response = await fetch(getApiUrl(`/api/stories/${currentStoryId}/render`), {
         method: 'POST',
@@ -205,7 +276,7 @@ export const ProcessingScreen = () => {
                 body: JSON.stringify({
                   videoUrl: finalUrl,
                   musicUrl,
-                  musicVolume: 0.12,
+                  musicVolume: 0.25,
                   storyId: currentStoryId,
                 }),
               });
