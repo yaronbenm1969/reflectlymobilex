@@ -27,6 +27,7 @@ export const useAppState = create((set, get) => ({
   selectedMusic: null,
   videoFormat: null,
   backgroundStyle: null,
+  backgroundVideoUrl: null,    // URL of selected background video/image
   clipMusicMode: 'headphones', // 'headphones' | 'none' | 'performance'
   generatedMusicUrl: null,
   
@@ -108,6 +109,7 @@ export const useAppState = create((set, get) => ({
   // Format & Style actions
   setVideoFormat: (format) => set({ videoFormat: format }),
   setBackgroundStyle: (style) => set({ backgroundStyle: style }),
+  setBackgroundVideoUrl: (url) => set({ backgroundVideoUrl: url }),
   setClipMusicMode: (mode) => set({ clipMusicMode: mode }),
   setGeneratedMusicUrl: (url) => set({ generatedMusicUrl: url }),
   
@@ -188,6 +190,7 @@ export const useAppState = create((set, get) => ({
     selectedMusic: null,
     videoFormat: null,
     backgroundStyle: null,
+    backgroundVideoUrl: null,
     playerInstructions: {
       generic: '',
       video1Time: 30,

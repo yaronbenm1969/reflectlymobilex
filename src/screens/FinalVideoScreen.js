@@ -79,6 +79,7 @@ export const FinalVideoScreen = () => {
   const [conversionSucceeded, setConversionSucceeded] = useState(false);
   const [localVideoUri, setLocalVideoUri] = useState(null);
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
+  const [musicTimedOut, setMusicTimedOut] = useState(false);
   const clientRecordingResolveRef = useRef(null);
   const autoRecordTriggeredRef = useRef(false);
   const isUploadingRef = useRef(false);
@@ -164,6 +165,16 @@ export const FinalVideoScreen = () => {
     tryLoad();
     return () => { cancelled = true; };
   }, [currentStoryId]);
+
+  // If music generation takes too long (server down / no network), unblock the AnimationPlayer
+  useEffect(() => {
+    if (generatedMusicUrl || musicTimedOut) return;
+    const timer = setTimeout(() => {
+      console.warn('⏱️ Music generation timed out — proceeding without AI music');
+      setMusicTimedOut(true);
+    }, 45000); // 45 seconds
+    return () => clearTimeout(timer);
+  }, [generatedMusicUrl, musicTimedOut]);
 
   // Download final video locally for smooth playback (avoids network buffering)
   useEffect(() => {
@@ -1230,7 +1241,7 @@ export const FinalVideoScreen = () => {
   return (
     <View style={[styles.container, isCubeFullscreen && styles.fullscreenMode]}>
       {/* ANIMATION PLAYER - supports cube-3d and flip-pages */}
-      {isAnimatedFormat && assetsReady && generatedMusicUrl && (
+      {isAnimatedFormat && assetsReady && (generatedMusicUrl || musicTimedOut) && (
         <View style={[
           styles.cubeContainer,
           isCubeFullscreen && styles.fullscreenCubeOverlay
@@ -1287,7 +1298,7 @@ export const FinalVideoScreen = () => {
       )}
 
       {/* Music Generating Banner */}
-      {isAnimatedFormat && !generatedMusicUrl && (
+      {isAnimatedFormat && !generatedMusicUrl && !musicTimedOut && (
         <View style={styles.musicGeneratingBanner}>
           <ActivityIndicator size="small" color="white" />
           <Text style={styles.musicGeneratingText}>מייצר מוזיקה... הסרטון יוקלט אוטומטית</Text>

@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reflectly — ניהול רקעים</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #f4f6fb; color: #1a1a2e; min-height: 100vh; }
+
+header {
+  background: linear-gradient(135deg, #c06fbb, #ff6b9d);
+  color: white; padding: 16px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 10;
+  box-shadow: 0 2px 12px rgba(192,111,187,.35);
+}
+header h1 { font-size: 19px; font-weight: 700; }
+header small { opacity: .8; font-size: 12px; }
+#logout-btn {
+  background: rgba(255,255,255,.2); border: none; color: white;
+  padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 13px;
+}
+
+.container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+
+/* ── Gate ── */
+#gate {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 80vh; gap: 14px;
+}
+#gate h2 { color: #c06fbb; font-size: 22px; }
+#gate p  { color: #888; font-size: 14px; }
+.gate-field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: #666; width: 280px; }
+.gate-field input {
+  padding: 10px 14px; border: 1.5px solid #ddd; border-radius: 8px;
+  font-size: 15px; outline: none; transition: border-color .2s;
+}
+.gate-field input:focus { border-color: #c06fbb; }
+#login-btn {
+  width: 280px; padding: 12px; background: linear-gradient(135deg,#c06fbb,#ff6b9d);
+  color: white; border: none; border-radius: 10px; font-size: 15px;
+  font-weight: 700; cursor: pointer; margin-top: 4px;
+}
+.gate-error { color: #e53e3e; font-size: 13px; min-height: 18px; }
+
+/* ── Main ── */
+#main { display: none; }
+
+/* ── Upload card ── */
+.card {
+  background: white; border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.07); margin-bottom: 28px;
+}
+.card-header {
+  padding: 16px 20px; border-bottom: 1px solid #f0f0f0;
+  font-size: 16px; font-weight: 700; color: #333;
+}
+.card-body { padding: 20px; }
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; margin-bottom: 14px; }
+.form-grid label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: #666; }
+.form-grid input[type=text], .form-grid input[type=number] {
+  padding: 9px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none;
+}
+.form-grid input:focus { border-color: #c06fbb; }
+
+/* Media type tabs */
+.type-tabs { display: flex; gap: 10px; margin-bottom: 14px; }
+.type-tab {
+  flex: 1; padding: 10px; border: 2px solid #e0e0e0; border-radius: 10px;
+  background: white; cursor: pointer; font-size: 14px; font-weight: 600;
+  color: #888; transition: all .2s; text-align: center;
+}
+.type-tab.active { border-color: #c06fbb; color: #c06fbb; background: #fdf0ff; }
+
+/* Drop zone */
+.drop-zone {
+  border: 2px dashed #c06fbb55; border-radius: 12px;
+  padding: 24px 20px; text-align: center; cursor: pointer;
+  transition: background .2s, border-color .2s; margin-bottom: 14px;
+}
+.drop-zone:hover, .drop-zone.dragover { background: #fdf0ff; border-color: #c06fbb; }
+.drop-zone input { display: none; }
+.drop-icon { font-size: 32px; margin-bottom: 6px; }
+.drop-main { font-size: 14px; color: #555; font-weight: 600; }
+.drop-hint { font-size: 12px; color: #aaa; margin-top: 3px; }
+
+/* Preview */
+#media-preview { display: none; margin-bottom: 12px; border-radius: 10px; overflow: hidden; max-height: 180px; }
+#preview-img { width: 100%; max-height: 180px; object-fit: cover; display: none; }
+#preview-vid { width: 100%; max-height: 180px; object-fit: cover; display: none; }
+
+/* Progress */
+.progress-wrap { display: none; margin-bottom: 10px; }
+.progress-bar { height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(135deg,#c06fbb,#ff6b9d); width: 0%; transition: width .3s; }
+.upload-status { font-size: 13px; color: #666; margin-top: 6px; min-height: 18px; }
+
+.btn-primary {
+  background: linear-gradient(135deg,#c06fbb,#ff6b9d); color: white;
+  border: none; border-radius: 10px; padding: 11px 28px;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Stats bar ── */
+.stats-bar {
+  display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.stat-chip {
+  background: white; border-radius: 20px; padding: 6px 14px;
+  font-size: 13px; box-shadow: 0 1px 6px rgba(0,0,0,.07); color: #555;
+}
+.stat-chip strong { color: #c06fbb; }
+
+/* ── Grid ── */
+.grid-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px; flex-wrap: wrap; gap: 8px;
+}
+.grid-title { font-size: 16px; font-weight: 700; color: #333; }
+.filter-tabs { display: flex; gap: 6px; }
+.filter-tab {
+  padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  cursor: pointer; border: 1.5px solid #e0e0e0; background: white; color: #888;
+  transition: all .15s;
+}
+.filter-tab.active { background: #c06fbb; color: white; border-color: #c06fbb; }
+
+.bg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 16px;
+}
+
+.bg-card {
+  background: white; border-radius: 12px; overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+  transition: transform .15s, box-shadow .15s;
+  position: relative;
+}
+.bg-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.1); }
+.bg-card.inactive { opacity: .55; }
+
+.card-media { position: relative; height: 128px; background: #111; }
+.card-media img,
+.card-media video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.media-badge {
+  position: absolute; top: 6px; left: 6px;
+  background: rgba(0,0,0,.55); color: white;
+  padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 700;
+}
+.order-badge {
+  position: absolute; top: 6px; right: 6px;
+  background: rgba(0,0,0,.55); color: white;
+  padding: 2px 7px; border-radius: 10px; font-size: 10px;
+}
+
+.card-info { padding: 10px 12px 12px; }
+.card-name { font-weight: 700; font-size: 14px; color: #222; }
+.card-slug { font-size: 11px; color: #aaa; margin-top: 1px; }
+
+.status-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.badge-active { padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+.badge-active.on  { background: #e6f9f0; color: #1a9e5c; }
+.badge-active.off { background: #fef2f2; color: #e53e3e; }
+
+.card-actions { display: flex; gap: 7px; margin-top: 10px; }
+.btn-sm {
+  flex: 1; padding: 7px 4px; border-radius: 7px; font-size: 12px;
+  font-weight: 600; cursor: pointer; border: none; transition: opacity .15s;
+}
+.btn-sm:hover { opacity: .8; }
+.btn-toggle { background: #eef2ff; color: #4a6cf7; }
+.btn-delete { background: #fef2f2; color: #e53e3e; }
+
+.empty-state { text-align: center; color: #bbb; padding: 60px 20px; grid-column: 1/-1; }
+.empty-state .empty-icon { font-size: 42px; margin-bottom: 10px; }
+.loading-state { text-align: center; color: #c06fbb; padding: 60px; grid-column: 1/-1; font-size: 15px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎬 Reflectly — ניהול רקעים</h1>
+  <small id="server-url-label"></small>
+  <button id="logout-btn" onclick="doLogout()" style="display:none">התנתק</button>
+</header>
+
+<div class="container">
+
+  <!-- ── Gate ── -->
+  <div id="gate">
+    <h2>כניסה לאדמין</h2>
+    <p>הכנס כתובת שרת וקוד גישה</p>
+    <div class="gate-field">
+      כתובת שרת
+      <input id="server-input" type="text" placeholder="https://your-tunnel.trycloudflare.com" />
+    </div>
+    <div class="gate-field">
+      קוד גישה
+      <input id="code-input" type="password" placeholder="••••••••" />
+    </div>
+    <button id="login-btn" onclick="doLogin()">כניסה</button>
+    <div class="gate-error" id="gate-error"></div>
+  </div>
+
+  <!-- ── Main ── -->
+  <div id="main">
+
+    <!-- Upload -->
+    <div class="card">
+      <div class="card-header">➕ הוסף רקע חדש</div>
+      <div class="card-body">
+
+        <!-- Media type selector -->
+        <div class="type-tabs">
+          <button class="type-tab active" id="tab-video" onclick="selectType('video')">🎬 וידאו</button>
+          <button class="type-tab" id="tab-image" onclick="selectType('image')">🖼️ תמונה</button>
+        </div>
+
+        <!-- Form fields -->
+        <div class="form-grid">
+          <label>
+            שם (עברית)
+            <input id="new-name" type="text" placeholder='ים' />
+          </label>
+          <label>
+            מזהה (אנגלית, ללא רווחים)
+            <input id="new-slug" type="text" placeholder='sea' />
+          </label>
+          <label>
+            סדר
+            <input id="new-order" type="number" value="99" min="1" max="999" style="width:72px" />
+          </label>
+        </div>
+
+        <!-- Drop zone -->
+        <div class="drop-zone" id="drop-zone"
+          onclick="document.getElementById('file-input').click()"
+          ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+          <div class="drop-icon" id="drop-icon">📁</div>
+          <div class="drop-main" id="drop-label">לחץ או גרור קובץ לכאן</div>
+          <div class="drop-hint" id="drop-hint">MP4, MOV עד 200MB</div>
+          <input id="file-input" type="file" accept="video/*" onchange="onFileChosen(event)" />
+        </div>
+
+        <!-- Preview -->
+        <div id="media-preview">
+          <img id="preview-img" alt="preview" />
+          <video id="preview-vid" muted loop playsinline></video>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-wrap" id="prog-wrap">
+          <div class="progress-bar"><div class="progress-fill" id="prog-fill"></div></div>
+        </div>
+        <div class="upload-status" id="upload-status"></div>
+
+        <button class="btn-primary" id="upload-btn" onclick="doUpload()">העלה רקע</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-bar" id="stats-bar"></div>
+
+    <!-- Grid -->
+    <div class="grid-header">
+      <div class="grid-title">📋 רקעים קיימים</div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="setFilter('all', this)">הכל</button>
+        <button class="filter-tab" onclick="setFilter('video', this)">🎬 וידאו</button>
+        <button class="filter-tab" onclick="setFilter('image', this)">🖼️ תמונה</button>
+        <button class="filter-tab" onclick="setFilter('active', this)">✅ פעיל</button>
+      </div>
+    </div>
+    <div class="bg-grid" id="bg-grid">
+      <div class="loading-state">טוען...</div>
+    </div>
+
+  </div><!-- /main -->
+</div>
+
+<script>
+let SERVER = '';
+let ACCESS_CODE = '';
+let allItems = [];
+let currentFilter = 'all';
+let currentType = 'video';
+let chosenFile = null;
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+function doLogin() {
+  SERVER = (document.getElementById('server-input').value || '').trim().replace(/\/$/, '');
+  ACCESS_CODE = document.getElementById('code-input').value.trim();
+  if (!SERVER) { showGateError('חסרה כתובת שרת'); return; }
+  document.getElementById('login-btn').textContent = 'מתחבר...';
+  document.getElementById('login-btn').disabled = true;
+
+  fetch(`${SERVER}/health`)
+    .then(r => r.ok ? (document.getElementById('gate').style.display = 'none',
+                        document.getElementById('main').style.display = 'block',
+                        document.getElementById('server-url-label').textContent = SERVER,
+                        document.getElementById('logout-btn').style.display = 'block',
+                        localStorage.setItem('adminServer', SERVER),
+                        loadBackgrounds())
+                     : Promise.reject('שגיאה'))
+    .catch(() => {
+      showGateError('לא ניתן להתחבר לשרת');
+      document.getElementById('login-btn').textContent = 'כניסה';
+      document.getElementById('login-btn').disabled = false;
+    });
+}
+
+function doLogout() {
+  SERVER = ''; ACCESS_CODE = '';
+  document.getElementById('main').style.display = 'none';
+  document.getElementById('gate').style.display = 'flex';
+  document.getElementById('logout-btn').style.display = 'none';
+  document.getElementById('server-url-label').textContent = '';
+  document.getElementById('login-btn').textContent = 'כניסה';
+  document.getElementById('login-btn').disabled = false;
+}
+
+function showGateError(msg) { document.getElementById('gate-error').textContent = msg; }
+function hdrs(json) {
+  const h = { 'x-app-access-code': ACCESS_CODE };
+  if (json) h['Content-Type'] = 'application/json';
+  return h;
+}
+
+// ── Type tabs ───────────────────────────────────────────────────────────────
+function selectType(type) {
+  currentType = type;
+  document.getElementById('tab-video').classList.toggle('active', type === 'video');
+  document.getElementById('tab-image').classList.toggle('active', type === 'image');
+  const fi = document.getElementById('file-input');
+  fi.accept = type === 'image' ? 'image/*' : 'video/*';
+  document.getElementById('drop-hint').textContent =
+    type === 'image' ? 'JPG, PNG, WEBP עד 20MB' : 'MP4, MOV עד 200MB';
+  document.getElementById('drop-icon').textContent = type === 'image' ? '🖼️' : '🎬';
+  // Reset file choice
+  chosenFile = null;
+  fi.value = '';
+  resetPreview();
+  document.getElementById('drop-label').textContent = 'לחץ או גרור קובץ לכאן';
+}
+
+// ── File pick / drag ────────────────────────────────────────────────────────
+function onFileChosen(e) { handleFile(e.target.files[0]); }
+function onDragOver(e)   { e.preventDefault(); document.getElementById('drop-zone').classList.add('dragover'); }
+function onDragLeave()   { document.getElementById('drop-zone').classList.remove('dragover'); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('dragover');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+}
+
+function handleFile(file) {
+  if (!file) return;
+  chosenFile = file;
+  document.getElementById('drop-label').textContent = '✅ ' + file.name;
+  // Auto-fill slug
+  if (!document.getElementById('new-slug').value) {
+    document.getElementById('new-slug').value =
+      file.name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+  }
+  // Preview
+  const url = URL.createObjectURL(file);
+  const isImg = file.type.startsWith('image/');
+  document.getElementById('preview-img').style.display = isImg ? 'block' : 'none';
+  document.getElementById('preview-vid').style.display = isImg ? 'none' : 'block';
+  document.getElementById('media-preview').style.display = 'block';
+  if (isImg) { document.getElementById('preview-img').src = url; }
+  else       { document.getElementById('preview-vid').src = url; document.getElementById('preview-vid').play().catch(()=>{}); }
+}
+
+function resetPreview() {
+  document.getElementById('media-preview').style.display = 'none';
+  document.getElementById('preview-img').src = '';
+  document.getElementById('preview-vid').src = '';
+}
+
+// ── Upload ──────────────────────────────────────────────────────────────────
+async function doUpload() {
+  const nameHe = document.getElementById('new-name').value.trim();
+  const slug   = document.getElementById('new-slug').value.trim();
+  const order  = document.getElementById('new-order').value || '99';
+
+  if (!nameHe || !slug) { alert('יש למלא שם עברי ומזהה'); return; }
+  if (!chosenFile)       { alert('יש לבחור קובץ'); return; }
+
+  const btn    = document.getElementById('upload-btn');
+  const status = document.getElementById('upload-status');
+  const wrap   = document.getElementById('prog-wrap');
+  const fill   = document.getElementById('prog-fill');
+
+  btn.disabled = true;
+  wrap.style.display = 'block';
+  fill.style.width = '10%';
+  status.textContent = 'מעבד ומעלה...';
+
+  const form = new FormData();
+  form.append('media', chosenFile);
+  form.append('slug', slug);
+  form.append('nameHe', nameHe);
+  form.append('order', order);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', `${SERVER}/admin/backgrounds/upload`);
+  xhr.setRequestHeader('x-app-access-code', ACCESS_CODE);
+  xhr.upload.onprogress = e => {
+    if (e.lengthComputable) fill.style.width = Math.round(e.loaded / e.total * 75) + '%';
+  };
+  xhr.onload = () => {
+    fill.style.width = '100%';
+    try {
+      const data = JSON.parse(xhr.responseText);
+      if (data.success) {
+        status.textContent = `✅ הועלה בהצלחה! (${data.mediaType === 'image' ? 'תמונה' : 'וידאו'})`;
+        // Reset form
+        document.getElementById('new-name').value = '';
+        document.getElementById('new-slug').value = '';
+        document.getElementById('drop-label').textContent = 'לחץ או גרור קובץ לכאן';
+        document.getElementById('file-input').value = '';
+        chosenFile = null;
+        resetPreview();
+        setTimeout(() => { wrap.style.display = 'none'; fill.style.width = '0%'; status.textContent = ''; }, 3500);
+        loadBackgrounds();
+      } else {
+        status.textContent = '❌ ' + (data.error || 'שגיאה לא ידועה');
+      }
+    } catch { status.textContent = '❌ תגובה לא תקינה מהשרת'; }
+    btn.disabled = false;
+  };
+  xhr.onerror = () => { status.textContent = '❌ שגיאת רשת'; btn.disabled = false; };
+  xhr.send(form);
+}
+
+// ── Load & render ────────────────────────────────────────────────────────────
+async function loadBackgrounds() {
+  document.getElementById('bg-grid').innerHTML = '<div class="loading-state">טוען...</div>';
+  try {
+    const res  = await fetch(`${SERVER}/admin/backgrounds`, { headers: hdrs() });
+    const data = await res.json();
+    allItems = data.backgrounds || [];
+    renderStats();
+    renderGrid();
+  } catch (e) {
+    document.getElementById('bg-grid').innerHTML =
+      `<div class="empty-state"><div class="empty-icon">⚠️</div>שגיאה: ${e.message}</div>`;
+  }
+}
+
+function setFilter(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderGrid();
+}
+
+function renderStats() {
+  const total   = allItems.length;
+  const active  = allItems.filter(i => i.active).length;
+  const videos  = allItems.filter(i => (i.mediaType || i.type) === 'video').length;
+  const images  = allItems.filter(i => (i.mediaType || i.type) === 'image').length;
+  document.getElementById('stats-bar').innerHTML = `
+    <div class="stat-chip">סה"כ: <strong>${total}</strong></div>
+    <div class="stat-chip">פעיל: <strong>${active}</strong></div>
+    <div class="stat-chip">וידאו: <strong>${videos}</strong></div>
+    <div class="stat-chip">תמונה: <strong>${images}</strong></div>
+  `;
+}
+
+function renderGrid() {
+  const filtered = allItems.filter(item => {
+    const mt = item.mediaType || item.type || 'video';
+    if (currentFilter === 'video')  return mt === 'video';
+    if (currentFilter === 'image')  return mt === 'image';
+    if (currentFilter === 'active') return item.active;
+    return true;
+  });
+
+  const grid = document.getElementById('bg-grid');
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div class="empty-state"><div class="empty-icon">🏜️</div>אין רקעים להצגה</div>';
+    return;
+  }
+
+  grid.innerHTML = filtered.map(item => {
+    const mt = item.mediaType || item.type || 'video';
+    const isImg = mt === 'image';
+    const mediaHtml = isImg
+      ? `<img src="${item.url || ''}" alt="${item.nameHe}" loading="lazy" />`
+      : `<video src="${item.url || ''}" muted loop playsinline
+           onmouseenter="this.play()" onmouseleave="this.pause();this.currentTime=0"></video>`;
+
+    return `
+      <div class="bg-card ${item.active ? '' : 'inactive'}" id="card-${item.firestoreId}">
+        <div class="card-media">
+          ${mediaHtml}
+          <span class="media-badge">${isImg ? '🖼️' : '🎬'}</span>
+          <span class="order-badge">#${item.order ?? '—'}</span>
+        </div>
+        <div class="card-info">
+          <div class="card-name">${item.nameHe || '—'}</div>
+          <div class="card-slug">${item.slug}</div>
+          <div class="status-row">
+            <span class="badge-active ${item.active ? 'on' : 'off'}">
+              ${item.active ? '✅ פעיל' : '⛔ מוסתר'}
+            </span>
+          </div>
+          <div class="card-actions">
+            <button class="btn-sm btn-toggle"
+              onclick="toggleActive('${item.firestoreId}', ${!item.active})">
+              ${item.active ? 'הסתר' : 'הפעל'}
+            </button>
+            <button class="btn-sm btn-delete"
+              onclick="deleteItem('${item.firestoreId}', '${item.nameHe}')">
+              מחק
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Actions ──────────────────────────────────────────────────────────────────
+async function toggleActive(id, newVal) {
+  try {
+    await fetch(`${SERVER}/admin/backgrounds/${id}`, {
+      method: 'PATCH',
+      headers: hdrs(true),
+      body: JSON.stringify({ active: newVal }),
+    });
+    loadBackgrounds();
+  } catch (e) { alert('שגיאה: ' + e.message); }
+}
+
+async function deleteItem(id, name) {
+  if (!confirm(`למחוק את "${name}"?\nהפעולה תמחק גם את הקובץ מהאחסון ולא ניתן לשחזר.`)) return;
+  try {
+    await fetch(`${SERVER}/admin/backgrounds/${id}`, {
+      method: 'DELETE', headers: hdrs(),
+    });
+    loadBackgrounds();
+  } catch (e) { alert('שגיאה: ' + e.message); }
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('gate').style.display !== 'none') doLogin();
+});
+// Restore server from localStorage
+const saved = localStorage.getItem('adminServer');
+if (saved) document.getElementById('server-input').value = saved;
+</script>
+</body>
+</html>

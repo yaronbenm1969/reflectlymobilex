@@ -1549,6 +1549,138 @@ app.get('/api/ambient-track/:trackId', async (req, res) => {
   }
 });
 
+// ─── Admin: Backgrounds ────────────────────────────────────────────────────
+
+const bgUpload = multer({ dest: tempDir, limits: { fileSize: 200 * 1024 * 1024 } });
+
+// Serve the admin HTML page
+app.use('/admin', express.static(path.join(__dirname, 'admin')));
+
+// GET /admin/backgrounds — list all backgrounds from Firestore
+app.get('/admin/backgrounds', async (req, res) => {
+  try {
+    if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+    const snap = await firestoreDb.collection('backgrounds').orderBy('order', 'asc').get();
+    const items = snap.docs.map(d => ({ firestoreId: d.id, ...d.data() }));
+    res.json({ backgrounds: items });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/backgrounds/upload — upload image or video, store in Storage + Firestore
+app.post('/admin/backgrounds/upload', bgUpload.single('media'), async (req, res) => {
+  const tmpPath = req.file?.path;
+  try {
+    if (!bucket) return res.status(503).json({ error: 'Firebase Storage not available' });
+    if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const { slug, nameHe, order = 99 } = req.body;
+    if (!slug || !nameHe) return res.status(400).json({ error: 'slug and nameHe are required' });
+
+    const origMime = req.file.mimetype || '';
+    const isImage = origMime.startsWith('image/');
+    const ext = isImage ? '.jpg' : '.mp4';
+    const mediaType = isImage ? 'image' : 'video';
+
+    const processedPath = path.join(tempDir, `bg_${slug}_${Date.now()}${ext}`);
+
+    if (isImage) {
+      // Resize image to max 720px wide, convert to JPEG
+      await new Promise((resolve, reject) => {
+        execFile('ffmpeg', [
+          '-i', tmpPath,
+          '-vf', 'scale=720:-2',
+          '-q:v', '3',
+          '-y', processedPath,
+        ], { timeout: 60000 }, (err) => err ? reject(err) : resolve());
+      });
+    } else {
+      // Compress video: 15s, 720p, no audio
+      await new Promise((resolve, reject) => {
+        execFile('ffmpeg', [
+          '-i', tmpPath,
+          '-t', '15',
+          '-vf', 'scale=720:-2,fps=25',
+          '-c:v', 'libx264', '-crf', '28', '-preset', 'fast',
+          '-an', '-movflags', '+faststart',
+          '-y', processedPath,
+        ], { timeout: 120000 }, (err) => err ? reject(err) : resolve());
+      });
+    }
+
+    const destPath = `backgrounds/${slug}${ext}`;
+    await bucket.upload(processedPath, {
+      destination: destPath,
+      metadata: { contentType: isImage ? 'image/jpeg' : 'video/mp4' },
+      public: true,
+    });
+    fs.unlink(processedPath, () => {});
+
+    const url = `https://storage.googleapis.com/${bucket.name}/${destPath}`;
+
+    // Save or update Firestore doc
+    const existing = await firestoreDb.collection('backgrounds').where('slug', '==', slug).get();
+    let firestoreId;
+    if (!existing.empty) {
+      firestoreId = existing.docs[0].id;
+      await firestoreDb.collection('backgrounds').doc(firestoreId).update({
+        url, nameHe, order: Number(order), active: true, mediaType,
+      });
+    } else {
+      const docRef = await firestoreDb.collection('backgrounds').add({
+        slug, nameHe, url, mediaType, type: mediaType, order: Number(order),
+        active: true, createdAt: new Date(),
+      });
+      firestoreId = docRef.id;
+    }
+
+    res.json({ success: true, firestoreId, slug, url, mediaType });
+  } catch (err) {
+    console.error('❌ Background upload failed:', err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (tmpPath) fs.unlink(tmpPath, () => {});
+  }
+});
+
+// PATCH /admin/backgrounds/:id — update fields (active, nameHe, order)
+app.patch('/admin/backgrounds/:id', express.json(), async (req, res) => {
+  try {
+    if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+    const allowed = ['active', 'nameHe', 'order'];
+    const updates = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+    if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update' });
+    await firestoreDb.collection('backgrounds').doc(req.params.id).update(updates);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /admin/backgrounds/:id — remove from Firestore (+ optionally Storage)
+app.delete('/admin/backgrounds/:id', async (req, res) => {
+  try {
+    if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+    const doc = await firestoreDb.collection('backgrounds').doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: 'Not found' });
+
+    const { slug } = doc.data();
+    // Delete from Storage
+    if (bucket && slug) {
+      try { await bucket.file(`backgrounds/${slug}.mp4`).delete(); } catch (_) {}
+    }
+    await firestoreDb.collection('backgrounds').doc(req.params.id).delete();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Video Converter API running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
@@ -1557,4 +1689,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('Audio enhance: /api/enhance-clip-audio (Demucs vocal separation + music mix)');
   console.log('Ambient: /api/ambient-library, /api/generate-ambient-library, /api/ambient-track/:id');
   console.log('New: /api/convert-url - Convert webm to mp4');
+  console.log('Admin: /admin (backgrounds management UI)');
 });
