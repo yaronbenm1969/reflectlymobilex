@@ -31,6 +31,7 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ||
 const getApiUrl = (endpoint) => `${API_BASE_URL}${endpoint}`;
 const SERVER_HEADERS = {
   'Content-Type': 'application/json',
+  'ngrok-skip-browser-warning': 'true',
   ...(process.env.EXPO_PUBLIC_ACCESS_CODE ? { 'x-app-access-code': process.env.EXPO_PUBLIC_ACCESS_CODE } : {}),
 };
 const { width, height } = Dimensions.get('window');
@@ -285,7 +286,7 @@ export const PlayerRecordScreen = () => {
             } catch (e) { console.warn('Transcription failed:', e.message); }
             const genRes = await fetch(getApiUrl('/api/generate-music'), {
               method: 'POST', headers: SERVER_HEADERS,
-              body: JSON.stringify({ storyId: storyIdForMusic, totalDuration, ...(transcriptionSegments && { transcriptionSegments }) }),
+              body: JSON.stringify({ storyId: storyIdForMusic, totalDuration, numClips: uploadedUrls.length, ...(transcriptionSegments && { transcriptionSegments }) }),
             });
             const genJson = await genRes.json();
             const musicJobId = genJson.jobId;

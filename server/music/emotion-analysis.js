@@ -7,11 +7,27 @@ const openai = new OpenAI({
 // CHUNK_DURATION: MusicGen is capped at 30s per call
 const CHUNK_DURATION = 30;
 
-async function analyzeEmotionalTimeline(transcriptionSegments, totalDuration) {
+// analyzeEmotionalTimeline(segments, totalDuration, options)
+// options.numClips — if provided, aligns chunks with clip boundaries instead of fixed 30s windows
+async function analyzeEmotionalTimeline(transcriptionSegments, totalDuration, options = {}) {
   console.log('🎭 Analyzing emotional timeline...');
   console.log(`Total duration: ${totalDuration}s, Segments: ${transcriptionSegments.length}`);
 
-  const numChunks = Math.max(1, Math.ceil(totalDuration / CHUNK_DURATION));
+  const { numClips } = options;
+
+  const MAX_CHUNKS = 10; // Cap: max 10 MusicGen API calls (~5-10 min generation time)
+
+  // If numClips provided and each clip fits in one MusicGen call → one chunk per clip
+  // Otherwise fall back to standard 30s chunking
+  let numChunks, chunkDuration;
+  if (numClips && numClips > 1 && totalDuration / numClips <= CHUNK_DURATION) {
+    numChunks = Math.min(numClips, MAX_CHUNKS);
+    chunkDuration = Math.max(5, Math.round(totalDuration / numChunks));
+    console.log(`🎵 Per-clip chunks: ${numChunks} clips × ${chunkDuration}s each (capped from ${numClips})`);
+  } else {
+    numChunks = Math.min(Math.max(1, Math.ceil(totalDuration / CHUNK_DURATION)), MAX_CHUNKS);
+    chunkDuration = CHUNK_DURATION;
+  }
   const segmentsText = transcriptionSegments.map(seg =>
     `[${(seg.start || 0).toFixed(1)}s - ${(seg.end || 0).toFixed(1)}s]: ${seg.text}`
   ).join('\n');
@@ -31,13 +47,13 @@ async function analyzeEmotionalTimeline(transcriptionSegments, totalDuration) {
    - style: e.g. "cinematic ambient", "warm acoustic folk", "introspective piano ballad"
    - basePrompt: a short base description used in every chunk (e.g. "piano, acoustic guitar, A minor, 78 BPM, cinematic ambient")
 
-2. Divide the total duration into ${numChunks} chunk(s) of ${CHUNK_DURATION} seconds each.
+2. Divide the total duration into ${numChunks} chunk(s) of ${chunkDuration} seconds each.
    For each chunk, write a MusicGen prompt that:
    - STARTS with the exact same basePrompt (same instruments, key, BPM)
    - Has a gentle neutral opening (2–3 seconds soft fade-in, calm)
    - Builds to the emotional peak matching the transcription content for that time window
    - Returns to a gentle neutral close (2–3 seconds soft fade-out, calm)
-   - Ends with ", 30 seconds"
+   - Ends with ", ${chunkDuration} seconds"
 
    This ensures all chunks can be crossfaded seamlessly.
 
@@ -50,13 +66,13 @@ Return a JSON object with:
     "style": string,
     "basePrompt": string
   },
-  "chunkPrompts": [string, ...],  // one per ${CHUNK_DURATION}s chunk, length = ${numChunks}
+  "chunkPrompts": [string, ...],  // one per ${chunkDuration}s chunk, length = ${numChunks}
   "timeline": [{ "start": number, "end": number, "emotion": string, "intensity": number }]
 }`
         },
         {
           role: 'user',
-          content: `Total video duration: ${totalDuration} seconds. Number of 30s chunks needed: ${numChunks}.
+          content: `Total video duration: ${totalDuration} seconds. Number of ${chunkDuration}s chunks needed: ${numChunks}.
 
 Transcription segments:
 ${segmentsText}
@@ -94,6 +110,7 @@ Create the Musical DNA and ${numChunks} chunk prompt(s) for this content.`
 
     return {
       success: true,
+      chunkDuration,
       musicalDNA: {
         musicalKey: dna.musicalKey || 'C major',
         bpm: dna.bpm || 80,
@@ -111,10 +128,11 @@ Create the Musical DNA and ${numChunks} chunk prompt(s) for this content.`
     };
   } catch (error) {
     console.error('❌ Emotional analysis failed:', error);
-    const fallbackPrompt = `gentle piano and strings, C major, 80 BPM, ambient, begins softly, gentle emotional journey, returns to calm, 30 seconds`;
+    const fallbackPrompt = `gentle piano and strings, C major, 80 BPM, ambient, begins softly, gentle emotional journey, returns to calm, ${chunkDuration} seconds`;
     const fallbackChunks = Array(numChunks).fill(fallbackPrompt);
     return {
       success: false,
+      chunkDuration,
       error: error.message,
       musicalDNA: { musicalKey: 'C major', bpm: 80, instruments: 'piano, strings', style: 'ambient', basePrompt: fallbackPrompt },
       chunkPrompts: fallbackChunks,

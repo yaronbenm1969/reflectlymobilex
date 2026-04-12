@@ -2,8 +2,9 @@ const ffmpeg = require('fluent-ffmpeg');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
-const MUSIC_TEMP_DIR = path.join(process.cwd(), 'temp', 'music');
+const MUSIC_TEMP_DIR = path.join(os.tmpdir(), 'reflectly-server', 'music');
 
 function ensureTempDir() {
   if (!fs.existsSync(MUSIC_TEMP_DIR)) {

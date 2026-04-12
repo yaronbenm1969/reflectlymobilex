@@ -3,6 +3,7 @@ const https = require('https');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const ffmpeg = require('fluent-ffmpeg');
 const { execFile } = require('child_process');
 const { analyzeEmotionalTimeline, buildMusicPrompt, CHUNK_DURATION } = require('./emotion-analysis');
@@ -12,7 +13,7 @@ const replicate = new Replicate({
 });
 
 const DEMUCS_MODEL = process.env.DEMUCS_MODEL || 'htdemucs';
-const MUSIC_TEMP_DIR = path.join(process.cwd(), 'temp', 'music');
+const MUSIC_TEMP_DIR = path.join(os.tmpdir(), 'reflectly-server', 'music');
 
 function ensureTempDir() {
   if (!fs.existsSync(MUSIC_TEMP_DIR)) {
@@ -205,12 +206,17 @@ async function concatenateChunks(chunkPaths) {
 
 async function applyFade(inputPath, totalDuration) {
   const outputPath = inputPath.replace('.wav', '_final.m4a');
+  const paddedDuration = totalDuration + 4; // +4s to cover cube beginning/end animations
   const fadeOutStart = Math.max(0, totalDuration - 2);
 
   return new Promise((resolve) => {
+    // -stream_loop -1: loop audio to cover full video duration (handles large groups
+    // where generated music is shorter than total video length)
     const args = [
+      '-stream_loop', '-1',
       '-i', inputPath,
       '-af', `afade=t=in:d=1,afade=t=out:st=${fadeOutStart}:d=2`,
+      '-t', String(paddedDuration),
       '-c:a', 'aac',
       '-b:a', '192k',
       '-ar', '44100',
@@ -228,29 +234,29 @@ async function applyFade(inputPath, totalDuration) {
   });
 }
 
-async function generateMusicForVideo(transcriptionSegments, totalDuration, style) {
+async function generateMusicForVideo(transcriptionSegments, totalDuration, style, numClips) {
   console.log('🎶 Starting music generation pipeline...');
-  console.log(`Duration: ${totalDuration}s, Style hint: ${style || 'auto'}`);
+  console.log(`Duration: ${totalDuration}s, Style hint: ${style || 'auto'}, Clips: ${numClips || 'auto'}`);
 
-  const emotionData = await analyzeEmotionalTimeline(transcriptionSegments, totalDuration);
+  const emotionData = await analyzeEmotionalTimeline(transcriptionSegments, totalDuration, { numClips });
   if (!emotionData.success) {
     console.warn('⚠️ Emotion analysis had issues, using fallback');
   }
 
-  const { chunkPrompts = [], musicalDNA = {} } = emotionData;
+  const { chunkPrompts = [], musicalDNA = {}, chunkDuration = CHUNK_DURATION } = emotionData;
   console.log(`🎵 Musical DNA: ${musicalDNA.basePrompt || '—'}`);
-  console.log(`🎵 Generating ${chunkPrompts.length} chunk(s) of ${CHUNK_DURATION}s each`);
+  console.log(`🎵 Generating ${chunkPrompts.length} chunk(s) of ${chunkDuration}s each`);
 
   // Generate each chunk sequentially
   const chunkPaths = [];
   for (let i = 0; i < chunkPrompts.length; i++) {
     console.log(`🎵 Chunk ${i + 1}/${chunkPrompts.length}: ${chunkPrompts[i].substring(0, 80)}...`);
-    const result = await generateMusic(chunkPrompts[i], CHUNK_DURATION);
+    const result = await generateMusic(chunkPrompts[i], chunkDuration);
     if (!result.success) {
       console.warn(`⚠️ Chunk ${i + 1} failed: ${result.error}`);
       const fallback = await generateMusic(
-        `${musicalDNA.basePrompt || 'gentle piano, C major, 80 BPM'}, begins softly, returns to calm, 30 seconds`,
-        CHUNK_DURATION
+        `${musicalDNA.basePrompt || 'gentle piano, C major, 80 BPM'}, begins softly, returns to calm, ${chunkDuration} seconds`,
+        chunkDuration
       );
       if (!fallback.success) {
         return { success: false, error: `Chunk ${i + 1} generation failed: ${result.error}` };

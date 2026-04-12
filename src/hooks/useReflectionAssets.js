@@ -126,6 +126,25 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
     return shuffled;
   }, []);
 
+  // Interleave clips from multiple players: P1C1, P2C1, P3C1, P1C2, P2C2, ...
+  // Ensures mix across players while preserving clipNumber order within each player
+  const interleaveByPlayer = useCallback((clips) => {
+    const groups = {};
+    clips.forEach(r => {
+      const key = r.playerName || r.participantName || 'default';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(r);
+    });
+    Object.values(groups).forEach(g => g.sort((a, b) => (a.clipNumber || 0) - (b.clipNumber || 0)));
+    const players = Object.values(groups);
+    const result = [];
+    const maxLen = Math.max(...players.map(p => p.length));
+    for (let i = 0; i < maxLen; i++) {
+      players.forEach(group => { if (i < group.length) result.push(group[i]); });
+    }
+    return result;
+  }, []);
+
   const processSingleVideo = useCallback(async (reflection, index, total) => {
     let videoUrl = reflection.videoUrl;
     
@@ -187,7 +206,7 @@ export const useReflectionAssets = (reflections, maxFaces = 6) => {
     const validReflections = reflections.filter(r => r.videoUrl);
     
     if (!shuffledOrderRef.current) {
-      shuffledOrderRef.current = shuffleArray(validReflections);
+      shuffledOrderRef.current = interleaveByPlayer(validReflections);
     }
     const shuffledReflections = shuffledOrderRef.current;
 

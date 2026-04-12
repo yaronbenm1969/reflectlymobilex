@@ -5,6 +5,7 @@ const ffmpeg = require('fluent-ffmpeg');
 const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getStorage } = require('firebase-admin/storage');
 const { getFirestore } = require('firebase-admin/firestore');
@@ -15,7 +16,7 @@ const app = express();
 
 const MAX_CONCURRENT_CONVERSIONS = parseInt(process.env.MAX_CONCURRENT_CONVERSIONS) || 3;
 const conversionQueue = new ConversionQueue({ maxConcurrent: MAX_CONCURRENT_CONVERSIONS });
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors({
   origin: '*',
@@ -75,8 +76,8 @@ app.post('/api/verify-access', (req, res) => {
 
 app.use(accessControlMiddleware);
 
-const tempDir = path.join(process.cwd(), 'temp', 'uploads');
-const convertedDir = path.join(process.cwd(), 'temp', 'converted');
+const tempDir = path.join(os.tmpdir(), 'reflectly-server', 'uploads');
+const convertedDir = path.join(os.tmpdir(), 'reflectly-server', 'converted');
 
 if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
@@ -1195,7 +1196,7 @@ app.use('/converted', express.static(convertedDir));
 const musicJobs = new Map();
 
 app.post('/api/generate-music', async (req, res) => {
-  const { storyId, transcriptionSegments, totalDuration, style } = req.body;
+  const { storyId, transcriptionSegments, totalDuration, style, numClips } = req.body;
   
   if (!storyId || !totalDuration) {
     return res.status(400).json({ error: 'storyId and totalDuration are required' });
@@ -1225,7 +1226,7 @@ app.post('/api/generate-music', async (req, res) => {
 
       const segments = transcriptionSegments || [{ start: 0, end: totalDuration, text: '' }];
 
-      const result = await generateMusicForVideo(segments, totalDuration, style);
+      const result = await generateMusicForVideo(segments, totalDuration, style, numClips);
 
       if (!result.success) {
         musicJobs.set(jobId, { status: 'failed', error: result.error });

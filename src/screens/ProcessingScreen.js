@@ -23,6 +23,7 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ||
 const getApiUrl = (endpoint) => `${API_BASE_URL}${endpoint}`;
 const SERVER_HEADERS = {
   'Content-Type': 'application/json',
+  'ngrok-skip-browser-warning': 'true',
   ...(process.env.EXPO_PUBLIC_ACCESS_CODE ? { 'x-app-access-code': process.env.EXPO_PUBLIC_ACCESS_CODE } : {}),
 };
 

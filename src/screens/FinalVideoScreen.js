@@ -37,6 +37,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const VIDEO_CONVERTER_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
 const SERVER_HEADERS = {
   'Content-Type': 'application/json',
+  'ngrok-skip-browser-warning': 'true',
   ...(process.env.EXPO_PUBLIC_ACCESS_CODE ? { 'x-app-access-code': process.env.EXPO_PUBLIC_ACCESS_CODE } : {}),
 };
 
@@ -102,7 +103,24 @@ export const FinalVideoScreen = () => {
     let attempts = 0;
     const generateMusicInBackground = async () => {
       try {
-        const reflectionUrls = reflections.map(r => r.videoUrl).filter(Boolean);
+        // Interleave by player so music order matches cube playback order
+        const interleaved = (() => {
+          const groups = {};
+          reflections.forEach(r => {
+            const key = r.playerName || r.participantName || 'default';
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(r);
+          });
+          Object.values(groups).forEach(g => g.sort((a, b) => (a.clipNumber || 0) - (b.clipNumber || 0)));
+          const players = Object.values(groups);
+          const result = [];
+          const maxLen = Math.max(...players.map(p => p.length));
+          for (let i = 0; i < maxLen; i++) {
+            players.forEach(group => { if (i < group.length) result.push(group[i]); });
+          }
+          return result;
+        })();
+        const reflectionUrls = interleaved.map(r => r.videoUrl).filter(Boolean);
         const urlsForMusic = reflectionUrls.length > 0 ? reflectionUrls : (keyStoryUri ? [keyStoryUri] : []);
         if (urlsForMusic.length === 0) return;
         console.log(`🎵 Generating AI music in FinalVideoScreen (${urlsForMusic.length} clips)...`);
@@ -121,7 +139,7 @@ export const FinalVideoScreen = () => {
         } catch (e) { console.warn('Transcription failed:', e.message); }
         const genRes = await fetch(`${VIDEO_CONVERTER_URL}/api/generate-music`, {
           method: 'POST', headers: SERVER_HEADERS,
-          body: JSON.stringify({ storyId: currentStoryId, totalDuration, ...(transcriptionSegments && { transcriptionSegments }) }),
+          body: JSON.stringify({ storyId: currentStoryId, totalDuration, numClips: urlsForMusic.length, ...(transcriptionSegments && { transcriptionSegments }) }),
         });
         const genJson = await genRes.json();
         const musicJobId = genJson.jobId;
@@ -172,7 +190,7 @@ export const FinalVideoScreen = () => {
     const timer = setTimeout(() => {
       console.warn('⏱️ Music generation timed out — proceeding without AI music');
       setMusicTimedOut(true);
-    }, 45000); // 45 seconds
+    }, 240000); // 4 minutes — music generation (transcription + MusicGen) takes 2-4 min
     return () => clearTimeout(timer);
   }, [generatedMusicUrl, musicTimedOut]);
 
@@ -834,7 +852,7 @@ export const FinalVideoScreen = () => {
               const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                 method: 'POST',
                 headers: SERVER_HEADERS,
-                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.12 }),
+                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.045 }),
               });
               if (mixRes.ok) {
                 const mixResult = await mixRes.json();
@@ -933,7 +951,7 @@ export const FinalVideoScreen = () => {
                 const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                   method: 'POST',
                   headers: SERVER_HEADERS,
-                  body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.12 }),
+                  body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.045 }),
                 });
                 if (mixRes.ok) {
                   const mixResult = await mixRes.json();

@@ -534,6 +534,10 @@ const CubeWebView = ({
       
       // Add thumbnail images to top and bottom faces for visual effect during tilts
       initTopBottomFaces();
+
+      // Start with top face visible (title card shown before playback)
+      const sw = document.getElementById('spin-wrapper');
+      if (sw) { currentRotX = -90; currentRotY = 0; sw.style.transition = 'none'; sw.style.transform = 'rotateX(-90deg) rotateY(0deg)'; }
     }
     
     // Populate top/bottom faces - bottom gets a title card, top gets a gradient
@@ -545,15 +549,24 @@ const CubeWebView = ({
       if (bottomFace && !bottomFace.querySelector('.face-intro')) {
         const div = document.createElement('div');
         div.className = 'face-intro';
+        div.style.transform = 'rotate(180deg)';
         div.innerHTML = '<span class="face-intro-label">Reflectly</span>' +
           (storyTitle ? '<span class="face-intro-text">' + storyTitle + '</span>' : '');
         bottomFace.appendChild(div);
         console.log('🎬 Title card added to BOTTOM face');
       }
 
-      // Top face: simple gradient (no video thumbnail — avoids CORS black face)
-      if (topFace) {
-        topFace.style.background = 'linear-gradient(145deg, rgba(255,107,157,0.6), rgba(192,111,187,0.6))';
+      // Top face: title card (shown at beginning before playback starts)
+      // Uses transparent background so the face gradient shows through (avoids black-hole look)
+      if (topFace && !topFace.querySelector('.face-intro')) {
+        topFace.style.background = 'linear-gradient(145deg, rgba(255,107,157,0.95), rgba(192,111,187,0.95))';
+        const div = document.createElement('div');
+        div.className = 'face-intro';
+        div.style.background = 'transparent';
+        div.innerHTML = '<span class="face-intro-label">Reflectly</span>' +
+          (storyTitle ? '<span class="face-intro-text">' + storyTitle + '</span>' : '');
+        topFace.appendChild(div);
+        console.log('🎬 Title card added to TOP face');
       }
     }
     
@@ -1030,7 +1043,35 @@ const CubeWebView = ({
       }
       requestAnimationFrame(animate);
     }
-    
+
+    // Animate cube from top face (rotX=-90) to normal (rotX=0), then call callback
+    function revealFromTopFace(callback) {
+      var spinWrapper = document.getElementById('spin-wrapper');
+      var startRotX = -90;
+      var targetRotX = 0;
+      var duration = 1500;
+      var startTime = null;
+      currentRotX = -90;
+      currentRotY = 0;
+      function animate(timestamp) {
+        if (!startTime) startTime = timestamp;
+        var elapsed = timestamp - startTime;
+        var progress = Math.min(elapsed / duration, 1);
+        var ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        currentRotX = startRotX + (targetRotX - startRotX) * ease;
+        if (spinWrapper) {
+          spinWrapper.style.transition = 'none';
+          spinWrapper.style.transform = 'rotateX(' + currentRotX + 'deg) rotateY(' + currentRotY + 'deg)';
+        }
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          callback();
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
     async function handleReplayClick() {
       hideReplayButton();
       hideFaceIntro();
@@ -1102,14 +1143,7 @@ const CubeWebView = ({
       
       // Reset state (but DON'T clear faceVideos - they're already loaded!)
       currentIndex = 0;
-      isPlaying = true;
-      
-      // Set initial rotation to face 0 with half-to-half offset
-      const initial = getTargetRotation(0);
-      currentRotX = initial.rotX;
-      currentRotY = initial.rotY + HALF_ANGLE; // Start at +45° for half-to-half
-      updateCubeTransform(performance.now());
-      
+
       // iOS gesture unlock: play() on face 0 synchronously unlocks the audio context
       // for the entire WebView — playing all 4 causes videos to start on back faces
       var _unlockFaceId2 = getFaceForIndex(0);
@@ -1124,15 +1158,51 @@ const CubeWebView = ({
       console.log('📦 Using pre-loaded videos (no reload needed)');
 
       postMessage('animationStarted', { videoCount: fullVideoQueue.length });
-      
-      // Start float animation
-      floatStartTime = 0;
-      floatAnimId = requestAnimationFrame(floatLoop);
-      
-      // Play first video immediately (already loaded)
-      playCurrentVideo();
+
+      // Animate cube from title face (top) to first video position, then start
+      revealFromTopFace(function() {
+        // Hide top face intro after reveal — restores its semi-transparent glass appearance
+        var topIntro = document.querySelector('#face-4 .face-intro');
+        if (topIntro) topIntro.style.display = 'none';
+        isPlaying = true;
+        const initial = getTargetRotation(0);
+        currentRotX = initial.rotX;
+        currentRotY = initial.rotY + HALF_ANGLE;
+        floatStartTime = 0;
+        floatAnimId = requestAnimationFrame(floatLoop);
+        playCurrentVideo();
+      });
     }
     
+    // Capture first frame from a loaded video and set as top face thumbnail
+    function setTopFaceThumbnail() {
+      var topFace = document.getElementById('face-4');
+      if (!topFace) return;
+      var faceOrder = [0, 2, 1, 3];
+      for (var i = 0; i < faceOrder.length; i++) {
+        var videoEl = faceVideoElements[faceOrder[i]];
+        if (!videoEl || videoEl.readyState < 2 || !videoEl.videoWidth) continue;
+        try {
+          var canvas = document.createElement('canvas');
+          canvas.width = videoEl.videoWidth;
+          canvas.height = videoEl.videoHeight;
+          canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+          var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          if (dataUrl && dataUrl.length > 200) {
+            var img = document.createElement('img');
+            img.src = dataUrl;
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;z-index:1;';
+            topFace.insertBefore(img, topFace.firstChild);
+            console.log('🖼️ Top face thumbnail set from face ' + faceOrder[i]);
+            return;
+          }
+        } catch(e) {
+          console.log('⚠️ Canvas capture failed: ' + e.message);
+        }
+      }
+      console.log('🖼️ Top face using gradient (canvas unavailable)');
+    }
+
     async function init() {
       console.log('🎲 Cube init: ' + fullVideoQueue.length + ' videos');
       
@@ -1157,6 +1227,7 @@ const CubeWebView = ({
         
         await Promise.all(loadPromises);
         console.log('✅ All ' + preloadCount + ' initial videos ready (canplay)');
+        setTopFaceThumbnail();
 
         isReady = true;
         postMessage('readyToPlay', { videoCount: fullVideoQueue.length });
