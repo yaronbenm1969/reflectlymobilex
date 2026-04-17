@@ -26,7 +26,11 @@ async function analyzeEmotionalTimeline(transcriptionSegments, totalDuration, op
     console.log(`🎵 Per-clip chunks: ${numChunks} clips × ${chunkDuration}s each (capped from ${numClips})`);
   } else {
     numChunks = Math.min(Math.max(1, Math.ceil(totalDuration / CHUNK_DURATION)), MAX_CHUNKS);
-    chunkDuration = CHUNK_DURATION;
+    // When only one chunk, generate exactly the video length — no point generating extra
+    // seconds that applyFade will trim anyway. MusicGen time scales with duration.
+    chunkDuration = numChunks === 1
+      ? Math.max(5, Math.min(Math.ceil(totalDuration), CHUNK_DURATION))
+      : CHUNK_DURATION;
   }
   const segmentsText = transcriptionSegments.map(seg =>
     `[${(seg.start || 0).toFixed(1)}s - ${(seg.end || 0).toFixed(1)}s]: ${seg.text}`

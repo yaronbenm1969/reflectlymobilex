@@ -1170,6 +1170,14 @@ const CubeWebView = ({
         currentRotY = initial.rotY + HALF_ANGLE;
         floatStartTime = 0;
         floatAnimId = requestAnimationFrame(floatLoop);
+        // iOS unlock may have started face0 playing during the reveal animation.
+        // Pause and reset to t=0 so onplaying fires correctly in playCurrentVideo()
+        // (prevents 6s startup-stall timer from firing and skipping the first video).
+        var face0El = faceVideoElements[getFaceForIndex(0)];
+        if (face0El && !face0El.paused) {
+          face0El.pause();
+          face0El.currentTime = 0;
+        }
         playCurrentVideo();
       });
     }

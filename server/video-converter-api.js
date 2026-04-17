@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
+const { Expo } = require('expo-server-sdk');
+const expoClient = new Expo();
 const ffmpeg = require('fluent-ffmpeg');
 const { execFile } = require('child_process');
 const path = require('path');
@@ -1269,6 +1271,32 @@ app.post('/api/generate-music', async (req, res) => {
         completedAt: new Date().toISOString()
       });
 
+      // Write to Firestore so clients can discover the URL even if polling missed it
+      let pushToken = null;
+      try {
+        await firestoreDb.collection('stories').doc(storyId).update({ generatedMusicUrl: musicUrl });
+        console.log(`✅ Firestore updated with music URL for story ${storyId}`);
+        const storyDoc = await firestoreDb.collection('stories').doc(storyId).get();
+        pushToken = storyDoc.data()?.pushToken;
+      } catch (fsErr) {
+        console.warn(`⚠️ Firestore music URL update failed (non-critical): ${fsErr.message}`);
+      }
+
+      // Send push notification if token available
+      if (pushToken && Expo.isExpoPushToken(pushToken)) {
+        try {
+          await expoClient.sendPushNotificationsAsync([{
+            to: pushToken,
+            title: '🎬 הסרטון שלך מוכן!',
+            body: 'המוזיקה מוכנה — הסרטון יוקלט אוטומטית',
+            data: { storyId },
+          }]);
+          console.log(`🔔 Push notification sent for story ${storyId}`);
+        } catch (pushErr) {
+          console.warn(`⚠️ Push notification failed (non-critical): ${pushErr.message}`);
+        }
+      }
+
       console.log(`✅ Music generation completed for story ${storyId}`);
 
     } catch (error) {
@@ -1413,9 +1441,22 @@ app.post('/api/enhance-clip-audio', async (req, res) => {
   }
 });
 
+// Probe whether a video file contains an audio stream
+function probeVideoHasAudio(videoPath) {
+  return new Promise(resolve => {
+    execFile('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'a:0',
+      '-show_entries', 'stream=codec_type',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      videoPath,
+    ], (err, stdout) => resolve(!err && stdout.trim() === 'audio'));
+  });
+}
+
 app.post('/api/mix-music-with-video', async (req, res) => {
   const { videoUrl, musicUrl, musicVolume = 0.08, storyId } = req.body;
-  
+
   if (!videoUrl || !musicUrl) {
     return res.status(400).json({ error: 'videoUrl and musicUrl are required' });
   }
@@ -1433,14 +1474,20 @@ app.post('/api/mix-music-with-video', async (req, res) => {
     await downloadFile(videoUrl, videoPath);
     await downloadFile(musicUrl, musicPath);
 
-    // Try standard mix (voice + music). Fall back to music-only if video has no audio track.
-    try {
+    // Probe for audio — cube recordings (canvas MediaRecorder) have no audio track.
+    // When there is no voice audio, music IS the only audio so we use a fixed, audible volume.
+    // When voice audio exists, we use the caller-supplied musicVolume (voice-relative balance).
+    const hasAudio = await probeVideoHasAudio(videoPath);
+    console.log(`🔊 Video has audio: ${hasAudio}, musicVolume sent: ${musicVolume}`);
+    if (hasAudio) {
       await mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume);
-    } catch (mixErr) {
-      console.log(`⚠️ Standard mix failed (video may have no audio): ${mixErr.message}`);
-      console.log('🎵 Falling back to music-only mix...');
-      // Use higher volume when there is no voice to balance against
-      await mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, Math.max(musicVolume, 0.5));
+    } else {
+      // No voice audio — music is the only audio track. Use a moderate background level.
+      // The musicVolume param was designed for voice-relative mixing (e.g. 0.019),
+      // so we use a fixed value here that sounds right as standalone background music.
+      const noAudioVolume = 0.15;
+      console.log(`🎵 No audio track — music-only mix at ${noAudioVolume}`);
+      await mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, noAudioVolume);
     }
 
     let finalUrl = null;

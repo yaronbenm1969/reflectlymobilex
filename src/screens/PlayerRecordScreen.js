@@ -19,8 +19,10 @@ import { useAmbientPlayback } from '../hooks/useAmbientPlayback';
 import storageService from '../services/storageService';
 import reflectionsService from '../services/reflectionsService';
 import { storiesService } from '../services/storiesService';
+import { notificationsService } from '../services/notificationsService';
 
 import { AppButton } from '../ui/AppButton';
+import { VideoFactoryWaiting } from '../components/VideoFactoryWaiting';
 import theme from '../theme/theme';
 import Constants from 'expo-constants';
 
@@ -93,8 +95,11 @@ export const PlayerRecordScreen = () => {
   const [uploadProgress, setUploadProgress] = useState('');
 
   useEffect(() => {
-    // Clear any AI music URL from a previous session
+    // Clear any AI music URL from a previous session (Zustand + Firestore)
     setGeneratedMusicUrl(null);
+    if (storyIdForMusic) {
+      storiesService.updateStory(storyIdForMusic, { generatedMusicUrl: null }).catch(() => {});
+    }
     if (!permission) {
       requestPermission();
     }
@@ -266,6 +271,13 @@ export const PlayerRecordScreen = () => {
         }
       }
 
+      // Save push token so server can notify when video is ready
+      if (storyIdForMusic) {
+        notificationsService.registerForPushNotifications().then(token => {
+          if (token) storiesService.updateStory(storyIdForMusic, { pushToken: token }).catch(() => {});
+        });
+      }
+
       // Fire-and-forget: generate AI music in background from uploaded clips
       if (uploadedUrls.length > 0 && storyIdForMusic) {
         (async () => {
@@ -349,10 +361,12 @@ export const PlayerRecordScreen = () => {
 
   if (isUploading) {
     return (
-      <View style={styles.permissionContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.permissionText}>{uploadProgress}</Text>
-      </View>
+      <VideoFactoryWaiting
+        estimatedSeconds={60}
+        storyName={playerStoryData?.name || navigationParams?.storyName}
+        title="מעלה את הסרטונים"
+        message={uploadProgress}
+      />
     );
   }
 

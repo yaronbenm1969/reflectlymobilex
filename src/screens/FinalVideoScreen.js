@@ -24,6 +24,7 @@ import { AppButton } from '../ui/AppButton';
 import { Video3DPlayer } from '../components/Video3DPlayer';
 import CubeWebView from '../components/cube3d/CubeWebView';
 import { AnimationPlayer } from '../components/animations';
+import { VideoFactoryWaiting } from '../components/VideoFactoryWaiting';
 import { useReflectionAssets } from '../hooks/useReflectionAssets';
 import { storageService } from '../services/storageService';
 import { storiesService } from '../services/storiesService';
@@ -190,7 +191,7 @@ export const FinalVideoScreen = () => {
     const timer = setTimeout(() => {
       console.warn('⏱️ Music generation timed out — proceeding without AI music');
       setMusicTimedOut(true);
-    }, 240000); // 4 minutes — music generation (transcription + MusicGen) takes 2-4 min
+    }, 360000); // 6 minutes — music generation (transcription + MusicGen) can take up to 5 min
     return () => clearTimeout(timer);
   }, [generatedMusicUrl, musicTimedOut]);
 
@@ -280,8 +281,10 @@ export const FinalVideoScreen = () => {
   };
 
   const startAiMusic = async () => {
-    console.log('🎵 startAiMusic called, generatedMusicUrl:', generatedMusicUrl ? 'exists' : 'null');
-    if (!generatedMusicUrl) return;
+    // Use ref so we always get the latest URL even if state hasn't propagated yet
+    const musicUrl = generatedMusicUrlRef.current;
+    console.log('🎵 startAiMusic called, generatedMusicUrl:', musicUrl ? 'exists' : 'null');
+    if (!musicUrl) return;
     try {
       if (aiMusicSoundRef.current) {
         await aiMusicSoundRef.current.stopAsync().catch(() => {});
@@ -289,8 +292,8 @@ export const FinalVideoScreen = () => {
         aiMusicSoundRef.current = null;
       }
       const { sound } = await Audio.Sound.createAsync(
-        { uri: generatedMusicUrl },
-        { shouldPlay: true, volume: 0.5, isLooping: true }
+        { uri: musicUrl },
+        { shouldPlay: true, volume: 0.15, isLooping: true }
       );
       aiMusicSoundRef.current = sound;
       console.log('🎵 AI music started for cube playback');
@@ -806,9 +809,15 @@ export const FinalVideoScreen = () => {
       clientRecordingResolveRef.current(validRecording ? fileUri : null);
       clientRecordingResolveRef.current = null;
     }
-    
+
     if (!hadManualResolve) {
-      setShowEndScreen(true);
+      if (validRecording && isAnimatedFormat) {
+        // For animated formats: wait for upload+mix to finish before showing end screen.
+        // convertAndUploadRecording will call setShowEndScreen(true) when the final mixed URL is ready.
+        // Do nothing here — the upload overlay (isUploadingRecording) keeps the user informed.
+      } else {
+        setShowEndScreen(true);
+      }
     }
   };
 
@@ -839,6 +848,16 @@ export const FinalVideoScreen = () => {
             const deadline = Date.now() + 5 * 60 * 1000;
             while (!generatedMusicUrlRef.current && Date.now() < deadline) {
               await new Promise(r => setTimeout(r, 5000));
+              if (!generatedMusicUrlRef.current && currentStoryId) {
+                try {
+                  const res = await storiesService.getStory(currentStoryId);
+                  if (res.success && res.story?.generatedMusicUrl) {
+                    generatedMusicUrlRef.current = res.story.generatedMusicUrl;
+                    setGeneratedMusicUrl(res.story.generatedMusicUrl);
+                    console.log('🎵 Music URL found in Firestore');
+                  }
+                } catch (e) {}
+              }
             }
             if (generatedMusicUrlRef.current) console.log('🎵 Music ready, proceeding to mix');
             else console.log('⚠️ Music not ready after 5min, mixing without');
@@ -852,7 +871,7 @@ export const FinalVideoScreen = () => {
               const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                 method: 'POST',
                 headers: SERVER_HEADERS,
-                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.045 }),
+                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.019 }),
               });
               if (mixRes.ok) {
                 const mixResult = await mixRes.json();
@@ -870,12 +889,14 @@ export const FinalVideoScreen = () => {
           setRecordingFirebaseUrl(finalMp4Url);
           firebaseUrlRef.current = finalMp4Url;
           setConversionSucceeded(true);
+          setShowEndScreen(true);
         } else {
           console.warn('📹 Firebase upload failed:', uploadResult.error);
+          setShowEndScreen(true); // unblock even on failure
         }
         return;
       }
-      
+
       console.log('📹 Step 1: Uploading webm to Firebase...');
       const uploadResult = await storageService.uploadVideo(
         fileUri,
@@ -938,6 +959,16 @@ export const FinalVideoScreen = () => {
               const deadline = Date.now() + 5 * 60 * 1000;
               while (!generatedMusicUrlRef.current && Date.now() < deadline) {
                 await new Promise(r => setTimeout(r, 5000));
+                if (!generatedMusicUrlRef.current && currentStoryId) {
+                  try {
+                    const res = await storiesService.getStory(currentStoryId);
+                    if (res.success && res.story?.generatedMusicUrl) {
+                      generatedMusicUrlRef.current = res.story.generatedMusicUrl;
+                      setGeneratedMusicUrl(res.story.generatedMusicUrl);
+                      console.log('🎵 Music URL found in Firestore');
+                    }
+                  } catch (e) {}
+                }
               }
               if (generatedMusicUrlRef.current) console.log('🎵 Music ready, proceeding to mix');
               else console.log('⚠️ Music not ready after 5min, mixing without');
@@ -951,7 +982,7 @@ export const FinalVideoScreen = () => {
                 const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                   method: 'POST',
                   headers: SERVER_HEADERS,
-                  body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.045 }),
+                  body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.019 }),
                 });
                 if (mixRes.ok) {
                   const mixResult = await mixRes.json();
@@ -969,6 +1000,7 @@ export const FinalVideoScreen = () => {
             setRecordingFirebaseUrl(finalMp4Url);
             firebaseUrlRef.current = finalMp4Url;
             setConversionSucceeded(true);
+            setShowEndScreen(true);
 
             const mp4LocalPath = FileSystem.cacheDirectory + `recording_mp4_${Date.now()}.mp4`;
             try {
@@ -991,8 +1023,10 @@ export const FinalVideoScreen = () => {
       
       setRecordingFirebaseUrl(webmUrl);
       firebaseUrlRef.current = webmUrl;
+      setShowEndScreen(true); // fallback: server conversion failed, show end screen with webm
     } catch (err) {
       console.warn('📹 Upload/convert error:', err.message);
+      setShowEndScreen(true); // unblock on error
     } finally {
       setIsUploadingRecording(false);
       isUploadingRef.current = false;
@@ -1315,27 +1349,19 @@ export const FinalVideoScreen = () => {
         </View>
       )}
 
-      {/* Music Generating Banner */}
+      {/* Factory Waiting Screen — replaces old music banner */}
       {isAnimatedFormat && !generatedMusicUrl && !musicTimedOut && (
-        <View style={styles.musicGeneratingBanner}>
-          <ActivityIndicator size="small" color="white" />
-          <Text style={styles.musicGeneratingText}>מייצר מוזיקה... הסרטון יוקלט אוטומטית</Text>
-        </View>
+        <VideoFactoryWaiting estimatedSeconds={180} storyName={storyName} />
       )}
 
-      {/* Recording Processing Overlay */}
-      {!isCubeFullscreen && clientRecordingInProgress && !showEndScreen && videoHasPlayed && (
-        <View style={styles.endScreenOverlay}>
-          <LinearGradient
-            colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
-            style={[styles.endScreenGradient, { justifyContent: 'center', alignItems: 'center' }]}
-          >
-            <ActivityIndicator size="large" color="white" />
-            <Text style={{ color: 'white', fontSize: 18, marginTop: 16, fontWeight: '600' }}>
-              {downloadProgress || 'מכין את הסרטון...'}
-            </Text>
-          </LinearGradient>
-        </View>
+      {/* Recording + Upload/Mix Processing Overlay — shown until the final mixed URL is ready */}
+      {!isCubeFullscreen && (clientRecordingInProgress || isUploadingRecording) && !showEndScreen && videoHasPlayed && (
+        <VideoFactoryWaiting
+          estimatedSeconds={120}
+          storyName={storyName}
+          title="מעבד את הסרטון"
+          message={downloadProgress || (isUploadingRecording ? 'מערבב מוזיקה...' : 'מכין את הסרטון...')}
+        />
       )}
 
       {/* End Screen Overlay */}
