@@ -54,6 +54,14 @@ const accessControlMiddleware = (req, res, next) => {
   next();
 };
 
+app.get('/', (req, res) => {
+  res.status(200).send('Reflectly server is live');
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ ok: true });
+});
+
 app.get('/api/maintenance-status', (req, res) => {
   res.json({ 
     maintenance: MAINTENANCE_MODE,
