@@ -31,7 +31,7 @@ export const FormatSelectionScreen = ({ route }) => {
   const videoFormat = useAppState((state) => state.videoFormat);
   const backgroundStyle = useAppState((state) => state.backgroundStyle);
   const currentStoryId = useAppState((state) => state.currentStoryId);
-  
+
   const [selectedFormat, setSelectedFormat] = useState(videoFormat || null);
   const [selectedBackground, setSelectedBackground] = useState(backgroundStyle || null);
   const [isReady, setIsReady] = useState(false);
@@ -69,7 +69,6 @@ export const FormatSelectionScreen = ({ route }) => {
   const backgroundOptions = [
     { id: 'original', name: 'רקע מקורי', description: 'השאר את הרקע כמו שהוא', icon: 'image' },
     { id: 'ai-wallpaper', name: 'AI טפט', description: 'רקע מעוצב בבינה מלאכותית', icon: 'color-palette' },
-    { id: 'video-background', name: 'סרטון רקע', description: 'החלף רקע בוידאו דינמי', icon: 'videocam' },
     { id: 'split-screen', name: 'שילוב דמויות', description: 'מסך מפוצל עם כולם ביחד', icon: 'grid' },
   ];
 
@@ -87,7 +86,7 @@ export const FormatSelectionScreen = ({ route }) => {
     if (selectedBackground) {
       setBackgroundStyle(selectedBackground);
     }
-    
+
     if (currentStoryId) {
       const result = await storiesService.updateStory(currentStoryId, {
         format: selectedFormat || 'standard',
@@ -204,9 +203,9 @@ export const FormatSelectionScreen = ({ route }) => {
           </Text>
           
           <Card style={styles.optionsContainer}>
-            {backgroundOptions.map((option) => 
+            {backgroundOptions.map((option) =>
               renderBackgroundOption(
-                option, 
+                option,
                 selectedBackground === option.id,
                 setSelectedBackground
               )

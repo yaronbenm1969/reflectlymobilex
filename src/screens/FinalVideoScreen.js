@@ -10,6 +10,8 @@ import {
   Dimensions,
   Linking,
   ScrollView,
+  Image,
+  Modal,
 } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Audio } from 'expo-av';
@@ -18,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
+import * as ImagePicker from 'expo-image-picker';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
@@ -28,6 +31,7 @@ import { VideoFactoryWaiting } from '../components/VideoFactoryWaiting';
 import { useReflectionAssets } from '../hooks/useReflectionAssets';
 import { storageService } from '../services/storageService';
 import { storiesService } from '../services/storiesService';
+import { backgroundsService } from '../services/backgroundsService';
 import theme from '../theme/theme';
 
 const STORAGE_BUCKET = 'reflectly-playback.firebasestorage.app';
@@ -57,6 +61,10 @@ export const FinalVideoScreen = () => {
   const selectedMusic = useAppState((state) => state.selectedMusic);
   const generatedMusicUrl = useAppState((state) => state.generatedMusicUrl);
   const setGeneratedMusicUrl = useAppState((state) => state.setGeneratedMusicUrl);
+  const backgroundVideoUrl = useAppState((state) => state.backgroundVideoUrl);
+  const backgroundMediaType = useAppState((state) => state.backgroundMediaType);
+  const setBackgroundVideoUrl = useAppState((state) => state.setBackgroundVideoUrl);
+  const setBackgroundMediaType = useAppState((state) => state.setBackgroundMediaType);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -74,6 +82,8 @@ export const FinalVideoScreen = () => {
   const [triggerAutoPlay, setTriggerAutoPlay] = useState(false);
   const [clientRecordingSupported, setClientRecordingSupported] = useState(false);
   const [recordNextPlayback, setRecordNextPlayback] = useState(false);
+  const [showBgPicker, setShowBgPicker] = useState(false);
+  const [bgPickerList, setBgPickerList] = useState([]);
   const [clientRecordingInProgress, setClientRecordingInProgress] = useState(false);
   const [cachedRecordingUri, setCachedRecordingUri] = useState(null);
   const [recordingFirebaseUrl, setRecordingFirebaseUrl] = useState(null);
@@ -82,6 +92,7 @@ export const FinalVideoScreen = () => {
   const [localVideoUri, setLocalVideoUri] = useState(null);
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
   const [musicTimedOut, setMusicTimedOut] = useState(false);
+  const [musicServerDown, setMusicServerDown] = useState(false);
   const clientRecordingResolveRef = useRef(null);
   const autoRecordTriggeredRef = useRef(false);
   const isUploadingRef = useRef(false);
@@ -161,16 +172,29 @@ export const FinalVideoScreen = () => {
             if (statusJson.status === 'failed') return;
           } catch (e) {}
         }
-      } catch (err) { console.warn('FinalVideoScreen music generation error:', err.message); }
+      } catch (err) {
+        console.warn('FinalVideoScreen music generation error:', err.message);
+        setMusicServerDown(true);
+      }
     };
+    let bgLoaded = !!backgroundVideoUrl; // don't reload if already in Zustand
     const tryLoad = async () => {
       if (cancelled || generatedMusicUrlRef.current) return;
       try {
         const res = await storiesService.getStory(currentStoryId);
-        if (res.success && res.story?.generatedMusicUrl) {
-          setGeneratedMusicUrl(res.story.generatedMusicUrl);
-          console.log('🎵 Loaded generatedMusicUrl from Firestore:', res.story.generatedMusicUrl.substring(0, 60));
-          return;
+        if (res.success) {
+          if (res.story?.generatedMusicUrl) {
+            setGeneratedMusicUrl(res.story.generatedMusicUrl);
+            console.log('🎵 Loaded generatedMusicUrl from Firestore:', res.story.generatedMusicUrl.substring(0, 60));
+          }
+          // Load background from Firestore only once
+          if (!bgLoaded && res.story?.backgroundVideoUrl) {
+            bgLoaded = true;
+            setBackgroundVideoUrl(res.story.backgroundVideoUrl);
+            setBackgroundMediaType(res.story.backgroundMediaType || 'video');
+            console.log('🖼️ Loaded backgroundVideoUrl from Firestore');
+          }
+          if (res.story?.generatedMusicUrl) return;
         }
       } catch (e) {}
       if (attempts < 5) {
@@ -189,8 +213,9 @@ export const FinalVideoScreen = () => {
   useEffect(() => {
     if (generatedMusicUrl || musicTimedOut) return;
     const timer = setTimeout(() => {
-      console.warn('⏱️ Music generation timed out — proceeding without AI music');
+      console.warn('⏱️ Music generation timed out — server unavailable');
       setMusicTimedOut(true);
+      setMusicServerDown(true);
     }, 360000); // 6 minutes — music generation (transcription + MusicGen) can take up to 5 min
     return () => clearTimeout(timer);
   }, [generatedMusicUrl, musicTimedOut]);
@@ -1288,12 +1313,50 @@ export const FinalVideoScreen = () => {
     stopAmbientMusic();
   };
 
+  const openBgPicker = async () => {
+    if (bgPickerList.length === 0) {
+      const list = await backgroundsService.getActiveBackgrounds();
+      setBgPickerList(list);
+    }
+    setShowBgPicker(true);
+  };
+
+  const selectBg = (url, mediaType) => {
+    setBackgroundVideoUrl(url);
+    setBackgroundMediaType(mediaType);
+    setShowBgPicker(false);
+  };
+
+  const resetBg = () => {
+    setBackgroundVideoUrl(null);
+    setBackgroundMediaType(null);
+    setShowBgPicker(false);
+  };
+
+  const pickBgFromGallery = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('הרשאה נדרשת', 'אפשר גישה לגלריה בהגדרות כדי לבחור תמונה');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.85,
+      base64: true,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      const asset = result.assets[0];
+      const dataUrl = `data:image/jpeg;base64,${asset.base64}`;
+      selectBg(dataUrl, 'image');
+    }
+  };
+
   const videos3D = is3DFormat ? prepareVideosFor3D() : [];
 
   return (
     <View style={[styles.container, isCubeFullscreen && styles.fullscreenMode]}>
       {/* ANIMATION PLAYER - supports cube-3d and flip-pages */}
-      {isAnimatedFormat && assetsReady && (generatedMusicUrl || musicTimedOut) && (
+      {isAnimatedFormat && assetsReady && generatedMusicUrl && !musicServerDown && (
         <View style={[
           styles.cubeContainer,
           isCubeFullscreen && styles.fullscreenCubeOverlay
@@ -1307,6 +1370,8 @@ export const FinalVideoScreen = () => {
             isFullscreen={isCubeFullscreen}
             triggerAutoPlay={triggerAutoPlay}
             recordNextPlayback={recordNextPlayback}
+            backgroundUrl={backgroundVideoUrl || null}
+            backgroundMediaType={backgroundMediaType || 'video'}
             onFaceChange={handleFaceChange}
             onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
             onVideoEnd={handleVideoEnd}
@@ -1349,8 +1414,24 @@ export const FinalVideoScreen = () => {
         </View>
       )}
 
+      {/* Server down — music blocked */}
+      {isAnimatedFormat && !generatedMusicUrl && musicServerDown && (
+        <View style={styles.musicErrorContainer}>
+          <Ionicons name="cloud-offline-outline" size={52} color="#EF4444" />
+          <Text style={styles.musicErrorTitle}>השרת לא זמין</Text>
+          <Text style={styles.musicErrorText}>לא ניתן להקרין ללא מוזיקה.{'\n'}הפעל את השרת ועדכן את הטנל.</Text>
+          <TouchableOpacity
+            style={styles.musicErrorRetryBtn}
+            onPress={() => { setMusicServerDown(false); setMusicTimedOut(false); }}
+          >
+            <Ionicons name="refresh-outline" size={20} color="white" />
+            <Text style={styles.musicErrorRetryText}>נסה שוב</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Factory Waiting Screen — replaces old music banner */}
-      {isAnimatedFormat && !generatedMusicUrl && !musicTimedOut && (
+      {isAnimatedFormat && !generatedMusicUrl && !musicTimedOut && !musicServerDown && (
         <VideoFactoryWaiting estimatedSeconds={180} storyName={storyName} />
       )}
 
@@ -1735,6 +1816,15 @@ export const FinalVideoScreen = () => {
               </View>
               <Text style={styles.actionLabel}>ערוך</Text>
             </TouchableOpacity>
+
+            {isAnimatedFormat && (
+              <TouchableOpacity style={styles.actionButton} onPress={openBgPicker}>
+                <View style={styles.actionIcon}>
+                  <Ionicons name="image-outline" size={28} color={backgroundVideoUrl ? theme.colors.primary : theme.colors.subtext} />
+                </View>
+                <Text style={styles.actionLabel}>רקע</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.bottomActions}>
@@ -1756,6 +1846,72 @@ export const FinalVideoScreen = () => {
         </View>
         </>
       )}
+      {/* Background Picker Modal */}
+      <Modal
+        visible={showBgPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowBgPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.bgModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowBgPicker(false)}
+        />
+        <View style={styles.bgModalSheet}>
+          <View style={styles.bgModalHeader}>
+            <Text style={styles.bgModalTitle}>בחר רקע לקוביה</Text>
+            <TouchableOpacity onPress={() => setShowBgPicker(false)}>
+              <Ionicons name="close" size={24} color={theme.colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.bgPickerScroll}
+            contentContainerStyle={styles.bgPickerContent}
+          >
+            {/* Default / starfield */}
+            <TouchableOpacity
+              style={[styles.bgThumb, !backgroundVideoUrl && styles.bgThumbSelected]}
+              onPress={resetBg}
+            >
+              <View style={[styles.bgThumbImg, { backgroundColor: '#0a0a1e', justifyContent: 'center', alignItems: 'center' }]}>
+                <Ionicons name="sparkles" size={28} color="#a78bfa" />
+              </View>
+              <Text style={styles.bgThumbName}>ברירת מחדל</Text>
+            </TouchableOpacity>
+
+            {bgPickerList.map((bg) => (
+              <TouchableOpacity
+                key={bg.firestoreId}
+                style={[styles.bgThumb, backgroundVideoUrl === bg.url && styles.bgThumbSelected]}
+                onPress={() => selectBg(bg.url, bg.mediaType)}
+              >
+                {bg.mediaType === 'image' ? (
+                  <Image source={{ uri: bg.url }} style={styles.bgThumbImg} />
+                ) : (
+                  <View style={[styles.bgThumbImg, { backgroundColor: '#1a1a2e', justifyContent: 'center', alignItems: 'center' }]}>
+                    <Ionicons name="videocam" size={26} color="#a78bfa" />
+                  </View>
+                )}
+                <Text style={styles.bgThumbName} numberOfLines={1}>{bg.nameHe}</Text>
+                {backgroundVideoUrl === bg.url && (
+                  <View style={styles.bgThumbCheck}>
+                    <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <TouchableOpacity style={styles.bgGalleryBtn} onPress={pickBgFromGallery}>
+            <Ionicons name="images-outline" size={22} color="white" />
+            <Text style={styles.bgGalleryBtnText}>בחר מהגלריה</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -2501,5 +2657,112 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 16,
+  },
+  musicErrorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+    gap: 16,
+  },
+  musicErrorTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#EF4444',
+  },
+  musicErrorText: {
+    fontSize: 15,
+    color: theme.colors.subtext,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  musicErrorRetryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  musicErrorRetryText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  bgModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  bgModalSheet: {
+    backgroundColor: theme.colors.card || '#1e1e2e',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 36,
+    paddingTop: 16,
+  },
+  bgModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 14,
+  },
+  bgModalTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  bgPickerScroll: {
+    paddingLeft: 16,
+  },
+  bgPickerContent: {
+    paddingRight: 16,
+    gap: 10,
+  },
+  bgThumb: {
+    width: 88,
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    padding: 4,
+  },
+  bgThumbSelected: {
+    borderColor: theme.colors.primary,
+  },
+  bgThumbImg: {
+    width: 80,
+    height: 54,
+    borderRadius: 8,
+    backgroundColor: '#2a2a3e',
+  },
+  bgThumbName: {
+    color: theme.colors.subtext || '#aaa',
+    fontSize: 11,
+    marginTop: 5,
+    textAlign: 'center',
+  },
+  bgThumbCheck: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+  },
+  bgGalleryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.primary,
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 12,
+    paddingVertical: 13,
+  },
+  bgGalleryBtnText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -26,6 +26,8 @@ const CubeWebView = ({
   currentPlayingFaceIndex = -1,
   triggerAutoPlay = false,
   recordNextPlayback = false,
+  backgroundUrl = null,
+  backgroundMediaType = 'video',
 }) => {
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -99,12 +101,25 @@ const CubeWebView = ({
   // Use initial faces for HTML generation - prevents WebView reload on face updates
   const cubeHTML = useMemo(() => {
     if (!initialFaces || initialFaces.length === 0) return null;
-    
+
     const facesJSON = JSON.stringify(initialFaces.map((face, index) => ({
       index,
       videoUrl: face?.videoUrl || null,
       playerName: face?.playerName || `סרטון ${index + 1}`,
     })));
+
+    // Safe background URL — strip single quotes to avoid template injection
+    const safeBgUrl = (backgroundUrl || '').replace(/'/g, '');
+    const bgHtml = safeBgUrl
+      ? (backgroundMediaType === 'image'
+          ? `<img id="custom-bg" src="${safeBgUrl}" style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;" />`
+          : `<video id="custom-bg" src="${safeBgUrl}" autoplay loop muted playsinline style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;"></video>`)
+      : `<div class="space-bg"></div>
+  <div class="stars">
+    <div class="stars-layer stars-layer-1"></div>
+    <div class="stars-layer stars-layer-2"></div>
+  </div>
+  <div class="depth-grid"></div>`;
 
     return `
 <!DOCTYPE html>
@@ -114,11 +129,11 @@ const CubeWebView = ({
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { 
-      width: 100%; 
-      height: 100%; 
+    html, body {
+      width: 100%;
+      height: 100%;
       overflow: hidden;
-      background: #000;
+      background: ${safeBgUrl ? 'transparent' : '#000'};
     }
     body {
       display: flex;
@@ -416,12 +431,7 @@ const CubeWebView = ({
   </style>
 </head>
 <body>
-  <div class="space-bg"></div>
-  <div class="stars">
-    <div class="stars-layer stars-layer-1"></div>
-    <div class="stars-layer stars-layer-2"></div>
-  </div>
-  <div class="depth-grid"></div>
+  ${bgHtml}
   <button class="play-button hidden" id="play-button" onclick="handlePlayClick()">
     <div class="play-icon"></div>
   </button>
@@ -1089,6 +1099,12 @@ const CubeWebView = ({
         if (_unlockP) _unlockP.catch(function(){});
       }
 
+      // Also re-play background video after replay
+      var bgVidR = document.getElementById('custom-bg');
+      if (bgVidR && bgVidR.tagName === 'VIDEO') {
+        bgVidR.play().catch(function(){});
+      }
+
       // Stop and mute all video elements, then clear the face map
       // so playCurrentVideo re-loads fresh (uses HTTP cache — fast)
       Object.values(faceVideos).forEach(fv => {
@@ -1153,6 +1169,12 @@ const CubeWebView = ({
         _unlockV2.volume = 0;
         var _unlockP2 = _unlockV2.play();
         if (_unlockP2) _unlockP2.catch(function(){});
+      }
+
+      // Also unlock background video — iOS autoplay is blocked until user gesture
+      var bgVid = document.getElementById('custom-bg');
+      if (bgVid && bgVid.tagName === 'VIDEO') {
+        bgVid.play().catch(function(){});
       }
 
       console.log('📦 Using pre-loaded videos (no reload needed)');
@@ -1483,21 +1505,31 @@ const CubeWebView = ({
         var ds = 0.95 + dp1 + dp2;
         var dtz = Math.sin(elapsed*0.18+2)*110 + Math.cos(elapsed*0.12)*70;
         
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, RW, RH);
-        var grad = ctx.createRadialGradient(RW/2, RH*0.45, 0, RW/2, RH*0.45, RW*0.85);
-        grad.addColorStop(0, '#0a0a1a');
-        grad.addColorStop(1, '#000');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, RW, RH);
-        
-        ctx.fillStyle = '#fff';
-        for (var si = 0; si < bgStars.length; si++) {
-          var st = bgStars[si];
-          ctx.globalAlpha = st.a * (0.4 + 0.6 * Math.sin(elapsed*(0.8+si*0.05)));
-          ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, Math.PI*2); ctx.fill();
+        var customBgEl = document.getElementById('custom-bg');
+        if (customBgEl) {
+          try {
+            ctx.drawImage(customBgEl, 0, 0, RW, RH);
+          } catch(e) {
+            // CORS issue — fall back to black
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, RW, RH);
+          }
+        } else {
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, RW, RH);
+          var grad = ctx.createRadialGradient(RW/2, RH*0.45, 0, RW/2, RH*0.45, RW*0.85);
+          grad.addColorStop(0, '#0a0a1a');
+          grad.addColorStop(1, '#000');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, RW, RH);
+          ctx.fillStyle = '#fff';
+          for (var si = 0; si < bgStars.length; si++) {
+            var st = bgStars[si];
+            ctx.globalAlpha = st.a * (0.4 + 0.6 * Math.sin(elapsed*(0.8+si*0.05)));
+            ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, Math.PI*2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
         }
-        ctx.globalAlpha = 1;
         
         var visible = [];
         for (var f = 0; f < 6; f++) {
@@ -1691,7 +1723,7 @@ const CubeWebView = ({
 </body>
 </html>
     `;
-  }, [initialFaces, storyName]); // Regenerate when faces or story name changes
+  }, [initialFaces, storyName, backgroundUrl, backgroundMediaType]);
 
   const onMessage = useCallback((event) => {
     try {

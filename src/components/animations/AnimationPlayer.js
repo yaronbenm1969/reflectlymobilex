@@ -22,6 +22,8 @@ const AnimationPlayer = ({
   storyName = '',
   triggerAutoPlay = false,
   recordNextPlayback = false,
+  backgroundUrl = null,
+  backgroundMediaType = null,
 }) => {
   console.log('🎬 AnimationPlayer rendering format:', format);
   
@@ -104,6 +106,8 @@ const AnimationPlayer = ({
           currentPlayingFaceIndex={currentPlayingFaceIndex}
           triggerAutoPlay={triggerAutoPlay}
           recordNextPlayback={recordNextPlayback}
+          backgroundUrl={backgroundUrl}
+          backgroundMediaType={backgroundMediaType}
         />
       );
   }
