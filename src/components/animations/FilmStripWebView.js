@@ -23,6 +23,8 @@ const FilmStripWebView = ({
   storyName = '',
   triggerAutoPlay = false,
   recordNextPlayback = false,
+  backgroundUrl = null,
+  backgroundMediaType = 'video',
 }) => {
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,6 +77,14 @@ const FilmStripWebView = ({
     if (!triggerAutoPlay || !webViewRef.current || !hasInitializedRef.current) return;
     webViewRef.current.injectJavaScript(`window.startPlayback && window.startPlayback(); true;`);
   }, [triggerAutoPlay]);
+
+  // Background HTML
+  const safeBgUrl = (backgroundUrl || '').replace(/'/g, '');
+  const bgHtml = safeBgUrl
+    ? (backgroundMediaType === 'image'
+        ? `<img id="custom-bg" src="${safeBgUrl}" style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;" />`
+        : `<video id="custom-bg" src="${safeBgUrl}" autoplay loop muted playsinline style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;"></video>`)
+    : '';
 
   const filmHTML = useMemo(() => {
     if (!initialFaces || initialFaces.length === 0) return null;
@@ -320,6 +330,7 @@ const FilmStripWebView = ({
 </head>
 <body>
 
+${bgHtml}
 <div class="grain"></div>
 
 <!-- Intro: Hollywood-style flash + title -->
@@ -594,6 +605,8 @@ const FilmStripWebView = ({
     if (isPlaying) return;
     isPlaying = true;
     document.getElementById('play-btn').style.display = 'none';
+    var bgVid = document.getElementById('custom-bg');
+    if (bgVid && bgVid.tagName === 'VIDEO') bgVid.play();
     postMessage('playbackStart', {});
     var introEl = document.getElementById('intro-overlay');
     if (introEl && STORY_NAME) {
@@ -652,7 +665,7 @@ const FilmStripWebView = ({
 </script>
 </body>
 </html>`;
-  }, [initialFaces, storyName]);
+  }, [initialFaces, storyName, backgroundUrl, backgroundMediaType]);
 
   useEffect(() => {
     if (!filmHTML) return;

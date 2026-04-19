@@ -23,6 +23,8 @@ const CarouselWebView = ({
   isFullscreen = false,
   triggerAutoPlay = false,
   recordNextPlayback = false,
+  backgroundUrl = null,
+  backgroundMediaType = 'video',
 }) => {
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,6 +82,14 @@ const CarouselWebView = ({
     if (!triggerAutoPlay || !webViewRef.current || !hasInitializedRef.current) return;
     webViewRef.current.injectJavaScript(`window.startPlayback && window.startPlayback(); true;`);
   }, [triggerAutoPlay]);
+
+  // Background HTML
+  const safeBgUrl = (backgroundUrl || '').replace(/'/g, '');
+  const bgHtml = safeBgUrl
+    ? (backgroundMediaType === 'image'
+        ? `<img id="custom-bg" src="${safeBgUrl}" style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;" />`
+        : `<video id="custom-bg" src="${safeBgUrl}" autoplay loop muted playsinline style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;"></video>`)
+    : '';
 
   // Generate HTML
   const carouselHTML = useMemo(() => {
@@ -222,7 +232,7 @@ const CarouselWebView = ({
 </head>
 <body>
 
-<div class="stars" id="stars"></div>
+${bgHtml || '<div class="stars" id="stars"></div>'}
 
 <div class="scene">
   <div class="carousel-track" id="track"></div>
@@ -256,6 +266,7 @@ const CarouselWebView = ({
   // ─── STARS ────────────────────────────────────────────
   (function createStars() {
     var container = document.getElementById('stars');
+    if (!container) return; // custom background replaces stars
     for (var i = 0; i < 80; i++) {
       var s = document.createElement('div');
       s.className = 'star';
@@ -508,6 +519,8 @@ const CarouselWebView = ({
     if (isPlaying) return;
     isPlaying = true;
     document.getElementById('play-btn').style.display = 'none';
+    var bgVid = document.getElementById('custom-bg');
+    if (bgVid && bgVid.tagName === 'VIDEO') bgVid.play();
     postMessage('playbackStart', {});
     startAnimLoop();
     playPanel(0);
@@ -557,7 +570,7 @@ const CarouselWebView = ({
 </script>
 </body>
 </html>`;
-  }, [initialFaces]);
+  }, [initialFaces, backgroundUrl, backgroundMediaType]);
 
   // Mark ready when HTML is generated (no file writing needed - use inline HTML)
   useEffect(() => {

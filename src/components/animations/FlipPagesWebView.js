@@ -24,6 +24,8 @@ const FlipPagesWebView = ({
   isFullscreen = false,
   triggerAutoPlay = false,
   recordNextPlayback = false,
+  backgroundUrl = null,
+  backgroundMediaType = 'video',
 }) => {
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -95,6 +97,13 @@ const FlipPagesWebView = ({
       `);
     }
   }, [recordNextPlayback]);
+
+  const safeBgUrl = (backgroundUrl || '').replace(/'/g, '');
+  const bgHtml = safeBgUrl
+    ? (backgroundMediaType === 'image'
+        ? `<img id="custom-bg" src="${safeBgUrl}" style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;" />`
+        : `<video id="custom-bg" src="${safeBgUrl}" autoplay loop muted playsinline style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;"></video>`)
+    : '';
 
   const flipHTML = useMemo(() => {
     if (!initialFaces || initialFaces.length === 0) return null;
@@ -384,6 +393,7 @@ const FlipPagesWebView = ({
   </style>
 </head>
 <body>
+  ${bgHtml}
   <button class="play-button hidden" id="play-button" onclick="handlePlayClick()">
     <div class="play-icon"></div>
   </button>
@@ -820,9 +830,12 @@ const FlipPagesWebView = ({
       if (!isReady || isPlaying || hasUserStarted) return;
       hasUserStarted = true;
       hidePlayButton();
-      
+
+      var bgVid = document.getElementById('custom-bg');
+      if (bgVid && bgVid.tagName === 'VIDEO') { bgVid.play().catch(function(){}); }
+
       postMessage('animationStarted', { videoCount: fullVideoQueue.length });
-      
+
       animateCoverOpen(function() {
         currentIndex = 0;
         isPlaying = true;
@@ -856,11 +869,14 @@ const FlipPagesWebView = ({
         cover.style.pointerEvents = '';
       }
       
+      var bgVidR = document.getElementById('custom-bg');
+      if (bgVidR && bgVidR.tagName === 'VIDEO') { bgVidR.play().catch(function(){}); }
+
       setTimeout(function() {
         showPlayButton();
       }, 300);
     }
-    
+
     function init() {
       initPageVideos();
       buildPageStack();
@@ -1391,7 +1407,7 @@ const FlipPagesWebView = ({
   </script>
 </body>
 </html>`;
-  }, [initialFaces, storyName]);
+  }, [initialFaces, storyName, backgroundUrl, backgroundMediaType]);
 
   useEffect(() => {
     if (!flipHTML) return;

@@ -45,6 +45,8 @@ const AnimationPlayer = ({
           isFullscreen={isFullscreen}
           triggerAutoPlay={triggerAutoPlay}
           recordNextPlayback={recordNextPlayback}
+          backgroundUrl={backgroundUrl}
+          backgroundMediaType={backgroundMediaType}
         />
       );
 
@@ -64,6 +66,8 @@ const AnimationPlayer = ({
           isFullscreen={isFullscreen}
           triggerAutoPlay={triggerAutoPlay}
           recordNextPlayback={recordNextPlayback}
+          backgroundUrl={backgroundUrl}
+          backgroundMediaType={backgroundMediaType}
         />
       );
 
@@ -84,9 +88,11 @@ const AnimationPlayer = ({
           isFullscreen={isFullscreen}
           triggerAutoPlay={triggerAutoPlay}
           recordNextPlayback={recordNextPlayback}
+          backgroundUrl={backgroundUrl}
+          backgroundMediaType={backgroundMediaType}
         />
       );
-    
+
     case 'cube-3d':
     default:
       return (

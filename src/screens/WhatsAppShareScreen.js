@@ -10,6 +10,7 @@ import {
   Share,
 } from 'react-native';
 import Constants from 'expo-constants';
+import * as ExpoLinking from 'expo-linking';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
@@ -37,21 +38,26 @@ export const WhatsAppShareScreen = () => {
     return `https://${domain}/s/${currentStoryId}?storyId=${currentStoryId}`;
   }, [currentStoryId]);
   
+  const participantLink = useMemo(() => {
+    if (!currentStoryId) return '';
+    return ExpoLinking.createURL('s/' + currentStoryId);
+  }, [currentStoryId]);
+
   const messageTemplate = useMemo(() => {
-    if (!webPlayerUrl) {
-      return `היי! 🎬\n\nזה הסיפור שלי: "${storyName}"\n\nאשמח אם תצפה ותשתף את השיקוף שלך!\n\nהורד את אפליקציית Reflectly כדי לצפות ולהגיב.\n\nתודה! ❤️`;
+    if (!participantLink) {
+      return `היי! 🎬\n\nהוזמנת לשתף שיקוף בסיפור "${storyName}"\n\nהתקן את אפליקציית Expo Go ופתח את הלינק.\n\nתודה! ❤️`;
     }
     return `היי! 🎬
 
-זה הסיפור שלי: "${storyName}"
+הוזמנת לשתף שיקוף בסיפור "${storyName}" 🎥
 
-אשמח אם תצפה ותשתף את השיקוף שלך!
-
-📱 לחץ ארוך על הלינק ובחר "פתח ב-Safari":
-${webPlayerUrl}
+כדי לצלם ולשלוח:
+1. התקן את אפליקציית Expo Go מהחנות
+2. לחץ על הלינק:
+${participantLink}
 
 תודה! ❤️`;
-  }, [storyName, webPlayerUrl]);
+  }, [storyName, participantLink]);
 
   const handleShareWhatsApp = async () => {
     try {
