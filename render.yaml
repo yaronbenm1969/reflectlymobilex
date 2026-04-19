@@ -2,10 +2,9 @@ services:
   - type: web
     name: reflectly-server
     runtime: node
-    buildCommand: cd server && npm install --legacy-peer-deps
-    startCommand: cd server && node video-converter-api.js
+    rootDir: server
+    buildCommand: npm install --legacy-peer-deps
+    startCommand: node video-converter-api.js
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3001
