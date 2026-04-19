@@ -7,8 +7,7 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web",
-    "postinstall": "cd server && npm install --legacy-peer-deps"
+    "web": "expo start --web"
   },
   "dependencies": {
     "@expo-google-fonts/quicksand": "^0.4.1",
