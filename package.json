@@ -34,6 +34,7 @@
     "expo-linear-gradient": "^15.0.7",
     "expo-media-library": "^18.2.1",
     "expo-notifications": "~0.32.12",
+    "expo-server-sdk": "^3.7.0",
     "expo-sharing": "~14.0.7",
     "expo-status-bar": "^3.0.8",
     "expo-three": "^8.0.0",
