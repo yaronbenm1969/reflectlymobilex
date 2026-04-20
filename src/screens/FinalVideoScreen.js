@@ -494,58 +494,6 @@ export const FinalVideoScreen = () => {
     setPlaybackComplete(false);
   };
 
-  const legacyStartCubePlayback = async () => {
-    const validFaces = cubeFaces.filter(f => f && f.videoUrl);
-    if (validFaces.length > 0) {
-      const shuffledFaces = shuffleArray(validFaces);
-      const originalUrls = shuffledFaces.map(f => f.videoUrl);
-      console.log(`▶️ Starting cube playback with ${originalUrls.length} videos (shuffled)`);
-      
-      const firstUrl = originalUrls[0];
-      if (needsConversion(firstUrl)) {
-        setIsConverting(true);
-        setConversionProgress('ממיר סרטון 1...');
-        
-        try {
-          const convertedUrl = await convertVideoUrl(firstUrl);
-          const allConvertedUrls = [convertedUrl];
-          
-          for (let i = 1; i < originalUrls.length; i++) {
-            setConversionProgress(`ממיר סרטון ${i + 1}/${originalUrls.length}...`);
-            if (needsConversion(originalUrls[i])) {
-              const converted = await convertVideoUrl(originalUrls[i]);
-              allConvertedUrls.push(converted);
-            } else {
-              allConvertedUrls.push(originalUrls[i]);
-            }
-          }
-          
-          setConvertedUrls(allConvertedUrls);
-          setVideoUrls(allConvertedUrls);
-          setCurrentVideoIndex(0);
-          setActiveVideoUrl(allConvertedUrls[0]);
-          setShowVideoPlayer(true);
-          setIsPlaying(true);
-          startAmbientMusic();
-          console.log(`✅ All videos converted, starting playback`);
-        } catch (error) {
-          console.error('❌ Conversion failed:', error);
-          Alert.alert('שגיאה', 'לא ניתן להמיר את הסרטונים');
-        } finally {
-          setIsConverting(false);
-          setConversionProgress('');
-        }
-      } else {
-        setVideoUrls(originalUrls);
-        setCurrentVideoIndex(0);
-        setActiveVideoUrl(originalUrls[0]);
-        setShowVideoPlayer(true);
-        setIsPlaying(true);
-        startAmbientMusic();
-      }
-    }
-  };
-
   const playNextVideo = () => {
     const nextIndex = currentVideoIndex + 1;
     setVideoHasPlayed(false); // Reset for next video
