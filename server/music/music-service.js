@@ -266,7 +266,7 @@ async function generateMusicForVideo(transcriptionSegments, totalDuration, style
   console.log('🎶 Starting music generation pipeline...');
   console.log(`Duration: ${totalDuration}s, Style hint: ${style || 'auto'}, Clips: ${numClips || 'auto'}`);
 
-  const emotionData = await analyzeEmotionalTimeline(transcriptionSegments, totalDuration, { numClips });
+  const emotionData = await analyzeEmotionalTimeline(transcriptionSegments, totalDuration, { numClips, style });
   if (!emotionData.success) {
     console.warn('⚠️ Emotion analysis had issues, using fallback');
   }

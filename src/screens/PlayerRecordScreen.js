@@ -62,6 +62,7 @@ export const PlayerRecordScreen = () => {
   const currentStoryId = useAppState((state) => state.currentStoryId);
   const storyIdForMusic = playerStoryId || currentStoryId;
 
+  const selectedMusic = useAppState((state) => state.selectedMusic);
   const storyClipCount = useAppState((state) => state.storyClipCount);
   const storyMaxClipDuration = useAppState((state) => state.storyMaxClipDuration);
   const backgroundVideoUrl = useAppState((state) => state.backgroundVideoUrl);
@@ -380,7 +381,7 @@ export const PlayerRecordScreen = () => {
             } catch (e) { console.warn('Transcription failed:', e.message); }
             const genRes = await fetch(getApiUrl('/api/generate-music'), {
               method: 'POST', headers: SERVER_HEADERS,
-              body: JSON.stringify({ storyId: storyIdForMusic, totalDuration, numClips: uploadedUrls.length, ...(transcriptionSegments && { transcriptionSegments }) }),
+              body: JSON.stringify({ storyId: storyIdForMusic, totalDuration, numClips: uploadedUrls.length, style: selectedMusic || undefined, ...(transcriptionSegments && { transcriptionSegments }) }),
             });
             const genJson = await genRes.json();
             const musicJobId = genJson.jobId;

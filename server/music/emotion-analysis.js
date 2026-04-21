@@ -7,13 +7,21 @@ const openai = new OpenAI({
 // CHUNK_DURATION: MusicGen is capped at 30s per call
 const CHUNK_DURATION = 30;
 
+// Styles that should sound electronic/synthetic — all others get acoustic live instruments
+const ELECTRONIC_STYLES = ['electric-pulse'];
+
+// Appended to every MusicGen chunk prompt when the style is NOT electronic
+const ACOUSTIC_SUFFIX = 'real acoustic instruments only, no synthesizers, no electronic sounds, no digital beats, natural room sound, live recorded feel';
+
 // analyzeEmotionalTimeline(segments, totalDuration, options)
 // options.numClips — if provided, aligns chunks with clip boundaries instead of fixed 30s windows
+// options.style    — music preset id (e.g. 'electric-pulse'); used to decide acoustic vs electronic
 async function analyzeEmotionalTimeline(transcriptionSegments, totalDuration, options = {}) {
   console.log('🎭 Analyzing emotional timeline...');
   console.log(`Total duration: ${totalDuration}s, Segments: ${transcriptionSegments.length}`);
 
-  const { numClips } = options;
+  const { numClips, style } = options;
+  const isElectronic = ELECTRONIC_STYLES.includes(style);
 
   const MAX_CHUNKS = 10; // Cap: max 10 MusicGen API calls (~5-10 min generation time)
 
@@ -47,9 +55,9 @@ async function analyzeEmotionalTimeline(transcriptionSegments, totalDuration, op
 1. Define a single "Musical DNA" for the entire project — one consistent musical world that all chunks share:
    - musicalKey: e.g. "A minor", "C major"
    - bpm: integer 60–130
-   - instruments: e.g. "piano, acoustic guitar, soft strings, gentle percussion"
-   - style: e.g. "cinematic ambient", "warm acoustic folk", "introspective piano ballad"
-   - basePrompt: a short base description used in every chunk (e.g. "piano, acoustic guitar, A minor, 78 BPM, cinematic ambient")
+   - instruments: use REAL acoustic instruments only — e.g. "acoustic piano, acoustic guitar, violin, cello, double bass, flute, clarinet, light percussion". ${isElectronic ? 'Electronic/synthesizer sounds are acceptable for this style.' : 'Do NOT use synthesizers, electronic pads, or digital sounds.'}
+   - style: e.g. "cinematic acoustic", "warm chamber folk", "introspective piano ballad", "intimate string quartet"
+   - basePrompt: a short base description for MusicGen — must emphasize acoustic live sound, e.g. "acoustic piano and strings, A minor, 78 BPM, cinematic, live instruments"
 
 2. Divide the total duration into ${numChunks} chunk(s) of ${chunkDuration} seconds each.
    For each chunk, write a MusicGen prompt that:
@@ -97,8 +105,19 @@ Create the Musical DNA and ${numChunks} chunk prompt(s) for this content.`
 
     // Fallback: if GPT didn't return enough chunk prompts, pad with base prompt
     while (chunkPrompts.length < numChunks) {
-      const base = dna.basePrompt || 'gentle piano and strings, C major, 80 BPM, ambient';
+      const base = dna.basePrompt || 'acoustic piano and strings, C major, 80 BPM, cinematic';
       chunkPrompts.push(`${base}, begins softly, gentle emotional journey, returns to calm, 30 seconds`);
+    }
+
+    // Append acoustic constraint to every chunk prompt (unless electronic style)
+    if (!isElectronic) {
+      for (let i = 0; i < chunkPrompts.length; i++) {
+        // Remove trailing duration mention before appending, then re-add
+        const durationMatch = chunkPrompts[i].match(/,?\s*\d+ seconds?\s*$/i);
+        const durationSuffix = durationMatch ? durationMatch[0] : '';
+        const base = durationSuffix ? chunkPrompts[i].slice(0, -durationSuffix.length) : chunkPrompts[i];
+        chunkPrompts[i] = `${base}, ${ACOUSTIC_SUFFIX}${durationSuffix}`;
+      }
     }
 
     const timeline = (analysis.timeline || []).map(seg => ({
@@ -132,13 +151,14 @@ Create the Musical DNA and ${numChunks} chunk prompt(s) for this content.`
     };
   } catch (error) {
     console.error('❌ Emotional analysis failed:', error);
-    const fallbackPrompt = `gentle piano and strings, C major, 80 BPM, ambient, begins softly, gentle emotional journey, returns to calm, ${chunkDuration} seconds`;
+    const acousticClause = isElectronic ? '' : `, ${ACOUSTIC_SUFFIX}`;
+    const fallbackPrompt = `acoustic piano and strings, C major, 80 BPM, cinematic${acousticClause}, begins softly, gentle emotional journey, returns to calm, ${chunkDuration} seconds`;
     const fallbackChunks = Array(numChunks).fill(fallbackPrompt);
     return {
       success: false,
       chunkDuration,
       error: error.message,
-      musicalDNA: { musicalKey: 'C major', bpm: 80, instruments: 'piano, strings', style: 'ambient', basePrompt: fallbackPrompt },
+      musicalDNA: { musicalKey: 'C major', bpm: 80, instruments: 'acoustic piano, strings', style: 'cinematic', basePrompt: fallbackPrompt },
       chunkPrompts: fallbackChunks,
       timeline: [{ start: 0, end: totalDuration, emotion: 'gentle', intensity: 5 }],
       musicPrompt: fallbackPrompt,
