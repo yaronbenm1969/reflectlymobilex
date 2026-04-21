@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { storiesService } from '../services/storiesService';
@@ -8,6 +9,7 @@ import { Card } from '../ui/Card';
 import theme from '../theme/theme';
 
 export const MyStoriesScreen = () => {
+  const { t } = useTranslation();
   const { back, go } = useNav();
   const user = useAppState((state) => state.user);
   const setStoryName = useAppState((state) => state.setStoryName);
@@ -60,10 +62,10 @@ export const MyStoriesScreen = () => {
 
   const getStatusText = (status) => {
     switch (status) {
-      case 'draft': return 'טיוטה';
-      case 'shared': return 'נשלח לחברים';
-      case 'processing': return 'בעריכה';
-      case 'completed': return 'הושלם';
+      case 'draft': return t('myStories.status_draft');
+      case 'shared': return t('myStories.status_shared');
+      case 'processing': return t('myStories.status_processing');
+      case 'completed': return t('myStories.status_completed');
       default: return status;
     }
   };
@@ -84,7 +86,7 @@ export const MyStoriesScreen = () => {
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>הסיפורים שלי</Text>
+        <Text style={styles.title}>{t('myStories.title')}</Text>
         <TouchableOpacity style={styles.refreshButton} onPress={loadStories}>
           <Ionicons name="refresh" size={24} color={theme.colors.accent} />
         </TouchableOpacity>
@@ -94,28 +96,28 @@ export const MyStoriesScreen = () => {
         {loading ? (
           <View style={styles.loadingState}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
-            <Text style={styles.loadingText}>טוען סיפורים...</Text>
+            <Text style={styles.loadingText}>{t('myStories.loading')}</Text>
           </View>
         ) : !user ? (
           <View style={styles.emptyState}>
             <Ionicons name="person-outline" size={60} color={theme.colors.subtext} />
-            <Text style={styles.emptyTitle}>התחבר כדי לראות סיפורים</Text>
+            <Text style={styles.emptyTitle}>{t('myStories.login_required_title')}</Text>
             <Text style={styles.emptySubtitle}>
-              הסיפורים שלך נשמרים בענן כשאתה מחובר
+              {t('myStories.login_required_subtitle')}
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.loginButton}
               onPress={() => go('Auth')}
             >
-              <Text style={styles.loginButtonText}>התחבר עכשיו</Text>
+              <Text style={styles.loginButtonText}>{t('myStories.login_button')}</Text>
             </TouchableOpacity>
           </View>
         ) : stories.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="library-outline" size={60} color={theme.colors.subtext} />
-            <Text style={styles.emptyTitle}>אין סיפורים עדיין</Text>
+            <Text style={styles.emptyTitle}>{t('myStories.empty_title')}</Text>
             <Text style={styles.emptySubtitle}>
-              התחל להקליט את הסיפור הראשון שלך
+              {t('myStories.empty_subtitle')}
             </Text>
           </View>
         ) : (
@@ -144,12 +146,12 @@ export const MyStoriesScreen = () => {
 
                 {confirmingDeleteId === story.id ? (
                   <View style={styles.deleteConfirm}>
-                    <Text style={styles.deleteConfirmText}>למחוק?</Text>
+                    <Text style={styles.deleteConfirmText}>{t('myStories.delete_confirm')}</Text>
                     <TouchableOpacity style={styles.confirmYes} onPress={() => deleteStory(story.id)}>
-                      <Text style={styles.confirmYesText}>מחק</Text>
+                      <Text style={styles.confirmYesText}>{t('myStories.delete_confirm_yes')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.confirmNo} onPress={() => setConfirmingDeleteId(null)}>
-                      <Text style={styles.confirmNoText}>ביטול</Text>
+                      <Text style={styles.confirmNoText}>{t('myStories.delete_confirm_no')}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (

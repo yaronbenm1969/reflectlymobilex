@@ -14,12 +14,14 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { authService } from '../services/authService';
 import { useAppState } from '../state/appState';
 
 const logoImage = require('../../assets/logo.png');
 
 export default function AuthScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigateTo = useAppState((state) => state.navigateTo);
   const setUser = useAppState((state) => state.setUser);
@@ -33,12 +35,12 @@ export default function AuthScreen() {
 
   const handleSubmit = async () => {
     if (!email || !password) {
-      Alert.alert('שגיאה', 'נא למלא אימייל וסיסמה');
+      Alert.alert(t('common.error'), t('auth.error_fields_required'));
       return;
     }
 
     if (!isLogin && !displayName) {
-      Alert.alert('שגיאה', 'נא למלא שם');
+      Alert.alert(t('common.error'), t('auth.error_name_required'));
       return;
     }
 
@@ -58,20 +60,20 @@ export default function AuthScreen() {
       } else {
         let errorMessage = result.error;
         if (result.error.includes('user-not-found')) {
-          errorMessage = 'משתמש לא נמצא';
+          errorMessage = t('auth.error_user_not_found');
         } else if (result.error.includes('wrong-password')) {
-          errorMessage = 'סיסמה שגויה';
+          errorMessage = t('auth.error_wrong_password');
         } else if (result.error.includes('email-already-in-use')) {
-          errorMessage = 'האימייל כבר בשימוש';
+          errorMessage = t('auth.error_email_in_use');
         } else if (result.error.includes('weak-password')) {
-          errorMessage = 'הסיסמה חלשה מדי (מינימום 6 תווים)';
+          errorMessage = t('auth.error_weak_password');
         } else if (result.error.includes('invalid-email')) {
-          errorMessage = 'כתובת אימייל לא תקינה';
+          errorMessage = t('auth.error_invalid_email');
         }
-        Alert.alert('שגיאה', errorMessage);
+        Alert.alert(t('common.error'), errorMessage);
       }
     } catch (error) {
-      Alert.alert('שגיאה', 'משהו השתבש, נסה שוב');
+      Alert.alert(t('common.error'), t('auth.error_generic'));
     }
 
     setLoading(false);
@@ -98,12 +100,12 @@ export default function AuthScreen() {
               resizeMode="contain"
             />
             <Text style={styles.title}>Reflectly</Text>
-            <Text style={styles.subtitle}>שתפו רגעים, צרו זכרונות</Text>
+            <Text style={styles.subtitle}>{t('auth.subtitle')}</Text>
           </View>
 
           <View style={styles.formContainer}>
             <Text style={styles.formTitle}>
-              {isLogin ? 'התחברות' : 'הרשמה'}
+              {isLogin ? t('auth.form_login_title') : t('auth.form_signup_title')}
             </Text>
 
             {!isLogin && (
@@ -111,7 +113,7 @@ export default function AuthScreen() {
                 <Ionicons name="person-outline" size={20} color="#999" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="השם שלך"
+                  placeholder={t('auth.name_placeholder')}
                   placeholderTextColor="#999"
                   value={displayName}
                   onChangeText={setDisplayName}
@@ -124,7 +126,7 @@ export default function AuthScreen() {
               <Ionicons name="mail-outline" size={20} color="#999" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="אימייל"
+                placeholder={t('auth.email_placeholder')}
                 placeholderTextColor="#999"
                 value={email}
                 onChangeText={setEmail}
@@ -145,7 +147,7 @@ export default function AuthScreen() {
               </TouchableOpacity>
               <TextInput
                 style={styles.input}
-                placeholder="סיסמה"
+                placeholder={t('auth.password_placeholder')}
                 placeholderTextColor="#999"
                 value={password}
                 onChangeText={setPassword}
@@ -163,7 +165,7 @@ export default function AuthScreen() {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.submitButtonText}>
-                  {isLogin ? 'התחבר' : 'הרשם'}
+                  {isLogin ? t('auth.button_login') : t('auth.button_signup')}
                 </Text>
               )}
             </TouchableOpacity>
@@ -173,7 +175,7 @@ export default function AuthScreen() {
               onPress={() => setIsLogin(!isLogin)}
             >
               <Text style={styles.switchButtonText}>
-                {isLogin ? 'אין לך חשבון? הרשם עכשיו' : 'יש לך חשבון? התחבר'}
+                {isLogin ? t('auth.switch_to_signup') : t('auth.switch_to_login')}
               </Text>
             </TouchableOpacity>
 
@@ -181,7 +183,7 @@ export default function AuthScreen() {
               style={styles.skipButton}
               onPress={handleSkip}
             >
-              <Text style={styles.skipButtonText}>המשך בלי חשבון</Text>
+              <Text style={styles.skipButtonText}>{t('auth.button_skip')}</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { AppButton } from '../ui/AppButton';
 import { Card } from '../ui/Card';
 import { useNav } from '../hooks/useNav';
@@ -30,6 +31,7 @@ const PARTICIPANT_OPTIONS = [
 ];
 
 export const HomeScreen = () => {
+  const { t } = useTranslation();
   const { go } = useNav();
   const storyName = useAppState((state) => state.storyName);
   const setStoryName = useAppState((state) => state.setStoryName);
@@ -48,7 +50,7 @@ export const HomeScreen = () => {
     }
     
     if (!user) {
-      Alert.alert('התחברות נדרשת', 'כדי ליצור סיפור ולשתף עם חברים, יש להתחבר קודם.');
+      Alert.alert(t('home.auth_required_title'), t('home.auth_required_message'));
       go('Auth');
       return;
     }
@@ -76,7 +78,7 @@ export const HomeScreen = () => {
       console.log('🎬 Story created in Firebase:', result.storyId);
       console.log('📎 Invite code:', result.inviteCode);
     } else {
-      Alert.alert('שגיאה', 'לא הצלחנו ליצור את הסיפור');
+      Alert.alert(t('common.error'), t('home.error_create_story'));
       setIsCreating(false);
       return;
     }
@@ -124,7 +126,7 @@ export const HomeScreen = () => {
           </View>
           
           <Text style={styles.subtitle}>
-            שתף את הסיפור שלך, קבל שיקופים מחברים
+            {t('home.header_subtitle')}
           </Text>
         </View>
       </LinearGradient>
@@ -132,18 +134,18 @@ export const HomeScreen = () => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.buttonContainer}>
           <Card style={styles.actionCard}>
-            <Text style={styles.cardTitle}>מה שם הסיפור שלך?</Text>
+            <Text style={styles.cardTitle}>{t('home.card_title')}</Text>
             
             <TextInput
               style={styles.storyNameInput}
-              placeholder="הכנס שם לסיפור..."
+              placeholder={t('home.story_input_placeholder')}
               placeholderTextColor={theme.colors.subtext}
               value={localStoryName}
               onChangeText={setLocalStoryName}
               textAlign="right"
             />
             
-            <Text style={styles.participantLabel}>כמה משתתפים?</Text>
+            <Text style={styles.participantLabel}>{t('home.participants_label')}</Text>
             <View style={styles.participantSelector}>
               {PARTICIPANT_OPTIONS.map((opt) => (
                 <TouchableOpacity
@@ -165,11 +167,11 @@ export const HomeScreen = () => {
             </View>
 
             <Text style={styles.cardDescription}>
-              הקלט סיפור אישי והזמן חברים לשתף את השיקופים שלהם
+              {t('home.card_description')}
             </Text>
             
             <AppButton
-              title={isCreating ? "יוצר סיפור..." : "התחל סיפור חדש"}
+              title={isCreating ? t('home.button_creating') : t('home.button_create_new')}
               onPress={navigateToRecord}
               variant="primary"
               size="lg"
@@ -179,7 +181,7 @@ export const HomeScreen = () => {
             />
             
             <AppButton
-              title="הסיפורים שלי"
+              title={t('home.button_my_stories')}
               onPress={() => go('MyStories')}
               variant="secondary"
               size="lg"
@@ -192,14 +194,14 @@ export const HomeScreen = () => {
           <Card style={styles.infoCard}>
             <View style={styles.infoHeader}>
               <Ionicons name="information-circle" size={24} color={theme.colors.secondary} />
-              <Text style={styles.infoTitle}>איך זה עובד</Text>
+              <Text style={styles.infoTitle}>{t('home.info_title')}</Text>
             </View>
             <Text style={styles.infoText}>
-              1. הקלט את הסיפור שלך{'\n'}
-              2. בחר פורמט הקרנה ומוזיקה{'\n'}
-              3. הזמן חברים דרך WhatsApp{'\n'}
-              4. הם מקליטים שיקופים{'\n'}
-              5. קבל סרטון מעורך עם AI
+              {'1. '}{t('home.info_step_1')}{'\n'}
+              {'2. '}{t('home.info_step_2')}{'\n'}
+              {'3. '}{t('home.info_step_3')}{'\n'}
+              {'4. '}{t('home.info_step_4')}{'\n'}
+              {'5. '}{t('home.info_step_5')}
             </Text>
           </Card>
         </View>

@@ -9,17 +9,19 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 
 export const ThankYouScreen = () => {
+  const { t } = useTranslation();
   const { go } = useNav();
   const navigationParams = useAppState((state) => state.navigationParams);
-  
-  const creatorName = navigationParams?.creatorName || 'החבר שלך';
-  const storyName = navigationParams?.storyName || 'הסיפור';
+
+  const creatorName = navigationParams?.creatorName || t('thankYou.default_creator');
+  const storyName = navigationParams?.storyName || t('thankYou.default_story');
 
   const handleDownloadApp = () => {
     const storeUrl = Platform.select({
@@ -50,19 +52,19 @@ export const ThankYouScreen = () => {
             </View>
           </View>
 
-          <Text style={styles.title}>תודה רבה!</Text>
-          
+          <Text style={styles.title}>{t('thankYou.title')}</Text>
+
           <Text style={styles.subtitle}>
-            השיקופים שלך נשלחו בהצלחה
+            {t('thankYou.subtitle')}
           </Text>
 
           <View style={styles.messageCard}>
             <Ionicons name="videocam" size={28} color={theme.colors.primary} />
             <Text style={styles.messageTitle}>
-              הסרטונים שלך בדרך אל {creatorName}
+              {t('thankYou.message_title', { creatorName })}
             </Text>
             <Text style={styles.messageText}>
-              כשכל החברים יסיימו להקליט, {creatorName} יקבל סרטון מרגש עם כל השיקופים משולבים יחד
+              {t('thankYou.message_text', { creatorName })}
             </Text>
           </View>
 
@@ -70,10 +72,10 @@ export const ThankYouScreen = () => {
 
           <View style={styles.downloadSection}>
             <Text style={styles.downloadTitle}>
-              רוצה ליצור סיפורים משלך?
+              {t('thankYou.download_title')}
             </Text>
             <Text style={styles.downloadText}>
-              הורד את Reflectly וצור סיפורי וידאו מרגשים עם החברים שלך
+              {t('thankYou.download_text')}
             </Text>
 
             <View style={styles.storeButtons}>
@@ -83,18 +85,18 @@ export const ThankYouScreen = () => {
               >
                 <Ionicons name="logo-apple" size={24} color="white" />
                 <View style={styles.storeButtonText}>
-                  <Text style={styles.storeLabel}>הורד מ-</Text>
+                  <Text style={styles.storeLabel}>{t('thankYou.download_label')}</Text>
                   <Text style={styles.storeName}>App Store</Text>
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.storeButton}
                 onPress={handleDownloadApp}
               >
                 <Ionicons name="logo-google-playstore" size={24} color="white" />
                 <View style={styles.storeButtonText}>
-                  <Text style={styles.storeLabel}>הורד מ-</Text>
+                  <Text style={styles.storeLabel}>{t('thankYou.download_label')}</Text>
                   <Text style={styles.storeName}>Google Play</Text>
                 </View>
               </TouchableOpacity>
@@ -103,7 +105,7 @@ export const ThankYouScreen = () => {
 
           <View style={styles.footer}>
             <AppButton
-              title="סגור"
+              title={t('thankYou.button_close')}
               onPress={handleClose}
               variant="outline"
               size="lg"
