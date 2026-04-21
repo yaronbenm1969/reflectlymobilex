@@ -13,6 +13,7 @@ const { getStorage } = require('firebase-admin/storage');
 const { getFirestore } = require('firebase-admin/firestore');
 const { ConversionQueue } = require('./conversion-queue');
 const { renderFormatVideo, cleanupRenderDir } = require('./format-renderer');
+const { buildWebRecordHtml } = require('./web-record-template');
 
 const app = express();
 
@@ -30,7 +31,7 @@ app.use(express.json());
 const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -92,6 +93,7 @@ app.get('/join/:storyId', (req, res) => {
     .btn-ios { background: #000; color: white; }
     .btn-android { background: #3DDC84; color: #000; }
     .btn-secondary { background: #f0e6ff; color: #8B5CF6; }
+    .btn-web { background: #ecfdf5; color: #065f46; border: 2px solid #6ee7b7; }
     .divider { font-size: 13px; color: #aaa; margin: 4px 0 10px; }
     #phase-open { display: block; }
     #phase-install { display: none; }
@@ -104,10 +106,12 @@ app.get('/join/:storyId', (req, res) => {
   <h1>Reflectly</h1>
   <p class="sub">הוזמנת לצלם שיקוף!</p>
 
-  <!-- Phase 1: trying to open app -->
+  <!-- Phase 1: choose how to record -->
   <div id="phase-open" class="card">
-    <h2>יש לך את האפליקציה?</h2>
-    <p>לחץ כדי לפתוח אותה ולהצטרף לסיפור:</p>
+    <h2>איך תרצה לצלם?</h2>
+    <p>בחר את האפשרות המתאימה לך:</p>
+    <a class="btn btn-web" href="/record/${storyId}">🌐 צלם ישירות בדפדפן</a>
+    <div class="divider">— או אם יש לך את האפליקציה —</div>
     <a class="btn btn-primary" href="${appLink}" id="open-btn">פתח את Reflectly</a>
     <div class="divider">— אין לך עדיין? —</div>
     <a class="btn btn-secondary" href="#" onclick="showInstall(); return false;">הורד את האפליקציה</a>
@@ -121,6 +125,8 @@ app.get('/join/:storyId', (req, res) => {
     <a class="btn btn-android" href="${PLAY_STORE_URL}" target="_blank">🤖 אנדרואיד — Google Play</a>
     <div class="divider">— כבר התקנת? —</div>
     <a class="btn btn-primary" href="${appLink}">פתח את האפליקציה</a>
+    <div class="divider">— או בלי אפליקציה —</div>
+    <a class="btn btn-web" href="/record/${storyId}">🌐 צלם ישירות בדפדפן</a>
   </div>
 
   <script>
@@ -128,11 +134,49 @@ app.get('/join/:storyId', (req, res) => {
       document.getElementById('phase-open').style.display = 'none';
       document.getElementById('phase-install').style.display = 'block';
     }
-    // Auto-attempt to open the app on page load
-    setTimeout(function() { window.location.href = '${appLink}'; }, 600);
   </script>
 </body>
 </html>`);
+});
+
+// Web recording page — participant records directly in the browser, no app needed
+app.get('/record/:storyId', async (req, res) => {
+  const { storyId } = req.params;
+
+  let story = null;
+  if (firestoreDb) {
+    try {
+      const snap = await firestoreDb.collection('stories').doc(storyId).get();
+      if (snap.exists) story = { id: snap.id, ...snap.data() };
+    } catch (e) {
+      console.warn('Could not load story for web-record:', e.message);
+    }
+  }
+
+  if (!story) {
+    return res.status(404).send('סיפור לא נמצא');
+  }
+
+  const firebaseConfig = {
+    apiKey:            process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+    authDomain:        process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId:         process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket:     process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId:             process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  };
+
+  const storyData = {
+    id:             story.id,
+    name:           story.name           || 'סיפור',
+    creatorName:    story.creatorName    || '',
+    clipCount:      story.clipCount      || 3,
+    maxClipDuration:story.maxClipDuration|| 60,
+    instructions:   story.instructions  || '',
+  };
+
+  res.set('Content-Type', 'text/html');
+  res.send(buildWebRecordHtml(storyData, firebaseConfig));
 });
 
 app.get('/api/maintenance-status', (req, res) => {
