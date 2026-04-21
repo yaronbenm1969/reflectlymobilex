@@ -32,6 +32,7 @@ import {
   ThankYouScreen,
   WatchExperienceScreen,
   CommunityFeedScreen,
+  MemberOnboardingScreen,
 } from './src/screens';
 import { SideMenu } from './src/components/SideMenu';
 import { AccessGate } from './src/components/AccessGate';
@@ -223,6 +224,8 @@ export default function App() {
         return <WatchExperienceScreen />;
       case 'CommunityFeed':
         return <CommunityFeedScreen />;
+      case 'MemberOnboarding':
+        return <MemberOnboardingScreen />;
       default:
         return <HomeScreen />;
     }

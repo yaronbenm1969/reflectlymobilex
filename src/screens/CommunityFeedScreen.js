@@ -14,12 +14,13 @@ import * as VideoThumbnails from 'expo-video-thumbnails';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { storiesService } from '../services/storiesService';
+import { usersService } from '../services/usersService';
 import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 
 export const CommunityFeedScreen = () => {
-  const { back } = useNav();
+  const { go, back } = useNav();
   const user = useAppState((state) => state.user);
   const enterPlayerMode = useAppState((state) => state.enterPlayerMode);
 
@@ -75,6 +76,24 @@ export const CommunityFeedScreen = () => {
       Alert.alert('נדרשת התחברות', 'יש להתחבר כדי להצטרף לסיפור', [
         { text: 'ביטול', style: 'cancel' },
       ]);
+      return;
+    }
+
+    // Check if profile is complete — need bio at minimum
+    const profileRes = await usersService.getUserProfile(user.uid);
+    const profile = profileRes.success ? profileRes.profile : null;
+    if (!profile?.bio?.trim()) {
+      Alert.alert(
+        'השלם את הפרופיל שלך',
+        'כדי להגיש מועמדות יש למלא כרטיס אישי קצר',
+        [
+          { text: 'ביטול', style: 'cancel' },
+          {
+            text: 'מלא עכשיו',
+            onPress: () => go('MemberOnboarding', { afterSave: 'CommunityFeed' }),
+          },
+        ]
+      );
       return;
     }
 

@@ -12,6 +12,8 @@ export const usersService = {
         email: email || '',
         displayName: displayName || '',
         bio: '',
+        actingExperience: '',
+        demoReelUrl: '',
         photoUrl: null,
         communityMember: false,
         status: 'pending',
