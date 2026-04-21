@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import theme from '../theme/theme';
@@ -9,6 +10,7 @@ const logoImage = require('../../assets/logo.png');
 
 export const SplashScreen = () => {
   const { go } = useNav();
+  const { t } = useTranslation();
   const isAuthenticated = useAppState((state) => state.isAuthenticated);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -60,7 +62,7 @@ export const SplashScreen = () => {
           resizeMode="contain"
         />
         <Text style={styles.appName}>Reflectly</Text>
-        <Text style={styles.tagline}>סיפורים שמחברים</Text>
+        <Text style={styles.tagline}>{t('splash.tagline')}</Text>
       </Animated.View>
     </LinearGradient>
   );

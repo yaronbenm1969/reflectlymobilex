@@ -1,6 +1,7 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, Linking, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { initI18n } from './src/i18n';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
@@ -47,6 +48,11 @@ export default function App() {
     Quicksand_600SemiBold,
     Quicksand_700Bold,
   });
+  const [i18nReady, setI18nReady] = useState(false);
+
+  useEffect(() => {
+    initI18n().finally(() => setI18nReady(true));
+  }, []);
 
   console.log('🚀 Reflectly Mobile App Starting...');
   console.log('✅ Hamburger ready');
@@ -231,7 +237,7 @@ export default function App() {
     }
   };
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || !i18nReady) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#8446b0" />

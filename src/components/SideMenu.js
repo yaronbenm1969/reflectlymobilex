@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { useAppState } from '../state/appState';
 import { useNav } from '../hooks/useNav';
 import theme from '../theme/theme';
@@ -30,6 +31,7 @@ try {
 
 export const SideMenu = ({ isOpen, onClose }) => {
   const { go } = useNav();
+  const { t } = useTranslation();
   const setSideMenuOpen = useAppState((state) => state.setSideMenuOpen);
 
   const handleClose = async () => {
@@ -41,48 +43,13 @@ export const SideMenu = ({ isOpen, onClose }) => {
   };
 
   const menuItems = [
-    {
-      id: 'new-story',
-      icon: 'videocam',
-      title: 'Start a New Story',
-      action: () => go('Record'),
-    },
-    {
-      id: 'my-stories',
-      icon: 'library',
-      title: 'My Stories',
-      action: () => go('MyStories'),
-    },
-    {
-      id: 'community',
-      icon: 'people',
-      title: 'Community',
-      action: () => go('CommunityFeed'),
-    },
-    {
-      id: 'music',
-      icon: 'musical-notes',
-      title: 'Music & Sound',
-      action: () => go('MusicSelection'),
-    },
-    {
-      id: 'camera',
-      icon: 'camera',
-      title: 'Camera Settings',
-      action: () => go('CameraSettings'),
-    },
-    {
-      id: 'about',
-      icon: 'information-circle',
-      title: 'About',
-      action: () => go('About'),
-    },
-    {
-      id: 'help',
-      icon: 'help-circle',
-      title: 'Help / FAQ',
-      action: () => go('Help'),
-    },
+    { id: 'new-story',  icon: 'videocam',           title: t('sideMenu.new_story'),       action: () => go('Record') },
+    { id: 'my-stories', icon: 'library',             title: t('sideMenu.my_stories'),      action: () => go('MyStories') },
+    { id: 'community',  icon: 'people',              title: t('sideMenu.community'),       action: () => go('CommunityFeed') },
+    { id: 'music',      icon: 'musical-notes',       title: t('sideMenu.music'),           action: () => go('MusicSelection') },
+    { id: 'camera',     icon: 'camera',              title: t('sideMenu.camera_settings'), action: () => go('CameraSettings') },
+    { id: 'about',      icon: 'information-circle',  title: t('sideMenu.about'),           action: () => go('About') },
+    { id: 'help',       icon: 'help-circle',         title: t('sideMenu.help'),            action: () => go('Help') },
   ];
 
   const handleMenuItemPress = async (item) => {
@@ -114,7 +81,7 @@ export const SideMenu = ({ isOpen, onClose }) => {
           >
             <View>
               <View style={styles.headerContent}>
-                <Text style={styles.headerTitle}>Reflectly</Text>
+                <Text style={styles.headerTitle}>{t('sideMenu.title')}</Text>
                 <TouchableOpacity
                   style={styles.closeButton}
                   onPress={handleClose}
@@ -127,7 +94,7 @@ export const SideMenu = ({ isOpen, onClose }) => {
 
           <ScrollView style={styles.menuContent}>
             <View style={styles.menuSection}>
-              <Text style={styles.sectionTitle}>Main Actions</Text>
+              <Text style={styles.sectionTitle}>{t('sideMenu.section_main')}</Text>
               {menuItems.slice(0, 3).map((item) => (
                 <TouchableOpacity
                   key={item.id}
@@ -144,7 +111,7 @@ export const SideMenu = ({ isOpen, onClose }) => {
             </View>
 
             <View style={styles.menuSection}>
-              <Text style={styles.sectionTitle}>Settings</Text>
+              <Text style={styles.sectionTitle}>{t('sideMenu.section_settings')}</Text>
               {menuItems.slice(3, 5).map((item) => (
                 <TouchableOpacity
                   key={item.id}
@@ -161,7 +128,7 @@ export const SideMenu = ({ isOpen, onClose }) => {
             </View>
 
             <View style={styles.menuSection}>
-              <Text style={styles.sectionTitle}>Support</Text>
+              <Text style={styles.sectionTitle}>{t('sideMenu.section_support')}</Text>
               {menuItems.slice(5).map((item) => (
                 <TouchableOpacity
                   key={item.id}
