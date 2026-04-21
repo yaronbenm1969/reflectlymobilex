@@ -720,9 +720,7 @@ const FlipPagesWebView = ({
     function playCurrentVideo() {
       if (currentIndex >= fullVideoQueue.length) {
         console.log('🏁 All videos complete!');
-        postMessage('allVideosComplete', { playedCount: fullVideoQueue.length });
-        isPlaying = false;
-        showReplayButton();
+        fadeOutAndComplete(fullVideoQueue.length);
         return;
       }
       
@@ -788,6 +786,18 @@ const FlipPagesWebView = ({
       });
     }
     
+    function fadeOutAndComplete(playedCount) {
+      isPlaying = false;
+      showReplayButton();
+      var fade = document.createElement('div');
+      fade.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;z-index:9999;transition:opacity 1.5s ease;pointer-events:none;';
+      document.body.appendChild(fade);
+      requestAnimationFrame(function() { requestAnimationFrame(function() {
+        fade.style.opacity = '1';
+        setTimeout(function() { postMessage('allVideosComplete', { playedCount: playedCount }); }, 1500);
+      }); });
+    }
+
     function advanceToNext() {
       var prevIdx = currentIndex;
       if (isRecording && typeof notifyFlipStarted === 'function') {
@@ -796,9 +806,7 @@ const FlipPagesWebView = ({
       currentIndex++;
       if (currentIndex >= fullVideoQueue.length) {
         console.log('🏁 All videos complete!');
-        postMessage('allVideosComplete', { playedCount: fullVideoQueue.length });
-        isPlaying = false;
-        showReplayButton();
+        fadeOutAndComplete(fullVideoQueue.length);
         return;
       }
       

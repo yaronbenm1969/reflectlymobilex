@@ -22,6 +22,109 @@
         .header.dark { background: linear-gradient(135deg, #8446b0, #464fb0) !important; }
         .btn-primary { background: linear-gradient(135deg, #8446b0, #464fb0) !important; }
         .btn-record { background: linear-gradient(135deg, #8446b0, #464fb0) !important; }
+
+        /* ── Download App Banner ── */
+        #app-download-banner {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            background: linear-gradient(135deg, #8446b0, #464fb0);
+            color: #fff;
+            padding: 10px 14px 14px;
+            box-shadow: 0 -4px 20px rgba(132,70,176,0.35);
+            font-family: 'Heebo', sans-serif;
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        #app-download-banner.visible {
+            transform: translateY(0);
+        }
+        #app-download-banner.hidden {
+            display: none;
+        }
+        .banner-close {
+            position: absolute;
+            top: 8px;
+            left: 10px;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: #fff;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .banner-inner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .banner-logo-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .banner-logo-icon {
+            font-size: 28px;
+            line-height: 1;
+        }
+        .banner-logo-name {
+            /* ← change app name here only */
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            opacity: 0.9;
+            margin-top: 2px;
+        }
+        .banner-text {
+            flex: 1;
+        }
+        .banner-text strong {
+            display: block;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 1px;
+        }
+        .banner-text span {
+            font-size: 12px;
+            opacity: 0.85;
+        }
+        .banner-store-btns {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            flex-shrink: 0;
+        }
+        .banner-store-btn {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(255,255,255,0.18);
+            border: 1px solid rgba(255,255,255,0.35);
+            border-radius: 8px;
+            padding: 5px 10px;
+            color: #fff;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+            transition: background 0.2s;
+        }
+        .banner-store-btn:hover {
+            background: rgba(255,255,255,0.28);
+        }
+        .banner-store-btn .store-icon {
+            font-size: 14px;
+        }
     </style>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
 </head>
@@ -330,6 +433,30 @@
                         </a>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Download App Banner ── -->
+    <div id="app-download-banner">
+        <button class="banner-close" id="banner-close-btn" title="סגור">✕</button>
+        <div class="banner-inner">
+            <div class="banner-logo-wrap">
+                <!-- לוגו ושם בנפרד — החלפה קלה -->
+                <span class="banner-logo-icon">🎬</span>
+                <span class="banner-logo-name" id="banner-app-name">Reflectly</span>
+            </div>
+            <div class="banner-text">
+                <strong>רוצה ליצור סרטון כזה?</strong>
+                <span>הורד את האפ וצור סיפורים עם חברים</span>
+            </div>
+            <div class="banner-store-btns">
+                <a href="https://apps.apple.com/app/reflectly" target="_blank" class="banner-store-btn" id="banner-ios-btn">
+                    <span class="store-icon">🍎</span> App Store
+                </a>
+                <a href="https://play.google.com/store/apps/details?id=com.reflectly.app" target="_blank" class="banner-store-btn" id="banner-android-btn">
+                    <span class="store-icon">▶</span> Google Play
+                </a>
             </div>
         </div>
     </div>

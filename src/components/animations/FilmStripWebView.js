@@ -312,7 +312,7 @@ const FilmStripWebView = ({
     justify-content: center; opacity: 0; pointer-events: none;
     transition: opacity 1.5s ease;
   }
-  #outro-overlay.show { opacity: 1; }
+  #outro-overlay.show { opacity: 1; pointer-events: all; }
   #outro-title {
     color: rgba(255,255,255,0.85); font-size: 20px; font-weight: 300;
     letter-spacing: 8px; text-transform: uppercase;
@@ -326,6 +326,13 @@ const FilmStripWebView = ({
     margin: 16px auto 0; opacity: 0; transition: opacity 1s ease 1.2s;
   }
   #outro-overlay.show .outro-line { opacity: 1; }
+  #replay-btn {
+    margin-top: 36px; background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.35); border-radius: 50px;
+    color: white; font-size: 14px; padding: 11px 28px; cursor: pointer;
+    opacity: 0; transition: opacity 1s ease 1.8s; letter-spacing: 1px;
+  }
+  #outro-overlay.show #replay-btn { opacity: 1; }
 </style>
 </head>
 <body>
@@ -347,6 +354,7 @@ ${bgHtml}
 <div id="outro-overlay">
   <div id="outro-title">${storyName}</div>
   <div class="outro-line"></div>
+  <button id="replay-btn" onclick="replayPlayback()">↺ הקרן שוב</button>
 </div>
 
 <div class="viewport">
@@ -511,14 +519,17 @@ ${bgHtml}
   function playFrame(idx) {
     if (idx >= fullVideoQueue.length) {
       stopAnimLoop();
-      postMessage('playbackComplete', {});
       isPlaying = false;
-      // Show outro with story name
+      // Show outro, then send complete after fade
       var outroEl = document.getElementById('outro-overlay');
       if (outroEl) {
-        setTimeout(function() { outroEl.classList.add('show'); }, 300);
+        setTimeout(function() {
+          outroEl.classList.add('show');
+          setTimeout(function() { postMessage('playbackComplete', {}); }, 1800);
+        }, 300);
       } else {
         document.getElementById('play-btn').style.display = 'block';
+        postMessage('playbackComplete', {});
       }
       return;
     }
@@ -547,24 +558,38 @@ ${bgHtml}
     video.muted  = false;
     video.volume = 1;
 
+    var stallTimer = null;
+    function clearStall() { if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; } }
+    function resetStallTimer() {
+      clearStall();
+      stallTimer = setTimeout(function() { clearStall(); advanceToNext(); }, 7000);
+    }
+
     function doPlay() {
       video.currentTime = 0;
+      video.onerror = function() { clearStall(); if (videoTimeoutId) clearTimeout(videoTimeoutId); advanceToNext(); };
+      video.onwaiting = resetStallTimer;
+      video.onstalled = resetStallTimer;
+      video.ontimeupdate = function() { clearStall(); };
+
       video.play().then(function() {
         postMessage('videoStart', { faceId: idx % N, queueIndex: idx });
         setupScrollSync(video, idx);
+        resetStallTimer();
 
         var dur = video.duration;
         var timeout = (dur && isFinite(dur) && dur > 0)
           ? (dur + 2) * 1000
           : MAX_VIDEO_DURATION * 1000;
 
-        videoTimeoutId = setTimeout(advanceToNext, timeout);
+        videoTimeoutId = setTimeout(function() { clearStall(); advanceToNext(); }, timeout);
         preloadNext(idx);
 
-      }).catch(function() { advanceToNext(); });
+      }).catch(function() { clearStall(); advanceToNext(); });
     }
 
     video.onended = function() {
+      clearStall();
       if (videoTimeoutId) clearTimeout(videoTimeoutId);
       videoTimeoutId = null;
       advanceToNext();
@@ -625,6 +650,17 @@ ${bgHtml}
       startAnimLoop();
       playFrame(0);
     }
+  };
+
+  window.replayPlayback = function() {
+    var outroEl = document.getElementById('outro-overlay');
+    if (outroEl) outroEl.classList.remove('show');
+    isPlaying = false;
+    currentIndex = 0;
+    currentX = 0;
+    applyTransform();
+    // Small delay so outro fades out before restarting
+    setTimeout(function() { window.startPlayback(); }, 500);
   };
 
   window.updateFrames = function(facesData) {

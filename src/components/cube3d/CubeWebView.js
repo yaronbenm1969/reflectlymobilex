@@ -985,10 +985,16 @@ const CubeWebView = ({
         console.log('🏁 All ' + fullVideoQueue.length + ' videos complete!');
         isPlaying = false;
         if (floatAnimId) cancelAnimationFrame(floatAnimId);
-        // Tilt cube to reveal title face (bottom), then fire complete
+        // Tilt cube to reveal title face (bottom), fade to black, then fire complete
         revealTitleFace(function() {
-          postMessage('allVideosComplete', { playedCount: fullVideoQueue.length });
           showReplayButton();
+          var fade = document.createElement('div');
+          fade.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;z-index:9999;transition:opacity 1.5s ease;pointer-events:none;';
+          document.body.appendChild(fade);
+          requestAnimationFrame(function() { requestAnimationFrame(function() {
+            fade.style.opacity = '1';
+            setTimeout(function() { postMessage('allVideosComplete', { playedCount: fullVideoQueue.length }); }, 1500);
+          }); });
         });
         return;
       }

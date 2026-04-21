@@ -410,7 +410,7 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
   // ─── PLAY PANEL ───────────────────────────────────────
   function playPanel(idx) {
     if (idx >= fullVideoQueue.length) {
-      postMessage('playbackComplete', {});
+      fadeOutAndComplete();
       return;
     }
 
@@ -499,6 +499,17 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     }
   }
 
+  // ─── FADE OUT ─────────────────────────────────────────
+  function fadeOutAndComplete() {
+    var fade = document.createElement('div');
+    fade.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;z-index:9999;transition:opacity 1.5s ease;pointer-events:none;';
+    document.body.appendChild(fade);
+    requestAnimationFrame(function() { requestAnimationFrame(function() {
+      fade.style.opacity = '1';
+      setTimeout(function() { postMessage('playbackComplete', {}); }, 1500);
+    }); });
+  }
+
   // ─── ADVANCE ──────────────────────────────────────────
   function advanceToNext() {
     if (videoTimeoutId) { clearTimeout(videoTimeoutId); videoTimeoutId = null; }
@@ -506,9 +517,8 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     var next = currentIndex + 1;
     if (next >= fullVideoQueue.length) {
       stopAnimLoop();
-      postMessage('playbackComplete', {});
-      document.getElementById('play-btn').style.display = 'block';
       isPlaying = false;
+      fadeOutAndComplete();
       return;
     }
     playPanel(next);

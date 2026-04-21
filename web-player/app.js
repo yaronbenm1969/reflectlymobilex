@@ -103,6 +103,31 @@ const screens = {
 
 const ACCESS_CODE_KEY = 'reflectly_access_code';
 
+// ── Download App Banner ──
+const appBanner = document.getElementById('app-download-banner');
+const bannerCloseBtn = document.getElementById('banner-close-btn');
+const BANNER_SCREENS = new Set(['watch', 'success']); // screens where banner is visible
+let bannerDismissed = false;
+
+function updateBanner(screenName) {
+    if (!appBanner) return;
+    if (bannerDismissed) return;
+    if (BANNER_SCREENS.has(screenName)) {
+        appBanner.classList.remove('hidden');
+        requestAnimationFrame(() => appBanner.classList.add('visible'));
+    } else {
+        appBanner.classList.remove('visible');
+    }
+}
+
+if (bannerCloseBtn) {
+    bannerCloseBtn.addEventListener('click', () => {
+        bannerDismissed = true;
+        appBanner.classList.remove('visible');
+        setTimeout(() => appBanner.classList.add('hidden'), 400);
+    });
+}
+
 function showScreen(screenName) {
     Object.values(screens).forEach(s => {
         if (s) s.classList.remove('active');
@@ -110,6 +135,7 @@ function showScreen(screenName) {
     if (screens[screenName]) {
         screens[screenName].classList.add('active');
     }
+    updateBanner(screenName);
 }
 
 async function checkAccessStatus() {

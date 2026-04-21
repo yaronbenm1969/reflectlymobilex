@@ -107,6 +107,11 @@ export const PlayerRecordScreen = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
 
+  // Consent flow — only for player mode (deep link)
+  const [consentState, setConsentState] = useState(null); // null=loading | 'needed' | 'done'
+  const [consentChecked, setConsentChecked] = useState(false);
+  const participantIdRef = useRef(`participant_${Date.now()}`);
+
   useEffect(() => {
     // Clear any AI music URL from a previous session (Zustand + Firestore)
     setGeneratedMusicUrl(null);
@@ -124,6 +129,20 @@ export const PlayerRecordScreen = () => {
       ambient.stop();
     };
   }, []);
+
+  // Determine whether consent is needed (player mode only)
+  useEffect(() => {
+    if (!playerStoryId) {
+      setConsentState('done'); // creator mode — no consent screen
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!playerStoryId) return;
+    if (!playerStoryData) return; // still loading
+    const needsConsent = playerStoryData?.privacySettings?.publishingEnabled;
+    setConsentState(needsConsent ? 'needed' : 'done');
+  }, [playerStoryData]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -290,7 +309,7 @@ export const PlayerRecordScreen = () => {
     }
 
     setIsUploading(true);
-    const participantId = `participant_${Date.now()}`;
+    const participantId = participantIdRef.current;
     let uploadedCount = 0;
     const uploadedUrls = [];
 
@@ -397,6 +416,75 @@ export const PlayerRecordScreen = () => {
   };
 
   const recordedCount = clipRecordings.filter(r => r !== null).length;
+
+  const handleConsentGiven = () => {
+    if (!consentChecked) return;
+    setConsentState('done');
+    if (playerStoryId) {
+      storiesService.updateStory(playerStoryId, {
+        [`playerConsents.${participantIdRef.current}`]: {
+          consented: true,
+          timestamp: Date.now(),
+          participantName: playerStoryData?.participantName || null,
+        },
+      }).catch(() => {});
+    }
+  };
+
+  // Waiting for story data to determine consent requirement
+  if (playerStoryId && consentState === null) {
+    return (
+      <View style={styles.permissionContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.permissionText}>טוען פרטי הסרטון...</Text>
+      </View>
+    );
+  }
+
+  // Player must consent before recording
+  if (consentState === 'needed') {
+    const creatorName = playerStoryData?.creatorName || 'המפיק';
+    return (
+      <View style={styles.consentContainer}>
+        <View style={styles.consentHeader}>
+          <Ionicons name="shield-checkmark-outline" size={56} color={theme.colors.accent} />
+          <Text style={styles.consentTitle}>אישור הסכמה לפרסום</Text>
+        </View>
+
+        <Text style={styles.consentBody}>
+          {creatorName} מבקש לפרסם את הסרטון הסופי ברשת.{'\n\n'}
+          ההשתתפות שלך בסרטון עשויה להיות גלויה לציבור.{'\n'}
+          יש לאשר את הסכמתך לפני ההקלטה.
+        </Text>
+
+        <TouchableOpacity
+          style={styles.consentCheckRow}
+          onPress={() => setConsentChecked(v => !v)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.consentCheckbox, consentChecked && styles.consentCheckboxChecked]}>
+            {consentChecked && <Ionicons name="checkmark" size={16} color="white" />}
+          </View>
+          <Text style={styles.consentCheckLabel}>
+            אני מסכים/ה שסרטוני ישמשו בסרטון הסופי ויפורסמו ברשת
+          </Text>
+        </TouchableOpacity>
+
+        <AppButton
+          title="אישור והמשך להקלטה"
+          onPress={handleConsentGiven}
+          variant="primary"
+          size="lg"
+          fullWidth
+          disabled={!consentChecked}
+        />
+
+        <TouchableOpacity style={styles.consentDeclineBtn} onPress={() => back()}>
+          <Text style={styles.consentDeclineText}>אינני מסכים/ה — חזור</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (!permission) {
     return (
@@ -794,6 +882,68 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: theme.colors.text,
     textAlign: 'center',
+  },
+  consentContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: theme.colors.bg,
+    padding: theme.spacing[6],
+    gap: theme.spacing[5],
+  },
+  consentHeader: {
+    alignItems: 'center',
+    gap: theme.spacing[3],
+  },
+  consentTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: theme.colors.text,
+    textAlign: 'center',
+  },
+  consentBody: {
+    fontSize: 16,
+    color: theme.colors.textSecondary || '#555',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  consentCheckRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing[3],
+    backgroundColor: theme.colors.card || '#fff',
+    borderRadius: 12,
+    padding: theme.spacing[4],
+    borderWidth: 1.5,
+    borderColor: theme.colors.border || '#e0e0e0',
+  },
+  consentCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: theme.colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  consentCheckboxChecked: {
+    backgroundColor: theme.colors.accent,
+  },
+  consentCheckLabel: {
+    flex: 1,
+    fontSize: 15,
+    color: theme.colors.text,
+    lineHeight: 22,
+  },
+  consentDeclineBtn: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing[2],
+  },
+  consentDeclineText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary || '#888',
+    textDecorationLine: 'underline',
   },
   header: {
     flexDirection: 'row',

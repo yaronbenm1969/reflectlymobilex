@@ -181,7 +181,20 @@ export const InstructionsScreen = () => {
             <Text style={styles.privacyLabel}>אפשר פרסום הסרטון הסופי</Text>
             <Switch
               value={publishingEnabled}
-              onValueChange={setPublishingEnabled}
+              onValueChange={(value) => {
+                if (value) {
+                  Alert.alert(
+                    'אישור פרסום',
+                    'הפעלת אפשרות זו תאפשר פרסום הסרטון הסופי ברשת.\n\nכל משתתף יתבקש לאשר את הסכמתו לפני ההקלטה.\n\nהאם אתה מאשר ומסכים?',
+                    [
+                      { text: 'ביטול', style: 'cancel' },
+                      { text: 'אני מאשר ומסכים', onPress: () => setPublishingEnabled(true) },
+                    ]
+                  );
+                } else {
+                  setPublishingEnabled(false);
+                }
+              }}
               trackColor={{ false: '#ddd', true: theme.colors.accent }}
               thumbColor={publishingEnabled ? theme.colors.white : '#f4f3f4'}
             />

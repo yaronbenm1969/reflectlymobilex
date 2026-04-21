@@ -56,28 +56,6 @@ export default function App() {
   const setUser = useAppState((state) => state.setUser);
   const navigateTo = useAppState((state) => state.navigateTo);
   const enterPlayerMode = useAppState((state) => state.enterPlayerMode);
-  const setVideoFormat = useAppState((state) => state.setVideoFormat);
-  const setReflections = useAppState((state) => state.setReflections);
-  const setCurrentStoryId = useAppState((state) => state.setCurrentStoryId);
-  const setStoryName = useAppState((state) => state.setStoryName);
-
-  // DEV: jump straight to FinalVideoScreen with 3 players × 3 clips (cube-3d)
-  const devTestFactory = () => {
-    const SAMPLE = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
-    const mockReflections = [
-      ...['אבא','אמא','ילד'].flatMap((name, pi) =>
-        [1,2,3].map(ci => ({
-          id: `p${pi}c${ci}`, videoUrl: SAMPLE,
-          playerName: name, participantName: name, clipNumber: ci,
-        }))
-      ),
-    ];
-    setStoryName('סרטון בדיקה - 3 שחקנים');
-    setCurrentStoryId('dev-test-story');
-    setReflections(mockReflections);
-    setVideoFormat('cube-3d');
-    navigateTo('FinalVideo');
-  };
 
   // Handle deep links for player mode
   const handleDeepLink = (url) => {
@@ -268,19 +246,6 @@ export default function App() {
               onClose={() => setSideMenuOpen(false)}
             />
 
-            {/* DEV-only: quick jump to factory animation test */}
-            {__DEV__ && (
-              <TouchableOpacity
-                onPress={devTestFactory}
-                style={{
-                  position: 'absolute', bottom: 90, left: 12,
-                  backgroundColor: '#ff4081', borderRadius: 20,
-                  paddingHorizontal: 10, paddingVertical: 6, zIndex: 9999,
-                }}
-              >
-                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>🏭 DEV</Text>
-              </TouchableOpacity>
-            )}
           </View>
         </AccessGate>
       </SafeAreaProvider>
