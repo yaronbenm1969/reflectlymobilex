@@ -30,7 +30,7 @@ app.use(express.json());
 const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -60,6 +60,79 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
   res.status(200).json({ ok: true });
+});
+
+// Deep-link redirect page — handles both users with the app and without
+// WhatsApp makes HTTPS links clickable; custom scheme (reflectly://) links appear as plain text
+app.get('/join/:storyId', (req, res) => {
+  const { storyId } = req.params;
+  const appLink = `reflectly://s/${storyId}`;
+  // TODO: replace with real store URLs once published
+  const APP_STORE_URL = 'https://apps.apple.com/app/reflectly/id0000000000';
+  const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.reflectly.app';
+
+  res.set('Content-Type', 'text/html');
+  res.send(`<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>הצטרף לסיפור ב-Reflectly</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #F5F0FA; color: #333; text-align: center; padding: 24px; }
+    .logo { font-size: 48px; margin-bottom: 8px; }
+    h1 { color: #FF6B9D; font-size: 26px; margin: 0 0 8px; }
+    .sub { color: #888; font-size: 14px; margin-bottom: 32px; }
+    .card { background: white; border-radius: 16px; padding: 24px; width: 100%; max-width: 360px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 16px; }
+    .card h2 { font-size: 18px; margin: 0 0 8px; }
+    .card p { font-size: 14px; color: #666; margin: 0 0 16px; line-height: 1.5; }
+    a.btn { display: block; padding: 14px 20px; border-radius: 10px; text-decoration: none; font-size: 16px; font-weight: bold; margin-bottom: 10px; }
+    .btn-primary { background: #FF6B9D; color: white; }
+    .btn-ios { background: #000; color: white; }
+    .btn-android { background: #3DDC84; color: #000; }
+    .btn-secondary { background: #f0e6ff; color: #8B5CF6; }
+    .divider { font-size: 13px; color: #aaa; margin: 4px 0 10px; }
+    #phase-open { display: block; }
+    #phase-install { display: none; }
+    .spinner { width: 36px; height: 36px; border: 3px solid #eee; border-top-color: #FF6B9D; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 12px auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="logo">🎬</div>
+  <h1>Reflectly</h1>
+  <p class="sub">הוזמנת לצלם שיקוף!</p>
+
+  <!-- Phase 1: trying to open app -->
+  <div id="phase-open" class="card">
+    <h2>יש לך את האפליקציה?</h2>
+    <p>לחץ כדי לפתוח אותה ולהצטרף לסיפור:</p>
+    <a class="btn btn-primary" href="${appLink}" id="open-btn">פתח את Reflectly</a>
+    <div class="divider">— אין לך עדיין? —</div>
+    <a class="btn btn-secondary" href="#" onclick="showInstall(); return false;">הורד את האפליקציה</a>
+  </div>
+
+  <!-- Phase 2: install instructions -->
+  <div id="phase-install" class="card">
+    <h2>הורד את Reflectly</h2>
+    <p>לאחר ההתקנה, חזור להודעה בווטסאפ ולחץ שוב על הלינק:</p>
+    <a class="btn btn-ios" href="${APP_STORE_URL}" target="_blank">📱 iPhone — App Store</a>
+    <a class="btn btn-android" href="${PLAY_STORE_URL}" target="_blank">🤖 אנדרואיד — Google Play</a>
+    <div class="divider">— כבר התקנת? —</div>
+    <a class="btn btn-primary" href="${appLink}">פתח את האפליקציה</a>
+  </div>
+
+  <script>
+    function showInstall() {
+      document.getElementById('phase-open').style.display = 'none';
+      document.getElementById('phase-install').style.display = 'block';
+    }
+    // Auto-attempt to open the app on page load
+    setTimeout(function() { window.location.href = '${appLink}'; }, 600);
+  </script>
+</body>
+</html>`);
 });
 
 app.get('/api/maintenance-status', (req, res) => {
@@ -531,18 +604,24 @@ app.post('/api/transcribe-from-urls', async (req, res) => {
   }
 
   try {
+    // Download and transcribe all clips in parallel, then merge in order
+    console.log(`🚀 Transcribing ${clipUrls.length} clips in parallel...`);
+    const clipResults = await Promise.all(
+      clipUrls.map(async (url, i) => {
+        const localPath = path.join(tempDir, `transcribe_${Date.now()}_${i}.mp4`);
+        console.log(`📥 Downloading clip ${i + 1}/${clipUrls.length} for transcription`);
+        await downloadFile(url, localPath);
+        const result = await aiService.transcribeVideo(localPath);
+        try { fs.unlinkSync(localPath); } catch (e) {}
+        return { index: i, result };
+      })
+    );
+
+    // Sort by original index and compute time offsets
+    clipResults.sort((a, b) => a.index - b.index);
     const allSegments = [];
     let timeOffset = 0;
-
-    for (let i = 0; i < clipUrls.length; i++) {
-      const url = clipUrls[i];
-      const localPath = path.join(tempDir, `transcribe_${Date.now()}_${i}.mp4`);
-      console.log(`📥 Downloading clip ${i + 1}/${clipUrls.length} for transcription`);
-      await downloadFile(url, localPath);
-
-      const result = await aiService.transcribeVideo(localPath);
-      try { fs.unlinkSync(localPath); } catch (e) {}
-
+    for (const { result } of clipResults) {
       const clipDuration = result.duration || 30;
       if (result.success && result.segments && result.segments.length > 0) {
         result.segments.forEach(seg => {

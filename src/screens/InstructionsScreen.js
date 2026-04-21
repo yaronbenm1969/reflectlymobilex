@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
@@ -21,11 +22,14 @@ import theme from '../theme/theme';
 
 export const InstructionsScreen = () => {
   const { go, back } = useNav();
+  const insets = useSafeAreaInsets();
   const storyName = useAppState((state) => state.storyName);
   const playerInstructions = useAppState((state) => state.playerInstructions);
   const setPlayerInstructions = useAppState((state) => state.setPlayerInstructions);
   const privacySettings = useAppState((state) => state.privacySettings);
   const setPrivacySettings = useAppState((state) => state.setPrivacySettings);
+  const communitySettings = useAppState((state) => state.communitySettings);
+  const setCommunitySettings = useAppState((state) => state.setCommunitySettings);
   const lastRecordingUri = useAppState((state) => state.lastRecordingUri);
   const currentStoryId = useAppState((state) => state.currentStoryId);
 
@@ -35,6 +39,9 @@ export const InstructionsScreen = () => {
   const [video3Time, setVideo3Time] = useState(playerInstructions.video3Time || 30);
   const [allowSocialMedia, setAllowSocialMedia] = useState(privacySettings.allowSocialMedia);
   const [publishingEnabled, setPublishingEnabled] = useState(privacySettings.publishingEnabled ?? true);
+  const [communityMode, setCommunityMode] = useState(communitySettings.communityMode ?? false);
+  const [maxPlayers, setMaxPlayers] = useState(communitySettings.maxPlayers ?? 5);
+  const [approvalMode, setApprovalMode] = useState(communitySettings.approvalMode ?? 'open');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
@@ -50,6 +57,7 @@ export const InstructionsScreen = () => {
       privateOnly: !allowSocialMedia,
       publishingEnabled,
     });
+    setCommunitySettings({ communityMode, maxPlayers, approvalMode });
     
     if (lastRecordingUri && currentStoryId) {
       setIsUploading(true);
@@ -66,6 +74,7 @@ export const InstructionsScreen = () => {
             instructions: genericInstructions,
             videoTimings: { video1: video1Time, video2: video2Time, video3: video3Time },
             privacySettings: { allowSocialMedia, privateOnly: !allowSocialMedia, publishingEnabled },
+            communitySettings: { communityMode, maxPlayers, approvalMode },
           });
           
           if (updateResult.success) {
@@ -85,8 +94,16 @@ export const InstructionsScreen = () => {
       
       setIsUploading(false);
     }
-    
-    go('WhatsAppShare');
+
+    if (communityMode) {
+      // Publish to community — mark story as active and show community feed
+      if (currentStoryId) {
+        await storiesService.updateStory(currentStoryId, { status: 'active' });
+      }
+      go('CommunityFeed');
+    } else {
+      go('WhatsAppShare');
+    }
   };
 
   const timeOptions = [5, 15, 30, 45, 60, 90, 120];
@@ -128,7 +145,7 @@ export const InstructionsScreen = () => {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
         <Text style={styles.storyNameLabel}>
           סיפור: <Text style={styles.storyNameValue}>{storyName}</Text>
         </Text>
@@ -221,6 +238,82 @@ export const InstructionsScreen = () => {
           </Text>
         </Card>
 
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>פתיחה לקהילה</Text>
+          <View style={styles.privacyRow}>
+            <Text style={styles.privacyLabel}>פתח סיפור זה לחברי קהילה</Text>
+            <Switch
+              value={communityMode}
+              onValueChange={setCommunityMode}
+              trackColor={{ false: '#ddd', true: theme.colors.accent }}
+              thumbColor={communityMode ? theme.colors.white : '#f4f3f4'}
+            />
+          </View>
+          <Text style={styles.privacyDescription}>
+            {communityMode
+              ? 'חברי קהילה יוכלו לראות ולהצטרף לסיפור'
+              : 'הסיפור יהיה פרטי — רק מי שקיבל הזמנה ישירה'}
+          </Text>
+
+          {communityMode && (
+            <>
+              <Text style={[styles.timeSelectorLabel, { marginTop: theme.spacing[4] }]}>
+                כמה שחקנים? (מקסימום 9 סרטונים)
+              </Text>
+              <View style={styles.timeButtons}>
+                {[3, 4, 5, 6, 7, 8, 9].map((n) => (
+                  <TouchableOpacity
+                    key={n}
+                    style={[styles.timeButton, maxPlayers === n && styles.timeButtonSelected]}
+                    onPress={() => setMaxPlayers(n)}
+                  >
+                    <Text style={[styles.timeButtonText, maxPlayers === n && styles.timeButtonTextSelected]}>
+                      {n}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.timeSelectorLabel, { marginTop: theme.spacing[4] }]}>
+                אישור משתתפים
+              </Text>
+              <View style={styles.approvalRow}>
+                <TouchableOpacity
+                  style={[styles.approvalButton, approvalMode === 'open' && styles.approvalButtonSelected]}
+                  onPress={() => setApprovalMode('open')}
+                >
+                  <Ionicons
+                    name="lock-open-outline"
+                    size={18}
+                    color={approvalMode === 'open' ? theme.colors.white : theme.colors.text}
+                  />
+                  <Text style={[styles.approvalButtonText, approvalMode === 'open' && styles.approvalButtonTextSelected]}>
+                    פתוח
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.approvalButton, approvalMode === 'manual' && styles.approvalButtonSelected]}
+                  onPress={() => setApprovalMode('manual')}
+                >
+                  <Ionicons
+                    name="checkmark-circle-outline"
+                    size={18}
+                    color={approvalMode === 'manual' ? theme.colors.white : theme.colors.text}
+                  />
+                  <Text style={[styles.approvalButtonText, approvalMode === 'manual' && styles.approvalButtonTextSelected]}>
+                    אישור ידני
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.privacyDescription}>
+                {approvalMode === 'open'
+                  ? 'הראשונים שיצטרפו יכנסו אוטומטית עד מילוי המקומות'
+                  : 'כל משתתף יחכה לאישורך לפני שיקבל לינק לצילום'}
+              </Text>
+            </>
+          )}
+        </Card>
+
         {isUploading && (
           <Card style={styles.uploadingCard}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -231,7 +324,7 @@ export const InstructionsScreen = () => {
 
         <View style={styles.actions}>
           <AppButton
-            title={isUploading ? "מעלה..." : "המשך לשליחת הזמנות"}
+            title={isUploading ? "מעלה..." : communityMode ? "פרסם לקהילה" : "המשך לשליחת הזמנות"}
             onPress={handleContinue}
             variant="primary"
             size="lg"
@@ -362,6 +455,37 @@ const styles = StyleSheet.create({
   },
   actions: {
     paddingVertical: theme.spacing[4],
+  },
+  approvalRow: {
+    flexDirection: 'row',
+    gap: theme.spacing[3],
+    marginTop: theme.spacing[2],
+    marginBottom: theme.spacing[2],
+  },
+  approvalButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[3],
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.bg,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  approvalButtonSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  approvalButtonText: {
+    ...theme.typography.body,
+    color: theme.colors.text,
+    fontWeight: '500',
+  },
+  approvalButtonTextSelected: {
+    color: theme.colors.white,
+    fontWeight: 'bold',
   },
   uploadingCard: {
     padding: theme.spacing[4],

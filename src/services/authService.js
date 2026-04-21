@@ -1,4 +1,4 @@
-import { 
+import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInAnonymously,
@@ -7,6 +7,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { auth } from './firebase';
+import { usersService } from './usersService';
 
 export const authService = {
   signUp: async (email, password, displayName) => {
@@ -18,6 +19,11 @@ export const authService = {
       if (displayName) {
         await updateProfile(userCredential.user, { displayName });
       }
+      // Create Firestore user profile (fire-and-forget — don't block signup)
+      usersService.createUserProfile(userCredential.user.uid, {
+        email: userCredential.user.email,
+        displayName,
+      });
       console.log('✅ User signed up:', userCredential.user.email);
       return { success: true, user: userCredential.user };
     } catch (error) {

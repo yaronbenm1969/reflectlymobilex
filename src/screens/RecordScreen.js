@@ -8,7 +8,7 @@ import {
   SafeAreaView,
   Dimensions,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNav } from '../hooks/useNav';
@@ -40,6 +40,7 @@ export const RecordScreen = () => {
   const isCountdownEnabled = useAppState((state) => state.isCountdownEnabled);
   
   const [permission, requestPermission] = useCameraPermissions();
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const [facing, setFacing] = useState('front');
   const [isRecording, setIsRecording] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState(null);
@@ -55,7 +56,10 @@ export const RecordScreen = () => {
     if (!permission) {
       requestPermission();
     }
-  }, [permission]);
+    if (!micPermission) {
+      requestMicPermission();
+    }
+  }, [permission, micPermission]);
 
   // Clean up timers
   useEffect(() => {
@@ -192,23 +196,23 @@ export const RecordScreen = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  if (!permission) {
+  if (!permission || !micPermission) {
     return (
       <View style={styles.permissionContainer}>
-        <Text style={styles.permissionText}>אנו זקוקים להרשאת מצלמה</Text>
-        <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+        <Text style={styles.permissionText}>אנו זקוקים להרשאת מצלמה ומיקרופון</Text>
+        <TouchableOpacity style={styles.permissionButton} onPress={() => { requestPermission(); requestMicPermission(); }}>
           <Text style={styles.permissionButtonText}>הענק הרשאה</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  if (!permission.granted) {
+  if (!permission.granted || !micPermission.granted) {
     return (
       <View style={styles.permissionContainer}>
-        <Text style={styles.permissionText}>No access to camera</Text>
-        <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
-          <Text style={styles.permissionButtonText}>Grant permission</Text>
+        <Text style={styles.permissionText}>נדרשת הרשאת מצלמה ומיקרופון</Text>
+        <TouchableOpacity style={styles.permissionButton} onPress={() => { requestPermission(); requestMicPermission(); }}>
+          <Text style={styles.permissionButtonText}>הענק הרשאה</Text>
         </TouchableOpacity>
       </View>
     );

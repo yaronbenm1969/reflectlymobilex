@@ -10,7 +10,6 @@ import {
   Share,
 } from 'react-native';
 import Constants from 'expo-constants';
-import * as ExpoLinking from 'expo-linking';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
@@ -40,20 +39,24 @@ export const WhatsAppShareScreen = () => {
   
   const participantLink = useMemo(() => {
     if (!currentStoryId) return '';
-    return ExpoLinking.createURL('s/' + currentStoryId);
+    // Use HTTPS link via Render server — WhatsApp makes HTTPS links clickable,
+    // while exp:// or reflectly:// custom scheme links appear as plain text.
+    // The /join/:storyId page redirects to reflectly://s/:storyId on device.
+    const serverUrl = Constants.expoConfig?.extra?.videoConverterUrl ||
+                      process.env.EXPO_PUBLIC_API_URL ||
+                      'https://reflectlymobilex.onrender.com';
+    return `${serverUrl}/join/${currentStoryId}`;
   }, [currentStoryId]);
 
   const messageTemplate = useMemo(() => {
     if (!participantLink) {
-      return `היי! 🎬\n\nהוזמנת לשתף שיקוף בסיפור "${storyName}"\n\nהתקן את אפליקציית Expo Go ופתח את הלינק.\n\nתודה! ❤️`;
+      return `היי! 🎬\n\nהוזמנת לשתף שיקוף בסיפור "${storyName}"\n\nהתקן את אפליקציית Reflectly ופתח את הלינק.\n\nתודה! ❤️`;
     }
     return `היי! 🎬
 
 הוזמנת לשתף שיקוף בסיפור "${storyName}" 🎥
 
-כדי לצלם ולשלוח:
-1. התקן את אפליקציית Expo Go מהחנות
-2. לחץ על הלינק:
+לחץ על הלינק ועקוב אחר ההנחיות:
 ${participantLink}
 
 תודה! ❤️`;

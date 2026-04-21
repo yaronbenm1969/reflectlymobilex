@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { View, StyleSheet, Dimensions, ActivityIndicator, Text, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Asset } from 'expo-asset';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CUBE_SIZE = Math.min(SCREEN_WIDTH * 0.85, 340);
@@ -40,7 +41,23 @@ const CubeWebView = ({
   
   const recordingChunksRef = useRef([]);
   const recordingMetaRef = useRef(null);
-  
+  const [logoDataUri, setLogoDataUri] = useState('');
+
+  useEffect(() => {
+    async function loadLogo() {
+      try {
+        const asset = await Asset.fromModule(require('../../../assets/logo.png')).downloadAsync();
+        if (asset.localUri) {
+          const b64 = await FileSystem.readAsStringAsync(asset.localUri, { encoding: FileSystem.EncodingType.Base64 });
+          setLogoDataUri(`data:image/png;base64,${b64}`);
+        }
+      } catch (e) {
+        console.warn('Could not load logo for cube face:', e);
+      }
+    }
+    loadLogo();
+  }, []);
+
   useEffect(() => {
     if (hasInitializedRef.current) return;
     const first4 = faces.slice(0, 4);
@@ -110,6 +127,8 @@ const CubeWebView = ({
 
     // Safe background URL — strip single quotes to avoid template injection
     const safeBgUrl = (backgroundUrl || '').replace(/'/g, '');
+    // Logo data URI (base64 embedded — safe to use directly in HTML)
+    const safeLogoDataUri = logoDataUri || '';
     const bgHtml = safeBgUrl
       ? (backgroundMediaType === 'image'
           ? `<img id="custom-bg" src="${safeBgUrl}" style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;" />`
@@ -401,9 +420,16 @@ const CubeWebView = ({
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #000;
+      background: linear-gradient(145deg, #0d0a1e 0%, #1a0a2e 100%);
       z-index: 2;
       pointer-events: none;
+    }
+    .face-intro-logo {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      margin-bottom: 14px;
+      border-radius: 18px;
     }
     .face-intro-label {
       color: #FF6B9D;
@@ -444,7 +470,7 @@ const CubeWebView = ({
         <div class="cube" id="cube">
           <div class="cube-face front" id="face-0">
             <div class="face-intro" id="face-intro">
-              <span class="face-intro-label">Reflectly</span>
+              ${safeLogoDataUri ? `<img class="face-intro-logo" src="${safeLogoDataUri}" />` : '<span class="face-intro-label">Reflectly</span>'}
               <span class="face-intro-text" id="face-intro-text"></span>
             </div>
           </div>
@@ -464,6 +490,7 @@ const CubeWebView = ({
     
     const faces = ${facesJSON};
     const storyTitle = '${(storyName || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, ' ')}';
+    const logoDataUri = '${safeLogoDataUri}';
     (function() { var el = document.getElementById('face-intro-text'); if (el) el.textContent = storyTitle; })();
     let fullVideoQueue = faces.filter(f => f && f.videoUrl);
     
@@ -555,26 +582,23 @@ const CubeWebView = ({
       const topFace = document.getElementById('face-4');
       const bottomFace = document.getElementById('face-5');
 
+      var logoEl = logoDataUri ? '<img class="face-intro-logo" src="' + logoDataUri + '" />' : '<span class="face-intro-label">Reflectly</span>';
+
       // Bottom face: title card (shown when cube tilts to reveal it at end)
       if (bottomFace && !bottomFace.querySelector('.face-intro')) {
         const div = document.createElement('div');
         div.className = 'face-intro';
         div.style.transform = 'rotate(180deg)';
-        div.innerHTML = '<span class="face-intro-label">Reflectly</span>' +
-          (storyTitle ? '<span class="face-intro-text">' + storyTitle + '</span>' : '');
+        div.innerHTML = logoEl + (storyTitle ? '<span class="face-intro-text">' + storyTitle + '</span>' : '');
         bottomFace.appendChild(div);
         console.log('🎬 Title card added to BOTTOM face');
       }
 
       // Top face: title card (shown at beginning before playback starts)
-      // Uses transparent background so the face gradient shows through (avoids black-hole look)
       if (topFace && !topFace.querySelector('.face-intro')) {
-        topFace.style.background = 'linear-gradient(145deg, rgba(255,107,157,0.95), rgba(192,111,187,0.95))';
         const div = document.createElement('div');
         div.className = 'face-intro';
-        div.style.background = 'transparent';
-        div.innerHTML = '<span class="face-intro-label">Reflectly</span>' +
-          (storyTitle ? '<span class="face-intro-text">' + storyTitle + '</span>' : '');
+        div.innerHTML = logoEl + (storyTitle ? '<span class="face-intro-text">' + storyTitle + '</span>' : '');
         topFace.appendChild(div);
         console.log('🎬 Title card added to TOP face');
       }
@@ -1729,7 +1753,7 @@ const CubeWebView = ({
 </body>
 </html>
     `;
-  }, [initialFaces, storyName, backgroundUrl, backgroundMediaType]);
+  }, [initialFaces, storyName, backgroundUrl, backgroundMediaType, logoDataUri]);
 
   const onMessage = useCallback((event) => {
     try {

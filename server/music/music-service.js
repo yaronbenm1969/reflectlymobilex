@@ -15,6 +15,30 @@ const replicate = new Replicate({
 const DEMUCS_MODEL = process.env.DEMUCS_MODEL || 'htdemucs';
 const MUSIC_TEMP_DIR = path.join(os.tmpdir(), 'reflectly-server', 'music');
 
+// Semaphore: limit concurrent Replicate MusicGen calls.
+// Free tier: 2-3 safe; paid tier: raise MAX_CONCURRENT_MUSICGEN to 5+
+const MAX_CONCURRENT_MUSICGEN = parseInt(process.env.MAX_CONCURRENT_MUSICGEN) || 3;
+let _activeReplicate = 0;
+const _replicateQueue = [];
+function acquireReplicateSlot() {
+  return new Promise((resolve) => {
+    if (_activeReplicate < MAX_CONCURRENT_MUSICGEN) {
+      _activeReplicate++;
+      resolve();
+    } else {
+      _replicateQueue.push(resolve);
+    }
+  });
+}
+function releaseReplicateSlot() {
+  const next = _replicateQueue.shift();
+  if (next) {
+    next(); // give slot to next waiter without decrementing
+  } else {
+    _activeReplicate--;
+  }
+}
+
 function ensureTempDir() {
   if (!fs.existsSync(MUSIC_TEMP_DIR)) {
     fs.mkdirSync(MUSIC_TEMP_DIR, { recursive: true });
@@ -53,6 +77,7 @@ async function generateMusic(prompt, durationSeconds) {
   console.log(`Prompt: ${prompt.substring(0, 150)}...`);
   console.log(`Duration: ${durationSeconds}s`);
 
+  await acquireReplicateSlot();
   try {
     const output = await replicate.run(
       'meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb',
@@ -88,14 +113,17 @@ async function generateMusic(prompt, durationSeconds) {
     if (musicUrl && musicUrl.startsWith('http')) {
       await downloadFile(musicUrl, musicPath);
       console.log(`✅ Music downloaded: ${musicPath}`);
+      releaseReplicateSlot();
       return { success: true, path: musicPath, url: musicUrl };
     }
 
     console.log('MusicGen output type:', typeof output, JSON.stringify(output).substring(0, 200));
+    releaseReplicateSlot();
     return { success: false, error: 'Unexpected MusicGen output format' };
-    
+
   } catch (error) {
     console.error('❌ MusicGen failed:', error);
+    releaseReplicateSlot();
     return { success: false, error: error.message };
   }
 }
@@ -247,24 +275,31 @@ async function generateMusicForVideo(transcriptionSegments, totalDuration, style
   console.log(`🎵 Musical DNA: ${musicalDNA.basePrompt || '—'}`);
   console.log(`🎵 Generating ${chunkPrompts.length} chunk(s) of ${chunkDuration}s each`);
 
-  // Generate each chunk sequentially
-  const chunkPaths = [];
-  for (let i = 0; i < chunkPrompts.length; i++) {
-    console.log(`🎵 Chunk ${i + 1}/${chunkPrompts.length}: ${chunkPrompts[i].substring(0, 80)}...`);
-    const result = await generateMusic(chunkPrompts[i], chunkDuration);
-    if (!result.success) {
-      console.warn(`⚠️ Chunk ${i + 1} failed: ${result.error}`);
-      const fallback = await generateMusic(
-        `${musicalDNA.basePrompt || 'gentle piano, C major, 80 BPM'}, begins softly, returns to calm, ${chunkDuration} seconds`,
-        chunkDuration
-      );
-      if (!fallback.success) {
-        return { success: false, error: `Chunk ${i + 1} generation failed: ${result.error}` };
-      }
-      chunkPaths.push(fallback.path);
-    } else {
-      chunkPaths.push(result.path);
-    }
+  // Generate all chunks in parallel — each Replicate call is independent and cloud-side,
+  // so parallelising reduces total time from N×45s → ~45s regardless of chunk count.
+  console.log(`🚀 Generating ${chunkPrompts.length} chunk(s) in parallel...`);
+  let chunkPaths;
+  try {
+    chunkPaths = await Promise.all(
+      chunkPrompts.map(async (prompt, i) => {
+        console.log(`🎵 Chunk ${i + 1}/${chunkPrompts.length} started: ${prompt.substring(0, 80)}...`);
+        const result = await generateMusic(prompt, chunkDuration);
+        if (!result.success) {
+          console.warn(`⚠️ Chunk ${i + 1} failed: ${result.error} — retrying with fallback`);
+          const fallback = await generateMusic(
+            `${musicalDNA.basePrompt || 'gentle piano, C major, 80 BPM'}, begins softly, returns to calm, ${chunkDuration} seconds`,
+            chunkDuration
+          );
+          if (!fallback.success) {
+            throw new Error(`Chunk ${i + 1} generation failed: ${result.error}`);
+          }
+          return fallback.path;
+        }
+        return result.path;
+      })
+    );
+  } catch (parallelErr) {
+    return { success: false, error: parallelErr.message };
   }
 
   // Concatenate chunks if more than one

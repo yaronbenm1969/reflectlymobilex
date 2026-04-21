@@ -46,6 +46,13 @@ export const useAppState = create((set, get) => ({
     privateOnly: true,
     publishingEnabled: true,
   },
+
+  // Community settings
+  communitySettings: {
+    communityMode: false,
+    maxPlayers: 5,
+    approvalMode: 'open', // 'open' | 'manual'
+  },
   
   // Participants (friends who received invitation)
   participants: [],
@@ -121,8 +128,13 @@ export const useAppState = create((set, get) => ({
   }),
   
   // Privacy actions
-  setPrivacySettings: (settings) => set({ 
-    privacySettings: { ...get().privacySettings, ...settings } 
+  setPrivacySettings: (settings) => set({
+    privacySettings: { ...get().privacySettings, ...settings }
+  }),
+
+  // Community actions
+  setCommunitySettings: (settings) => set({
+    communitySettings: { ...get().communitySettings, ...settings }
   }),
   
   // Participants actions
@@ -204,6 +216,11 @@ export const useAppState = create((set, get) => ({
       allowSocialMedia: false,
       privateOnly: true,
       publishingEnabled: true,
+    },
+    communitySettings: {
+      communityMode: false,
+      maxPlayers: 5,
+      approvalMode: 'open',
     },
     participants: [],
     receivedVideos: [],

@@ -1,15 +1,18 @@
-import { 
+import {
   collection,
   doc,
   addDoc,
   getDoc,
   getDocs,
+  setDoc,
   updateDoc,
   deleteDoc,
   query,
   where,
   orderBy,
-  serverTimestamp
+  limit,
+  serverTimestamp,
+  increment
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -145,6 +148,46 @@ export const storiesService = {
     }
   },
 
+  getCommunityStories: async () => {
+    try {
+      const q = query(
+        collection(db, STORIES_COLLECTION),
+        where('communitySettings.communityMode', '==', true),
+        where('status', '==', 'active')
+      );
+      const snapshot = await getDocs(q);
+      const stories = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      return { success: true, stories };
+    } catch (error) {
+      console.error('❌ Get community stories error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
+  applyToStory: async (storyId, uid, displayName, incrementPlayers = false) => {
+    try {
+      const applicationId = `${storyId}_${uid}`;
+      const appRef = doc(db, 'applications', applicationId);
+      await setDoc(appRef, {
+        storyId,
+        uid,
+        displayName: displayName || '',
+        status: 'pending',
+        createdAt: serverTimestamp(),
+      });
+      if (incrementPlayers) {
+        await updateDoc(doc(db, STORIES_COLLECTION, storyId), {
+          currentPlayers: increment(1),
+        });
+      }
+      console.log('✅ Application submitted:', applicationId);
+      return { success: true, applicationId };
+    } catch (error) {
+      console.error('❌ Apply to story error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
   createInvitation: async (storyId, invitedPhone, creatorName) => {
     try {
       const docRef = await addDoc(collection(db, INVITATIONS_COLLECTION), {
@@ -160,7 +203,23 @@ export const storiesService = {
       console.error('❌ Create invitation error:', error.message);
       return { success: false, error: error.message };
     }
-  }
+  },
+
+  getStoryReflections: async (storyId, maxCount = 4) => {
+    try {
+      const q = query(
+        collection(db, 'reflections'),
+        where('storyId', '==', storyId),
+        limit(maxCount)
+      );
+      const snapshot = await getDocs(q);
+      const reflections = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      return { success: true, reflections };
+    } catch (error) {
+      console.error('❌ Get story reflections error:', error.message);
+      return { success: false, reflections: [] };
+    }
+  },
 };
 
 export default storiesService;

@@ -54,6 +54,12 @@ export const SideMenu = ({ isOpen, onClose }) => {
       action: () => go('MyStories'),
     },
     {
+      id: 'community',
+      icon: 'people',
+      title: 'Community',
+      action: () => go('CommunityFeed'),
+    },
+    {
       id: 'music',
       icon: 'musical-notes',
       title: 'Music & Sound',
@@ -122,7 +128,7 @@ export const SideMenu = ({ isOpen, onClose }) => {
           <ScrollView style={styles.menuContent}>
             <View style={styles.menuSection}>
               <Text style={styles.sectionTitle}>Main Actions</Text>
-              {menuItems.slice(0, 2).map((item) => (
+              {menuItems.slice(0, 3).map((item) => (
                 <TouchableOpacity
                   key={item.id}
                   style={styles.menuItem}
@@ -139,7 +145,7 @@ export const SideMenu = ({ isOpen, onClose }) => {
 
             <View style={styles.menuSection}>
               <Text style={styles.sectionTitle}>Settings</Text>
-              {menuItems.slice(2, 4).map((item) => (
+              {menuItems.slice(3, 5).map((item) => (
                 <TouchableOpacity
                   key={item.id}
                   style={styles.menuItem}
@@ -156,7 +162,7 @@ export const SideMenu = ({ isOpen, onClose }) => {
 
             <View style={styles.menuSection}>
               <Text style={styles.sectionTitle}>Support</Text>
-              {menuItems.slice(4).map((item) => (
+              {menuItems.slice(5).map((item) => (
                 <TouchableOpacity
                   key={item.id}
                   style={styles.menuItem}
