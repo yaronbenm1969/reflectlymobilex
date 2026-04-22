@@ -12,6 +12,7 @@ import {
 import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
@@ -20,6 +21,7 @@ import theme from '../theme/theme';
 const { width } = Dimensions.get('window');
 
 export const PlayerViewScreen = () => {
+  const { t } = useTranslation();
   const { go } = useNav();
   const navigationParams = useAppState((state) => state.navigationParams);
   const playerStoryData = useAppState((state) => state.playerStoryData);
@@ -105,8 +107,8 @@ export const PlayerViewScreen = () => {
         colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
         style={styles.header}
       >
-        <Text style={styles.title}>הוזמנת לצפות!</Text>
-        <Text style={styles.subtitle}>{creatorName} שיתף איתך סיפור</Text>
+        <Text style={styles.title}>{t('playerView.title')}</Text>
+        <Text style={styles.subtitle}>{t('playerView.subtitle', { creatorName })}</Text>
       </LinearGradient>
 
       <View style={styles.content}>
@@ -191,26 +193,26 @@ export const PlayerViewScreen = () => {
           ) : (
             <View style={styles.noVideoPlaceholder}>
               <Ionicons name="videocam-off" size={48} color="#999" />
-              <Text style={styles.noVideoText}>הסרטון אינו זמין</Text>
+              <Text style={styles.noVideoText}>{t('playerView.no_video')}</Text>
             </View>
           )}
         </View>
 
         <View style={styles.storyInfo}>
           <Text style={styles.storyName}>{storyName}</Text>
-          <Text style={styles.storyCreator}>מאת: {creatorName}</Text>
+          <Text style={styles.storyCreator}>{t('playerView.by_creator', { creatorName })}</Text>
         </View>
 
         <View style={styles.instructionsCard}>
           <Ionicons name="chatbubble-ellipses" size={24} color={theme.colors.primary} />
-          <Text style={styles.instructionsTitle}>ההנחיות שלך:</Text>
+          <Text style={styles.instructionsTitle}>{t('playerView.instructions_label')}</Text>
           <Text style={styles.instructionsText}>{instructions}</Text>
         </View>
 
         {hasWatched && (
           <View style={styles.actions}>
             <AppButton
-              title="צפיתי! אני רוצה להקליט"
+              title={t('playerView.btn_record')}
               onPress={handleContinue}
               variant="primary"
               size="lg"
@@ -221,7 +223,7 @@ export const PlayerViewScreen = () => {
 
         {!hasWatched && !isPlaying && (
           <Text style={styles.hint}>
-            לחץ על הסרטון כדי לצפות
+            {t('playerView.hint')}
           </Text>
         )}
       </View>

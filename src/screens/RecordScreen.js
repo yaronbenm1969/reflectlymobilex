@@ -11,6 +11,7 @@ import {
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import theme from '../theme/theme';
@@ -35,6 +36,7 @@ const { width, height } = Dimensions.get('window');
 const MAX_RECORDING_TIME = 180; // 3 minutes in seconds
 
 export const RecordScreen = () => {
+  const { t } = useTranslation();
   const { go, back } = useNav();
   const setLastRecording = useAppState((state) => state.setLastRecording);
   const isCountdownEnabled = useAppState((state) => state.isCountdownEnabled);
@@ -199,9 +201,9 @@ export const RecordScreen = () => {
   if (!permission || !micPermission) {
     return (
       <View style={styles.permissionContainer}>
-        <Text style={styles.permissionText}>אנו זקוקים להרשאת מצלמה ומיקרופון</Text>
+        <Text style={styles.permissionText}>{t('record.permission_camera_mic')}</Text>
         <TouchableOpacity style={styles.permissionButton} onPress={() => { requestPermission(); requestMicPermission(); }}>
-          <Text style={styles.permissionButtonText}>הענק הרשאה</Text>
+          <Text style={styles.permissionButtonText}>{t('common.grant_permission')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -210,9 +212,9 @@ export const RecordScreen = () => {
   if (!permission.granted || !micPermission.granted) {
     return (
       <View style={styles.permissionContainer}>
-        <Text style={styles.permissionText}>נדרשת הרשאת מצלמה ומיקרופון</Text>
+        <Text style={styles.permissionText}>{t('record.permission_required_text')}</Text>
         <TouchableOpacity style={styles.permissionButton} onPress={() => { requestPermission(); requestMicPermission(); }}>
-          <Text style={styles.permissionButtonText}>הענק הרשאה</Text>
+          <Text style={styles.permissionButtonText}>{t('common.grant_permission')}</Text>
         </TouchableOpacity>
       </View>
     );

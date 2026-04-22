@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { theme } from '../theme/theme';
 import CubeProjectorView from '../components/cube3d/CubeProjectorView';
 import ProjectedVideoOverlay from '../components/cube3d/ProjectedVideoOverlay';
@@ -23,6 +24,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ENABLE_3D_CUBE = true;
 
 export default function WatchExperienceScreen() {
+  const { t } = useTranslation();
   const nav = useNav();
   const { storyData } = useAppState();
   const cubeRef = useRef(null);
@@ -56,15 +58,15 @@ export default function WatchExperienceScreen() {
 
     const sampleClips = storyData?.reflections?.map((ref, i) => ({
       clipId: ref.id || `clip_${i}`,
-      title: ref.participantName || `קליפ ${i + 1}`,
+      title: ref.participantName || t('watchExperience.clip_n', { n: i + 1 }),
       videoUri: ref.videoUrl,
     })) || [];
 
     if (sampleClips.length === 0) {
       sampleClips.push(
-        { clipId: 'demo1', title: 'קליפ 1', videoUri: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
-        { clipId: 'demo2', title: 'קליפ 2', videoUri: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4' },
-        { clipId: 'demo3', title: 'קליפ 3', videoUri: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4' },
+        { clipId: 'demo1', title: t('watchExperience.clip_n', { n: 1 }), videoUri: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
+        { clipId: 'demo2', title: t('watchExperience.clip_n', { n: 2 }), videoUri: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4' },
+        { clipId: 'demo3', title: t('watchExperience.clip_n', { n: 3 }), videoUri: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4' },
       );
     }
 
@@ -267,7 +269,7 @@ export default function WatchExperienceScreen() {
     return (
       <LinearGradient colors={['#8446b0', '#464fb0']} style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#fff" />
-        <Text style={styles.loadingText}>טוען קליפים...</Text>
+        <Text style={styles.loadingText}>{t('watchExperience.loading')}</Text>
       </LinearGradient>
     );
   }
@@ -278,7 +280,7 @@ export default function WatchExperienceScreen() {
         <TouchableOpacity onPress={() => nav.goTo('Home')} style={styles.backButton}>
           <Ionicons name="arrow-forward" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>חווית צפייה</Text>
+        <Text style={styles.headerTitle}>{t('watchExperience.title')}</Text>
         <TouchableOpacity onPress={() => setUse3D(!use3D)} style={styles.toggleButton}>
           <Ionicons name={use3D ? 'cube' : 'square'} size={24} color="#fff" />
         </TouchableOpacity>
@@ -292,7 +294,7 @@ export default function WatchExperienceScreen() {
             onPress={() => setCurrentTab(tab)}
           >
             <Text style={[styles.tabText, currentTab === tab && styles.activeTabText]}>
-              {tab === 'cube' ? '🎲 קובייה' : tab === 'clips' ? '📹 קליפים' : '💫 תהודות'}
+              {tab === 'cube' ? t('watchExperience.tab_cube') : tab === 'clips' ? t('watchExperience.tab_clips') : t('watchExperience.tab_resonances')}
             </Text>
           </TouchableOpacity>
         ))}
@@ -343,7 +345,7 @@ export default function WatchExperienceScreen() {
 
         {currentTab === 'resonances' && (
           <View style={styles.resonancesPlaceholder}>
-            <Text style={styles.placeholderText}>תהודות יופיעו כאן</Text>
+            <Text style={styles.placeholderText}>{t('watchExperience.resonances_placeholder')}</Text>
           </View>
         )}
       </View>
@@ -361,15 +363,15 @@ export default function WatchExperienceScreen() {
       <View style={styles.controls}>
         <TouchableOpacity style={styles.controlButton} onPress={loadClips}>
           <Ionicons name="refresh" size={20} color={theme.colors.primary} />
-          <Text style={styles.controlText}>איפוס</Text>
+          <Text style={styles.controlText}>{t('watchExperience.reset')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.controlButton} onPress={shuffleQueue}>
           <Ionicons name="shuffle" size={20} color={theme.colors.primary} />
-          <Text style={styles.controlText}>ערבוב</Text>
+          <Text style={styles.controlText}>{t('watchExperience.shuffle')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.controlButton}>
           <Ionicons name="repeat" size={20} color={theme.colors.primary} />
-          <Text style={styles.controlText}>לופ</Text>
+          <Text style={styles.controlText}>{t('watchExperience.loop')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

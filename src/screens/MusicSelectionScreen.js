@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, InteractionManager, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { useAmbientPlayback } from '../hooks/useAmbientPlayback';
@@ -10,101 +11,112 @@ import { storiesService } from '../services/storiesService';
 import theme from '../theme/theme';
 
 const AMBIENT_LIBRARY = [
-  { 
-    id: 'reflective-space', 
+  {
+    id: 'reflective-space',
     name: 'Reflective Space',
     nameHe: 'מרחב פנימי',
     description: 'שקט פנימי, מרחב נשימה. פאדים רכים + פסנתר מינימלי.',
+    descriptionEn: 'Inner quiet, breathing space. Soft pads + minimal piano.',
     icon: 'water-outline',
     key: 'D',
     bpm: 60
   },
-  { 
-    id: 'gentle-warmth', 
+  {
+    id: 'gentle-warmth',
     name: 'Gentle Warmth',
     nameHe: 'חום עדין',
     description: 'חום אנושי, קרבה. כלי מיתר רכים + הרמוניה פתוחה.',
+    descriptionEn: 'Human warmth, intimacy. Soft string instruments + open harmony.',
     icon: 'heart-outline',
     key: 'G',
     bpm: 65
   },
-  { 
-    id: 'soft-hope', 
+  {
+    id: 'soft-hope',
     name: 'Soft Hope',
     nameHe: 'תקווה שקטה',
     description: 'תקווה שקטה, לא מתפרצת. מעבר מודאלי בהיר, ללא שיאים.',
+    descriptionEn: 'Quiet hope, not explosive. Bright modal transition, no peaks.',
     icon: 'sunny-outline',
     key: 'C',
     bpm: 70
   },
-  { 
-    id: 'tender-vulnerability', 
+  {
+    id: 'tender-vulnerability',
     name: 'Tender Vulnerability',
     nameHe: 'עדינות רגשית',
     description: 'עדינות רגשית, חשיפה. טקסטורה דקה מאוד, כמעט שקופה.',
+    descriptionEn: 'Emotional tenderness. Very thin texture, almost transparent.',
     icon: 'flower-outline',
     key: 'Am',
     bpm: 58
   },
-  { 
-    id: 'quiet-strength', 
+  {
+    id: 'quiet-strength',
     name: 'Quiet Strength',
     nameHe: 'כוח שקט',
     description: 'יציבות שקטה. תו עוגן נמוך + תנועה איטית מעליו.',
+    descriptionEn: 'Quiet stability. Low anchor note + slow movement above.',
     icon: 'shield-outline',
     key: 'E',
     bpm: 62
   },
-  { 
-    id: 'light-movement', 
+  {
+    id: 'light-movement',
     name: 'Light Movement',
     nameHe: 'תנועה עדינה',
     description: 'אנרגיה עדינה, מתאים לריקוד רגשי. פולס רך, בלי תופים.',
+    descriptionEn: 'Gentle energy, ideal for emotional movement. Soft pulse, no drums.',
     icon: 'walk-outline',
     key: 'A',
     bpm: 80
   },
-  { 
-    id: 'floating-memory', 
+  {
+    id: 'floating-memory',
     name: 'Floating Memory',
     nameHe: 'זיכרון מרחף',
     description: 'תחושת זיכרון / חלום. הרמוניות מרחפות, ריוורב עמוק.',
+    descriptionEn: 'A feeling of memory / dream. Floating harmonies, deep reverb.',
     icon: 'cloud-outline',
     key: 'Dm',
     bpm: 55
   },
-  { 
-    id: 'subtle-uplift', 
+  {
+    id: 'subtle-uplift',
     name: 'Subtle Uplift',
     nameHe: 'התעלות עדינה',
     description: 'הרמה רגשית איטית לאורך זמן. התפתחות עדינה מאוד.',
+    descriptionEn: 'Slow emotional elevation over time. Very gentle development.',
     icon: 'trending-up-outline',
     key: 'Bb',
     bpm: 72
   },
-  { 
-    id: 'open-horizon', 
+  {
+    id: 'open-horizon',
     name: 'Open Horizon',
     nameHe: 'אופק פתוח',
     description: 'תחושת פתיחות וסיום אופטימי. אקורדים פתוחים, אור עדין.',
+    descriptionEn: 'Sense of openness and optimistic ending. Open chords, gentle light.',
     icon: 'globe-outline',
     key: 'D',
     bpm: 75
   },
-  { 
-    id: 'electric-pulse', 
+  {
+    id: 'electric-pulse',
     name: 'Electric Pulse',
     nameHe: 'פעימה חשמלית',
     description: 'טכנו מינימלי, אנרגיה עולה. בס עמוק + סינתים אטמוספריים.',
+    descriptionEn: 'Minimal techno, rising energy. Deep bass + atmospheric synths.',
     icon: 'flash-outline',
     key: 'Fm',
     bpm: 122
   },
-  { 
-    id: 'world-celebration', 
+  {
+    id: 'world-celebration',
     name: 'World Celebration',
     nameHe: 'חגיגה עולמית',
     description: 'מסיבה עולמית, ג\'מבה וקונגות. פיוז\'ן מזרח תיכוני-אפריקאי.',
+    descriptionEn: 'World party, djembe and congas. Middle Eastern-African fusion.',
     icon: 'earth-outline',
     key: 'G',
     bpm: 110
@@ -112,6 +124,8 @@ const AMBIENT_LIBRARY = [
 ];
 
 export const MusicSelectionScreen = ({ route }) => {
+  const { t, i18n } = useTranslation();
+  const isHe = i18n.language === 'he';
   const { go, back } = useNav();
   const setSelectedMusic = useAppState((state) => state.setSelectedMusic);
   const selectedMusic = useAppState((state) => state.selectedMusic);
@@ -234,13 +248,13 @@ export const MusicSelectionScreen = ({ route }) => {
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>מוזיקת רקע</Text>
+        <Text style={styles.title}>{t('musicSelection.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.description}>
-          בחר/י אווירה מוזיקלית שתתנגן ברקע בזמן הצילום ותעניק השראה למשתתפים
+          {t('musicSelection.description')}
         </Text>
 
         <TouchableOpacity
@@ -252,7 +266,7 @@ export const MusicSelectionScreen = ({ route }) => {
         >
           <Ionicons name="volume-mute-outline" size={20} color={currentSelection === 'none' ? theme.colors.primary : theme.colors.subtext} />
           <Text style={[styles.noneText, currentSelection === 'none' && styles.noneTextSelected]}>
-            ללא מוזיקה
+            {t('musicSelection.no_music')}
           </Text>
           {currentSelection === 'none' && (
             <Ionicons name="checkmark-circle" size={22} color={theme.colors.primary} />
@@ -290,13 +304,15 @@ export const MusicSelectionScreen = ({ route }) => {
                 styles.cardName,
                 currentSelection === option.id && styles.cardNameSelected
               ]}>
-                {option.nameHe}
+                {isHe ? option.nameHe : option.name}
               </Text>
-              
-              <Text style={styles.cardNameEn}>{option.name}</Text>
-              
+
+              {isHe && (
+                <Text style={styles.cardNameEn}>{option.name}</Text>
+              )}
+
               <Text style={styles.cardDescription} numberOfLines={2}>
-                {option.description}
+                {isHe ? option.description : option.descriptionEn}
               </Text>
 
               <View style={styles.cardFooter}>
@@ -333,7 +349,7 @@ export const MusicSelectionScreen = ({ route }) => {
 
         <View style={styles.actions}>
           <AppButton
-            title="שמור בחירה"
+            title={t('musicSelection.btn_save')}
             onPress={handleSave}
             variant="primary"
             size="lg"

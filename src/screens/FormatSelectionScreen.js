@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, InteractionManager, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
@@ -9,22 +10,9 @@ import { SimpleFormatPreview } from '../components/SimpleFormatPreview';
 import { storiesService } from '../services/storiesService';
 import theme from '../theme/theme';
 
-const ANIMATION_TYPES = {
-  'cube-3d': { name: 'קוביה תלת מימד', description: 'סיבוב דינמי על קוביה' },
-  'carousel-3d': { name: 'קרוסלה תלת מימד', description: 'מעבר חלק בין קטעים' },
-  'flip-pages': { name: 'דפים מתהפכים', description: 'כמו אלבום תמונות' },
-  'standard': { name: 'רגיל', description: 'וידאו ליניארי קלאסי' },
-  'stack-cards': { name: 'כרטיסים נערמים', description: 'ערימת כרטיסים' },
-  'tinder': { name: 'החלקת טינדר', description: 'החלק ימינה או שמאלה' },
-  'fold': { name: 'קיפול נייר', description: 'קיפול כמו נייר' },
-  'circular': { name: 'מעגלי', description: 'סיבוב במעגל' },
-  'flow': { name: 'זרימה', description: 'זרימה חלקה' },
-  'parallax': { name: 'עומק פרלקס', description: 'אפקט עומק תלת מימדי' },
-  'blur-rotate': { name: 'טשטוש וסיבוב', description: 'סיבוב עם טשטוש' },
-  'scale-fade': { name: 'הגדלה ועמעום', description: 'הגדלה והעלמות חלקה' },
-};
 
 export const FormatSelectionScreen = ({ route }) => {
+  const { t } = useTranslation();
   const { go, back } = useNav();
   const setVideoFormat = useAppState((state) => state.setVideoFormat);
   const setBackgroundStyle = useAppState((state) => state.setBackgroundStyle);
@@ -51,25 +39,25 @@ export const FormatSelectionScreen = ({ route }) => {
   }, []);
 
   const formatOptions = [
-    { id: 'cube-3d', name: 'קוביה תלת מימד', description: 'סיבוב דינמי על קוביה', icon: 'cube' },
-    { id: 'carousel-3d', name: 'קרוסלה תלת מימד', description: 'מעבר חלק בין קטעים', icon: 'albums' },
-    { id: 'film-strip', name: 'סרט קולנוע', description: 'גלילת פריימים כמו סרט פילם', icon: 'film-outline' },
-    { id: 'flip-pages', name: 'דפים מתהפכים', description: 'כמו אלבום תמונות', icon: 'book' },
-    { id: 'standard', name: 'רגיל', description: 'וידאו ליניארי קלאסי', icon: 'film' },
-    { id: 'stack-cards', name: 'כרטיסים נערמים', description: 'ערימת כרטיסים', icon: 'layers' },
-    { id: 'tinder', name: 'החלקת טינדר', description: 'החלק ימינה או שמאלה', icon: 'heart' },
-    { id: 'fold', name: 'קיפול נייר', description: 'קיפול כמו נייר', icon: 'document' },
-    { id: 'circular', name: 'מעגלי', description: 'סיבוב במעגל', icon: 'sync' },
-    { id: 'flow', name: 'זרימה', description: 'זרימה חלקה', icon: 'water' },
-    { id: 'parallax', name: 'עומק פרלקס', description: 'אפקט עומק תלת מימדי', icon: 'git-branch' },
-    { id: 'blur-rotate', name: 'טשטוש וסיבוב', description: 'סיבוב עם טשטוש', icon: 'aperture' },
-    { id: 'scale-fade', name: 'הגדלה ועמעום', description: 'הגדלה והעלמות חלקה', icon: 'expand' },
+    { id: 'cube-3d', name: t('formatSelection.fmt_cube3d'), description: t('formatSelection.fmt_cube3d_desc'), icon: 'cube' },
+    { id: 'carousel-3d', name: t('formatSelection.fmt_carousel3d'), description: t('formatSelection.fmt_carousel3d_desc'), icon: 'albums' },
+    { id: 'film-strip', name: t('formatSelection.fmt_filmstrip'), description: t('formatSelection.fmt_filmstrip_desc'), icon: 'film-outline' },
+    { id: 'flip-pages', name: t('formatSelection.fmt_flippages'), description: t('formatSelection.fmt_flippages_desc'), icon: 'book' },
+    { id: 'standard', name: t('formatSelection.fmt_standard'), description: t('formatSelection.fmt_standard_desc'), icon: 'film' },
+    { id: 'stack-cards', name: t('formatSelection.fmt_stackcards'), description: t('formatSelection.fmt_stackcards_desc'), icon: 'layers' },
+    { id: 'tinder', name: t('formatSelection.fmt_tinder'), description: t('formatSelection.fmt_tinder_desc'), icon: 'heart' },
+    { id: 'fold', name: t('formatSelection.fmt_fold'), description: t('formatSelection.fmt_fold_desc'), icon: 'document' },
+    { id: 'circular', name: t('formatSelection.fmt_circular'), description: t('formatSelection.fmt_circular_desc'), icon: 'sync' },
+    { id: 'flow', name: t('formatSelection.fmt_flow'), description: t('formatSelection.fmt_flow_desc'), icon: 'water' },
+    { id: 'parallax', name: t('formatSelection.fmt_parallax'), description: t('formatSelection.fmt_parallax_desc'), icon: 'git-branch' },
+    { id: 'blur-rotate', name: t('formatSelection.fmt_blurrotate'), description: t('formatSelection.fmt_blurrotate_desc'), icon: 'aperture' },
+    { id: 'scale-fade', name: t('formatSelection.fmt_scalefade'), description: t('formatSelection.fmt_scalefade_desc'), icon: 'expand' },
   ];
 
   const backgroundOptions = [
-    { id: 'original', name: 'רקע מקורי', description: 'השאר את הרקע כמו שהוא', icon: 'image' },
-    { id: 'ai-wallpaper', name: 'AI טפט', description: 'רקע מעוצב בבינה מלאכותית', icon: 'color-palette' },
-    { id: 'split-screen', name: 'שילוב דמויות', description: 'מסך מפוצל עם כולם ביחד', icon: 'grid' },
+    { id: 'original', name: t('formatSelection.bg_original'), description: t('formatSelection.bg_original_desc'), icon: 'image' },
+    { id: 'ai-wallpaper', name: t('formatSelection.bg_ai'), description: t('formatSelection.bg_ai_desc'), icon: 'color-palette' },
+    { id: 'split-screen', name: t('formatSelection.bg_split'), description: t('formatSelection.bg_split_desc'), icon: 'grid' },
   ];
 
   const handleSave = async () => {
@@ -130,7 +118,7 @@ export const FormatSelectionScreen = ({ route }) => {
             onPress={() => setPreviewFormat(option.id)}
           >
             <Ionicons name="eye" size={16} color={theme.colors.secondary} />
-            <Text style={styles.previewText}>דגימה</Text>
+            <Text style={styles.previewText}>{t('formatSelection.btn_preview')}</Text>
           </TouchableOpacity>
         </View>
         
@@ -174,15 +162,15 @@ export const FormatSelectionScreen = ({ route }) => {
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>סגנון וידאו</Text>
+        <Text style={styles.title}>{t('formatSelection.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🎬 פורמט הקרנה</Text>
+          <Text style={styles.sectionTitle}>{t('formatSelection.section_format')}</Text>
           <Text style={styles.sectionDescription}>
-            בחר איך הסיפור שלך יוצג (לחץ על "דגימה" לצפייה מורחבת)
+            {t('formatSelection.section_format_desc')}
           </Text>
           
           <Card style={styles.optionsContainer}>
@@ -197,9 +185,9 @@ export const FormatSelectionScreen = ({ route }) => {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🎨 עיצוב רקע ושילוב AI</Text>
+          <Text style={styles.sectionTitle}>{t('formatSelection.section_bg')}</Text>
           <Text style={styles.sectionDescription}>
-            הוסף אפקטים מיוחדים לוידאו
+            {t('formatSelection.section_bg_desc')}
           </Text>
           
           <Card style={styles.optionsContainer}>
@@ -215,7 +203,7 @@ export const FormatSelectionScreen = ({ route }) => {
 
         <View style={styles.actions}>
           <AppButton
-            title="סיים והמשך"
+            title={t('formatSelection.btn_save')}
             onPress={handleSave}
             variant="primary"
             size="lg"
@@ -224,7 +212,7 @@ export const FormatSelectionScreen = ({ route }) => {
           />
           
           <Text style={styles.helpText}>
-            הבחירות שלך יעובדו ב-AI לוידאו הסופי
+            {t('formatSelection.help_text')}
           </Text>
         </View>
       </ScrollView>
@@ -263,7 +251,7 @@ export const FormatSelectionScreen = ({ route }) => {
             </Text>
             
             <AppButton
-              title="בחר פורמט זה"
+              title={t('formatSelection.btn_select_format')}
               onPress={() => {
                 setSelectedFormat(previewFormat);
                 setPreviewFormat(null);

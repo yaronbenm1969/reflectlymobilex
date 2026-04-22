@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, InteractionManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import theme from '../theme/theme';
 
 export const ReviewScreen = ({ route }) => {
+  const { t } = useTranslation();
   const { go, back } = useNav();
   const lastRecordingUri = useAppState((state) => state.lastRecordingUri);
   const videoUri = route?.params?.videoUri || lastRecordingUri;
@@ -94,7 +96,7 @@ export const ReviewScreen = ({ route }) => {
             onPress={handleDone}
           >
             <Ionicons name="home" size={20} color={theme.colors.primary} />
-            <Text style={styles.actionText}>סיום</Text>
+            <Text style={styles.actionText}>{t('review.done')}</Text>
           </TouchableOpacity>
         </View>
       </View>

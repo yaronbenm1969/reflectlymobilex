@@ -6,11 +6,13 @@ import { I18nManager } from 'react-native';
 
 import he from './locales/he.json';
 import en from './locales/en.json';
+import fr from './locales/fr.json';
+import es from './locales/es.json';
 
 const LANG_KEY = '@app_language';
 
 // Supported languages
-export const SUPPORTED_LANGUAGES = ['he', 'en'];
+export const SUPPORTED_LANGUAGES = ['he', 'en', 'fr', 'es'];
 
 /**
  * Initialize i18n. Called once before app renders.
@@ -42,6 +44,8 @@ export async function initI18n() {
       resources: {
         he: { translation: he },
         en: { translation: en },
+        fr: { translation: fr },
+        es: { translation: es },
       },
       interpolation: { escapeValue: false },
       compatibilityJSON: 'v4',
@@ -56,7 +60,7 @@ export async function initI18n() {
         await i18next.use(initReactI18next).init({
           lng: 'he',
           fallbackLng: 'he',
-          resources: { he: { translation: he }, en: { translation: en } },
+          resources: { he: { translation: he }, en: { translation: en }, fr: { translation: fr }, es: { translation: es } },
           interpolation: { escapeValue: false },
           compatibilityJSON: 'v4',
         });

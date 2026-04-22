@@ -13,6 +13,7 @@ import { NestableScrollContainer, NestableDraggableFlatList, ScaleDecorator } fr
 import { Video } from 'expo-av';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
@@ -68,6 +69,7 @@ const ClipThumbnail = ({ videoUrl, style }) => {
 };
 
 export const EditRoomScreen = () => {
+  const { t } = useTranslation();
   const { go, back } = useNav();
   const storyName = useAppState((state) => state.storyName);
   const selectedMusic = useAppState((state) => state.selectedMusic);
@@ -262,7 +264,7 @@ export const EditRoomScreen = () => {
 
   const handleEditNow = () => {
     if (totalClips === 0) {
-      Alert.alert('אין שיקופים', 'עדיין לא התקבלו שיקופים מהמשתתפים');
+      Alert.alert(t('editRoom.no_clips_alert_title'), t('editRoom.no_clips_alert_text'));
       return;
     }
     
@@ -285,7 +287,7 @@ export const EditRoomScreen = () => {
   const handlePlayVideo = async (videoUrl) => {
     console.log('🎬 Playing video:', videoUrl);
     if (!videoUrl) {
-      Alert.alert('שגיאה', 'הסרטון עדיין לא הועלה - נסה שוב עוד כמה רגעים');
+      Alert.alert(t('common.error'), t('editRoom.error_not_uploaded'));
       return;
     }
     
@@ -310,20 +312,20 @@ export const EditRoomScreen = () => {
             console.log('✅ Converted to:', finalUrl);
           } else if (data.error) {
             console.log('❌ Conversion error from API:', data.error);
-            Alert.alert('שגיאה בהמרה', 'לא ניתן להמיר את הסרטון. נסה שוב.');
+            Alert.alert(t('editRoom.error_convert'), t('editRoom.error_convert_text'));
             setIsConverting(false);
             return;
           }
         } else {
           const text = await response.text();
           console.log('❌ API error response:', text.substring(0, 200));
-          Alert.alert('שגיאה', 'השרת לא זמין. נסה שוב מאוחר יותר.');
+          Alert.alert(t('common.error'), t('editRoom.error_server'));
           setIsConverting(false);
           return;
         }
       } catch (error) {
         console.log('⚠️ Conversion failed:', error.message);
-        Alert.alert('שגיאה', 'בעיית רשת. בדוק את החיבור לאינטרנט.');
+        Alert.alert(t('common.error'), t('editRoom.error_network'));
         setIsConverting(false);
         return;
       }
@@ -356,7 +358,7 @@ export const EditRoomScreen = () => {
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>חדר עריכה</Text>
+        <Text style={styles.title}>{t('editRoom.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -364,9 +366,9 @@ export const EditRoomScreen = () => {
         <Text style={styles.storyHeading}>{storyName}</Text>
 
         <Card style={styles.videosCard}>
-          <Text style={styles.sectionTitle}>שיקופים שהתקבלו</Text>
+          <Text style={styles.sectionTitle}>{t('editRoom.section_clips')}</Text>
           {orderedClips.length > 0 && (
-            <Text style={styles.dragHint}>לחיצה ארוכה וגרירה לשינוי סדר העריכה</Text>
+            <Text style={styles.dragHint}>{t('editRoom.drag_hint')}</Text>
           )}
 
           {reflectionsLoading ? (
@@ -374,8 +376,8 @@ export const EditRoomScreen = () => {
           ) : orderedClips.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="hourglass-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>ממתין לשיקופים מהמשתתפים...</Text>
-              <Text style={styles.emptySubtext}>שלח את הלינק לחברים כדי שיוכלו להקליט</Text>
+              <Text style={styles.emptyText}>{t('editRoom.empty_text')}</Text>
+              <Text style={styles.emptySubtext}>{t('editRoom.empty_subtext')}</Text>
             </View>
           ) : (
             <NestableDraggableFlatList
@@ -402,7 +404,7 @@ export const EditRoomScreen = () => {
                         </View>
                         <View style={styles.clipRowInfo}>
                           <Text style={styles.clipRowName} numberOfLines={1}>{item.participantName}</Text>
-                          <Text style={styles.clipRowSub}>קליפ {item.clipNumber}</Text>
+                          <Text style={styles.clipRowSub}>{t('editRoom.clip_n', { n: item.clipNumber })}</Text>
                         </View>
                         <Ionicons name="reorder-three" size={22} color={theme.colors.primary + '80'} />
                       </TouchableOpacity>
@@ -413,10 +415,10 @@ export const EditRoomScreen = () => {
                       {confirmingDeleteClipId === item.id ? (
                         <View style={styles.clipRowDeleteConfirm}>
                           <TouchableOpacity style={styles.clipConfirmYes} onPress={() => handleDeleteClip(item.id)}>
-                            <Text style={styles.clipConfirmYesText}>מחק</Text>
+                            <Text style={styles.clipConfirmYesText}>{t('editRoom.confirm_delete_yes')}</Text>
                           </TouchableOpacity>
                           <TouchableOpacity style={styles.clipConfirmNo} onPress={() => setConfirmingDeleteClipId(null)}>
-                            <Text style={styles.clipConfirmNoText}>לא</Text>
+                            <Text style={styles.clipConfirmNoText}>{t('editRoom.confirm_delete_no')}</Text>
                           </TouchableOpacity>
                         </View>
                       ) : (
@@ -438,7 +440,7 @@ export const EditRoomScreen = () => {
           ) : (
             <View style={styles.statusProgress}>
               <Text style={styles.statusCount}>
-                {totalClips} קליפים מ-{totalParticipants} משתתפים
+                {t('editRoom.status_clips', { total: totalClips, participants: totalParticipants })}
               </Text>
 
               <View style={styles.progressBar}>
@@ -454,17 +456,17 @@ export const EditRoomScreen = () => {
         </Card>
 
         <Card style={styles.settingsCard}>
-          <Text style={styles.sectionTitle}>הגדרות</Text>
+          <Text style={styles.sectionTitle}>{t('editRoom.section_settings')}</Text>
 
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
               <Ionicons name="musical-notes" size={20} color={theme.colors.accent} />
-              <Text style={styles.settingLabel}>מוזיקה</Text>
+              <Text style={styles.settingLabel}>{t('editRoom.setting_music')}</Text>
             </View>
             <View style={styles.settingRight}>
-              <Text style={styles.settingValue}>{selectedMusic || 'ללא'}</Text>
+              <Text style={styles.settingValue}>{selectedMusic || t('editRoom.setting_none')}</Text>
               <TouchableOpacity style={styles.inlineChangeButton} onPress={() => go('MusicSelection')}>
-                <Text style={styles.inlineChangeText}>שנה</Text>
+                <Text style={styles.inlineChangeText}>{t('editRoom.setting_change')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -472,12 +474,12 @@ export const EditRoomScreen = () => {
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
               <Ionicons name="cube" size={20} color={theme.colors.secondary} />
-              <Text style={styles.settingLabel}>פורמט</Text>
+              <Text style={styles.settingLabel}>{t('editRoom.setting_format')}</Text>
             </View>
             <View style={styles.settingRight}>
-              <Text style={styles.settingValue}>{videoFormat || 'סטנדרטי'}</Text>
+              <Text style={styles.settingValue}>{videoFormat || t('editRoom.setting_standard')}</Text>
               <TouchableOpacity style={styles.inlineChangeButton} onPress={() => go('FormatSelection')}>
-                <Text style={styles.inlineChangeText}>שנה</Text>
+                <Text style={styles.inlineChangeText}>{t('editRoom.setting_change')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -485,10 +487,10 @@ export const EditRoomScreen = () => {
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
               <Ionicons name="lock-closed" size={20} color={theme.colors.secondary} />
-              <Text style={styles.settingLabel}>פרטיות</Text>
+              <Text style={styles.settingLabel}>{t('editRoom.setting_privacy')}</Text>
             </View>
             <Text style={styles.settingValue}>
-              {privacySettings.allowSocialMedia ? 'לפרסום' : 'פרטי'}
+              {privacySettings.allowSocialMedia ? t('editRoom.setting_public') : t('editRoom.setting_private')}
             </Text>
           </View>
         </Card>
@@ -511,13 +513,13 @@ export const EditRoomScreen = () => {
               />
               <Text style={styles.editNowText}>
                 {editConfirmStep === 1
-                  ? 'לחץ שוב לאישור עריכה'
-                  : `ערוך וצור סרטון (${totalClips} קליפים)`}
+                  ? t('editRoom.edit_btn_confirm')
+                  : t('editRoom.edit_btn', { count: totalClips })}
               </Text>
             </View>
             {editConfirmStep === 0 && totalClips > 0 && completeParticipants < totalParticipants && (
               <Text style={styles.editNowHint}>
-                ניתן לערוך גם ללא כל השיקופים
+                {t('editRoom.edit_hint')}
               </Text>
             )}
           </TouchableOpacity>
@@ -531,8 +533,8 @@ export const EditRoomScreen = () => {
       >
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="white" />
-          <Text style={styles.loadingText}>ממיר סרטון לפורמט תואם...</Text>
-          <Text style={styles.loadingSubtext}>זה עשוי לקחת עד 30 שניות</Text>
+          <Text style={styles.loadingText}>{t('editRoom.converting')}</Text>
+          <Text style={styles.loadingSubtext}>{t('editRoom.converting_subtext')}</Text>
         </View>
       </Modal>
 
@@ -569,11 +571,11 @@ export const EditRoomScreen = () => {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.rejectionModal]}>
             <Text style={styles.rejectionIcon}>⚠️</Text>
-            <Text style={styles.rejectionTitle}>יש משתתפים שדחו את הפרסום</Text>
+            <Text style={styles.rejectionTitle}>{t('editRoom.rejection_title')}</Text>
             <Text style={styles.rejectionText}>
-              {rejectionData?.count} משתתפ/ים לא אישרו את פרסום הסרטון הסופי.
+              {t('editRoom.rejection_text', { count: rejectionData?.count })}
             </Text>
-            <Text style={styles.rejectionSubtext}>מה תרצה לעשות?</Text>
+            <Text style={styles.rejectionSubtext}>{t('editRoom.rejection_question')}</Text>
             <View style={styles.rejectionActions}>
               <TouchableOpacity
                 style={[styles.rejectionButton, styles.rejectionButtonPrivate]}
@@ -588,7 +590,7 @@ export const EditRoomScreen = () => {
                       hasRejections: false
                     });
                     setPrivacySettings(updatedPrivacy);
-                    Alert.alert('עודכן', 'הסיפור הפך לפרויקט אישי ללא פרסום');
+                    Alert.alert(t('editRoom.rejection_updated'), t('editRoom.rejection_updated_text'));
                   } catch (e) {
                     console.error(e);
                   }
@@ -596,7 +598,7 @@ export const EditRoomScreen = () => {
                 }}
               >
                 <Ionicons name="lock-closed" size={20} color="white" />
-                <Text style={styles.rejectionButtonText}>הפוך לפרויקט אישי</Text>
+                <Text style={styles.rejectionButtonText}>{t('editRoom.rejection_btn_private')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.rejectionButton, styles.rejectionButtonContinue]}
@@ -606,13 +608,13 @@ export const EditRoomScreen = () => {
                 }}
               >
                 <Ionicons name="person-add" size={20} color="white" />
-                <Text style={styles.rejectionButtonText}>הזמן שחקנים אחרים</Text>
+                <Text style={styles.rejectionButtonText}>{t('editRoom.rejection_btn_invite')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.rejectionDismiss}
                 onPress={() => setShowRejectionModal(false)}
               >
-                <Text style={styles.rejectionDismissText}>סגור</Text>
+                <Text style={styles.rejectionDismissText}>{t('editRoom.rejection_btn_close')}</Text>
               </TouchableOpacity>
             </View>
           </View>

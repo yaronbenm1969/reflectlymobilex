@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
@@ -18,6 +19,7 @@ import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 
 export const WhatsAppShareScreen = () => {
+  const { t } = useTranslation();
   const { go, back } = useNav();
   const storyName = useAppState((state) => state.storyName);
   const [sharedCount, setSharedCount] = useState(0);
@@ -50,17 +52,10 @@ export const WhatsAppShareScreen = () => {
 
   const messageTemplate = useMemo(() => {
     if (!participantLink) {
-      return `היי! 🎬\n\nהוזמנת לשתף שיקוף בסיפור "${storyName}"\n\nהתקן את אפליקציית Reflectly ופתח את הלינק.\n\nתודה! ❤️`;
+      return t('whatsapp.message_no_link', { storyName });
     }
-    return `היי! 🎬
-
-הוזמנת לשתף שיקוף בסיפור "${storyName}" 🎥
-
-לחץ על הלינק ועקוב אחר ההנחיות:
-${participantLink}
-
-תודה! ❤️`;
-  }, [storyName, participantLink]);
+    return t('whatsapp.message_with_link', { storyName, participantLink });
+  }, [storyName, participantLink, t]);
 
   const handleShareWhatsApp = async () => {
     try {
@@ -79,7 +74,7 @@ ${participantLink}
     try {
       const result = await Share.share({
         message: messageTemplate,
-        title: `הסיפור שלי: ${storyName}`,
+        title: t('whatsapp.native_share_title', { storyName }),
       });
       
       if (result.action === Share.sharedAction) {
@@ -101,7 +96,7 @@ ${participantLink}
 
   const handleTestAsPlayer = async () => {
     if (!currentStoryId) {
-      Alert.alert('שגיאה', 'אין סיפור פעיל');
+      Alert.alert(t('common.error'), t('whatsapp.error_no_story'));
       return;
     }
     try {
@@ -111,10 +106,10 @@ ${participantLink}
         const enterPlayerMode = useAppState.getState().enterPlayerMode;
         enterPlayerMode(currentStoryId, result.story);
       } else {
-        Alert.alert('שגיאה', 'לא נמצא סיפור');
+        Alert.alert(t('common.error'), t('whatsapp.story_not_found'));
       }
     } catch (err) {
-      Alert.alert('שגיאה', err.message);
+      Alert.alert(t('common.error'), err.message);
     }
   };
 
@@ -124,22 +119,22 @@ ${participantLink}
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>הזמן חברים</Text>
+        <Text style={styles.title}>{t('whatsapp.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content}>
         <Card style={styles.previewCard}>
-          <Text style={styles.previewTitle}>תצוגה מקדימה של ההודעה:</Text>
+          <Text style={styles.previewTitle}>{t('whatsapp.preview_title')}</Text>
           <View style={styles.messagePreview}>
             <Text style={styles.messageText}>{messageTemplate}</Text>
           </View>
         </Card>
 
         <Card style={styles.shareCard}>
-          <Text style={styles.shareTitle}>שתף עם חברים</Text>
+          <Text style={styles.shareTitle}>{t('whatsapp.share_title')}</Text>
           <Text style={styles.shareDescription}>
-            שלח את ההזמנה לחברים שתרצה שישתתפו בסיפור שלך
+            {t('whatsapp.share_desc')}
           </Text>
 
           <TouchableOpacity
@@ -147,7 +142,7 @@ ${participantLink}
             onPress={handleShareWhatsApp}
           >
             <Ionicons name="logo-whatsapp" size={28} color="white" />
-            <Text style={styles.whatsappButtonText}>שתף ב-WhatsApp</Text>
+            <Text style={styles.whatsappButtonText}>{t('whatsapp.btn_whatsapp')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -155,40 +150,40 @@ ${participantLink}
             onPress={handleNativeShare}
           >
             <Ionicons name="share-outline" size={24} color={theme.colors.primary} />
-            <Text style={styles.otherShareButtonText}>שתף בדרך אחרת</Text>
+            <Text style={styles.otherShareButtonText}>{t('whatsapp.btn_other_share')}</Text>
           </TouchableOpacity>
         </Card>
 
         <Card style={styles.tipCard}>
           <Ionicons name="bulb" size={24} color={theme.colors.primary} />
           <Text style={styles.tipText}>
-            לחץ על כפתור השיתוף כמה פעמים שתרצה כדי לשלוח להרבה חברים!
+            {t('whatsapp.tip')}
           </Text>
         </Card>
 
         <View style={styles.actions}>
           <AppButton
-            title="המשך לעיבוד"
+            title={t('whatsapp.btn_continue')}
             onPress={handleContinue}
             variant="primary"
             size="lg"
             fullWidth
           />
           <Text style={styles.skipNote}>
-            תוכל להמשיך גם אם עדיין לא שיתפת
+            {t('whatsapp.skip_note')}
           </Text>
         </View>
 
         <Card style={styles.testCard}>
           <View style={styles.testHeader}>
             <Ionicons name="flask" size={20} color={theme.colors.accent} />
-            <Text style={styles.testTitle}>מצב בדיקה</Text>
+            <Text style={styles.testTitle}>{t('whatsapp.test_title')}</Text>
           </View>
           <Text style={styles.testDescription}>
-            היכנס כשחקן לסיפור הזה כדי לבדוק את הפלואו (כולל מוזיקה בהקלטה)
+            {t('whatsapp.test_desc')}
           </Text>
           <AppButton
-            title="בדוק כשחקן"
+            title={t('whatsapp.btn_test')}
             onPress={handleTestAsPlayer}
             variant="secondary"
             size="md"

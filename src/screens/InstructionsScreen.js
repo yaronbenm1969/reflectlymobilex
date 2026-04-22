@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
@@ -21,6 +22,7 @@ import { storiesService } from '../services/storiesService';
 import theme from '../theme/theme';
 
 export const InstructionsScreen = () => {
+  const { t } = useTranslation();
   const { go, back } = useNav();
   const insets = useSafeAreaInsets();
   const storyName = useAppState((state) => state.storyName);
@@ -81,13 +83,13 @@ export const InstructionsScreen = () => {
             console.log('✅ Story updated with video URL');
           }
         } else {
-          Alert.alert('שגיאה', 'לא הצלחנו להעלות את הסרטון. נסה שוב.');
+          Alert.alert(t('common.error'), t('instructions.error_upload'));
           setIsUploading(false);
           return;
         }
       } catch (error) {
         console.error('❌ Upload error:', error);
-        Alert.alert('שגיאה', 'אירעה שגיאה בהעלאת הסרטון.');
+        Alert.alert(t('common.error'), t('instructions.error_upload_generic'));
         setIsUploading(false);
         return;
       }
@@ -141,23 +143,23 @@ export const InstructionsScreen = () => {
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>הוראות לשחקנים</Text>
+        <Text style={styles.title}>{t('instructions.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
         <Text style={styles.storyNameLabel}>
-          סיפור: <Text style={styles.storyNameValue}>{storyName}</Text>
+          {t('instructions.story_label')} <Text style={styles.storyNameValue}>{storyName}</Text>
         </Text>
 
         <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>הוראות כלליות</Text>
+          <Text style={styles.sectionTitle}>{t('instructions.general_title')}</Text>
           <Text style={styles.sectionDescription}>
-            מה תרצה שהחברים שלך יעשו בתגובה לסיפור?
+            {t('instructions.general_desc')}
           </Text>
           <TextInput
             style={styles.instructionsInput}
-            placeholder="למשל: ספרו על רגע דומה שחוויתם..."
+            placeholder={t('instructions.general_placeholder')}
             placeholderTextColor={theme.colors.subtext}
             value={genericInstructions}
             onChangeText={setGenericInstructions}
@@ -169,43 +171,43 @@ export const InstructionsScreen = () => {
         </Card>
 
         <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>זמן לכל סרטון</Text>
+          <Text style={styles.sectionTitle}>{t('instructions.timing_title')}</Text>
           <Text style={styles.sectionDescription}>
-            כמה זמן לתת לכל אחד מ-3 סרטוני השיקוף?
+            {t('instructions.timing_desc')}
           </Text>
-          
+
           <TimeSelector
-            label="סרטון 1"
+            label={t('instructions.video_1')}
             value={video1Time}
             onChange={setVideo1Time}
           />
           <TimeSelector
-            label="סרטון 2"
+            label={t('instructions.video_2')}
             value={video2Time}
             onChange={setVideo2Time}
           />
           <TimeSelector
-            label="סרטון 3"
+            label={t('instructions.video_3')}
             value={video3Time}
             onChange={setVideo3Time}
           />
         </Card>
 
         <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>הגדרות פרסום ופרטיות</Text>
-          
+          <Text style={styles.sectionTitle}>{t('instructions.privacy_title')}</Text>
+
           <View style={styles.privacyRow}>
-            <Text style={styles.privacyLabel}>אפשר פרסום הסרטון הסופי</Text>
+            <Text style={styles.privacyLabel}>{t('instructions.allow_publishing')}</Text>
             <Switch
               value={publishingEnabled}
               onValueChange={(value) => {
                 if (value) {
                   Alert.alert(
-                    'אישור פרסום',
-                    'הפעלת אפשרות זו תאפשר פרסום הסרטון הסופי ברשת.\n\nכל משתתף יתבקש לאשר את הסכמתו לפני ההקלטה.\n\nהאם אתה מאשר ומסכים?',
+                    t('instructions.publishing_confirm_title'),
+                    t('instructions.publishing_confirm_text'),
                     [
-                      { text: 'ביטול', style: 'cancel' },
-                      { text: 'אני מאשר ומסכים', onPress: () => setPublishingEnabled(true) },
+                      { text: t('common.cancel'), style: 'cancel' },
+                      { text: t('instructions.publishing_confirm_ok'), onPress: () => setPublishingEnabled(true) },
                     ]
                   );
                 } else {
@@ -218,12 +220,12 @@ export const InstructionsScreen = () => {
           </View>
           <Text style={styles.privacyDescription}>
             {publishingEnabled
-              ? 'המשתתפים יתבקשו לאשר פרסום לפני ההקלטה'
-              : 'הסרטון יהיה לצפייה פרטית בלבד - ללא בקשת אישור'}
+              ? t('instructions.publishing_on_desc')
+              : t('instructions.publishing_off_desc')}
           </Text>
-          
+
           <View style={[styles.privacyRow, { marginTop: theme.spacing[4] }]}>
-            <Text style={styles.privacyLabel}>אפשר שיתוף ברשתות חברתיות</Text>
+            <Text style={styles.privacyLabel}>{t('instructions.allow_social')}</Text>
             <Switch
               value={allowSocialMedia}
               onValueChange={setAllowSocialMedia}
@@ -233,15 +235,15 @@ export const InstructionsScreen = () => {
           </View>
           <Text style={styles.privacyDescription}>
             {allowSocialMedia
-              ? 'הסרטון הסופי יוכל להיות משותף ברשתות חברתיות'
-              : 'הסרטון הסופי יהיה לצפייה פרטית בלבד'}
+              ? t('instructions.social_on_desc')
+              : t('instructions.social_off_desc')}
           </Text>
         </Card>
 
         <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>פתיחה לקהילה</Text>
+          <Text style={styles.sectionTitle}>{t('instructions.community_title')}</Text>
           <View style={styles.privacyRow}>
-            <Text style={styles.privacyLabel}>פתח סיפור זה לחברי קהילה</Text>
+            <Text style={styles.privacyLabel}>{t('instructions.community_toggle')}</Text>
             <Switch
               value={communityMode}
               onValueChange={setCommunityMode}
@@ -251,14 +253,14 @@ export const InstructionsScreen = () => {
           </View>
           <Text style={styles.privacyDescription}>
             {communityMode
-              ? 'חברי קהילה יוכלו לראות ולהצטרף לסיפור'
-              : 'הסיפור יהיה פרטי — רק מי שקיבל הזמנה ישירה'}
+              ? t('instructions.community_on_desc')
+              : t('instructions.community_off_desc')}
           </Text>
 
           {communityMode && (
             <>
               <Text style={[styles.timeSelectorLabel, { marginTop: theme.spacing[4] }]}>
-                כמה שחקנים? (מקסימום 9 סרטונים)
+                {t('instructions.max_players')}
               </Text>
               <View style={styles.timeButtons}>
                 {[3, 4, 5, 6, 7, 8, 9].map((n) => (
@@ -275,7 +277,7 @@ export const InstructionsScreen = () => {
               </View>
 
               <Text style={[styles.timeSelectorLabel, { marginTop: theme.spacing[4] }]}>
-                אישור משתתפים
+                {t('instructions.approval_label')}
               </Text>
               <View style={styles.approvalRow}>
                 <TouchableOpacity
@@ -288,7 +290,7 @@ export const InstructionsScreen = () => {
                     color={approvalMode === 'open' ? theme.colors.white : theme.colors.text}
                   />
                   <Text style={[styles.approvalButtonText, approvalMode === 'open' && styles.approvalButtonTextSelected]}>
-                    פתוח
+                    {t('instructions.approval_open')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -301,14 +303,14 @@ export const InstructionsScreen = () => {
                     color={approvalMode === 'manual' ? theme.colors.white : theme.colors.text}
                   />
                   <Text style={[styles.approvalButtonText, approvalMode === 'manual' && styles.approvalButtonTextSelected]}>
-                    אישור ידני
+                    {t('instructions.approval_manual')}
                   </Text>
                 </TouchableOpacity>
               </View>
               <Text style={styles.privacyDescription}>
                 {approvalMode === 'open'
-                  ? 'הראשונים שיצטרפו יכנסו אוטומטית עד מילוי המקומות'
-                  : 'כל משתתף יחכה לאישורך לפני שיקבל לינק לצילום'}
+                  ? t('instructions.approval_open_desc')
+                  : t('instructions.approval_manual_desc')}
               </Text>
             </>
           )}
@@ -317,14 +319,14 @@ export const InstructionsScreen = () => {
         {isUploading && (
           <Card style={styles.uploadingCard}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
-            <Text style={styles.uploadingText}>מעלה את הסרטון...</Text>
-            <Text style={styles.uploadingSubtext}>זה עלול לקחת כמה שניות</Text>
+            <Text style={styles.uploadingText}>{t('instructions.uploading_text')}</Text>
+            <Text style={styles.uploadingSubtext}>{t('instructions.uploading_subtext')}</Text>
           </Card>
         )}
 
         <View style={styles.actions}>
           <AppButton
-            title={isUploading ? "מעלה..." : communityMode ? "פרסם לקהילה" : "המשך לשליחת הזמנות"}
+            title={isUploading ? t('instructions.btn_uploading') : communityMode ? t('instructions.btn_publish_community') : t('instructions.btn_continue')}
             onPress={handleContinue}
             variant="primary"
             size="lg"

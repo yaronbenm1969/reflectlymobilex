@@ -21,6 +21,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
@@ -49,6 +50,7 @@ const SERVER_HEADERS = {
 const convertedUrlCache = new Map();
 
 export const FinalVideoScreen = () => {
+  const { t } = useTranslation();
   const { go } = useNav();
   const storyName = useAppState((state) => state.storyName);
   const privacySettings = useAppState((state) => state.privacySettings);
@@ -443,7 +445,7 @@ export const FinalVideoScreen = () => {
       videos.push({
         url: keyStoryUri,
         videoUrl: keyStoryUri,
-        playerName: 'הסיפור שלי',
+        playerName: t('finalVideo.my_story'),
         participantId: 'creator',
         thumbnail: null,
       });
@@ -454,7 +456,7 @@ export const FinalVideoScreen = () => {
         videos.push({
           url: reflection.videoUrl,
           videoUrl: reflection.videoUrl,
-          playerName: reflection.playerName || reflection.participantName || `משתתף ${index + 1}`,
+          playerName: reflection.playerName || reflection.participantName || t('finalVideo.participant_n', { n: index + 1 }),
           participantId: reflection.recipientId || reflection.participantId,
           clipNumber: reflection.clipNumber,
         });
@@ -531,9 +533,9 @@ export const FinalVideoScreen = () => {
   const handleShare = async () => {
     try {
       setIsDownloading(true);
-      const videoUri = await getVideoForSharing('מכין סרטון לשיתוף');
+      const videoUri = await getVideoForSharing(t('finalVideo.sharing_label'));
       if (videoUri && await Sharing.isAvailableAsync()) {
-        setDownloadProgress('שומר...');
+        setDownloadProgress(t('finalVideo.downloading'));
         const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
         const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'share');
         setIsDownloading(false);
@@ -550,7 +552,7 @@ export const FinalVideoScreen = () => {
       }
     } catch (error) {
       console.error('Error sharing:', error);
-      Alert.alert('שגיאה', 'לא ניתן לשתף את הסרטון');
+      Alert.alert(t('common.error'), t('finalVideo.error_share_video'));
     } finally {
       setIsDownloading(false);
       setDownloadProgress('');
@@ -559,7 +561,7 @@ export const FinalVideoScreen = () => {
 
   const handleDownload = async () => {
     if (!finalVideoUri) {
-      Alert.alert('שגיאה', 'אין סרטון להורדה');
+      Alert.alert(t('common.error'), t('finalVideo.error_no_video_download'));
       return;
     }
     
@@ -573,16 +575,16 @@ export const FinalVideoScreen = () => {
       
       if (downloadResult.status === 200) {
         Alert.alert(
-          'הורדה הצליחה!',
-          'הסרטון נשמר במכשיר שלך',
-          [{ text: 'מעולה!' }]
+          t('finalVideo.download_success_title'),
+          t('finalVideo.download_success_text'),
+          [{ text: t('finalVideo.download_success_ok') }]
         );
       } else {
         throw new Error('Download failed');
       }
     } catch (error) {
       console.error('Download error:', error);
-      Alert.alert('שגיאה', 'לא ניתן להוריד את הסרטון');
+      Alert.alert(t('common.error'), t('finalVideo.error_no_download'));
     } finally {
       setIsDownloading(false);
     }
@@ -710,7 +712,7 @@ export const FinalVideoScreen = () => {
     return new Promise((resolve) => {
       clientRecordingResolveRef.current = resolve;
       setClientRecordingInProgress(true);
-      setDownloadProgress('מקליט אנימציה...');
+      setDownloadProgress(t('finalVideo.recording_animation'));
       setShowEndScreen(false);
       setRecordNextPlayback(true);
       
@@ -1008,14 +1010,14 @@ export const FinalVideoScreen = () => {
 
   const handleRecordingProgress = useCallback((progress) => {
     if (progress.phase === 'saving') {
-      setDownloadProgress('שומר הקלטה...');
+      setDownloadProgress(t('finalVideo.saving_recording'));
     }
   }, []);
 
   const getVideoForSharing = async (label = 'מכין סרטון') => {
     if (isUploadingRef.current) {
       console.log('📹 Conversion in progress, waiting...');
-      setDownloadProgress('ממיר סרטון...');
+      setDownloadProgress(t('finalVideo.converting_video'));
       await new Promise(resolve => {
         const checkInterval = setInterval(() => {
           if (!isUploadingRef.current) {
@@ -1087,18 +1089,18 @@ export const FinalVideoScreen = () => {
       setIsDownloading(true);
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('נדרשת הרשאה', 'יש לאשר גישה לגלריה כדי לשמור את הסרטון');
+        Alert.alert(t('common.permission_required'), t('finalVideo.permission_gallery_save'));
         return;
       }
 
       const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
       if (allVideos.length === 0 && !finalVideoUri) {
-        Alert.alert('שגיאה', 'אין סרטון זמין לשמירה');
+        Alert.alert(t('common.error'), t('finalVideo.no_video'));
         return;
       }
 
-      const videoUri = await getVideoForSharing('שומר סרטון');
-      setDownloadProgress('שומר בגלריה...');
+      const videoUri = await getVideoForSharing(t('finalVideo.saving_label'));
+      setDownloadProgress(t('finalVideo.saving_to_gallery'));
       const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
       let localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, storyName.replace(/[^a-zA-Zא-ת0-9]/g, '_'));
       
@@ -1130,12 +1132,12 @@ export const FinalVideoScreen = () => {
         await MediaLibrary.saveToLibraryAsync(localUri);
       }
       
-      Alert.alert('נשמר בהצלחה!', allVideos.length > 1 
-        ? `${allVideos.length} סרטונים חוברו ונשמרו בגלריה שלך`
-        : 'הסרטון נשמר בגלריה שלך');
+      Alert.alert(t('finalVideo.saved_success'), allVideos.length > 1
+        ? t('finalVideo.saved_multi', { count: allVideos.length })
+        : t('finalVideo.saved_single'));
     } catch (error) {
       console.error('Save to gallery error:', error);
-      Alert.alert('שגיאה', `לא ניתן לשמור: ${error.message}`);
+      Alert.alert(t('common.error'), t('finalVideo.error_save', { message: error.message }));
     } finally {
       setIsDownloading(false);
       setDownloadProgress('');
@@ -1154,16 +1156,16 @@ export const FinalVideoScreen = () => {
       }
     } catch (error) {
       console.error('Facebook share error:', error);
-      Alert.alert('שגיאה', 'לא ניתן לשתף לפייסבוק');
+      Alert.alert(t('common.error'), t('finalVideo.error_facebook_share'));
     }
   };
 
   const handleShareToInstagram = async () => {
     try {
       setIsDownloading(true);
-      const videoUri = await getVideoForSharing('מכין לאינסטגרם');
+      const videoUri = await getVideoForSharing(t('finalVideo.instagram_label'));
       if (videoUri && await Sharing.isAvailableAsync()) {
-        setDownloadProgress('שומר...');
+        setDownloadProgress(t('finalVideo.downloading'));
         const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
         const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'instagram');
         setIsDownloading(false);
@@ -1179,11 +1181,11 @@ export const FinalVideoScreen = () => {
       if (canOpen) {
         await Linking.openURL(igUrl);
       } else {
-        Alert.alert('אינסטגרם', 'אינסטגרם לא מותקן במכשיר');
+        Alert.alert(t('finalVideo.instagram_title'), t('finalVideo.error_instagram'));
       }
     } catch (error) {
       console.error('Instagram share error:', error);
-      Alert.alert('שגיאה', 'לא ניתן לשתף לאינסטגרם');
+      Alert.alert(t('common.error'), t('finalVideo.error_instagram_share'));
     } finally {
       setIsDownloading(false);
       setDownloadProgress('');
@@ -1193,9 +1195,9 @@ export const FinalVideoScreen = () => {
   const handleShareToTikTok = async () => {
     try {
       setIsDownloading(true);
-      const videoUri = await getVideoForSharing('מכין לטיקטוק');
+      const videoUri = await getVideoForSharing(t('finalVideo.preparing_label'));
       if (videoUri && await Sharing.isAvailableAsync()) {
-        setDownloadProgress('שומר...');
+        setDownloadProgress(t('finalVideo.downloading'));
         const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
         const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'tiktok');
         setIsDownloading(false);
@@ -1210,11 +1212,11 @@ export const FinalVideoScreen = () => {
       if (canOpen) {
         await Linking.openURL(tiktokUrl);
       } else {
-        Alert.alert('טיקטוק', 'טיקטוק לא מותקן במכשיר');
+        Alert.alert(t('finalVideo.tiktok_title'), t('finalVideo.error_tiktok'));
       }
     } catch (error) {
       console.error('TikTok share error:', error);
-      Alert.alert('שגיאה', 'לא ניתן לשתף לטיקטוק');
+      Alert.alert(t('common.error'), t('finalVideo.error_tiktok_share'));
     } finally {
       setIsDownloading(false);
       setDownloadProgress('');
@@ -1224,9 +1226,9 @@ export const FinalVideoScreen = () => {
   const handleGeneralShare = async () => {
     try {
       setIsDownloading(true);
-      const videoUri = await getVideoForSharing('מכין לשיתוף');
+      const videoUri = await getVideoForSharing(t('finalVideo.preparing_label'));
       if (videoUri && await Sharing.isAvailableAsync()) {
-        setDownloadProgress('שומר...');
+        setDownloadProgress(t('finalVideo.downloading'));
         const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
         const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'share');
         setIsDownloading(false);
@@ -1243,7 +1245,7 @@ export const FinalVideoScreen = () => {
       });
     } catch (error) {
       console.error('Share error:', error);
-      Alert.alert('שגיאה', 'לא ניתן לשתף');
+      Alert.alert(t('common.error'), t('finalVideo.error_share'));
     } finally {
       setIsDownloading(false);
       setDownloadProgress('');
@@ -1284,7 +1286,7 @@ export const FinalVideoScreen = () => {
   const pickBgFromGallery = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('הרשאה נדרשת', 'אפשר גישה לגלריה בהגדרות כדי לבחור תמונה');
+      Alert.alert(t('common.permission_required'), t('finalVideo.permission_gallery'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -1345,9 +1347,9 @@ export const FinalVideoScreen = () => {
                 setIsRecordingMode(false);
                 setTimeout(() => {
                   Alert.alert(
-                    'עצור הקלטה!',
-                    'הסרטון הסתיים. עצור עכשיו את הקלטת המסך.\nהסרטון עם התלת-מימד נשמר בגלריה שלך!',
-                    [{ text: 'מעולה!', onPress: () => setShowEndScreen(true) }]
+                    t('finalVideo.stop_recording_title'),
+                    t('finalVideo.stop_recording_text'),
+                    [{ text: t('finalVideo.stop_recording_ok'), onPress: () => setShowEndScreen(true) }]
                   );
                 }, 500);
               } else {
@@ -1366,14 +1368,14 @@ export const FinalVideoScreen = () => {
       {isAnimatedFormat && !generatedMusicUrl && musicServerDown && (
         <View style={styles.musicErrorContainer}>
           <Ionicons name="cloud-offline-outline" size={52} color="#EF4444" />
-          <Text style={styles.musicErrorTitle}>השרת לא זמין</Text>
-          <Text style={styles.musicErrorText}>לא ניתן להקרין ללא מוזיקה.{'\n'}הפעל את השרת ועדכן את הטנל.</Text>
+          <Text style={styles.musicErrorTitle}>{t('finalVideo.music_server_down')}</Text>
+          <Text style={styles.musicErrorText}>{t('finalVideo.music_server_down_text')}</Text>
           <TouchableOpacity
             style={styles.musicErrorRetryBtn}
             onPress={() => { setMusicServerDown(false); setMusicTimedOut(false); }}
           >
             <Ionicons name="refresh-outline" size={20} color="white" />
-            <Text style={styles.musicErrorRetryText}>נסה שוב</Text>
+            <Text style={styles.musicErrorRetryText}>{t('finalVideo.btn_retry')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1388,8 +1390,8 @@ export const FinalVideoScreen = () => {
         <VideoFactoryWaiting
           estimatedSeconds={120}
           storyName={storyName}
-          title="מעבד את הסרטון"
-          message={downloadProgress || (isUploadingRecording ? 'מערבב מוזיקה...' : 'מכין את הסרטון...')}
+          title={t('finalVideo.factory_processing')}
+          message={downloadProgress || (isUploadingRecording ? t('finalVideo.factory_mixing') : t('finalVideo.factory_preparing'))}
         />
       )}
 
@@ -1404,7 +1406,7 @@ export const FinalVideoScreen = () => {
               <View style={styles.downloadProgressOverlay}>
                 <View style={styles.downloadProgressCard}>
                   <ActivityIndicator size="large" color="#8446b0" />
-                  <Text style={styles.downloadProgressTitle}>מעבד סרטון...</Text>
+                  <Text style={styles.downloadProgressTitle}>{t('finalVideo.processing_overlay')}</Text>
                   {downloadProgress ? (
                     <Text style={styles.downloadProgressText}>{downloadProgress}</Text>
                   ) : null}
@@ -1415,29 +1417,29 @@ export const FinalVideoScreen = () => {
               contentContainerStyle={styles.endScreenScroll}
               showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.endScreenText}>סוף</Text>
+              <Text style={styles.endScreenText}>{t('finalVideo.end_text')}</Text>
               <Text style={styles.endScreenSubtext}>{storyName}</Text>
 
               {isUploadingRecording ? (
                 <View style={styles.recordingReadyBadge}>
                   <ActivityIndicator size="small" color="white" />
-                  <Text style={styles.recordingReadyText}>ממיר ומעלה סרטון...</Text>
+                  <Text style={styles.recordingReadyText}>{t('finalVideo.upload_converting')}</Text>
                 </View>
               ) : conversionSucceeded ? (
                 <View style={styles.recordingReadyBadge}>
                   <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
-                  <Text style={styles.recordingReadyText}>סרטון MP4 מוכן לשיתוף</Text>
+                  <Text style={styles.recordingReadyText}>{t('finalVideo.upload_mp4_ready')}</Text>
                 </View>
               ) : cachedRecordingUri ? (
                 <View style={styles.recordingReadyBadge}>
                   <Ionicons name="checkmark-circle" size={18} color="#FFC107" />
-                  <Text style={styles.recordingReadyText}>סרטון מוקלט, ממתין להמרה</Text>
+                  <Text style={styles.recordingReadyText}>{t('finalVideo.upload_recorded')}</Text>
                 </View>
               ) : null}
 
               <View style={styles.endScreenDivider} />
 
-              <Text style={styles.endScreenSectionTitle}>שמור ושתף</Text>
+              <Text style={styles.endScreenSectionTitle}>{t('finalVideo.section_save_share')}</Text>
 
               <View style={styles.endScreenActions}>
                 <TouchableOpacity 
@@ -1452,7 +1454,7 @@ export const FinalVideoScreen = () => {
                       <Ionicons name="download-outline" size={28} color="#8446b0" />
                     )}
                   </View>
-                  <Text style={styles.endScreenActionLabel}>הורד סרטון</Text>
+                  <Text style={styles.endScreenActionLabel}>{t('finalVideo.btn_download_video')}</Text>
                 </TouchableOpacity>
 
 
@@ -1464,11 +1466,11 @@ export const FinalVideoScreen = () => {
                   <View style={styles.endScreenIconCircle}>
                     <Ionicons name="share-outline" size={28} color="#8446b0" />
                   </View>
-                  <Text style={styles.endScreenActionLabel}>שלח</Text>
+                  <Text style={styles.endScreenActionLabel}>{t('finalVideo.btn_send')}</Text>
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.endScreenSectionTitle}>פרסם ברשתות</Text>
+              <Text style={styles.endScreenSectionTitle}>{t('finalVideo.section_social')}</Text>
 
               <View style={styles.endScreenSocials}>
                 <TouchableOpacity 
@@ -1479,7 +1481,7 @@ export const FinalVideoScreen = () => {
                   <View style={[styles.socialIconCircle, { backgroundColor: '#1877F2' }]}>  
                     <Ionicons name="logo-facebook" size={30} color="white" />
                   </View>
-                  <Text style={styles.socialLabel}>פייסבוק</Text>
+                  <Text style={styles.socialLabel}>{t('finalVideo.social_facebook')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
@@ -1493,7 +1495,7 @@ export const FinalVideoScreen = () => {
                   >
                     <Ionicons name="logo-instagram" size={30} color="white" />
                   </LinearGradient>
-                  <Text style={styles.socialLabel}>אינסטגרם</Text>
+                  <Text style={styles.socialLabel}>{t('finalVideo.social_instagram')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
@@ -1504,7 +1506,7 @@ export const FinalVideoScreen = () => {
                   <View style={[styles.socialIconCircle, { backgroundColor: '#000' }]}>  
                     <Ionicons name="logo-tiktok" size={28} color="white" />
                   </View>
-                  <Text style={styles.socialLabel}>טיקטוק</Text>
+                  <Text style={styles.socialLabel}>{t('finalVideo.social_tiktok')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1514,7 +1516,7 @@ export const FinalVideoScreen = () => {
                   onPress={() => go('Home')}
                 >
                   <Ionicons name="home-outline" size={20} color="white" />
-                  <Text style={styles.endScreenPrimaryBtnText}>חזור לדף הבית</Text>
+                  <Text style={styles.endScreenPrimaryBtnText}>{t('finalVideo.btn_go_home')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
@@ -1528,7 +1530,7 @@ export const FinalVideoScreen = () => {
                   }}
                 >
                   <Ionicons name="play-circle-outline" size={20} color="white" />
-                  <Text style={styles.endScreenSecondaryBtnText}>צפה שוב</Text>
+                  <Text style={styles.endScreenSecondaryBtnText}>{t('finalVideo.btn_watch_again')}</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -1547,23 +1549,23 @@ export const FinalVideoScreen = () => {
               <View style={styles.recordGuideIconWrap}>
                 <Ionicons name="recording-outline" size={50} color="#FF4444" />
               </View>
-              <Text style={styles.recordGuideTitle}>הקלטת סרטון תלת-מימד</Text>
+              <Text style={styles.recordGuideTitle}>{t('finalVideo.guide_title')}</Text>
               <Text style={styles.recordGuideDesc}>
-                כדי לשמור את הסרטון עם האנימציה התלת-מימדית, יש להפעיל את הקלטת המסך של האייפון.
+                {t('finalVideo.guide_desc')}
               </Text>
 
               <View style={styles.recordGuideSteps}>
                 <View style={styles.recordGuideStep}>
                   <View style={styles.stepNumber}><Text style={styles.stepNumberText}>1</Text></View>
-                  <Text style={styles.stepText}>החלק למטה מפינה ימנית עליונה (מרכז הבקרה)</Text>
+                  <Text style={styles.stepText}>{t('finalVideo.guide_step_1')}</Text>
                 </View>
                 <View style={styles.recordGuideStep}>
                   <View style={styles.stepNumber}><Text style={styles.stepNumberText}>2</Text></View>
-                  <Text style={styles.stepText}>לחץ על כפתור ההקלטה ⏺</Text>
+                  <Text style={styles.stepText}>{t('finalVideo.guide_step_2')}</Text>
                 </View>
                 <View style={styles.recordGuideStep}>
                   <View style={styles.stepNumber}><Text style={styles.stepNumberText}>3</Text></View>
-                  <Text style={styles.stepText}>חזור לאפליקציה ולחץ "מוכן, התחל!"</Text>
+                  <Text style={styles.stepText}>{t('finalVideo.guide_step_3')}</Text>
                 </View>
               </View>
 
@@ -1572,7 +1574,7 @@ export const FinalVideoScreen = () => {
                 onPress={startRecordingCountdown}
               >
                 <Ionicons name="videocam" size={24} color="white" />
-                <Text style={styles.recordStartBtnText}>מוכן, התחל!</Text>
+                <Text style={styles.recordStartBtnText}>{t('finalVideo.guide_btn_start')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -1582,7 +1584,7 @@ export const FinalVideoScreen = () => {
                   setShowEndScreen(true);
                 }}
               >
-                <Text style={styles.recordCancelBtnText}>ביטול</Text>
+                <Text style={styles.recordCancelBtnText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </View>
           </LinearGradient>
@@ -1593,7 +1595,7 @@ export const FinalVideoScreen = () => {
       {recordCountdown > 0 && (
         <View style={styles.countdownOverlay}>
           <Text style={styles.countdownNumber}>{recordCountdown}</Text>
-          <Text style={styles.countdownLabel}>הסרטון מתחיל...</Text>
+          <Text style={styles.countdownLabel}>{t('finalVideo.countdown_label')}</Text>
         </View>
       )}
 
@@ -1604,7 +1606,7 @@ export const FinalVideoScreen = () => {
             style={styles.header}
           >
             <View style={styles.headerContent}>
-              <Text style={styles.title}>הסרטון מוכן! 🎉</Text>
+              <Text style={styles.title}>{t('finalVideo.header_title')}</Text>
               <Text style={styles.storyName}>{storyName}</Text>
               {is3DFormat && (
                 <View style={styles.formatBadge}>
@@ -1622,12 +1624,12 @@ export const FinalVideoScreen = () => {
             <View style={styles.cubeContainer}>
               <View style={styles.loadingContainer}>
                 <Ionicons name="cloud-offline-outline" size={48} color={theme.colors.error || '#EF4444'} />
-                <Text style={styles.errorTitle}>שגיאה בהורדת סרטונים</Text>
+                <Text style={styles.errorTitle}>{t('finalVideo.error_download')}</Text>
                 <Text style={styles.cubePlayText}>{assetProgress.message}</Text>
                 <Text style={styles.cubeProgressText}>
-                  {assetProgress.converted} מתוך {assetProgress.total} הורדו בהצלחה
+                  {t('finalVideo.progress_downloaded', { converted: assetProgress.converted, total: assetProgress.total })}
                 </Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.retryButton}
                   onPress={() => {
                     resetAssets();
@@ -1635,7 +1637,7 @@ export const FinalVideoScreen = () => {
                   }}
                 >
                   <Ionicons name="refresh-outline" size={20} color="white" />
-                  <Text style={styles.retryButtonText}>נסה שוב</Text>
+                  <Text style={styles.retryButtonText}>{t('finalVideo.btn_retry')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1644,7 +1646,7 @@ export const FinalVideoScreen = () => {
             <View style={styles.cubeContainer}>
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={theme.colors.primary} />
-                <Text style={styles.loadingTitle}>מכין את הקוביה...</Text>
+                <Text style={styles.loadingTitle}>{t('finalVideo.loading_cube')}</Text>
                 <Text style={styles.cubePlayText}>{assetProgress.message}</Text>
                 <View style={styles.progressBar}>
                   <View 
@@ -1655,7 +1657,7 @@ export const FinalVideoScreen = () => {
                   />
                 </View>
                 <Text style={styles.cubeProgressText}>
-                  {assetProgress.converted} מתוך {assetProgress.total} סרטונים
+                  {t('finalVideo.progress_videos', { converted: assetProgress.converted, total: assetProgress.total })}
                 </Text>
               </View>
             </View>
@@ -1675,7 +1677,7 @@ export const FinalVideoScreen = () => {
             isLoadingVideo ? (
               <View style={styles.videoPlayer}>
                 <ActivityIndicator size="large" color={theme.colors.primary} />
-                <Text style={{ color: theme.colors.subtext, marginTop: 12 }}>טוען סרטון...</Text>
+                <Text style={{ color: theme.colors.subtext, marginTop: 12 }}>{t('finalVideo.loading_video')}</Text>
               </View>
             ) : (
               <VideoView
@@ -1697,18 +1699,18 @@ export const FinalVideoScreen = () => {
                   color="white"
                 />
               </TouchableOpacity>
-              <Text style={styles.noVideoText}>אין סרטון זמין</Text>
+              <Text style={styles.noVideoText}>{t('finalVideo.no_video')}</Text>
             </View>
           )}
           
           <View style={styles.videoInfo}>
             <View style={styles.infoRow}>
               <Ionicons name="people-outline" size={18} color={theme.colors.subtext} />
-              <Text style={styles.infoText}>{participantCount} משתתפים</Text>
+              <Text style={styles.infoText}>{t('finalVideo.participants_count', { count: participantCount })}</Text>
             </View>
             <View style={styles.infoRow}>
               <Ionicons name="videocam-outline" size={18} color={theme.colors.subtext} />
-              <Text style={styles.infoText}>{reflections.length} שיקופים</Text>
+              <Text style={styles.infoText}>{t('finalVideo.reflections_count', { count: reflections.length })}</Text>
             </View>
           </View>
         </View>
@@ -1716,7 +1718,7 @@ export const FinalVideoScreen = () => {
         {playbackComplete && (
           <View style={styles.completeBadge}>
             <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
-            <Text style={styles.completeText}>הסתיים!</Text>
+            <Text style={styles.completeText}>{t('finalVideo.playback_complete')}</Text>
           </View>
         )}
 
@@ -1727,9 +1729,9 @@ export const FinalVideoScreen = () => {
             color={privacySettings.allowSocialMedia ? theme.colors.success : theme.colors.primary} 
           />
           <Text style={styles.privacyText}>
-            {privacySettings.allowSocialMedia 
-              ? 'ניתן לפרסום ברשתות חברתיות' 
-              : 'צפייה פרטית בלבד'}
+            {privacySettings.allowSocialMedia
+              ? t('finalVideo.privacy_public')
+              : t('finalVideo.privacy_private')}
           </Text>
         </View>
 
@@ -1747,7 +1749,7 @@ export const FinalVideoScreen = () => {
                     <Ionicons name="download-outline" size={28} color={theme.colors.primary} />
                   )}
                 </View>
-                <Text style={styles.actionLabel}>הורד</Text>
+                <Text style={styles.actionLabel}>{t('finalVideo.btn_download')}</Text>
               </TouchableOpacity>
             )}
 
@@ -1755,14 +1757,14 @@ export const FinalVideoScreen = () => {
               <View style={styles.actionIcon}>
                 <Ionicons name="share-social-outline" size={28} color={theme.colors.primary} />
               </View>
-              <Text style={styles.actionLabel}>שתף</Text>
+              <Text style={styles.actionLabel}>{t('finalVideo.btn_share')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.actionButton} onPress={() => go('EditRoom')}>
               <View style={styles.actionIcon}>
                 <Ionicons name="create-outline" size={28} color={theme.colors.primary} />
               </View>
-              <Text style={styles.actionLabel}>ערוך</Text>
+              <Text style={styles.actionLabel}>{t('finalVideo.btn_edit')}</Text>
             </TouchableOpacity>
 
             {isAnimatedFormat && (
@@ -1770,14 +1772,14 @@ export const FinalVideoScreen = () => {
                 <View style={styles.actionIcon}>
                   <Ionicons name="image-outline" size={28} color={backgroundVideoUrl ? theme.colors.primary : theme.colors.subtext} />
                 </View>
-                <Text style={styles.actionLabel}>רקע</Text>
+                <Text style={styles.actionLabel}>{t('finalVideo.btn_bg')}</Text>
               </TouchableOpacity>
             )}
           </View>
 
           <View style={styles.bottomActions}>
             <AppButton
-              title="צור סיפור חדש"
+              title={t('finalVideo.btn_new_story')}
               onPress={handleNewStory}
               variant="primary"
               size="lg"
@@ -1788,7 +1790,7 @@ export const FinalVideoScreen = () => {
               style={styles.homeButton}
               onPress={() => go('Home')}
             >
-              <Text style={styles.homeButtonText}>חזור לדף הבית</Text>
+              <Text style={styles.homeButtonText}>{t('finalVideo.btn_home')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1808,7 +1810,7 @@ export const FinalVideoScreen = () => {
         />
         <View style={styles.bgModalSheet}>
           <View style={styles.bgModalHeader}>
-            <Text style={styles.bgModalTitle}>בחר רקע לקוביה</Text>
+            <Text style={styles.bgModalTitle}>{t('finalVideo.bg_modal_title')}</Text>
             <TouchableOpacity onPress={() => setShowBgPicker(false)}>
               <Ionicons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
@@ -1828,7 +1830,7 @@ export const FinalVideoScreen = () => {
               <View style={[styles.bgThumbImg, { backgroundColor: '#0a0a1e', justifyContent: 'center', alignItems: 'center' }]}>
                 <Ionicons name="sparkles" size={28} color="#a78bfa" />
               </View>
-              <Text style={styles.bgThumbName}>ברירת מחדל</Text>
+              <Text style={styles.bgThumbName}>{t('finalVideo.bg_default')}</Text>
             </TouchableOpacity>
 
             {bgPickerList.map((bg) => (
@@ -1856,7 +1858,7 @@ export const FinalVideoScreen = () => {
 
           <TouchableOpacity style={styles.bgGalleryBtn} onPress={pickBgFromGallery}>
             <Ionicons name="images-outline" size={22} color="white" />
-            <Text style={styles.bgGalleryBtnText}>בחר מהגלריה</Text>
+            <Text style={styles.bgGalleryBtnText}>{t('finalVideo.bg_gallery')}</Text>
           </TouchableOpacity>
         </View>
       </Modal>

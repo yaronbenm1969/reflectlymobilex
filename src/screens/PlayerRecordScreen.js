@@ -26,6 +26,7 @@ import { storiesService } from '../services/storiesService';
 import { notificationsService } from '../services/notificationsService';
 import { backgroundsService } from '../services/backgroundsService';
 
+import { useTranslation } from 'react-i18next';
 import { AppButton } from '../ui/AppButton';
 import { VideoFactoryWaiting } from '../components/VideoFactoryWaiting';
 import theme from '../theme/theme';
@@ -55,6 +56,7 @@ try {
 }
 
 export const PlayerRecordScreen = () => {
+  const { t } = useTranslation();
   const { go, back } = useNav();
   const navigationParams = useAppState((state) => state.navigationParams);
   const playerStoryData = useAppState((state) => state.playerStoryData);
@@ -216,7 +218,7 @@ export const PlayerRecordScreen = () => {
       console.error('Recording error:', error);
       setIsRecording(false);
       setActiveClip(null);
-      Alert.alert('שגיאה', 'ההקלטה נכשלה, נסה שוב');
+      Alert.alert(t('common.error'), t('playerRecord.error_recording'));
     }
   };
 
@@ -268,7 +270,7 @@ export const PlayerRecordScreen = () => {
   const pickBgFromGallery = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('הרשאה נדרשת', 'אפשר גישה לגלריה בהגדרות');
+      Alert.alert(t('common.permission_required'), t('playerRecord.permission_gallery'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -296,7 +298,7 @@ export const PlayerRecordScreen = () => {
     const recorded = clipRecordings.filter(r => r !== null);
 
     if (recorded.length === 0) {
-      Alert.alert('אופס!', 'צריך להקליט לפחות שיקוף אחד');
+      Alert.alert(t('playerRecord.error_no_clips_title'), t('playerRecord.error_no_clips'));
       return;
     }
 
@@ -319,14 +321,14 @@ export const PlayerRecordScreen = () => {
         const clip = clipRecordings[i];
         if (!clip || clip.uri === 'web-demo') continue;
 
-        setUploadProgress(`מעלה שיקוף ${i + 1}...`);
+        setUploadProgress(t('playerRecord.uploading_clip', { n: i + 1 }));
         const result = await storageService.uploadPlayerVideo(
           clip.uri,
           storyIdForMusic,
           participantId,
           i + 1,
           (progress) => {
-            setUploadProgress(`מעלה שיקוף ${i + 1}... ${Math.round(progress)}%`);
+            setUploadProgress(t('playerRecord.uploading_clip_pct', { n: i + 1, pct: Math.round(progress) }));
           }
         );
 
@@ -412,7 +414,7 @@ export const PlayerRecordScreen = () => {
     } catch (error) {
       console.error('Upload error:', error);
       setIsUploading(false);
-      Alert.alert('שגיאה בהעלאה', 'חלק מהסרטונים לא הועלו. נסה שוב.');
+      Alert.alert(t('playerRecord.error_upload_title'), t('playerRecord.error_upload'));
     }
   };
 
@@ -437,25 +439,23 @@ export const PlayerRecordScreen = () => {
     return (
       <View style={styles.permissionContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.permissionText}>טוען פרטי הסרטון...</Text>
+        <Text style={styles.permissionText}>{t('playerRecord.loading_story')}</Text>
       </View>
     );
   }
 
   // Player must consent before recording
   if (consentState === 'needed') {
-    const creatorName = playerStoryData?.creatorName || 'המפיק';
+    const creatorName = playerStoryData?.creatorName || t('playerRecord.creator_fallback');
     return (
       <View style={styles.consentContainer}>
         <View style={styles.consentHeader}>
           <Ionicons name="shield-checkmark-outline" size={56} color={theme.colors.accent} />
-          <Text style={styles.consentTitle}>אישור הסכמה לפרסום</Text>
+          <Text style={styles.consentTitle}>{t('playerRecord.consent_title')}</Text>
         </View>
 
         <Text style={styles.consentBody}>
-          {creatorName} מבקש לפרסם את הסרטון הסופי ברשת.{'\n\n'}
-          ההשתתפות שלך בסרטון עשויה להיות גלויה לציבור.{'\n'}
-          יש לאשר את הסכמתך לפני ההקלטה.
+          {t('playerRecord.consent_body', { creatorName })}
         </Text>
 
         <TouchableOpacity
@@ -467,12 +467,12 @@ export const PlayerRecordScreen = () => {
             {consentChecked && <Ionicons name="checkmark" size={16} color="white" />}
           </View>
           <Text style={styles.consentCheckLabel}>
-            אני מסכים/ה שסרטוני ישמשו בסרטון הסופי ויפורסמו ברשת
+            {t('playerRecord.consent_checkbox')}
           </Text>
         </TouchableOpacity>
 
         <AppButton
-          title="אישור והמשך להקלטה"
+          title={t('playerRecord.consent_approve')}
           onPress={handleConsentGiven}
           variant="primary"
           size="lg"
@@ -481,7 +481,7 @@ export const PlayerRecordScreen = () => {
         />
 
         <TouchableOpacity style={styles.consentDeclineBtn} onPress={() => back()}>
-          <Text style={styles.consentDeclineText}>אינני מסכים/ה — חזור</Text>
+          <Text style={styles.consentDeclineText}>{t('playerRecord.consent_decline')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -491,7 +491,7 @@ export const PlayerRecordScreen = () => {
     return (
       <View style={styles.permissionContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.permissionText}>בודק הרשאות מצלמה...</Text>
+        <Text style={styles.permissionText}>{t('playerRecord.checking_permissions')}</Text>
       </View>
     );
   }
@@ -500,9 +500,9 @@ export const PlayerRecordScreen = () => {
     return (
       <View style={styles.permissionContainer}>
         <Ionicons name="camera" size={64} color={theme.colors.primary} />
-        <Text style={styles.permissionText}>אנו זקוקים להרשאת מצלמה כדי להקליט</Text>
+        <Text style={styles.permissionText}>{t('playerRecord.permission_text')}</Text>
         <AppButton
-          title="הענק הרשאה"
+          title={t('playerRecord.btn_grant')}
           onPress={requestPermission}
           variant="primary"
           size="lg"
@@ -516,7 +516,7 @@ export const PlayerRecordScreen = () => {
       <VideoFactoryWaiting
         estimatedSeconds={60}
         storyName={playerStoryData?.name || navigationParams?.storyName}
-        title="מעלה את הסרטונים"
+        title={t('playerRecord.uploading_title')}
         message={uploadProgress}
       />
     );
@@ -534,7 +534,7 @@ export const PlayerRecordScreen = () => {
         >
           <View style={styles.cameraHeader}>
             <View style={styles.clipBadge}>
-              <Text style={styles.clipBadgeText}>שיקוף {activeClip + 1} מתוך 3</Text>
+              <Text style={styles.clipBadgeText}>{t('playerRecord.camera_clip_badge', { n: activeClip + 1, total: clipCount })}</Text>
             </View>
 
             <TouchableOpacity style={styles.cameraHeaderButton} onPress={toggleCameraType}>
@@ -564,15 +564,15 @@ export const PlayerRecordScreen = () => {
           {ambient.hasTrack && ambient.isPlaying && (
             <View style={styles.musicBadge}>
               <Ionicons name="musical-notes" size={14} color="white" />
-              <Text style={styles.musicBadgeText}>מוזיקת רקע</Text>
+              <Text style={styles.musicBadgeText}>{t('playerRecord.camera_music_badge')}</Text>
             </View>
           )}
 
           <View style={styles.cameraControls}>
             <Text style={styles.maxTimeHint}>
               {isRecording
-                ? `${formatTime(recordingTimer)} / ${formatTime(maxTime)}`
-                : `עד ${formatTime(maxTime)}`}
+                ? t('playerRecord.camera_timer', { current: formatTime(recordingTimer), max: formatTime(maxTime) })
+                : t('playerRecord.camera_until', { time: formatTime(maxTime) })}
             </Text>
             <TouchableOpacity
               style={[
@@ -595,7 +595,7 @@ export const PlayerRecordScreen = () => {
               />
             </TouchableOpacity>
             <Text style={styles.recordHint}>
-              {isRecording ? 'לחץ לעצירה' : 'לחץ להקלטה'}
+              {isRecording ? t('playerRecord.camera_stop') : t('playerRecord.camera_record')}
             </Text>
           </View>
         </CameraView>
@@ -612,19 +612,18 @@ export const PlayerRecordScreen = () => {
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
-        <Text style={styles.title}>הקלט שיקופים</Text>
+        <Text style={styles.title}>{t('playerRecord.header_title')}</Text>
         <View style={styles.placeholder} />
       </LinearGradient>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
 
         <View style={styles.introCard}>
-          <Text style={styles.introTitle}>עכשיו תורך ✨</Text>
+          <Text style={styles.introTitle}>{t('playerRecord.intro_title')}</Text>
           <Text style={styles.introBody}>
-            צלם 3 שיקופים קצרים — תגובתך האישית לסרטון שזה עתה צפית בו.{'\n'}
-            דבר, שיר, נוע, רקוד — בכל קליפ אפשר לאמץ גישה שונה לחלוטין.
+            {t('playerRecord.intro_body', { count: clipCount })}
           </Text>
-          <Text style={styles.introEmphasize}>אך תמיד נעצים את המספר ✨</Text>
+          <Text style={styles.introEmphasize}>{t('playerRecord.intro_emphasize')}</Text>
           {!!(playerStoryData?.instructions || navigationParams?.instructions) && (
             <View style={styles.introInstructions}>
               <Ionicons name="chatbubble-ellipses" size={16} color={theme.colors.primary} />
@@ -640,14 +639,14 @@ export const PlayerRecordScreen = () => {
             <View style={styles.musicPanelHeader}>
               <Ionicons name="musical-notes" size={18} color={theme.colors.accent} />
               <Text style={styles.musicPanelTitle}>
-                {ambient.isPlaying ? '● מוזיקה מנגנת' : '🎵 מוזיקה תנגן בזמן ההקלטה'}
+                {ambient.isPlaying ? t('playerRecord.music_playing') : t('playerRecord.music_will_play')}
               </Text>
             </View>
             <View style={styles.musicModeRow}>
               {[
-                { key: 'headphones', icon: 'headset',       label: 'אוזניות' },
-                { key: 'none',       icon: 'volume-mute',   label: 'ללא' },
-                { key: 'performance',icon: 'mic',           label: 'שירה/תנועה' },
+                { key: 'headphones', icon: 'headset',       label: t('playerRecord.mode_headphones') },
+                { key: 'none',       icon: 'volume-mute',   label: t('playerRecord.mode_none') },
+                { key: 'performance',icon: 'mic',           label: t('playerRecord.mode_performance') },
               ].map(({ key, icon, label }) => {
                 const active = musicMode === key;
                 return (
@@ -671,18 +670,18 @@ export const PlayerRecordScreen = () => {
         <TouchableOpacity style={styles.bgPanel} onPress={openBgPicker}>
           <View style={styles.bgPanelLeft}>
             <Ionicons name="image-outline" size={20} color={backgroundVideoUrl ? theme.colors.primary : theme.colors.subtext} />
-            <Text style={styles.bgPanelLabel}>רקע לקוביה</Text>
+            <Text style={styles.bgPanelLabel}>{t('playerRecord.bg_panel_label')}</Text>
           </View>
           <View style={styles.bgPanelRight}>
             {backgroundVideoUrl ? (
               <>
-                <Text style={styles.bgPanelValue} numberOfLines={1}>רקע נבחר ✓</Text>
+                <Text style={styles.bgPanelValue} numberOfLines={1}>{t('playerRecord.bg_selected')}</Text>
                 <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); resetBg(); }} hitSlop={8}>
                   <Ionicons name="close-circle" size={18} color={theme.colors.subtext} />
                 </TouchableOpacity>
               </>
             ) : (
-              <Text style={styles.bgPanelPlaceholder}>בחר רקע</Text>
+              <Text style={styles.bgPanelPlaceholder}>{t('playerRecord.bg_choose')}</Text>
             )}
             <Ionicons name="chevron-forward" size={18} color={theme.colors.subtext} />
           </View>
@@ -717,18 +716,18 @@ export const PlayerRecordScreen = () => {
                       styles.clipLabel,
                       isRecorded && styles.clipLabelRecorded,
                     ]}>
-                      שיקוף {i + 1}
+                      {t('playerRecord.clip_n', { n: i + 1 })}
                     </Text>
                     <Text style={styles.clipDuration}>
                       {isRecorded
-                        ? `הוקלט (${clip.duration}s)`
-                        : `עד ${clipTimes[i]} שניות`}
+                        ? t('playerRecord.clip_recorded', { duration: clip.duration })
+                        : t('playerRecord.clip_duration', { seconds: clipTimes[i] })}
                     </Text>
                   </View>
 
                   <View style={styles.clipAction}>
                     {isRecorded ? (
-                      <Text style={styles.reRecordText}>הקלט מחדש</Text>
+                      <Text style={styles.reRecordText}>{t('playerRecord.rerecord')}</Text>
                     ) : (
                       <Ionicons name="arrow-forward" size={24} color={theme.colors.primary} />
                     )}
@@ -741,10 +740,10 @@ export const PlayerRecordScreen = () => {
 
         <View style={styles.status}>
           <Text style={styles.statusText}>
-            הקלטת {recordedCount} מתוך 3 שיקופים
+            {t('playerRecord.recording_count', { recorded: recordedCount, total: clipCount })}
           </Text>
           <View style={styles.statusDots}>
-            {[0, 1, 2].map((i) => (
+            {Array.from({ length: clipCount }, (_, i) => i).map((i) => (
               <View
                 key={i}
                 style={[
@@ -758,7 +757,7 @@ export const PlayerRecordScreen = () => {
 
         <View style={styles.actions}>
           <AppButton
-            title={recordedCount === 3 ? '🎉 שלח את כל השיקופים' : 'שלח שיקופים'}
+            title={recordedCount === clipCount ? t('playerRecord.btn_submit_all') : t('playerRecord.btn_submit')}
             onPress={handleSubmit}
             variant="primary"
             size="lg"
@@ -772,7 +771,7 @@ export const PlayerRecordScreen = () => {
       <Modal visible={showBgPicker} animationType="slide" onRequestClose={() => setShowBgPicker(false)}>
         <View style={styles.bgModalContainer}>
           <View style={styles.bgModalHeader}>
-            <Text style={styles.bgModalTitle}>בחר רקע לקוביה</Text>
+            <Text style={styles.bgModalTitle}>{t('playerRecord.bg_modal_title')}</Text>
             <TouchableOpacity onPress={() => setShowBgPicker(false)}>
               <Ionicons name="close" size={26} color={theme.colors.text} />
             </TouchableOpacity>
@@ -780,7 +779,7 @@ export const PlayerRecordScreen = () => {
 
           {/* Filter tabs */}
           <View style={styles.bgFilterRow}>
-            {[['all','כולם'],['image','תמונות'],['video','סרטונים']].map(([key, label]) => (
+            {[['all', t('playerRecord.bg_filter_all')],['image', t('playerRecord.bg_filter_images')],['video', t('playerRecord.bg_filter_videos')]].map(([key, label]) => (
               <TouchableOpacity
                 key={key}
                 style={[styles.bgFilterTab, bgFilter === key && styles.bgFilterTabActive]}
@@ -796,7 +795,7 @@ export const PlayerRecordScreen = () => {
           {/* Grid */}
           <FlatList
             data={[
-              { firestoreId: '__default__', nameHe: 'ברירת מחדל', mediaType: 'default', url: null },
+              { firestoreId: '__default__', nameHe: t('playerRecord.bg_default'), mediaType: 'default', url: null },
               ...bgList.filter(b => bgFilter === 'all' || b.mediaType === bgFilter),
             ]}
             keyExtractor={(item) => item.firestoreId}
@@ -826,7 +825,7 @@ export const PlayerRecordScreen = () => {
                       style={styles.bgPreviewBtn}
                       onPress={() => setPreviewBg(item)}
                     >
-                      <Text style={styles.bgPreviewBtnText}>הצג</Text>
+                      <Text style={styles.bgPreviewBtnText}>{t('playerRecord.bg_preview')}</Text>
                     </TouchableOpacity>
                   )}
                   {isSelected && (
@@ -841,7 +840,7 @@ export const PlayerRecordScreen = () => {
 
           <TouchableOpacity style={styles.bgGalleryBtn} onPress={pickBgFromGallery}>
             <Ionicons name="images-outline" size={22} color="white" />
-            <Text style={styles.bgGalleryBtnText}>בחר מהגלריה האישית</Text>
+            <Text style={styles.bgGalleryBtnText}>{t('playerRecord.bg_gallery')}</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -853,10 +852,10 @@ export const PlayerRecordScreen = () => {
             <Image source={{ uri: previewBg.url }} style={styles.previewImage} resizeMode="contain" />
             <View style={styles.previewActions}>
               <TouchableOpacity style={styles.previewSelectBtn} onPress={() => selectBg(previewBg.url, previewBg.mediaType)}>
-                <Text style={styles.previewSelectBtnText}>בחר רקע זה</Text>
+                <Text style={styles.previewSelectBtnText}>{t('playerRecord.bg_select')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.previewCloseBtn} onPress={() => setPreviewBg(null)}>
-                <Text style={styles.previewCloseBtnText}>סגור</Text>
+                <Text style={styles.previewCloseBtnText}>{t('common.close')}</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -10,6 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { storiesService } from '../services/storiesService';
@@ -28,6 +29,7 @@ const SERVER_HEADERS = {
 };
 
 export const ProcessingScreen = () => {
+  const { t } = useTranslation();
   const { go } = useNav();
   const storyName = useAppState((state) => state.storyName);
   const selectedMusic = useAppState((state) => state.selectedMusic);
@@ -43,7 +45,7 @@ export const ProcessingScreen = () => {
   const setFinalVideoUri = useAppState((state) => state.setFinalVideoUri);
 
   const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState('מתחיל עיבוד...');
+  const [status, setStatus] = useState('');
   const [isComplete, setIsComplete] = useState(false);
   const [error, setError] = useState(null);
   const [jobId, setJobId] = useState(null);
@@ -78,7 +80,7 @@ export const ProcessingScreen = () => {
     if (!reflectionUrls || reflectionUrls.length === 0) return null;
     try {
       // Step 1: Transcribe all clips
-      setStatus('מתמלל שיקופים...');
+      setStatus(t('processing.status_transcribing'));
       let transcriptionSegments = null;
       let totalDuration = 60;
       try {
@@ -98,7 +100,7 @@ export const ProcessingScreen = () => {
       }
 
       // Step 2: Start music generation job
-      setStatus('מייצר מוזיקה מותאמת...');
+      setStatus(t('processing.status_generating_music'));
       const genRes = await fetch(getApiUrl('/api/generate-music'), {
         method: 'POST',
         headers: SERVER_HEADERS,
@@ -118,7 +120,7 @@ export const ProcessingScreen = () => {
         try {
           const statusRes = await fetch(getApiUrl(`/api/music-status/${jobId}`), { headers: SERVER_HEADERS });
           const statusJson = await statusRes.json();
-          setStatus(`מייצר מוזיקה... ${statusJson.progress || 0}%`);
+          setStatus(t('processing.status_music_progress', { progress: statusJson.progress || 0 }));
           if (statusJson.status === 'completed' && statusJson.musicUrl) {
             console.log('✅ AI music generated:', statusJson.musicUrl);
             return statusJson.musicUrl;
@@ -141,7 +143,7 @@ export const ProcessingScreen = () => {
 
   const startRendering = async () => {
     try {
-      setStatus('אוסף את הסרטונים...');
+      setStatus(t('processing.status_collecting'));
       setProgress(5);
 
       // Collect all reflection video URLs for music generation
@@ -169,7 +171,7 @@ export const ProcessingScreen = () => {
         console.log('⚠️ No video URLs available for music generation');
       }
 
-      setStatus('אוסף את הסרטונים...');
+      setStatus(t('processing.status_collecting'));
       setProgress(10);
 
       let requestBody;
@@ -181,7 +183,7 @@ export const ProcessingScreen = () => {
         clipRenderOrder.forEach(clip => {
           if (clip.videoUrl) videoUrls.push(clip.videoUrl);
         });
-        if (videoUrls.length === 0) { setError('אין סרטונים לעריכה'); return; }
+        if (videoUrls.length === 0) { setError(t('processing.error_no_videos')); return; }
         requestBody = { videoUrls, format: videoFormat || 'standard', ...(musicUrlForRender && { musicUrl: musicUrlForRender }) };
         console.log('Starting render with ordered', videoUrls.length, 'videos (user order preserved)');
       } else {
@@ -200,12 +202,12 @@ export const ProcessingScreen = () => {
             });
           }
         });
-        if (videos.length === 0) { setError('אין סרטונים לעריכה'); return; }
+        if (videos.length === 0) { setError(t('processing.error_no_videos')); return; }
         requestBody = { videos, format: videoFormat || 'standard', ...(musicUrlForRender && { musicUrl: musicUrlForRender }) };
         console.log('Starting render with', videos.length, 'videos (server shuffle)');
       }
 
-      setStatus('שולח לשרת העריכה...');
+      setStatus(t('processing.status_sending'));
       setProgress(20);
 
       const response = await fetch(getApiUrl(`/api/stories/${currentStoryId}/render`), {
@@ -215,7 +217,7 @@ export const ProcessingScreen = () => {
       });
       
       if (!response.ok) {
-        throw new Error('שגיאה בהתחלת העיבוד');
+        throw new Error(t('processing.error_start'));
       }
       
       const result = await response.json();
@@ -225,7 +227,7 @@ export const ProcessingScreen = () => {
         setJobId(result.jobId);
         startPolling(result.jobId);
       } else {
-        throw new Error('לא התקבל מזהה עבודה');
+        throw new Error(t('processing.error_no_job_id'));
       }
       
     } catch (err) {
@@ -235,14 +237,14 @@ export const ProcessingScreen = () => {
   };
 
   const startPolling = (id) => {
-    setStatus('מעבד סרטונים...');
+    setStatus(t('processing.status_processing'));
     
     pollingRef.current = setInterval(async () => {
       try {
         const response = await fetch(getApiUrl(`/api/render-status/${id}`));
         
         if (!response.ok) {
-          throw new Error('שגיאה בבדיקת סטטוס');
+          throw new Error(t('processing.error_status_check'));
         }
         
         const job = await response.json();
@@ -251,13 +253,13 @@ export const ProcessingScreen = () => {
         setProgress(job.progress || 0);
         
         if (job.progress < 30) {
-          setStatus('מוריד סרטונים...');
+          setStatus(t('processing.status_downloading'));
         } else if (job.progress < 50) {
-          setStatus('ממיר פורמטים...');
+          setStatus(t('processing.status_converting'));
         } else if (job.progress < 80) {
-          setStatus('מרכיב את הסרטון...');
+          setStatus(t('processing.status_composing'));
         } else if (job.progress < 100) {
-          setStatus('מעלה את התוצאה...');
+          setStatus(t('processing.status_uploading'));
         }
         
         if (job.status === 'completed') {
@@ -270,7 +272,7 @@ export const ProcessingScreen = () => {
           const musicUrl = generatedMusicUrlRef.current;
           if (finalUrl && musicUrl) {
             try {
-              setStatus('מוסיף מוזיקה מותאמת...');
+              setStatus(t('processing.status_adding_music'));
               const mixRes = await fetch(getApiUrl('/api/mix-music-with-video'), {
                 method: 'POST',
                 headers: SERVER_HEADERS,
@@ -294,12 +296,12 @@ export const ProcessingScreen = () => {
           }
 
           setProgress(100);
-          setStatus('הסרטון מוכן!');
+          setStatus(t('processing.status_complete'));
           setIsComplete(true);
           if (finalUrl) {
             // Pre-cache the final video locally so FinalVideoScreen plays instantly
             try {
-              setStatus('מכין לצפייה...');
+              setStatus(t('processing.status_caching'));
               const localPath = FileSystem.cacheDirectory + `final_video_${Date.now()}.mp4`;
               const downloadResult = await FileSystem.downloadAsync(finalUrl, localPath);
               if (downloadResult.status === 200) {
@@ -315,7 +317,7 @@ export const ProcessingScreen = () => {
           }
         } else if (job.status === 'failed') {
           clearInterval(pollingRef.current);
-          setError(job.error || 'העיבוד נכשל');
+          setError(job.error || t('processing.error_processing'));
         }
         
       } catch (err) {
@@ -352,19 +354,19 @@ export const ProcessingScreen = () => {
       >
         <View style={styles.content}>
           <Ionicons name="alert-circle" size={80} color="white" />
-          <Text style={styles.errorTitle}>שגיאה בעיבוד</Text>
+          <Text style={styles.errorTitle}>{t('processing.error_title')}</Text>
           <Text style={styles.errorMessage}>{error}</Text>
           
           <View style={styles.errorActions}>
             <AppButton
-              title="נסה שוב"
+              title={t('processing.btn_retry')}
               onPress={handleRetry}
               variant="secondary"
               size="lg"
               style={styles.retryButton}
             />
             <AppButton
-              title="חזור לעריכה"
+              title={t('processing.btn_back_edit')}
               onPress={handleGoBack}
               variant="outline"
               size="md"
@@ -405,19 +407,19 @@ export const ProcessingScreen = () => {
               <View style={styles.infoRow}>
                 <Ionicons name="videocam" size={20} color="white" />
                 <Text style={styles.infoText}>
-                  {reflections.length} שיקופים + סרטון מפתח
+                  {t('processing.info_reflections', { count: reflections.length })}
                 </Text>
               </View>
               <View style={styles.infoRow}>
                 <Ionicons name="musical-notes" size={20} color="white" />
                 <Text style={styles.infoText}>
-                  מוזיקה: {selectedMusic || 'ללא'}
+                  {t('processing.info_music', { music: selectedMusic || t('processing.info_music_none') })}
                 </Text>
               </View>
               <View style={styles.infoRow}>
                 <Ionicons name="cube" size={20} color="white" />
                 <Text style={styles.infoText}>
-                  פורמט: {videoFormat || 'סטנדרטי'}
+                  {t('processing.info_format', { format: videoFormat || t('processing.info_format_standard') })}
                 </Text>
               </View>
             </View>
@@ -425,13 +427,13 @@ export const ProcessingScreen = () => {
         ) : (
           <>
             <Ionicons name="checkmark-circle" size={100} color="white" />
-            <Text style={styles.completeTitle}>הסרטון מוכן!</Text>
+            <Text style={styles.completeTitle}>{t('processing.complete_title')}</Text>
             <Text style={styles.completeDescription}>
-              הסרטון שלך נערך בהצלחה ומוכן לצפייה
+              {t('processing.complete_desc')}
             </Text>
             
             <AppButton
-              title="צפה בתוצאה"
+              title={t('processing.btn_view_result')}
               onPress={handleViewResult}
               variant="secondary"
               size="lg"

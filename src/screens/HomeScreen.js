@@ -31,7 +31,7 @@ const PARTICIPANT_OPTIONS = [
 ];
 
 export const HomeScreen = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { go } = useNav();
   const storyName = useAppState((state) => state.storyName);
   const setStoryName = useAppState((state) => state.setStoryName);
@@ -65,6 +65,7 @@ export const HomeScreen = () => {
       maxParticipants: participantRange,
       clipCount: selectedOption.clipCount,
       maxClipDuration: selectedOption.maxClipDuration,
+      language: i18n.language || 'he',
     }, {
       displayName: user.displayName || '',
       email: user.email || '',

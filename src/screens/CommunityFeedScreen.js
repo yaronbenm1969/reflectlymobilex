@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as VideoThumbnails from 'expo-video-thumbnails';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { storiesService } from '../services/storiesService';
@@ -20,6 +21,8 @@ import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 
 export const CommunityFeedScreen = () => {
+  const { t, i18n } = useTranslation();
+  const myLang = i18n.language || 'he';
   const { go, back } = useNav();
   const user = useAppState((state) => state.user);
   const enterPlayerMode = useAppState((state) => state.enterPlayerMode);
@@ -73,8 +76,8 @@ export const CommunityFeedScreen = () => {
 
   const handleApply = async (story) => {
     if (!user) {
-      Alert.alert('נדרשת התחברות', 'יש להתחבר כדי להצטרף לסיפור', [
-        { text: 'ביטול', style: 'cancel' },
+      Alert.alert(t('community.auth_required_title'), t('community.auth_required_text'), [
+        { text: t('common.cancel'), style: 'cancel' },
       ]);
       return;
     }
@@ -84,12 +87,12 @@ export const CommunityFeedScreen = () => {
     const profile = profileRes.success ? profileRes.profile : null;
     if (!profile?.bio?.trim()) {
       Alert.alert(
-        'השלם את הפרופיל שלך',
-        'כדי להגיש מועמדות יש למלא כרטיס אישי קצר',
+        t('community.profile_required_title'),
+        t('community.profile_required_text'),
         [
-          { text: 'ביטול', style: 'cancel' },
+          { text: t('common.cancel'), style: 'cancel' },
           {
-            text: 'מלא עכשיו',
+            text: t('community.profile_required_fill'),
             onPress: () => go('MemberOnboarding', { afterSave: 'CommunityFeed' }),
           },
         ]
@@ -111,9 +114,9 @@ export const CommunityFeedScreen = () => {
         const result = await storiesService.applyToStory(story.id, user.uid, user.displayName);
         if (result.success) {
           Alert.alert(
-            'בקשתך נשלחה',
-            'יוצר הסיפור יאשר את בקשתך. תקבל/י הודעה כשתאושר.',
-            [{ text: 'אוקי' }]
+            t('community.application_sent_title'),
+            t('community.application_sent_text'),
+            [{ text: t('common.ok') }]
           );
         }
       }
@@ -130,13 +133,92 @@ export const CommunityFeedScreen = () => {
     return max - current;
   };
 
+  const LANG_LABELS = { he: 'עברית 🇮🇱', en: 'English 🇺🇸' };
+
+  const renderStory = (story) => {
+    const cs = story.communitySettings || {};
+    const spotsLeft = getSpotsLeft(story);
+    const isManual = cs.approvalMode === 'manual';
+    const isApplying = applyingId === story.id;
+    const current = story.currentPlayers || 0;
+    const max = cs.maxPlayers || 9;
+    const progressPct = Math.min(current / max, 1);
+    return (
+      <Card key={story.id} style={styles.storyCard}>
+        <View style={styles.cardTop}>
+          <View style={styles.iconWrap}>
+            <Ionicons name="videocam" size={28} color={theme.colors.secondary} />
+          </View>
+          <View style={styles.cardInfo}>
+            <Text style={styles.storyName}>{story.name}</Text>
+            {story.creatorName ? (
+              <Text style={styles.creatorName}>{t('community.creator_label', { creatorName: story.creatorName })}</Text>
+            ) : null}
+            <View style={styles.badgesRow}>
+              <View style={styles.spotsBadge}>
+                <Ionicons name="person-add-outline" size={13} color={theme.colors.accent} />
+                <Text style={styles.spotsText}>{t('community.spots_left', { count: spotsLeft })}</Text>
+              </View>
+              <View style={[styles.approvalBadge, isManual && styles.approvalBadgeManual]}>
+                <Ionicons
+                  name={isManual ? 'checkmark-circle-outline' : 'lock-open-outline'}
+                  size={13}
+                  color={isManual ? '#e67e22' : '#27ae60'}
+                />
+                <Text style={[styles.approvalText, isManual && styles.approvalTextManual]}>
+                  {isManual ? t('community.approval_manual') : t('community.approval_open')}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.progressRow}>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${progressPct * 100}%` }]} />
+              </View>
+              <Text style={styles.progressText}>{t('community.progress_label', { current, max })}</Text>
+            </View>
+          </View>
+        </View>
+        {(thumbnailMap[story.id] || []).length > 0 && (
+          <View style={styles.facesRow}>
+            {(thumbnailMap[story.id] || []).map((uri, idx) => (
+              <Image
+                key={idx}
+                source={{ uri }}
+                style={[styles.faceCircle, { marginLeft: idx === 0 ? 0 : -10 }]}
+              />
+            ))}
+            {current > 4 && (
+              <View style={[styles.faceCircle, styles.faceMore, { marginLeft: -10 }]}>
+                <Text style={styles.faceMoreText}>+{current - 4}</Text>
+              </View>
+            )}
+          </View>
+        )}
+        {story.instructions ? (
+          <Text style={styles.instructions} numberOfLines={2}>
+            {story.instructions}
+          </Text>
+        ) : null}
+        <AppButton
+          title={isApplying ? t('community.applying') : isManual ? t('community.btn_apply') : t('community.btn_join')}
+          onPress={() => handleApply(story)}
+          variant="primary"
+          size="md"
+          fullWidth
+          disabled={isApplying}
+          style={styles.joinButton}
+        />
+      </Card>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>סיפורי קהילה</Text>
+        <Text style={styles.title}>{t('community.title')}</Text>
         <TouchableOpacity style={styles.refreshButton} onPress={loadCommunityStories}>
           <Ionicons name="refresh" size={24} color={theme.colors.accent} />
         </TouchableOpacity>
@@ -146,101 +228,57 @@ export const CommunityFeedScreen = () => {
         {loading ? (
           <View style={styles.centerState}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
-            <Text style={styles.stateText}>טוען סיפורים...</Text>
+            <Text style={styles.stateText}>{t('community.loading')}</Text>
           </View>
         ) : stories.length === 0 ? (
           <View style={styles.centerState}>
             <Ionicons name="people-outline" size={60} color={theme.colors.subtext} />
-            <Text style={styles.stateTitle}>אין סיפורים פתוחים כרגע</Text>
-            <Text style={styles.stateText}>בדוק שוב מאוחר יותר</Text>
+            <Text style={styles.stateTitle}>{t('community.empty_title')}</Text>
+            <Text style={styles.stateText}>{t('community.empty_text')}</Text>
           </View>
-        ) : (
-          <View style={styles.list}>
-            {stories.map((story) => {
-              const cs = story.communitySettings || {};
-              const spotsLeft = getSpotsLeft(story);
-              const isManual = cs.approvalMode === 'manual';
-              const isApplying = applyingId === story.id;
-
-              const current = story.currentPlayers || 0;
-              const max = cs.maxPlayers || 9;
-              const progressPct = Math.min(current / max, 1);
-
-              return (
-                <Card key={story.id} style={styles.storyCard}>
-                  <View style={styles.cardTop}>
-                    <View style={styles.iconWrap}>
-                      <Ionicons name="videocam" size={28} color={theme.colors.secondary} />
+        ) : (() => {
+            const myStories = stories.filter(s => (s.language || 'he') === myLang);
+            const otherStories = stories.filter(s => (s.language || 'he') !== myLang);
+            // Group other stories by language
+            const otherByLang = {};
+            otherStories.forEach(s => {
+              const lang = s.language || 'he';
+              if (!otherByLang[lang]) otherByLang[lang] = [];
+              otherByLang[lang].push(s);
+            });
+            return (
+              <View style={styles.list}>
+                {myStories.length > 0 && (
+                  <>
+                    <View style={styles.sectionHeader}>
+                      <Text style={styles.sectionHeaderText}>
+                        {LANG_LABELS[myLang] || myLang}
+                      </Text>
                     </View>
-                    <View style={styles.cardInfo}>
-                      <Text style={styles.storyName}>{story.name}</Text>
-                      {story.creatorName ? (
-                        <Text style={styles.creatorName}>יוצר: {story.creatorName}</Text>
-                      ) : null}
-                      <View style={styles.badgesRow}>
-                        <View style={styles.spotsBadge}>
-                          <Ionicons name="person-add-outline" size={13} color={theme.colors.accent} />
-                          <Text style={styles.spotsText}>{spotsLeft} מקומות פנויים</Text>
-                        </View>
-                        <View style={[styles.approvalBadge, isManual && styles.approvalBadgeManual]}>
-                          <Ionicons
-                            name={isManual ? 'checkmark-circle-outline' : 'lock-open-outline'}
-                            size={13}
-                            color={isManual ? '#e67e22' : '#27ae60'}
-                          />
-                          <Text style={[styles.approvalText, isManual && styles.approvalTextManual]}>
-                            {isManual ? 'אישור ידני' : 'פתוח'}
-                          </Text>
-                        </View>
-                      </View>
-                      {/* Progress bar */}
-                      <View style={styles.progressRow}>
-                        <View style={styles.progressTrack}>
-                          <View style={[styles.progressFill, { width: `${progressPct * 100}%` }]} />
-                        </View>
-                        <Text style={styles.progressText}>{current}/{max} צולמו</Text>
-                      </View>
+                    {myStories.map(renderStory)}
+                  </>
+                )}
+                {Object.entries(otherByLang).map(([lang, langStories]) => (
+                  <View key={lang}>
+                    <View style={styles.sectionHeader}>
+                      <Text style={styles.sectionHeaderText}>
+                        {LANG_LABELS[lang] || lang}
+                      </Text>
                     </View>
+                    {langStories.map(renderStory)}
                   </View>
-
-                  {/* Player face thumbnails */}
-                  {(thumbnailMap[story.id] || []).length > 0 && (
-                    <View style={styles.facesRow}>
-                      {(thumbnailMap[story.id] || []).map((uri, idx) => (
-                        <Image
-                          key={idx}
-                          source={{ uri }}
-                          style={[styles.faceCircle, { marginLeft: idx === 0 ? 0 : -10 }]}
-                        />
-                      ))}
-                      {current > 4 && (
-                        <View style={[styles.faceCircle, styles.faceMore, { marginLeft: -10 }]}>
-                          <Text style={styles.faceMoreText}>+{current - 4}</Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-
-                  {story.instructions ? (
-                    <Text style={styles.instructions} numberOfLines={2}>
-                      {story.instructions}
-                    </Text>
-                  ) : null}
-
-                  <AppButton
-                    title={isApplying ? 'שולח...' : isManual ? 'בקש להצטרף' : 'הצטרף עכשיו'}
-                    onPress={() => handleApply(story)}
-                    variant="primary"
-                    size="md"
-                    fullWidth
-                    disabled={isApplying}
-                    style={styles.joinButton}
-                  />
-                </Card>
-              );
-            })}
-          </View>
-        )}
+                ))}
+                {myStories.length === 0 && otherStories.length === 0 && (
+                  <View style={styles.centerState}>
+                    <Ionicons name="people-outline" size={60} color={theme.colors.subtext} />
+                    <Text style={styles.stateTitle}>{t('community.empty_title')}</Text>
+                    <Text style={styles.stateText}>{t('community.empty_text')}</Text>
+                  </View>
+                )}
+              </View>
+            );
+          })()
+        }
       </ScrollView>
     </View>
   );

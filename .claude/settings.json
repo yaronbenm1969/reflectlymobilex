@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \":*)",
+      "Bash(git add server/video-converter-api.js server/music/music-service.js src/screens/WhatsAppShareScreen.js src/components/cube3d/CubeWebView.js src/screens/InstructionsScreen.js src/screens/RecordScreen.js src/services/storiesService.js src/services/authService.js src/services/index.js src/state/appState.js src/components/SideMenu.js src/screens/index.js App.js firestore.rules src/screens/CommunityFeedScreen.js src/services/usersService.js)"
+    ]
+  }
+}

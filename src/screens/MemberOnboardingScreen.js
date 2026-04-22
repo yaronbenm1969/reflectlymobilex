@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../services/firebase';
+import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { usersService } from '../services/usersService';
@@ -15,6 +16,7 @@ import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 
 export const MemberOnboardingScreen = () => {
+  const { t } = useTranslation();
   const { go, back } = useNav();
   const user = useAppState((s) => s.user);
   const navigationParams = useAppState((s) => s.navigationParams);
@@ -55,7 +57,7 @@ export const MemberOnboardingScreen = () => {
   const handlePickPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('הרשאה נדרשת', 'אנא אפשר גישה לגלריה בהגדרות');
+      Alert.alert(t('common.permission_required'), t('memberOnboarding.permission_gallery'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -95,11 +97,11 @@ export const MemberOnboardingScreen = () => {
   // ── Save ────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!displayName.trim()) {
-      Alert.alert('שגיאה', 'נא להזין שם תצוגה');
+      Alert.alert(t('common.error'), t('memberOnboarding.error_name'));
       return;
     }
     if (!bio.trim()) {
-      Alert.alert('שגיאה', 'נא למלא קצת עלייך (bio)');
+      Alert.alert(t('common.error'), t('memberOnboarding.error_bio'));
       return;
     }
     setSaving(true);
@@ -122,7 +124,7 @@ export const MemberOnboardingScreen = () => {
         back();
       }
     } catch (e) {
-      Alert.alert('שגיאה', 'שמירה נכשלה: ' + e.message);
+      Alert.alert(t('common.error'), t('memberOnboarding.error_save', { message: e.message }));
     } finally {
       setSaving(false);
     }
@@ -150,7 +152,7 @@ export const MemberOnboardingScreen = () => {
         <TouchableOpacity onPress={back} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>הכרטיס שלי בקהילה</Text>
+        <Text style={styles.headerTitle}>{t('memberOnboarding.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -170,17 +172,17 @@ export const MemberOnboardingScreen = () => {
               <Ionicons name="camera" size={16} color="white" />
             </View>
           </TouchableOpacity>
-          <Text style={styles.avatarHint}>לחץ לשינוי תמונה</Text>
+          <Text style={styles.avatarHint}>{t('memberOnboarding.avatar_hint')}</Text>
         </View>
 
         {/* Display name */}
         <Card style={styles.card}>
-          <Text style={styles.label}>שם תצוגה *</Text>
+          <Text style={styles.label}>{t('memberOnboarding.name_label')}</Text>
           <TextInput
             style={styles.input}
             value={displayName}
             onChangeText={setDisplayName}
-            placeholder="השם שיופיע בפרופיל"
+            placeholder={t('memberOnboarding.name_placeholder')}
             placeholderTextColor="#bbb"
             textAlign="right"
           />
@@ -188,13 +190,13 @@ export const MemberOnboardingScreen = () => {
 
         {/* Bio */}
         <Card style={styles.card}>
-          <Text style={styles.label}>קצת עלי — קורות חיים *</Text>
-          <Text style={styles.hint}>מי אתה, מאיפה אתה, מה מעניין אותך</Text>
+          <Text style={styles.label}>{t('memberOnboarding.bio_label')}</Text>
+          <Text style={styles.hint}>{t('memberOnboarding.bio_hint')}</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
             value={bio}
             onChangeText={setBio}
-            placeholder="לדוגמה: שחקן תיאטרון מתל אביב, בוגר ביה״ס לאמנות, אוהב הפקות אינטימיות..."
+            placeholder={t('memberOnboarding.bio_placeholder')}
             placeholderTextColor="#bbb"
             multiline
             numberOfLines={4}
@@ -205,13 +207,13 @@ export const MemberOnboardingScreen = () => {
 
         {/* Acting experience */}
         <Card style={styles.card}>
-          <Text style={styles.label}>ניסיון במשחק</Text>
-          <Text style={styles.hint}>הצגות, קורסים, בתי ספר, סרטים, פרסומות וכו׳</Text>
+          <Text style={styles.label}>{t('memberOnboarding.experience_label')}</Text>
+          <Text style={styles.hint}>{t('memberOnboarding.experience_hint')}</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
             value={actingExperience}
             onChangeText={setActingExperience}
-            placeholder="לדוגמה: 3 שנות תיאטרון אמחה, קורס משחק אצל יוסי פולק, פרסומת לחטיף בייגלה 2022..."
+            placeholder={t('memberOnboarding.experience_placeholder')}
             placeholderTextColor="#bbb"
             multiline
             numberOfLines={4}
@@ -222,8 +224,8 @@ export const MemberOnboardingScreen = () => {
 
         {/* Demo reel */}
         <Card style={styles.card}>
-          <Text style={styles.label}>פלייבק / שואורייל</Text>
-          <Text style={styles.hint}>לינק לסרטון YouTube, Vimeo, Drive וכו׳</Text>
+          <Text style={styles.label}>{t('memberOnboarding.reel_label')}</Text>
+          <Text style={styles.hint}>{t('memberOnboarding.reel_hint')}</Text>
           <TextInput
             style={styles.input}
             value={demoReelUrl}
@@ -239,7 +241,7 @@ export const MemberOnboardingScreen = () => {
         {/* Save */}
         <View style={styles.saveWrap}>
           <AppButton
-            title={saving || uploading ? 'שומר...' : 'שמור כרטיס'}
+            title={saving || uploading ? t('memberOnboarding.btn_saving') : t('memberOnboarding.btn_save')}
             onPress={handleSave}
             variant="primary"
             size="lg"

@@ -58,6 +58,7 @@ export const storiesService = {
         maxParticipants: storyData.maxParticipants || '1-10',
         clipCount: storyData.clipCount || 3,
         maxClipDuration: storyData.maxClipDuration || 60,
+        language: storyData.language || 'he',
         privacySettings: storyData.privacySettings || { allowSocialMedia: false },
         status: 'draft',
         createdAt: serverTimestamp(),
