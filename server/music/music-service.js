@@ -72,7 +72,7 @@ async function downloadFile(url, outputPath) {
   });
 }
 
-async function generateMusic(prompt, durationSeconds) {
+async function generateMusic(prompt, durationSeconds, _attempt = 0) {
   console.log('🎵 Generating music with MusicGen...');
   console.log(`Prompt: ${prompt.substring(0, 150)}...`);
   console.log(`Duration: ${durationSeconds}s`);
@@ -93,10 +93,10 @@ async function generateMusic(prompt, durationSeconds) {
     );
 
     console.log('✅ MusicGen output received');
-    
+
     ensureTempDir();
     const musicPath = path.join(MUSIC_TEMP_DIR, `musicgen_${Date.now()}.wav`);
-    
+
     // Normalize output to a URL string — handles string, URL object, FileOutput, or {output} wrapper
     let musicUrl;
     if (typeof output === 'string') {
@@ -122,8 +122,17 @@ async function generateMusic(prompt, durationSeconds) {
     return { success: false, error: 'Unexpected MusicGen output format' };
 
   } catch (error) {
-    console.error('❌ MusicGen failed:', error);
     releaseReplicateSlot();
+    // Retry on 429 rate-limit — respect retry_after from Replicate (max 4 retries)
+    const is429 = error.message && (error.message.includes('429') || error.message.includes('throttled'));
+    if (is429 && _attempt < 4) {
+      const retryAfterMatch = error.message.match(/retry_after["\s:]+(\d+)/);
+      const waitSec = retryAfterMatch ? parseInt(retryAfterMatch[1]) + 3 : 15;
+      console.warn(`⚠️ MusicGen rate-limited (attempt ${_attempt + 1}/4) — waiting ${waitSec}s...`);
+      await new Promise(r => setTimeout(r, waitSec * 1000));
+      return generateMusic(prompt, durationSeconds, _attempt + 1);
+    }
+    console.error('❌ MusicGen failed:', error.message);
     return { success: false, error: error.message };
   }
 }
