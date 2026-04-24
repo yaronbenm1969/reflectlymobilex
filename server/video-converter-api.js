@@ -1060,27 +1060,34 @@ app.post('/api/stories/:storyId/render', async (req, res) => {
       
       renderingJobs.get(jobId).progress = 10;
       
-      // Download + convert all clips in parallel
+      // Download + convert clips with limited concurrency (3 at a time) to avoid OOM on Render
+      const DOWNLOAD_CONCURRENCY = 3;
       let completedClips = 0;
-      const localPathsUnordered = await Promise.all(
-        processVideos.map(async (url, i) => {
-          const ext = url.toLowerCase().includes('.webm') ? 'webm' : 'mp4';
-          const localPath = path.join(downloadDir, `clip_${i}.${ext}`);
-          await downloadVideo(url, localPath);
+      const localPathsUnordered = [];
+      for (let start = 0; start < processVideos.length; start += DOWNLOAD_CONCURRENCY) {
+        const batch = processVideos.slice(start, start + DOWNLOAD_CONCURRENCY);
+        const batchResults = await Promise.all(
+          batch.map(async (url, batchIdx) => {
+            const i = start + batchIdx;
+            const ext = url.toLowerCase().includes('.webm') ? 'webm' : 'mp4';
+            const localPath = path.join(downloadDir, `clip_${i}.${ext}`);
+            await downloadVideo(url, localPath);
 
-          let finalPath = localPath;
-          if (ext === 'webm') {
-            const mp4Path = path.join(downloadDir, `clip_${i}.mp4`);
-            await convertVideo(localPath, mp4Path);
-            fs.unlinkSync(localPath);
-            finalPath = mp4Path;
-          }
+            let finalPath = localPath;
+            if (ext === 'webm') {
+              const mp4Path = path.join(downloadDir, `clip_${i}.mp4`);
+              await convertVideo(localPath, mp4Path);
+              fs.unlinkSync(localPath);
+              finalPath = mp4Path;
+            }
 
-          completedClips++;
-          renderingJobs.get(jobId).progress = 10 + Math.round(completedClips / processVideos.length * 40);
-          return { i, path: finalPath };
-        })
-      );
+            completedClips++;
+            renderingJobs.get(jobId).progress = 10 + Math.round(completedClips / processVideos.length * 40);
+            return { i, path: finalPath };
+          })
+        );
+        localPathsUnordered.push(...batchResults);
+      }
       // Restore original order (Promise.all preserves order, but be explicit)
       const localPaths = localPathsUnordered
         .sort((a, b) => a.i - b.i)
