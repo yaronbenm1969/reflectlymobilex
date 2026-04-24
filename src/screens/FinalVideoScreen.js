@@ -95,6 +95,7 @@ export const FinalVideoScreen = () => {
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
   const [musicTimedOut, setMusicTimedOut] = useState(false);
   const [musicServerDown, setMusicServerDown] = useState(false);
+  const [musicRetryTrigger, setMusicRetryTrigger] = useState(0);
   const clientRecordingResolveRef = useRef(null);
   const autoRecordTriggeredRef = useRef(false);
   const isUploadingRef = useRef(false);
@@ -111,10 +112,12 @@ export const FinalVideoScreen = () => {
   // Load generatedMusicUrl from Firestore — retries up to 5× in case PlayerRecordScreen
   // hasn't finished writing yet when this screen mounts.
   // If all retries fail (e.g. cube-3d skips ProcessingScreen), generate music here.
+  // musicRetryTrigger is incremented when user presses retry — re-runs the effect.
   useEffect(() => {
     if (!currentStoryId || generatedMusicUrl) return;
     let cancelled = false;
-    let attempts = 0;
+    // On explicit retry (trigger > 0), skip Firestore poll and go straight to generation
+    let attempts = musicRetryTrigger > 0 ? 5 : 0;
     const generateMusicInBackground = async () => {
       try {
         // Interleave by player so music order matches cube playback order
@@ -137,7 +140,7 @@ export const FinalVideoScreen = () => {
         const reflectionUrls = interleaved.map(r => r.videoUrl).filter(Boolean);
         const urlsForMusic = reflectionUrls.length > 0 ? reflectionUrls : (keyStoryUri ? [keyStoryUri] : []);
         if (urlsForMusic.length === 0) return;
-        console.log(`🎵 Generating AI music in FinalVideoScreen (${urlsForMusic.length} clips)...`);
+        console.log(`🎵 Generating AI music in FinalVideoScreen (${urlsForMusic.length} clips, server: ${VIDEO_CONVERTER_URL})...`);
         let transcriptionSegments = null;
         let totalDuration = 60;
         try {
@@ -145,25 +148,35 @@ export const FinalVideoScreen = () => {
             method: 'POST', headers: SERVER_HEADERS,
             body: JSON.stringify({ clipUrls: urlsForMusic }),
           });
+          if (!transcribeRes.ok) { console.warn('Transcription HTTP error:', transcribeRes.status); }
           const transcribeJson = await transcribeRes.json();
           if (transcribeJson.success && transcribeJson.segments?.length > 0) {
             transcriptionSegments = transcribeJson.segments;
             totalDuration = transcribeJson.totalDuration || totalDuration;
           }
         } catch (e) { console.warn('Transcription failed:', e.message); }
+        console.log('🎵 Calling /api/generate-music...');
         const genRes = await fetch(`${VIDEO_CONVERTER_URL}/api/generate-music`, {
           method: 'POST', headers: SERVER_HEADERS,
-          body: JSON.stringify({ storyId: currentStoryId, totalDuration, numClips: urlsForMusic.length, ...(transcriptionSegments && { transcriptionSegments }) }),
+          body: JSON.stringify({ storyId: currentStoryId, totalDuration, numClips: urlsForMusic.length, ...(selectedMusic && { style: selectedMusic }), ...(transcriptionSegments && { transcriptionSegments }) }),
         });
+        if (!genRes.ok) {
+          const errText = await genRes.text().catch(() => genRes.status);
+          console.warn('⚠️ /api/generate-music HTTP error:', genRes.status, String(errText).substring(0, 200));
+          setMusicServerDown(true);
+          return;
+        }
         const genJson = await genRes.json();
         const musicJobId = genJson.jobId;
-        if (!musicJobId) { console.warn('No music jobId'); return; }
+        if (!musicJobId) { console.warn('No music jobId, response:', JSON.stringify(genJson)); setMusicServerDown(true); return; }
+        console.log('🎵 Music job started:', musicJobId);
         for (let i = 0; i < 100; i++) {
           if (cancelled) return;
           await new Promise(r => setTimeout(r, 3000));
           try {
             const statusRes = await fetch(`${VIDEO_CONVERTER_URL}/api/music-status/${musicJobId}`, { headers: SERVER_HEADERS });
             const statusJson = await statusRes.json();
+            if (i % 10 === 0) console.log(`🎵 Music status [${i * 3}s]:`, statusJson.status);
             if (statusJson.status === 'completed' && statusJson.musicUrl) {
               setGeneratedMusicUrl(statusJson.musicUrl);
               generatedMusicUrlRef.current = statusJson.musicUrl;
@@ -171,9 +184,11 @@ export const FinalVideoScreen = () => {
               console.log('✅ AI music generated in FinalVideoScreen:', statusJson.musicUrl.substring(0, 60));
               return;
             }
-            if (statusJson.status === 'failed') return;
-          } catch (e) {}
+            if (statusJson.status === 'failed') { console.warn('⚠️ Music job failed:', statusJson.error); setMusicServerDown(true); return; }
+          } catch (e) { console.warn('Music status poll error:', e.message); }
         }
+        console.warn('⏱️ Music polling exhausted (100 × 3s)');
+        setMusicServerDown(true);
       } catch (err) {
         console.warn('FinalVideoScreen music generation error:', err.message);
         setMusicServerDown(true);
@@ -209,7 +224,7 @@ export const FinalVideoScreen = () => {
     };
     tryLoad();
     return () => { cancelled = true; };
-  }, [currentStoryId]);
+  }, [currentStoryId, musicRetryTrigger]);
 
   // If music generation takes too long (server down / no network), unblock the AnimationPlayer
   useEffect(() => {
@@ -1372,7 +1387,7 @@ export const FinalVideoScreen = () => {
           <Text style={styles.musicErrorText}>{t('finalVideo.music_server_down_text')}</Text>
           <TouchableOpacity
             style={styles.musicErrorRetryBtn}
-            onPress={() => { setMusicServerDown(false); setMusicTimedOut(false); }}
+            onPress={() => { setMusicServerDown(false); setMusicTimedOut(false); setMusicRetryTrigger(n => n + 1); }}
           >
             <Ionicons name="refresh-outline" size={20} color="white" />
             <Text style={styles.musicErrorRetryText}>{t('finalVideo.btn_retry')}</Text>

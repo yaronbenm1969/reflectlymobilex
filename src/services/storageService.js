@@ -1,17 +1,5 @@
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from './firebase';
-import Constants from 'expo-constants';
-import { accessService } from './accessService';
-
-const VIDEO_CONVERTER_URL = Constants.expoConfig?.extra?.videoConverterUrl || 
-  'https://reflectly-mobile-x--yaronbenm1.replit.app';
-
-function needsConversion(uri) {
-  const lowerUri = uri.toLowerCase();
-  return lowerUri.includes('.mov') || 
-         lowerUri.includes('.hevc') || 
-         lowerUri.includes('.m4v');
-}
 
 export const storageService = {
   uploadVideo: async (uri, storyId, videoType = 'key', onProgress = null) => {
@@ -51,58 +39,6 @@ export const storageService = {
     } catch (error) {
       console.error('Upload error:', error.message);
       return { success: false, error: error.message };
-    }
-  },
-
-  uploadWithConversion: async (uri, storyId, videoType = 'key', onProgress = null) => {
-    try {
-      console.log('Uploading with server-side conversion...');
-      
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      
-      const formData = new FormData();
-      formData.append('video', {
-        uri: uri,
-        type: 'video/quicktime',
-        name: `${storyId}_${videoType}.mov`
-      });
-      formData.append('storyId', storyId);
-      formData.append('type', 'story');
-      
-      if (onProgress) onProgress(10);
-      
-      const uploadResponse = await fetch(`${VIDEO_CONVERTER_URL}/api/convert-and-upload`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Accept': 'application/json',
-          ...accessService.getAuthHeaders(),
-        }
-      });
-
-      if (onProgress) onProgress(90);
-
-      if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json();
-        throw new Error(errorData.error || 'Conversion failed');
-      }
-
-      const result = await uploadResponse.json();
-
-      if (onProgress) onProgress(100);
-
-      console.log('Video converted and uploaded:', result.url);
-      return { 
-        success: true, 
-        url: result.url,
-        converted: result.converted 
-      };
-      
-    } catch (error) {
-      console.error('Conversion upload error:', error.message);
-      console.log('Falling back to direct upload...');
-      return await storageService.uploadDirectToFirebase(uri, storyId, videoType, onProgress);
     }
   },
 
@@ -182,77 +118,6 @@ export const storageService = {
     }
   },
 
-  uploadPlayerWithConversion: async (uri, storyId, participantId, videoNumber, onProgress = null) => {
-    try {
-      console.log('Uploading player video with conversion...');
-      
-      const formData = new FormData();
-      formData.append('video', {
-        uri: uri,
-        type: 'video/quicktime',
-        name: `player_${participantId}_video${videoNumber}.mov`
-      });
-      formData.append('storyId', storyId);
-      formData.append('type', 'reflection');
-      formData.append('recipientId', participantId);
-      formData.append('clipNumber', String(videoNumber));
-      
-      if (onProgress) onProgress(10);
-      
-      const uploadResponse = await fetch(`${VIDEO_CONVERTER_URL}/api/convert-and-upload`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Accept': 'application/json',
-          ...accessService.getAuthHeaders(),
-        }
-      });
-
-      if (onProgress) onProgress(90);
-
-      if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json();
-        throw new Error(errorData.error || 'Conversion failed');
-      }
-      
-      const result = await uploadResponse.json();
-      
-      if (onProgress) onProgress(100);
-      
-      console.log('Player video converted and uploaded:', result.url);
-      return { 
-        success: true, 
-        url: result.url,
-        converted: result.converted 
-      };
-      
-    } catch (error) {
-      console.error('Player conversion error:', error.message);
-      console.log('Falling back to direct upload...');
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      const lowerUri = uri.toLowerCase();
-      const extension = lowerUri.includes('.mov') ? 'mov' : 'mp4';
-      const filename = `stories/${storyId}/players/${participantId}/video${videoNumber}_${Date.now()}.${extension}`;
-      const storageRef = ref(storage, filename);
-      
-      return new Promise((resolve, reject) => {
-        const uploadTask = uploadBytesResumable(storageRef, blob);
-        uploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            if (onProgress) onProgress(progress);
-          },
-          (error) => reject({ success: false, error: error.message }),
-          async () => {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve({ success: true, url: downloadURL });
-          }
-        );
-      });
-    }
-  }
 };
 
 export default storageService;
