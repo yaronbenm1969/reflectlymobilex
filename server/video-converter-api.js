@@ -1,3 +1,11 @@
+// Prevent unhandled errors from crashing the process
+process.on('uncaughtException', (err) => {
+  console.error('💥 uncaughtException (server stays alive):', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('💥 unhandledRejection (server stays alive):', reason?.message || reason);
+});
+
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
@@ -1052,24 +1060,31 @@ app.post('/api/stories/:storyId/render', async (req, res) => {
       
       renderingJobs.get(jobId).progress = 10;
       
-      const localPaths = [];
-      for (let i = 0; i < processVideos.length; i++) {
-        const url = processVideos[i];
-        const ext = url.toLowerCase().includes('.webm') ? 'webm' : 'mp4';
-        const localPath = path.join(downloadDir, `clip_${i}.${ext}`);
-        await downloadVideo(url, localPath);
-        
-        if (ext === 'webm') {
-          const mp4Path = path.join(downloadDir, `clip_${i}.mp4`);
-          await convertVideo(localPath, mp4Path);
-          fs.unlinkSync(localPath);
-          localPaths.push(mp4Path);
-        } else {
-          localPaths.push(localPath);
-        }
-        
-        renderingJobs.get(jobId).progress = 10 + Math.round((i + 1) / processVideos.length * 40);
-      }
+      // Download + convert all clips in parallel
+      let completedClips = 0;
+      const localPathsUnordered = await Promise.all(
+        processVideos.map(async (url, i) => {
+          const ext = url.toLowerCase().includes('.webm') ? 'webm' : 'mp4';
+          const localPath = path.join(downloadDir, `clip_${i}.${ext}`);
+          await downloadVideo(url, localPath);
+
+          let finalPath = localPath;
+          if (ext === 'webm') {
+            const mp4Path = path.join(downloadDir, `clip_${i}.mp4`);
+            await convertVideo(localPath, mp4Path);
+            fs.unlinkSync(localPath);
+            finalPath = mp4Path;
+          }
+
+          completedClips++;
+          renderingJobs.get(jobId).progress = 10 + Math.round(completedClips / processVideos.length * 40);
+          return { i, path: finalPath };
+        })
+      );
+      // Restore original order (Promise.all preserves order, but be explicit)
+      const localPaths = localPathsUnordered
+        .sort((a, b) => a.i - b.i)
+        .map(item => item.path);
       
       renderingJobs.get(jobId).progress = 50;
       
@@ -1602,8 +1617,10 @@ app.post('/api/mix-music-with-video', async (req, res) => {
     const musicPath = path.join(jobDir, 'music.m4a');
     const outputPath = path.join(jobDir, 'final_with_music.mp4');
 
-    await downloadFile(videoUrl, videoPath);
-    await downloadFile(musicUrl, musicPath);
+    await Promise.all([
+      downloadFile(videoUrl, videoPath),
+      downloadFile(musicUrl, musicPath),
+    ]);
 
     // Probe for audio — cube recordings (canvas MediaRecorder) have no audio track.
     // When there is no voice audio, music IS the only audio so we use a fixed, audible volume.

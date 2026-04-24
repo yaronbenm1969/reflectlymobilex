@@ -13,6 +13,7 @@ import * as FileSystem from 'expo-file-system';
 import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
+import { useWaitingMusic } from '../hooks/useWaitingMusic';
 import { storiesService } from '../services/storiesService';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
@@ -44,6 +45,8 @@ export const ProcessingScreen = () => {
   useEffect(() => { generatedMusicUrlRef.current = generatedMusicUrl; }, [generatedMusicUrl]);
   const setFinalVideoUri = useAppState((state) => state.setFinalVideoUri);
 
+  const { start: startWaitingMusic, stop: stopWaitingMusic } = useWaitingMusic();
+
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('');
   const [isComplete, setIsComplete] = useState(false);
@@ -66,8 +69,9 @@ export const ProcessingScreen = () => {
   // (Music is now generated here on the creator side, not by players)
 
   useEffect(() => {
+    startWaitingMusic();
     startRendering();
-    
+
     return () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
@@ -232,6 +236,7 @@ export const ProcessingScreen = () => {
       
     } catch (err) {
       console.error('Rendering error:', err);
+      stopWaitingMusic();
       setError(err.message);
     }
   };
@@ -297,6 +302,7 @@ export const ProcessingScreen = () => {
 
           setProgress(100);
           setStatus(t('processing.status_complete'));
+          stopWaitingMusic();
           setIsComplete(true);
           if (finalUrl) {
             // Pre-cache the final video locally so FinalVideoScreen plays instantly
@@ -317,6 +323,7 @@ export const ProcessingScreen = () => {
           }
         } else if (job.status === 'failed') {
           clearInterval(pollingRef.current);
+          stopWaitingMusic();
           setError(job.error || t('processing.error_processing'));
         }
         

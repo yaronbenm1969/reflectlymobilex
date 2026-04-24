@@ -63,9 +63,10 @@ export function useWaitingMusic() {
     try {
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
+        allowsRecordingIOS: false,
         staysActiveInBackground: false,
         shouldDuckAndroid: true,
-      }).catch(() => {});
+      }).catch((e) => console.warn('⚠️ setAudioMode error:', e.message));
 
       const { sound } = await Audio.Sound.createAsync(
         { uri: url },
