@@ -271,9 +271,36 @@ async function applyFade(inputPath, totalDuration) {
   });
 }
 
+const LIBRARY_TRACKS = [
+  'reflective-space', 'gentle-warmth', 'soft-hope', 'tender-vulnerability',
+  'quiet-strength', 'light-movement', 'floating-memory', 'subtle-uplift',
+  'open-horizon', 'electric-pulse', 'world-celebration',
+];
+const STORAGE_BUCKET = 'reflectly-playback.firebasestorage.app';
+
 async function generateMusicForVideo(transcriptionSegments, totalDuration, style, numClips) {
   console.log('🎶 Starting music generation pipeline...');
   console.log(`Duration: ${totalDuration}s, Style hint: ${style || 'auto'}, Clips: ${numClips || 'auto'}`);
+
+  // Large group shortcut (>10 clips): use internal library track — no Replicate call needed
+  if ((numClips || 0) > 10) {
+    console.log(`🎵 Large group (${numClips} clips) — using library track (no MusicGen)`);
+    const trackId = LIBRARY_TRACKS.includes(style) ? style
+      : LIBRARY_TRACKS[Math.floor(Math.random() * LIBRARY_TRACKS.length)];
+    const trackUrl = `https://storage.googleapis.com/${STORAGE_BUCKET}/music/library/${trackId}/phase1.mp3`;
+    console.log(`🎵 Library track: ${trackId}`);
+    ensureTempDir();
+    const rawPath = path.join(MUSIC_TEMP_DIR, `library_${Date.now()}.mp3`);
+    try {
+      await downloadFile(trackUrl, rawPath);
+      const finalPath = await applyFade(rawPath, totalDuration);
+      if (finalPath !== rawPath) try { fs.unlinkSync(rawPath); } catch (e) {}
+      return { success: true, musicPath: finalPath, musicUrl: null, chunkCount: 0, musicPrompt: trackId };
+    } catch (err) {
+      console.warn('⚠️ Library track failed, falling through to MusicGen:', err.message);
+      try { fs.unlinkSync(rawPath); } catch (e) {}
+    }
+  }
 
   const emotionData = await analyzeEmotionalTimeline(transcriptionSegments, totalDuration, { numClips, style });
   if (!emotionData.success) {
