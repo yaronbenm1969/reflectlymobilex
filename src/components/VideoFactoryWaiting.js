@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
+import { useAmbientPlayback } from '../hooks/useAmbientPlayback';
+import { useAppState } from '../state/appState';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -178,6 +180,14 @@ export function VideoFactoryWaiting({ estimatedSeconds = 180, storyName, title, 
   const [elapsed, setElapsed] = useState(0);
   const [machineBottom, setMachineBottom] = useState(MACHINE_BOTTOM_ESTIMATE);
   const machineBodyRef = useRef(null);
+
+  const selectedMusic = useAppState((state) => state.selectedMusic);
+  const { playPhase, fadeOut } = useAmbientPlayback(selectedMusic || 'reflective-space');
+
+  useEffect(() => {
+    playPhase(1, 0.15);
+    return () => { fadeOut(1000); };
+  }, []);
 
   useEffect(() => {
     const iv = setInterval(() => setElapsed(e => e + 1), 1000);
