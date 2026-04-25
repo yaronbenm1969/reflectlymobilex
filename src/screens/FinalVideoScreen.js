@@ -78,6 +78,7 @@ export const FinalVideoScreen = () => {
   const [videoHasPlayed, setVideoHasPlayed] = useState(false);
   const [isCubeFullscreen, setIsCubeFullscreen] = useState(false);
   const [showEndScreen, setShowEndScreen] = useState(false);
+  const [animationPlayerKey, setAnimationPlayerKey] = useState(0);
   const [showRecordGuide, setShowRecordGuide] = useState(false);
   const [recordCountdown, setRecordCountdown] = useState(0);
   const [isRecordingMode, setIsRecordingMode] = useState(false);
@@ -1327,6 +1328,7 @@ export const FinalVideoScreen = () => {
           isCubeFullscreen && styles.fullscreenCubeOverlay
         ]}>
           <AnimationPlayer
+            key={animationPlayerKey}
             format={videoFormat}
             faces={cubeFaces}
             storyName={storyName}
@@ -1542,6 +1544,7 @@ export const FinalVideoScreen = () => {
                     setVideoHasPlayed(false);
                     setCubeStarted(false);
                     setIsCubeFullscreen(false);
+                    setAnimationPlayerKey(k => k + 1);
                   }}
                 >
                   <Ionicons name="play-circle-outline" size={20} color="white" />
