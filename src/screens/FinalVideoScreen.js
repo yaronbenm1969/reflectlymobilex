@@ -880,6 +880,9 @@ export const FinalVideoScreen = () => {
           setRecordingFirebaseUrl(finalMp4Url);
           firebaseUrlRef.current = finalMp4Url;
           setConversionSucceeded(true);
+          if (currentStoryId) {
+            storiesService.updateStory(currentStoryId, { finalVideoUrl: finalMp4Url, status: 'completed' }).catch(() => {});
+          }
           setShowEndScreen(true);
         } else {
           console.warn('📹 Firebase upload failed:', uploadResult.error);
@@ -991,6 +994,9 @@ export const FinalVideoScreen = () => {
             setRecordingFirebaseUrl(finalMp4Url);
             firebaseUrlRef.current = finalMp4Url;
             setConversionSucceeded(true);
+            if (currentStoryId) {
+              storiesService.updateStory(currentStoryId, { finalVideoUrl: finalMp4Url, status: 'completed' }).catch(() => {});
+            }
             setShowEndScreen(true);
 
             const mp4LocalPath = FileSystem.cacheDirectory + `recording_mp4_${Date.now()}.mp4`;
@@ -1014,6 +1020,9 @@ export const FinalVideoScreen = () => {
       
       setRecordingFirebaseUrl(webmUrl);
       firebaseUrlRef.current = webmUrl;
+      if (currentStoryId) {
+        storiesService.updateStory(currentStoryId, { finalVideoUrl: webmUrl, status: 'completed' }).catch(() => {});
+      }
       setShowEndScreen(true); // fallback: server conversion failed, show end screen with webm
     } catch (err) {
       console.warn('📹 Upload/convert error:', err.message);

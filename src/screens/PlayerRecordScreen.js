@@ -112,7 +112,7 @@ export const PlayerRecordScreen = () => {
 
   // Consent flow — only for player mode (deep link)
   const [consentState, setConsentState] = useState(null); // null=loading | 'needed' | 'done'
-  const [consentChecked, setConsentChecked] = useState(false);
+  const [consentLevel, setConsentLevel] = useState(null); // null | 'private' | 'friends' | 'public'
   const participantIdRef = useRef(`participant_${Date.now()}`);
 
   useEffect(() => {
@@ -421,12 +421,13 @@ export const PlayerRecordScreen = () => {
   const recordedCount = clipRecordings.filter(r => r !== null).length;
 
   const handleConsentGiven = () => {
-    if (!consentChecked) return;
+    if (!consentLevel) return;
     setConsentState('done');
     if (playerStoryId) {
       storiesService.updateStory(playerStoryId, {
         [`playerConsents.${participantIdRef.current}`]: {
           consented: true,
+          consentLevel,
           timestamp: Date.now(),
           participantName: playerStoryData?.participantName || null,
         },
@@ -458,18 +459,22 @@ export const PlayerRecordScreen = () => {
           {t('playerRecord.consent_body', { creatorName })}
         </Text>
 
-        <TouchableOpacity
-          style={styles.consentCheckRow}
-          onPress={() => setConsentChecked(v => !v)}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.consentCheckbox, consentChecked && styles.consentCheckboxChecked]}>
-            {consentChecked && <Ionicons name="checkmark" size={16} color="white" />}
-          </View>
-          <Text style={styles.consentCheckLabel}>
-            {t('playerRecord.consent_checkbox')}
-          </Text>
-        </TouchableOpacity>
+        {['private', 'friends', 'public'].map((level) => (
+          <TouchableOpacity
+            key={level}
+            style={[styles.consentOption, consentLevel === level && styles.consentOptionSelected]}
+            onPress={() => setConsentLevel(level)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.consentRadio, consentLevel === level && styles.consentRadioSelected]}>
+              {consentLevel === level && <View style={styles.consentRadioDot} />}
+            </View>
+            <View style={styles.consentOptionText}>
+              <Text style={styles.consentOptionTitle}>{t(`playerRecord.consent_level_${level}`)}</Text>
+              <Text style={styles.consentOptionDesc}>{t(`playerRecord.consent_level_${level}_desc`)}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
 
         <AppButton
           title={t('playerRecord.consent_approve')}
@@ -477,7 +482,7 @@ export const PlayerRecordScreen = () => {
           variant="primary"
           size="lg"
           fullWidth
-          disabled={!consentChecked}
+          disabled={!consentLevel}
         />
 
         <TouchableOpacity style={styles.consentDeclineBtn} onPress={() => back()}>
@@ -906,9 +911,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
   },
-  consentCheckRow: {
+  consentOption: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: theme.spacing[3],
     backgroundColor: theme.colors.card || '#fff',
     borderRadius: 12,
@@ -916,25 +921,41 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: theme.colors.border || '#e0e0e0',
   },
-  consentCheckbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
+  consentOptionSelected: {
     borderColor: theme.colors.accent,
+    backgroundColor: `${theme.colors.accent}18`,
+  },
+  consentRadio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: theme.colors.border || '#ccc',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-    marginTop: 1,
   },
-  consentCheckboxChecked: {
+  consentRadioSelected: {
+    borderColor: theme.colors.accent,
+  },
+  consentRadioDot: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
     backgroundColor: theme.colors.accent,
   },
-  consentCheckLabel: {
+  consentOptionText: {
     flex: 1,
+  },
+  consentOptionTitle: {
     fontSize: 15,
+    fontWeight: '600',
     color: theme.colors.text,
-    lineHeight: 22,
+  },
+  consentOptionDesc: {
+    fontSize: 13,
+    color: theme.colors.textSecondary || '#888',
+    marginTop: 2,
   },
   consentDeclineBtn: {
     alignItems: 'center',

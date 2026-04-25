@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
@@ -8,16 +9,55 @@ import { storiesService } from '../services/storiesService';
 import { Card } from '../ui/Card';
 import theme from '../theme/theme';
 
+// Self-contained video player modal — creates its own player when mounted
+const VideoPlayerModal = ({ url, onClose }) => {
+  const player = useVideoPlayer(url, (p) => { p.play(); });
+  return (
+    <Modal visible animationType="slide" onRequestClose={onClose}>
+      <View style={modalStyles.container}>
+        <TouchableOpacity style={modalStyles.closeBtn} onPress={onClose}>
+          <Ionicons name="close-circle" size={36} color="#fff" />
+        </TouchableOpacity>
+        <VideoView
+          player={player}
+          style={modalStyles.video}
+          contentFit="contain"
+          nativeControls
+        />
+      </View>
+    </Modal>
+  );
+};
+
+const modalStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 52,
+    right: 20,
+    zIndex: 10,
+  },
+  video: {
+    width: '100%',
+    height: '100%',
+  },
+});
+
 export const MyStoriesScreen = () => {
   const { t } = useTranslation();
   const { back, go } = useNav();
   const user = useAppState((state) => state.user);
   const setStoryName = useAppState((state) => state.setStoryName);
   const setCurrentStoryId = useAppState((state) => state.setCurrentStoryId);
-  
+
   const [stories, setStories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
+  const [watchUrl, setWatchUrl] = useState(null);
 
   useEffect(() => {
     loadStories();
@@ -31,7 +71,7 @@ export const MyStoriesScreen = () => {
 
     setLoading(true);
     const result = await storiesService.getUserStories(user.uid);
-    
+
     if (result.success) {
       setStories(result.stories);
     } else {
@@ -122,48 +162,60 @@ export const MyStoriesScreen = () => {
           </View>
         ) : (
           <View style={styles.storiesGrid}>
-            {stories.map((story) => (
-              <Card key={story.id} style={styles.storyCard}>
-                <TouchableOpacity style={styles.storyMain} onPress={() => openStory(story)}>
-                  <View style={styles.storyThumbnail}>
-                    <Ionicons name="videocam" size={32} color={theme.colors.secondary} />
-                  </View>
-                  <View style={styles.storyInfo}>
-                    <Text style={styles.storyTitle}>{story.name}</Text>
-                    <Text style={styles.storyMeta}>
-                      {formatDate(story.createdAt)}
-                    </Text>
-                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(story.status) + '20' }]}>
-                      <Text style={[styles.statusText, { color: getStatusColor(story.status) }]}>
-                        {getStatusText(story.status)}
-                      </Text>
+            {stories.map((story) => {
+              const videoUrl = story.finalVideoUrl || story.videoUrl || null;
+              return (
+                <Card key={story.id} style={styles.storyCard}>
+                  <TouchableOpacity style={styles.storyMain} onPress={() => openStory(story)}>
+                    <View style={styles.storyThumbnail}>
+                      <Ionicons name="videocam" size={32} color={theme.colors.secondary} />
                     </View>
-                  </View>
-                  <View style={styles.playButton}>
-                    <Ionicons name="chevron-forward" size={20} color={theme.colors.accent} />
-                  </View>
-                </TouchableOpacity>
-
-                {confirmingDeleteId === story.id ? (
-                  <View style={styles.deleteConfirm}>
-                    <Text style={styles.deleteConfirmText}>{t('myStories.delete_confirm')}</Text>
-                    <TouchableOpacity style={styles.confirmYes} onPress={() => deleteStory(story.id)}>
-                      <Text style={styles.confirmYesText}>{t('myStories.delete_confirm_yes')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.confirmNo} onPress={() => setConfirmingDeleteId(null)}>
-                      <Text style={styles.confirmNoText}>{t('myStories.delete_confirm_no')}</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity style={styles.deleteButton} onPress={() => setConfirmingDeleteId(story.id)}>
-                    <Ionicons name="trash-outline" size={20} color="#e74c3c" />
+                    <View style={styles.storyInfo}>
+                      <Text style={styles.storyTitle}>{story.name}</Text>
+                      <Text style={styles.storyMeta}>
+                        {formatDate(story.createdAt)}
+                      </Text>
+                      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(story.status) + '20' }]}>
+                        <Text style={[styles.statusText, { color: getStatusColor(story.status) }]}>
+                          {getStatusText(story.status)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.playButton}>
+                      <Ionicons name="chevron-forward" size={20} color={theme.colors.accent} />
+                    </View>
                   </TouchableOpacity>
-                )}
-              </Card>
-            ))}
+
+                  {videoUrl && (
+                    <TouchableOpacity style={styles.watchButton} onPress={() => setWatchUrl(videoUrl)}>
+                      <Ionicons name="play-circle" size={18} color={theme.colors.accent} />
+                      <Text style={styles.watchButtonText}>{t('myStories.watch_final')}</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {confirmingDeleteId === story.id ? (
+                    <View style={styles.deleteConfirm}>
+                      <Text style={styles.deleteConfirmText}>{t('myStories.delete_confirm')}</Text>
+                      <TouchableOpacity style={styles.confirmYes} onPress={() => deleteStory(story.id)}>
+                        <Text style={styles.confirmYesText}>{t('myStories.delete_confirm_yes')}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.confirmNo} onPress={() => setConfirmingDeleteId(null)}>
+                        <Text style={styles.confirmNoText}>{t('myStories.delete_confirm_no')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity style={styles.deleteButton} onPress={() => setConfirmingDeleteId(story.id)}>
+                      <Ionicons name="trash-outline" size={20} color="#e74c3c" />
+                    </TouchableOpacity>
+                  )}
+                </Card>
+              );
+            })}
           </View>
         )}
       </ScrollView>
+
+      {watchUrl && <VideoPlayerModal url={watchUrl} onClose={() => setWatchUrl(null)} />}
     </View>
   );
 };
@@ -295,6 +347,19 @@ const styles = StyleSheet.create({
     backgroundColor: `${theme.colors.accent}15`,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  watchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: theme.spacing[4],
+    paddingBottom: theme.spacing[3],
+    paddingTop: 0,
+  },
+  watchButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.accent,
   },
   deleteButton: {
     alignSelf: 'stretch',
