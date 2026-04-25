@@ -1090,6 +1090,19 @@ export const FinalVideoScreen = () => {
       console.log('📹 Using webm recording (conversion may have failed)');
       return cached;
     }
+    if (localVideoUri && await isValidLocal(localVideoUri)) {
+      console.log('📹 Using localVideoUri (server-processed format)');
+      return localVideoUri;
+    }
+    if (finalVideoUri && !finalVideoUri.startsWith('http') === false) {
+      try {
+        const dlPath = await downloadVideoToLocal(finalVideoUri, 'final');
+        if (await isValidLocal(dlPath)) {
+          console.log('📹 Downloaded finalVideoUri to local');
+          return dlPath;
+        }
+      } catch (e) { console.warn('📹 finalVideoUri download failed:', e.message); }
+    }
     if (isAnimatedFormat && clientRecordingSupportedRef.current) {
       console.log('📹 Recording not cached yet, recording now');
       setIsDownloading(true);
