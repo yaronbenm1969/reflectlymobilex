@@ -189,12 +189,14 @@ function buildWebRecordHtml(story, firebaseConfig) {
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
     import { getFirestore, collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
     // ── Firebase init ──────────────────────────────────────────
     const firebaseConfig = ${firebaseConfigJSON};
     const fbApp = initializeApp(firebaseConfig);
     const fbStorage = getStorage(fbApp);
     const fbDb = getFirestore(fbApp);
+    const fbAuth = getAuth(fbApp);
 
     // ── Constants ──────────────────────────────────────────────
     const STORY_ID    = '${escJs(storyId)}';
@@ -354,6 +356,13 @@ function buildWebRecordHtml(story, firebaseConfig) {
     // ── Step 5: Upload ─────────────────────────────────────────
     async function uploadAllClips() {
       showStep('upload');
+      // Authenticate anonymously so Firebase Storage rules allow the upload
+      try {
+        if (!fbAuth.currentUser) await signInAnonymously(fbAuth);
+      } catch (authErr) {
+        console.warn('Anonymous auth failed:', authErr.message);
+        // Continue anyway — rules might allow unauthenticated writes
+      }
       for (let i = 0; i < recordedBlobs.length; i++) {
         document.getElementById('upload-clip-num').textContent = i + 1;
         document.getElementById('upload-progress').style.width = '0%';
