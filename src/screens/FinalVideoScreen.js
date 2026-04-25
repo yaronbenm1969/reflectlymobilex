@@ -1094,14 +1094,22 @@ export const FinalVideoScreen = () => {
       console.log('📹 Using localVideoUri (server-processed format)');
       return localVideoUri;
     }
-    if (finalVideoUri && !finalVideoUri.startsWith('http') === false) {
-      try {
-        const dlPath = await downloadVideoToLocal(finalVideoUri, 'final');
-        if (await isValidLocal(dlPath)) {
-          console.log('📹 Downloaded finalVideoUri to local');
-          return dlPath;
+    if (finalVideoUri) {
+      const isLocalFile = finalVideoUri.startsWith('file://') || finalVideoUri.startsWith('/');
+      if (isLocalFile) {
+        if (await isValidLocal(finalVideoUri)) {
+          console.log('📹 Using finalVideoUri (local file)');
+          return finalVideoUri;
         }
-      } catch (e) { console.warn('📹 finalVideoUri download failed:', e.message); }
+      } else if (finalVideoUri.startsWith('http')) {
+        try {
+          const dlPath = await downloadVideoToLocal(finalVideoUri, 'final');
+          if (await isValidLocal(dlPath)) {
+            console.log('📹 Downloaded finalVideoUri to local');
+            return dlPath;
+          }
+        } catch (e) { console.warn('📹 finalVideoUri download failed:', e.message); }
+      }
     }
     if (isAnimatedFormat && clientRecordingSupportedRef.current) {
       console.log('📹 Recording not cached yet, recording now');
