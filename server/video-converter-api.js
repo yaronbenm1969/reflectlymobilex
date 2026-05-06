@@ -649,6 +649,27 @@ app.post('/api/transcribe', upload.single('video'), async (req, res) => {
   }
 });
 
+// ─── Suno Library: בחירת טרק לפי תמלול ──────────────────────────────────────
+app.post('/api/select-library-track', async (req, res) => {
+  const { segments } = req.body;
+  if (!segments || !Array.isArray(segments)) {
+    return res.status(400).json({ error: 'segments array is required' });
+  }
+  try {
+    const { selectTrackForTranscription } = require('./music/library-selector');
+    const result = await selectTrackForTranscription(segments, firestoreDb);
+    res.json({
+      trackId: result.trackId,
+      trackUrl: result.trackUrl,
+      nameHe: result.track?.nameHe,
+      reason: result.reason,
+    });
+  } catch (err) {
+    console.error('❌ /api/select-library-track:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/transcribe-from-urls', async (req, res) => {
   const { clipUrls } = req.body;
   if (!clipUrls || !Array.isArray(clipUrls) || clipUrls.length === 0) {
@@ -1381,7 +1402,7 @@ app.post('/api/generate-music', async (req, res) => {
 
       const segments = transcriptionSegments || [{ start: 0, end: totalDuration, text: '' }];
 
-      const result = await generateMusicForVideo(segments, totalDuration, style, numClips);
+      const result = await generateMusicForVideo(segments, totalDuration, style, numClips, firestoreDb);
 
       if (!result.success) {
         musicJobs.set(jobId, { status: 'failed', error: result.error });
@@ -1427,7 +1448,13 @@ app.post('/api/generate-music', async (req, res) => {
       // Write to Firestore so clients can discover the URL even if polling missed it
       let pushToken = null;
       try {
-        await firestoreDb.collection('stories').doc(storyId).update({ generatedMusicUrl: musicUrl });
+        await firestoreDb.collection('stories').doc(storyId).update({
+          generatedMusicUrl: musicUrl,
+          // Store for remix-music endpoint so it can re-run with a different style
+          transcriptionSegments: segments.slice(0, 50),
+          totalDuration,
+          numClips: numClips || null,
+        });
         console.log(`✅ Firestore updated with music URL for story ${storyId}`);
         const storyDoc = await firestoreDb.collection('stories').doc(storyId).get();
         pushToken = storyDoc.data()?.pushToken;
@@ -1544,7 +1571,7 @@ app.post('/api/enhance-clip-audio', async (req, res) => {
           return res.status(400).json({ error: 'ai_generated requires transcriptionSegments and totalDuration' });
         }
         const { generateMusicForVideo } = require('./music/music-service');
-        const aiResult = await generateMusicForVideo(transcriptionSegments, totalDuration, style);
+        const aiResult = await generateMusicForVideo(transcriptionSegments, totalDuration, style, null, firestoreDb);
         if (!aiResult.success) throw new Error(`AI music generation failed: ${aiResult.error}`);
         finalMusicPath = aiResult.musicPath;
         console.log('🤖 AI-generated music ready');
@@ -1657,6 +1684,101 @@ app.post('/api/mix-music-with-video', async (req, res) => {
   } catch (error) {
     console.error('❌ Mix music with video failed:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/remix-music — re-generate music for an existing story with optional user hint
+app.post('/api/remix-music', express.json(), async (req, res) => {
+  const { storyId, userHint } = req.body;
+  if (!storyId) return res.status(400).json({ error: 'storyId required' });
+  if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+
+  // Load story from Firestore
+  let story;
+  try {
+    const doc = await firestoreDb.collection('stories').doc(storyId).get();
+    if (!doc.exists) return res.status(404).json({ error: 'Story not found' });
+    story = doc.data();
+  } catch (err) {
+    return res.status(500).json({ error: `Firestore read failed: ${err.message}` });
+  }
+
+  const sourceVideoUrl = story.sourceVideoUrl;
+  if (!sourceVideoUrl) {
+    return res.status(400).json({ error: 'sourceVideoUrl not stored — please re-record the video first' });
+  }
+
+  const transcriptionSegments = story.transcriptionSegments || [];
+  const totalDuration          = story.totalDuration || 60;
+  const numClips               = story.numClips || story.clipCount || 1;
+
+  const jobDir = path.join(tempDir, `remix_${Date.now()}`);
+  fs.mkdirSync(jobDir, { recursive: true });
+
+  try {
+    const { generateMusicForVideo, cleanupMusicFiles } = require('./music/music-service');
+    const { mixMusicWithVideo, mixMusicWithVideoNoAudio } = require('./music/mixing-service');
+
+    // 1. Generate new music (Suno or MusicGen) with userHint
+    console.log(`🎵 Remixing music for story ${storyId}${userHint ? ` | hint: "${userHint}"` : ''}`);
+    const musicResult = await generateMusicForVideo(
+      transcriptionSegments, totalDuration, null, numClips, firestoreDb, userHint
+    );
+    if (!musicResult.success) {
+      return res.status(500).json({ error: `Music generation failed: ${musicResult.error}` });
+    }
+
+    // 2. Upload music to Firebase Storage
+    const musicStoragePath = `music/${storyId}/remix_${Date.now()}.m4a`;
+    let musicUrl = null;
+    if (bucket) {
+      await bucket.upload(musicResult.musicPath, {
+        destination: musicStoragePath,
+        metadata: { contentType: 'audio/mp4' },
+      });
+      await bucket.file(musicStoragePath).makePublic();
+      musicUrl = `https://storage.googleapis.com/${bucket.name}/${musicStoragePath}`;
+    }
+    cleanupMusicFiles(musicResult.musicPath);
+
+    // 3. Download source video + mix
+    const videoPath  = path.join(jobDir, 'source.mp4');
+    const musicPath  = path.join(jobDir, 'music.m4a');
+    const outputPath = path.join(jobDir, 'remixed.mp4');
+
+    await Promise.all([
+      downloadFile(sourceVideoUrl, videoPath),
+      downloadFile(musicUrl || musicResult.musicPath, musicPath),
+    ]);
+
+    const hasAudio = await probeVideoHasAudio(videoPath);
+    if (hasAudio) {
+      await mixMusicWithVideo(videoPath, musicPath, outputPath, 0.014);
+    } else {
+      await mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, 0.15);
+    }
+
+    // 4. Upload mixed video to Firebase Storage
+    let finalVideoUrl = null;
+    if (bucket) {
+      const mixedStoragePath = `edited/${storyId}/remix_${Date.now()}.mp4`;
+      finalVideoUrl = await uploadToFirebase(outputPath, mixedStoragePath);
+    }
+
+    // 5. Update Firestore
+    await firestoreDb.collection('stories').doc(storyId).update({
+      finalVideoUrl,
+      generatedMusicUrl: musicUrl,
+    });
+
+    fs.rmSync(jobDir, { recursive: true, force: true });
+    console.log(`✅ Remix complete for story ${storyId}: ${finalVideoUrl}`);
+    res.json({ success: true, finalVideoUrl });
+
+  } catch (err) {
+    try { fs.rmSync(jobDir, { recursive: true, force: true }); } catch (e) {}
+    console.error('❌ Remix failed:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1878,6 +2000,100 @@ app.delete('/admin/backgrounds/:id', async (req, res) => {
       try { await bucket.file(`backgrounds/${slug}.mp4`).delete(); } catch (_) {}
     }
     await firestoreDb.collection('backgrounds').doc(req.params.id).delete();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Admin: Music Library ────────────────────────────────────────────────────
+
+const musicUpload = multer({ dest: tempDir, limits: { fileSize: 50 * 1024 * 1024 } });
+
+// GET /admin/music — list all tracks from Firestore suno_tracks collection
+app.get('/admin/music', async (req, res) => {
+  try {
+    if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+    const snap = await firestoreDb.collection('suno_tracks').orderBy('num').get();
+    const tracks = snap.docs.map(d => ({ firestoreId: d.id, ...d.data() }));
+    res.json({ tracks });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/music/upload — upload MP3, save to Storage + Firestore
+app.post('/admin/music/upload', musicUpload.single('audio'), async (req, res) => {
+  const tmpPath = req.file?.path;
+  try {
+    if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+    if (!bucket)      return res.status(503).json({ error: 'Storage not available' });
+    if (!req.file)    return res.status(400).json({ error: 'No file uploaded' });
+
+    const { num, set, key, bpm, instrument, tone, description, startOffset } = req.body;
+    if (!num) return res.status(400).json({ error: 'num is required' });
+
+    const trackNum = parseInt(num);
+    const trackId  = `track-${String(trackNum).padStart(3, '0')}`;
+    const storagePath = `music/suno-library/${trackId}.mp3`;
+
+    // Upload to Storage
+    await bucket.upload(tmpPath, {
+      destination: storagePath,
+      metadata: { contentType: 'audio/mpeg', cacheControl: 'public, max-age=31536000' },
+    });
+    await bucket.file(storagePath).makePublic();
+    const url = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+
+    // Save to Firestore
+    const docData = {
+      num: trackNum,
+      id: trackId,
+      set: parseInt(set) || 0,
+      key: key || '',
+      bpm: parseInt(bpm) || 0,
+      instrument: instrument || '',
+      tone: tone || '',
+      description: description || '',
+      startOffset: parseInt(startOffset) || 20,
+      url,
+      status: 'הועלה לפיירבייס',
+      updatedAt: new Date().toISOString(),
+    };
+    await firestoreDb.collection('suno_tracks').doc(trackId).set(docData, { merge: true });
+
+    try { fs.unlinkSync(tmpPath); } catch (_) {}
+    res.json({ success: true, url, trackId });
+  } catch (err) {
+    try { if (tmpPath) fs.unlinkSync(tmpPath); } catch (_) {}
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /admin/music/:id — update startOffset or other fields
+app.patch('/admin/music/:id', express.json(), async (req, res) => {
+  try {
+    if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+    const allowed = ['startOffset', 'description', 'status'];
+    const update  = {};
+    allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
+    if (Object.keys(update).length === 0) return res.status(400).json({ error: 'Nothing to update' });
+    await firestoreDb.collection('suno_tracks').doc(req.params.id).update(update);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /admin/music/:id — delete from Storage + Firestore
+app.delete('/admin/music/:id', async (req, res) => {
+  try {
+    if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+    const id  = req.params.id;
+    if (bucket) {
+      try { await bucket.file(`music/suno-library/${id}.mp3`).delete(); } catch (_) {}
+    }
+    await firestoreDb.collection('suno_tracks').doc(id).delete();
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

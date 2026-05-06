@@ -7,6 +7,7 @@ const os = require('os');
 const ffmpeg = require('fluent-ffmpeg');
 const { execFile } = require('child_process');
 const { analyzeEmotionalTimeline, buildMusicPrompt, CHUNK_DURATION } = require('./emotion-analysis');
+const { generateSunoMusicForVideo } = require('./suno-track-service');
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN
@@ -278,9 +279,35 @@ const LIBRARY_TRACKS = [
 ];
 const STORAGE_BUCKET = 'reflectly-playback.firebasestorage.app';
 
-async function generateMusicForVideo(transcriptionSegments, totalDuration, style, numClips) {
+async function generateMusicForVideo(transcriptionSegments, totalDuration, style, numClips, db, userHint) {
   console.log('🎶 Starting music generation pipeline...');
   console.log(`Duration: ${totalDuration}s, Style hint: ${style || 'auto'}, Clips: ${numClips || 'auto'}`);
+
+  // ── Suno pre-made track bank (preferred over MusicGen) ──────────────────
+  if (db) {
+    try {
+      // Quick check: does the suno_tracks collection have any documents?
+      const probe = await db.collection('suno_tracks').limit(1).get();
+      if (!probe.empty) {
+        console.log('🎵 Suno track library detected — using pre-made tracks');
+        const sunoResult = await generateSunoMusicForVideo(
+          transcriptionSegments, totalDuration, style, numClips, db, userHint
+        );
+        if (sunoResult.success) {
+          return {
+            success: true,
+            musicPath: sunoResult.musicPath,
+            musicUrl: null,
+            chunkCount: 0,
+            musicPrompt: `suno-set-${sunoResult.set}`,
+          };
+        }
+        console.warn('⚠️ Suno service failed, falling back to MusicGen:', sunoResult.error);
+      }
+    } catch (err) {
+      console.warn('⚠️ Suno probe failed, falling back to MusicGen:', err.message);
+    }
+  }
 
   // Large group shortcut (>10 clips): use internal library track — no Replicate call needed
   if ((numClips || 0) > 10) {

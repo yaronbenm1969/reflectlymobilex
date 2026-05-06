@@ -23,11 +23,13 @@ import theme from '../theme/theme';
 
 const logoImage = require('../../assets/logo.png');
 
+// ≤12 clips → 30s per clip (1 track per clip)
+// >12 clips → 15s per clip (1 Suno track per 3 clips)
 const PARTICIPANT_OPTIONS = [
-  { label: '1-10', clipCount: 3, maxClipDuration: 60 },
-  { label: '11-20', clipCount: 1, maxClipDuration: 30 },
+  { label: '1-10', clipCount: 1, maxClipDuration: 30 },
+  { label: '11-20', clipCount: 1, maxClipDuration: 15 },
   { label: '21-40', clipCount: 1, maxClipDuration: 15 },
-  { label: '40+', clipCount: 1, maxClipDuration: 10 },
+  { label: '40+', clipCount: 1, maxClipDuration: 15 },
 ];
 
 export const HomeScreen = () => {

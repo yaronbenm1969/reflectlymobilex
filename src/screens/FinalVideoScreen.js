@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  TextInput,
   Share,
   Alert,
   ActivityIndicator,
@@ -97,6 +98,8 @@ export const FinalVideoScreen = () => {
   const [musicTimedOut, setMusicTimedOut] = useState(false);
   const [musicServerDown, setMusicServerDown] = useState(false);
   const [musicRetryTrigger, setMusicRetryTrigger] = useState(0);
+  const [isRemixingMusic, setIsRemixingMusic] = useState(false);
+  const [musicHint, setMusicHint] = useState('');
   const clientRecordingResolveRef = useRef(null);
   const autoRecordTriggeredRef = useRef(false);
   const isUploadingRef = useRef(false);
@@ -109,6 +112,9 @@ export const FinalVideoScreen = () => {
   const aiMusicSoundRef = useRef(null);
   const generatedMusicUrlRef = useRef(generatedMusicUrl);
   useEffect(() => { generatedMusicUrlRef.current = generatedMusicUrl; }, [generatedMusicUrl]);
+  const musicTimedOutRef = useRef(false);
+  useEffect(() => { musicTimedOutRef.current = musicTimedOut; }, [musicTimedOut]);
+  const firestoreVideoUrlRef = useRef(null); // videoUrl/finalVideoUrl loaded from Firestore
 
   // Load generatedMusicUrl from Firestore — retries up to 5× in case PlayerRecordScreen
   // hasn't finished writing yet when this screen mounts.
@@ -212,6 +218,12 @@ export const FinalVideoScreen = () => {
             setBackgroundMediaType(res.story.backgroundMediaType || 'video');
             console.log('🖼️ Loaded backgroundVideoUrl from Firestore');
           }
+          // Load server-processed video URL so getVideoForSharing can use it
+          // when finalVideoUri in Zustand is null (e.g. opened from EditRoom)
+          if (!firestoreVideoUrlRef.current && res.story?.finalVideoUrl) {
+            firestoreVideoUrlRef.current = res.story.finalVideoUrl;
+            console.log('📹 Loaded finalVideoUrl from Firestore (tryLoad)');
+          }
           if (res.story?.generatedMusicUrl) return;
         }
       } catch (e) {}
@@ -226,6 +238,23 @@ export const FinalVideoScreen = () => {
     tryLoad();
     return () => { cancelled = true; };
   }, [currentStoryId, musicRetryTrigger]);
+
+  // Load story's videoUrl / finalVideoUrl from Firestore so getVideoForSharing can use it
+  // when finalVideoUri in Zustand is null (e.g. user navigated here from EditRoom, not ProcessingScreen)
+  useEffect(() => {
+    if (!currentStoryId || firestoreVideoUrlRef.current) return;
+    console.log('📹 Loading videoUrl from Firestore, finalVideoUri:', finalVideoUri ? 'set' : 'null');
+    storiesService.getStory(currentStoryId).then(res => {
+      if (res.success) {
+        // Only use finalVideoUrl — videoUrl/videoUri are the organizer's raw intro clip, not the final mix
+        const url = res.story?.finalVideoUrl;
+        if (url) {
+          firestoreVideoUrlRef.current = url;
+          console.log('📹 Loaded finalVideoUrl from Firestore for sharing:', url.substring(0, 60));
+        }
+      }
+    }).catch(() => {});
+  }, [currentStoryId]);
 
   // If music generation takes too long (server down / no network), unblock the AnimationPlayer
   useEffect(() => {
@@ -773,7 +802,12 @@ export const FinalVideoScreen = () => {
     setDownloadProgress('');
     
     let validRecording = false;
-    if (fileUri) {
+    if (!fileUri) {
+      // recordingFailed was called (e.g. canvas taint, captureStream not working)
+      console.warn('📹 Recording returned null — disabling client recording');
+      setClientRecordingSupported(false);
+      clientRecordingSupportedRef.current = false;
+    } else if (fileUri) {
       try {
         const info = await FileSystem.getInfoAsync(fileUri);
         const MIN_VALID_SIZE = 50000;
@@ -822,11 +856,15 @@ export const FinalVideoScreen = () => {
       
       if (isAlreadyMp4) {
         console.log('📹 Recording is already MP4 (iOS) - uploading directly...');
+        setDownloadProgress(t('finalVideo.uploading_video'));
         const uploadResult = await storageService.uploadVideo(
           fileUri,
           currentStoryId,
           'animated_export',
-          (progress) => console.log(`📹 Upload progress: ${progress.toFixed(0)}%`)
+          (progress) => {
+            console.log(`📹 Upload progress: ${progress.toFixed(0)}%`);
+            setDownloadProgress(`${t('finalVideo.uploading_video')} ${progress.toFixed(0)}%`);
+          }
         );
 
         if (uploadResult.success && uploadResult.url) {
@@ -834,10 +872,12 @@ export const FinalVideoScreen = () => {
           let finalMp4Url = uploadResult.url;
 
           // Wait for AI music generation if still in progress (up to 5 min)
-          if (!generatedMusicUrlRef.current) {
+          // Skip wait if music is known to be unavailable (server down / timed out)
+          if (!generatedMusicUrlRef.current && !musicTimedOutRef.current) {
             console.log('🎵 Waiting for AI music generation before mixing...');
+            setDownloadProgress(t('finalVideo.waiting_for_music'));
             const deadline = Date.now() + 5 * 60 * 1000;
-            while (!generatedMusicUrlRef.current && Date.now() < deadline) {
+            while (!generatedMusicUrlRef.current && !musicTimedOutRef.current && Date.now() < deadline) {
               await new Promise(r => setTimeout(r, 5000));
               if (!generatedMusicUrlRef.current && currentStoryId) {
                 try {
@@ -851,13 +891,14 @@ export const FinalVideoScreen = () => {
               }
             }
             if (generatedMusicUrlRef.current) console.log('🎵 Music ready, proceeding to mix');
-            else console.log('⚠️ Music not ready after 5min, mixing without');
+            else console.log('⚠️ Music not ready / timed out, mixing without');
           }
 
-          // Mix AI music into the iOS cube recording if available
+          // Mix AI music into the recording if available
           const musicUrl = generatedMusicUrlRef.current;
           if (musicUrl) {
-            console.log('🎵 Mixing AI music into iOS cube recording...');
+            console.log('🎵 Mixing AI music into recording...');
+            setDownloadProgress(t('finalVideo.factory_mixing'));
             try {
               const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                 method: 'POST',
@@ -869,7 +910,7 @@ export const FinalVideoScreen = () => {
                 const mixedUrl = mixResult.finalUrl || mixResult.videoUrl;
                 if (mixedUrl) {
                   finalMp4Url = mixedUrl;
-                  console.log('✅ AI music mixed into iOS cube recording');
+                  console.log('✅ AI music mixed into recording');
                 }
               }
             } catch (mixErr) {
@@ -945,13 +986,19 @@ export const FinalVideoScreen = () => {
 
           if (convertedUrl) {
             console.log('📹 Converted mp4 ready:', convertedUrl.substring(0, 60));
+            // Save unmixed video so /api/remix-music can re-mix with different music later
+            if (currentStoryId) {
+              storiesService.updateStory(currentStoryId, { sourceVideoUrl: convertedUrl }).catch(() => {});
+            }
             let finalMp4Url = convertedUrl;
 
             // Wait for AI music generation if still in progress (up to 5 min)
-            if (!generatedMusicUrlRef.current) {
+            // Skip wait if music is known to be unavailable (server down / timed out)
+            if (!generatedMusicUrlRef.current && !musicTimedOutRef.current) {
               console.log('🎵 Waiting for AI music generation before mixing...');
+              setDownloadProgress(t('finalVideo.waiting_for_music'));
               const deadline = Date.now() + 5 * 60 * 1000;
-              while (!generatedMusicUrlRef.current && Date.now() < deadline) {
+              while (!generatedMusicUrlRef.current && !musicTimedOutRef.current && Date.now() < deadline) {
                 await new Promise(r => setTimeout(r, 5000));
                 if (!generatedMusicUrlRef.current && currentStoryId) {
                   try {
@@ -965,13 +1012,14 @@ export const FinalVideoScreen = () => {
                 }
               }
               if (generatedMusicUrlRef.current) console.log('🎵 Music ready, proceeding to mix');
-              else console.log('⚠️ Music not ready after 5min, mixing without');
+              else console.log('⚠️ Music not ready / timed out, mixing without');
             }
 
-            // Mix AI music into the cube recording if available
+            // Mix AI music into the recording if available
             const musicUrl = generatedMusicUrlRef.current;
             if (musicUrl) {
-              console.log('🎵 Mixing AI music into cube recording...');
+              console.log('🎵 Mixing AI music into recording...');
+              setDownloadProgress(t('finalVideo.factory_mixing'));
               try {
                 const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                   method: 'POST',
@@ -1074,7 +1122,7 @@ export const FinalVideoScreen = () => {
       console.log('📹 Using cached mp4 recording');
       return cached;
     }
-    if (fbUrl) {
+    if (fbUrl && isMp4(fbUrl)) {
       console.log('📹 Using Firebase converted URL, downloading...');
       try {
         const localPath = await downloadVideoToLocal(fbUrl, 'share_mp4');
@@ -1085,6 +1133,8 @@ export const FinalVideoScreen = () => {
       } catch (e) {
         console.warn('📹 Firebase download failed:', e.message);
       }
+    } else if (fbUrl && !isMp4(fbUrl)) {
+      console.warn('📹 fbUrl is webm — skipping gallery save (server conversion may have failed)');
     }
     if (cached && await isValidLocal(cached)) {
       console.log('📹 Using webm recording (conversion may have failed)');
@@ -1110,6 +1160,18 @@ export const FinalVideoScreen = () => {
           }
         } catch (e) { console.warn('📹 finalVideoUri download failed:', e.message); }
       }
+    }
+    // Use server-processed video loaded from Firestore (when coming from EditRoom, finalVideoUri is null)
+    const firestoreUrl = firestoreVideoUrlRef.current;
+    if (firestoreUrl) {
+      console.log('📹 Using Firestore videoUrl, downloading...');
+      try {
+        const dlPath = await downloadVideoToLocal(firestoreUrl, 'firestore_video');
+        if (await isValidLocal(dlPath)) {
+          console.log('📹 Firestore videoUrl downloaded and valid');
+          return dlPath;
+        }
+      } catch (e) { console.warn('📹 Firestore videoUrl download failed:', e.message); }
     }
     if (isAnimatedFormat && clientRecordingSupportedRef.current) {
       console.log('📹 Recording not cached yet, recording now');
@@ -1266,6 +1328,38 @@ export const FinalVideoScreen = () => {
     } finally {
       setIsDownloading(false);
       setDownloadProgress('');
+    }
+  };
+
+  const handleRemixMusic = async () => {
+    if (!currentStoryId) return;
+    setIsRemixingMusic(true);
+    try {
+      const res = await fetch(`${VIDEO_CONVERTER_URL}/api/remix-music`, {
+        method: 'POST',
+        headers: SERVER_HEADERS,
+        body: JSON.stringify({ storyId: currentStoryId, userHint: musicHint.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.finalVideoUrl) {
+        Alert.alert('שגיאה', data.error || 'החלפת המוזיקה נכשלה');
+        return;
+      }
+      // Download the new mixed video locally and update playback
+      const localPath = FileSystem.cacheDirectory + `remix_${Date.now()}.mp4`;
+      const dlResult = await FileSystem.downloadAsync(data.finalVideoUrl, localPath);
+      if (dlResult.status === 200) {
+        setLocalVideoUri(localPath);
+        cachedRecordingRef.current = localPath;
+      }
+      setRecordingFirebaseUrl(data.finalVideoUrl);
+      firebaseUrlRef.current = data.finalVideoUrl;
+      setMusicHint('');
+      Alert.alert('✅ מוזיקה הוחלפה', 'הסרטון עודכן עם המוזיקה החדשה');
+    } catch (err) {
+      Alert.alert('שגיאה', err.message);
+    } finally {
+      setIsRemixingMusic(false);
     }
   };
 
@@ -1557,8 +1651,41 @@ export const FinalVideoScreen = () => {
                 </TouchableOpacity>
               </View>
 
+              {/* Replace music section — only shown once recording is done */}
+              {conversionSucceeded && (
+                <View style={styles.remixMusicSection}>
+                  <View style={styles.remixMusicHeader}>
+                    <Ionicons name="musical-notes-outline" size={18} color="#8446b0" />
+                    <Text style={styles.remixMusicTitle}>לא מרוצה מהמוזיקה?</Text>
+                  </View>
+                  <TextInput
+                    style={styles.remixMusicInput}
+                    placeholder="תאר מה אתה מחפש... (לדוגמה: משהו יותר עליז)"
+                    placeholderTextColor="#999"
+                    value={musicHint}
+                    onChangeText={setMusicHint}
+                    multiline={false}
+                    returnKeyType="done"
+                  />
+                  <TouchableOpacity
+                    style={[styles.remixMusicBtn, isRemixingMusic && styles.disabledBtn]}
+                    onPress={handleRemixMusic}
+                    disabled={isRemixingMusic}
+                  >
+                    {isRemixingMusic ? (
+                      <ActivityIndicator size="small" color="white" />
+                    ) : (
+                      <Ionicons name="refresh-outline" size={16} color="white" />
+                    )}
+                    <Text style={styles.remixMusicBtnText}>
+                      {isRemixingMusic ? 'מחליף מוזיקה...' : 'החלף מוזיקה'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <View style={styles.endScreenBottomBtns}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.endScreenPrimaryBtn}
                   onPress={() => go('Home')}
                 >
@@ -2508,6 +2635,50 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     fontSize: 12,
     fontWeight: '500',
+  },
+  remixMusicSection: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    gap: 10,
+  },
+  remixMusicHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  remixMusicTitle: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  remixMusicInput: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: 'white',
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  remixMusicBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#8446b0',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  remixMusicBtnText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   endScreenBottomBtns: {
     flexDirection: 'row',
