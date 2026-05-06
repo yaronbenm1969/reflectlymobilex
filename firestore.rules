@@ -31,6 +31,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Suno track bank — read only (writes via Admin SDK / server)
+    match /suno_tracks/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Users — each user reads/writes only their own profile
     match /users/{uid} {
       allow read: if request.auth != null;
