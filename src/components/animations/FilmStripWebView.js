@@ -78,6 +78,11 @@ const FilmStripWebView = ({
     webViewRef.current.injectJavaScript(`window.startPlayback && window.startPlayback(); true;`);
   }, [triggerAutoPlay]);
 
+  useEffect(() => {
+    if (!recordNextPlayback || !webViewRef.current) return;
+    webViewRef.current.injectJavaScript(`shouldRecordNext = true; true;`);
+  }, [recordNextPlayback]);
+
   // Background HTML
   const safeBgUrl = (backgroundUrl || '').replace(/'/g, '');
   const bgHtml = safeBgUrl
@@ -423,6 +428,7 @@ ${bgHtml}
       video.playsInline = true;
       video.setAttribute('playsinline', '');
       video.setAttribute('webkit-playsinline', '');
+      video.crossOrigin = 'anonymous';
       video.style.opacity = '0';
       video.style.cssText += 'width:100%;height:100%;object-fit:cover;opacity:0;';
       frame.appendChild(video);
@@ -457,19 +463,30 @@ ${bgHtml}
   }
 
   // ─── LOAD VIDEO ───────────────────────────────────────
+  // Fetch as blob URL so canvas.drawImage won't taint the canvas (required for captureStream recording)
   function loadVideo(frameIdx, url) {
     var entry = frameElements[frameIdx % N];
     if (!entry) return;
     var video = entry.video;
     if (video._loadedUrl === url) return;
     video._loadedUrl = url;
-    video.src = url;
-    video.load();
     video.style.opacity = '0';
-    video.oncanplay = function() {
-      video.oncanplay = null;
-      video.style.opacity = '1';
-    };
+    fetch(url)
+      .then(function(r) { return r.blob(); })
+      .then(function(blob) {
+        if (video._blobUrl) URL.revokeObjectURL(video._blobUrl);
+        var blobUrl = URL.createObjectURL(blob);
+        video._blobUrl = blobUrl;
+        video.src = blobUrl;
+        video.load();
+        video.oncanplay = function() { video.oncanplay = null; video.style.opacity = '1'; };
+      })
+      .catch(function() {
+        // fallback: direct URL
+        video.src = url;
+        video.load();
+        video.oncanplay = function() { video.oncanplay = null; video.style.opacity = '1'; };
+      });
   }
 
   // ─── ANIMATION LOOP ───────────────────────────────────
@@ -695,7 +712,114 @@ ${bgHtml}
     }
   }
 
+  // ===== RECORDING MODULE =====
+  var recordingCanvas = null;
+  var recordingCtx = null;
+  var mediaRecorder = null;
+  var recordedChunks = [];
+  var isRecording = false;
+  var shouldRecordNext = false;
+  var recordingAnimFrame = null;
+  var REC_W = 720, REC_H = 1280;
+
+  function initRecording() {
+    var supported = !!(HTMLCanvasElement.prototype.captureStream && typeof MediaRecorder !== 'undefined');
+    postMessage('recordingSupport', { supported: supported });
+    if (!supported) return;
+    recordingCanvas = document.createElement('canvas');
+    recordingCanvas.width = REC_W;
+    recordingCanvas.height = REC_H;
+    recordingCtx = recordingCanvas.getContext('2d');
+  }
+
+  function drawRecordingFrame() {
+    if (!recordingCtx || !isRecording) return;
+    var ctx = recordingCtx;
+    // Draw the full film-strip layout onto the recording canvas.
+    // Use the same currentX scroll position so the recording matches what the user sees.
+    var screenW = window.innerWidth || 390;
+    var scl = REC_W / screenW;          // scale WebView coords → recording canvas coords
+    var FGAP = 28;
+    var FW = (STEP - FGAP) * scl;       // STEP = FRAME_W + FRAME_GAP
+    var FH = FW * 1.3;
+    var FT = (REC_H - FH) / 2;         // vertical center
+
+    ctx.fillStyle = '#0d0d0d';
+    ctx.fillRect(0, 0, REC_W, REC_H);
+
+    for (var j = 0; j < N; j++) {
+      var entry = frameElements[j];
+      if (!entry) continue;
+      // Frame j's left edge on screen (mirrors applyTransform translateX)
+      var leftScreen = (INIT_X - currentX) + j * STEP + FGAP / 2;
+      var leftCanvas = leftScreen * scl;
+      if (leftCanvas + FW < 0 || leftCanvas > REC_W) continue; // off screen
+      var vid = entry.video;
+      if (!vid || vid.readyState < 2) continue;
+      // Fade side frames to give depth
+      var cx = leftCanvas + FW / 2;
+      var dist = Math.abs(cx - REC_W / 2);
+      var alpha = Math.max(0.4, 1 - dist / (REC_W * 0.65));
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      try { ctx.drawImage(vid, leftCanvas, FT, FW, FH); } catch(e) {}
+      ctx.restore();
+    }
+    recordingAnimFrame = requestAnimationFrame(drawRecordingFrame);
+  }
+
+  function startRecording() {
+    if (!recordingCanvas || isRecording) return;
+    console.log('📹 FilmStrip recording started');
+    isRecording = true;
+    recordedChunks = [];
+    var stream = recordingCanvas.captureStream(30);
+    var mimeType = '';
+    // Try mp4 first — iOS WKWebView supports video/mp4 natively; mp4 can be saved to gallery without server conversion.
+    // Fallback to webm on Android/Chrome which doesn't support mp4 in MediaRecorder.
+    ['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp8,opus','video/webm;codecs=vp8','video/webm;codecs=vp9','video/webm'].some(function(m) {
+      if (MediaRecorder.isTypeSupported(m)) { mimeType = m; return true; }
+    });
+    if (!mimeType) { postMessage('recordingProgress', { phase: 'error' }); return; }
+    mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 8000000 });
+    mediaRecorder.ondataavailable = function(e) { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = function() {
+      isRecording = false;
+      if (recordingAnimFrame) cancelAnimationFrame(recordingAnimFrame);
+      var blob = new Blob(recordedChunks, { type: mimeType });
+      console.log('📹 FilmStrip blob: ' + (blob.size/1024/1024).toFixed(2) + 'MB');
+      if (blob.size < 50000) { postMessage('recordingFailed', { error: 'too small', sizeBytes: blob.size }); return; }
+      postMessage('recordingProgress', { phase: 'transferring', progress: 0 });
+      var reader = new FileReader();
+      reader.onload = function() {
+        var b64 = reader.result.split(';base64,')[1] || reader.result.split(',').slice(1).join(',');
+        var CHUNK = 512 * 1024;
+        var total = Math.ceil(b64.length / CHUNK);
+        for (var i = 0; i < total; i++) {
+          postMessage('recordingData', { chunk: b64.substring(i*CHUNK,(i+1)*CHUNK), chunkIndex:i, totalChunks:total, isLast:i===total-1, mimeType:mimeType });
+          postMessage('recordingProgress', { phase:'transferring', progress:Math.round(((i+1)/total)*100) });
+        }
+      };
+      reader.readAsDataURL(blob);
+    };
+    mediaRecorder.start(1000);
+    drawRecordingFrame();
+  }
+
+  function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+  }
+
+  var _origPost = postMessage;
+  postMessage = function(type, data) {
+    _origPost(type, data);
+    if (type === 'playbackStart' && shouldRecordNext) { shouldRecordNext = false; startRecording(); }
+    if (type === 'playbackComplete' && isRecording) { setTimeout(stopRecording, 500); }
+  };
+  // ===== END RECORDING MODULE =====
+
   // ─── INIT ─────────────────────────────────────────────
+  initRecording();
   buildFrames();
   postMessage('readyToPlay', { videoCount: fullVideoQueue.length });
 </script>
@@ -708,6 +832,24 @@ ${bgHtml}
     setIsLoading(false);
   }, [filmHTML]);
 
+  const recordingChunksRef = useRef([]);
+
+  const saveRecordingToFile = useCallback(async (base64Data, mimeType = '') => {
+    try {
+      onRecordingProgress?.({ phase: 'saving' });
+      const ext = mimeType.includes('mp4') ? '.mp4' : '.webm';
+      const fileUri = FileSystem.cacheDirectory + `filmstrip_recording_${Date.now()}${ext}`;
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      console.log('📹 FilmStrip recording saved:', fileUri);
+      onRecordingComplete?.(fileUri);
+    } catch (err) {
+      console.error('📹 Error saving FilmStrip recording:', err);
+      onRecordingComplete?.(null);
+    }
+  }, [onRecordingComplete, onRecordingProgress]);
+
   const handleMessage = useCallback((event) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
@@ -718,9 +860,25 @@ ${bgHtml}
         case 'faceChange':       onFaceChange?.(data.faceIndex); break;
         case 'videoStart':       onVideoStart?.(data.faceId); break;
         case 'videoEnd':         onVideoEnd?.(data.faceId); break;
+        case 'recordingSupport': onRecordingSupport?.(data.supported); break;
+        case 'recordingProgress': onRecordingProgress?.(data); break;
+        case 'recordingData':
+          if (data.chunkIndex === 0) recordingChunksRef.current = [];
+          recordingChunksRef.current.push(data.chunk);
+          if (data.isLast) {
+            const fullBase64 = recordingChunksRef.current.join('');
+            recordingChunksRef.current = [];
+            saveRecordingToFile(fullBase64, data.mimeType || '');
+          }
+          break;
+        case 'recordingFailed':
+          console.warn('📹 FilmStrip recording failed:', data.sizeBytes, 'bytes');
+          onRecordingComplete?.(null);
+          break;
       }
     } catch (e) {}
-  }, [onReadyToPlay, onPlaybackStart, onPlaybackComplete, onFaceChange, onVideoStart, onVideoEnd]);
+  }, [onReadyToPlay, onPlaybackStart, onPlaybackComplete, onFaceChange, onVideoStart, onVideoEnd,
+      onRecordingSupport, onRecordingProgress, onRecordingComplete, saveRecordingToFile]);
 
   if (error) return <View style={styles.container}><View style={styles.errorBox} /></View>;
 

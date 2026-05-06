@@ -490,6 +490,8 @@
     "factory_processing": "מעבד את הסרטון",
     "factory_mixing": "מערבב מוזיקה...",
     "factory_preparing": "מכין את הסרטון...",
+    "uploading_video": "מעלה סרטון",
+    "waiting_for_music": "ממתין למוזיקה...",
     "my_story": "הסיפור שלי",
     "participant_n": "משתתף {{n}}",
     "error_share_video": "לא ניתן לשתף את הסרטון",

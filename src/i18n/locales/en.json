@@ -490,6 +490,8 @@
     "factory_processing": "Processing video",
     "factory_mixing": "Mixing music...",
     "factory_preparing": "Preparing video...",
+    "uploading_video": "Uploading video",
+    "waiting_for_music": "Waiting for music...",
     "my_story": "My Story",
     "participant_n": "Participant {{n}}",
     "error_share_video": "Cannot share the video",
