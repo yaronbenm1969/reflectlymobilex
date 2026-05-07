@@ -1454,6 +1454,7 @@ app.post('/api/generate-music', async (req, res) => {
           transcriptionSegments: segments.slice(0, 50),
           totalDuration,
           numClips: numClips || null,
+          musicSet: result.musicSet || null,
         });
         console.log(`✅ Firestore updated with music URL for story ${storyId}`);
         const storyDoc = await firestoreDb.collection('stories').doc(storyId).get();
@@ -1635,7 +1636,7 @@ function probeVideoHasAudio(videoPath) {
 }
 
 app.post('/api/mix-music-with-video', async (req, res) => {
-  const { videoUrl, musicUrl, musicVolume = 0.08, storyId } = req.body;
+  const { videoUrl, musicUrl, musicVolume = 0.08, storyId, replaceAudio = false } = req.body;
 
   if (!videoUrl || !musicUrl) {
     return res.status(400).json({ error: 'videoUrl and musicUrl are required' });
@@ -1659,16 +1660,16 @@ app.post('/api/mix-music-with-video', async (req, res) => {
     // Probe for audio — cube recordings (canvas MediaRecorder) have no audio track.
     // When there is no voice audio, music IS the only audio so we use a fixed, audible volume.
     // When voice audio exists, we use the caller-supplied musicVolume (voice-relative balance).
-    const hasAudio = await probeVideoHasAudio(videoPath);
-    console.log(`🔊 Video has audio: ${hasAudio}, musicVolume sent: ${musicVolume}`);
+    const hasAudio = !replaceAudio && await probeVideoHasAudio(videoPath);
+    console.log(`🔊 Video has audio: ${hasAudio}, replaceAudio: ${replaceAudio}, musicVolume sent: ${musicVolume}`);
     if (hasAudio) {
       await mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume);
     } else {
       // No voice audio — music is the only audio track. Use a moderate background level.
       // The musicVolume param was designed for voice-relative mixing (e.g. 0.019),
       // so we use a fixed value here that sounds right as standalone background music.
-      const noAudioVolume = 0.15;
-      console.log(`🎵 No audio track — music-only mix at ${noAudioVolume}`);
+      const noAudioVolume = 0.9;
+      console.log(`🎵 No audio track (replaceAudio) — music-only mix at ${noAudioVolume}`);
       await mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, noAudioVolume);
     }
 
@@ -1711,6 +1712,7 @@ app.post('/api/remix-music', express.json(), async (req, res) => {
   const transcriptionSegments = story.transcriptionSegments || [];
   const totalDuration          = story.totalDuration || 60;
   const numClips               = story.numClips || story.clipCount || 1;
+  const excludeSet             = story.musicSet || null;
 
   const jobDir = path.join(tempDir, `remix_${Date.now()}`);
   fs.mkdirSync(jobDir, { recursive: true });
@@ -1722,7 +1724,7 @@ app.post('/api/remix-music', express.json(), async (req, res) => {
     // 1. Generate new music (Suno or MusicGen) with userHint
     console.log(`🎵 Remixing music for story ${storyId}${userHint ? ` | hint: "${userHint}"` : ''}`);
     const musicResult = await generateMusicForVideo(
-      transcriptionSegments, totalDuration, null, numClips, firestoreDb, userHint
+      transcriptionSegments, totalDuration, null, numClips, firestoreDb, userHint, excludeSet
     );
     if (!musicResult.success) {
       return res.status(500).json({ error: `Music generation failed: ${musicResult.error}` });
@@ -1769,6 +1771,7 @@ app.post('/api/remix-music', express.json(), async (req, res) => {
     await firestoreDb.collection('stories').doc(storyId).update({
       finalVideoUrl,
       generatedMusicUrl: musicUrl,
+      musicSet: musicResult.musicSet || null,
     });
 
     fs.rmSync(jobDir, { recursive: true, force: true });

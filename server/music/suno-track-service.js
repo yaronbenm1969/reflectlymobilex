@@ -149,7 +149,7 @@ function ffmpegFadeAndLoop(inputPath, outputPath, totalDuration) {
 // ---------------------------------------------------------------------------
 // GPT-4o set selection
 // ---------------------------------------------------------------------------
-async function selectSet(transcriptionSegments, numClips, style, userHint) {
+async function selectSet(transcriptionSegments, numClips, style, userHint, excludeSet) {
   // Build a short text summary of the transcription for the prompt
   const text = (transcriptionSegments || [])
     .map(s => s.text || s.transcription || '')
@@ -162,9 +162,10 @@ async function selectSet(transcriptionSegments, numClips, style, userHint) {
     .join('\n');
 
   const parts = [];
-  if (text)      parts.push(`Video transcription:\n"${text}"`);
-  if (style)     parts.push(`Style hint: ${style}`);
-  if (userHint)  parts.push(`Creator's explicit request: "${userHint}" — give this strong priority.`);
+  if (text)       parts.push(`Video transcription:\n"${text}"`);
+  if (style)      parts.push(`Style hint: ${style}`);
+  if (userHint)   parts.push(`Creator's explicit request: "${userHint}" — give this strong priority.`);
+  if (excludeSet) parts.push(`IMPORTANT: Do NOT choose Set ${excludeSet} — it was already used and the creator wants something different.`);
   if (!parts.length) parts.push('No context available. Pick a warm, universal set.');
 
   const userContext = parts.join('\n\n');
@@ -196,9 +197,10 @@ async function selectSet(transcriptionSegments, numClips, style, userHint) {
     console.warn('⚠️ GPT-4o set selection failed:', err.message);
   }
 
-  // Fallback: Set 4 (warm/family) — most universally pleasant
-  console.log('🎵 Falling back to Set 4 (warmth/family)');
-  return 4;
+  // Fallback: Set 4 (warm/family), or 3 if 4 is excluded
+  const fallback = excludeSet === 4 ? 3 : 4;
+  console.log(`🎵 Falling back to Set ${fallback}`);
+  return fallback;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,7 +216,7 @@ async function selectSet(transcriptionSegments, numClips, style, userHint) {
  * @param {string}   [userHint]            - Optional free-text from creator ("something more uplifting")
  * @returns {{ success, musicPath, set, error? }}
  */
-async function generateSunoMusicForVideo(transcriptionSegments, totalDuration, style, numClips, db, userHint) {
+async function generateSunoMusicForVideo(transcriptionSegments, totalDuration, style, numClips, db, userHint, excludeSet) {
   ensureDir();
   const ts = Date.now();
 
@@ -247,13 +249,19 @@ async function generateSunoMusicForVideo(transcriptionSegments, totalDuration, s
   // ------------------------------------------------------------------
   // 2. Select best set via GPT-4o
   // ------------------------------------------------------------------
-  let chosenSet = await selectSet(transcriptionSegments, numClips, style, userHint);
+  let chosenSet = await selectSet(transcriptionSegments, numClips, style, userHint, excludeSet);
   if (!bySet[chosenSet] || bySet[chosenSet].length === 0) {
-    // Fallback to first available set
-    chosenSet = availableSets[0];
-    console.warn(`⚠️ Set ${chosenSet} not available, using Set ${chosenSet}`);
+    // Fallback: find closest available set, preferring one different from excludeSet
+    const preferred = availableSets.filter(s => s !== excludeSet);
+    chosenSet = preferred.length > 0 ? preferred[0] : availableSets[0];
+    console.warn(`⚠️ Chosen set not available, using Set ${chosenSet}`);
   }
-  const setTracks = bySet[chosenSet];
+  // If still same as excludeSet and there's an alternative, switch
+  if (excludeSet && chosenSet === excludeSet && availableSets.length > 1) {
+    const alt = availableSets.find(s => s !== excludeSet);
+    if (alt) { chosenSet = alt; console.log(`🎵 Switched to Set ${chosenSet} to avoid repeat`); }
+  }
+  const setTracks = [...bySet[chosenSet]]; // copy so we can shuffle
   console.log(`🎵 Using Set ${chosenSet} — ${setTracks.length} tracks available`);
 
   // ------------------------------------------------------------------
@@ -268,6 +276,12 @@ async function generateSunoMusicForVideo(transcriptionSegments, totalDuration, s
   const numCuts        = Math.ceil(clips / clipsPerTrack);
 
   console.log(`🎵 Clip mode: ${isShortClips ? '15s' : '30s'} | clipsPerTrack=${clipsPerTrack} | cuts needed=${numCuts}`);
+
+  // Shuffle tracks for variety (Fisher-Yates)
+  for (let i = setTracks.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [setTracks[i], setTracks[j]] = [setTracks[j], setTracks[i]];
+  }
 
   // ------------------------------------------------------------------
   // 4. Download and cut each track

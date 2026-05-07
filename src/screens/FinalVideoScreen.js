@@ -903,7 +903,7 @@ export const FinalVideoScreen = () => {
               const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                 method: 'POST',
                 headers: SERVER_HEADERS,
-                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.014 }),
+                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.014, replaceAudio: true }),
               });
               if (mixRes.ok) {
                 const mixResult = await mixRes.json();
@@ -922,9 +922,21 @@ export const FinalVideoScreen = () => {
           firebaseUrlRef.current = finalMp4Url;
           setConversionSucceeded(true);
           if (currentStoryId) {
-            storiesService.updateStory(currentStoryId, { finalVideoUrl: finalMp4Url, status: 'completed' }).catch(() => {});
+            storiesService.updateStory(currentStoryId, { sourceVideoUrl: uploadResult.url, finalVideoUrl: finalMp4Url, status: 'completed' }).catch(() => {});
           }
           setShowEndScreen(true);
+          // Cache the final mixed mp4 locally so getVideoForSharing uses the music-mixed version
+          try {
+            const mp4LocalPath = FileSystem.cacheDirectory + `recording_mp4_${Date.now()}.mp4`;
+            const dlResult = await FileSystem.downloadAsync(finalMp4Url, mp4LocalPath);
+            if (dlResult.status === 200) {
+              console.log('📹 Final mp4 cached locally (iOS path):', mp4LocalPath);
+              setCachedRecordingUri(mp4LocalPath);
+              cachedRecordingRef.current = mp4LocalPath;
+            }
+          } catch (dlErr) {
+            console.warn('📹 Local cache failed (iOS path):', dlErr.message);
+          }
         } else {
           console.warn('📹 Firebase upload failed:', uploadResult.error);
           setShowEndScreen(true); // unblock even on failure
@@ -1024,7 +1036,7 @@ export const FinalVideoScreen = () => {
                 const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                   method: 'POST',
                   headers: SERVER_HEADERS,
-                  body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.014 }),
+                  body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.014, replaceAudio: true }),
                 });
                 if (mixRes.ok) {
                   const mixResult = await mixRes.json();
@@ -1136,13 +1148,13 @@ export const FinalVideoScreen = () => {
     } else if (fbUrl && !isMp4(fbUrl)) {
       console.warn('📹 fbUrl is webm — skipping gallery save (server conversion may have failed)');
     }
-    if (cached && await isValidLocal(cached)) {
-      console.log('📹 Using webm recording (conversion may have failed)');
-      return cached;
-    }
     if (localVideoUri && await isValidLocal(localVideoUri)) {
       console.log('📹 Using localVideoUri (server-processed format)');
       return localVideoUri;
+    }
+    if (cached && await isValidLocal(cached)) {
+      console.log('📹 Using cached recording (may be webm)');
+      return cached;
     }
     if (finalVideoUri) {
       const isLocalFile = finalVideoUri.startsWith('file://') || finalVideoUri.startsWith('/');
@@ -1348,12 +1360,18 @@ export const FinalVideoScreen = () => {
       // Download the new mixed video locally and update playback
       const localPath = FileSystem.cacheDirectory + `remix_${Date.now()}.mp4`;
       const dlResult = await FileSystem.downloadAsync(data.finalVideoUrl, localPath);
-      if (dlResult.status === 200) {
+      const MIN_VALID = 50000;
+      const fileInfo = await FileSystem.getInfoAsync(localPath);
+      if (dlResult.status === 200 && fileInfo.exists && fileInfo.size >= MIN_VALID) {
         setLocalVideoUri(localPath);
         cachedRecordingRef.current = localPath;
+        setRecordingFirebaseUrl(data.finalVideoUrl);
+        firebaseUrlRef.current = data.finalVideoUrl;
+      } else {
+        console.warn(`📹 Remix file invalid (${fileInfo.size || 0} bytes) — keeping original`);
+        Alert.alert('שגיאה', 'הקובץ שהתקבל פגום. נסה שוב.');
+        return;
       }
-      setRecordingFirebaseUrl(data.finalVideoUrl);
-      firebaseUrlRef.current = data.finalVideoUrl;
       setMusicHint('');
       Alert.alert('✅ מוזיקה הוחלפה', 'הסרטון עודכן עם המוזיקה החדשה');
     } catch (err) {

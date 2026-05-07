@@ -26,7 +26,7 @@ export const PlayerViewScreen = () => {
   const navigationParams = useAppState((state) => state.navigationParams);
   const playerStoryData = useAppState((state) => state.playerStoryData);
 
-  const [hasWatched, setHasWatched] = useState(false);
+  const [hasWatched, setHasWatched] = useState(true);
   const [isBuffering, setIsBuffering] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -221,11 +221,6 @@ export const PlayerViewScreen = () => {
           </View>
         )}
 
-        {!hasWatched && !isPlaying && (
-          <Text style={styles.hint}>
-            {t('playerView.hint')}
-          </Text>
-        )}
       </View>
     </View>
   );
