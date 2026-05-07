@@ -354,54 +354,94 @@ function buildWebRecordHtml(story, firebaseConfig) {
     };
 
     // ── Step 5: Upload ─────────────────────────────────────────
+    function showUploadError(msg) {
+      document.getElementById('upload-title').textContent = 'שגיאה בהעלאה';
+      document.getElementById('upload-sub').textContent = msg;
+      document.getElementById('upload-progress').style.width = '0%';
+      document.getElementById('upload-pct').textContent = '';
+      // Replace spinner with retry button
+      const spinner = document.querySelector('#step-upload .spinner');
+      if (spinner) spinner.style.display = 'none';
+      const existing = document.getElementById('retry-upload-btn');
+      if (!existing) {
+        const btn = document.createElement('button');
+        btn.id = 'retry-upload-btn';
+        btn.className = 'btn-primary';
+        btn.style.marginTop = '16px';
+        btn.textContent = 'נסה שוב';
+        btn.onclick = () => {
+          spinner && (spinner.style.display = '');
+          btn.remove();
+          uploadAllClips();
+        };
+        document.querySelector('#step-upload .card').appendChild(btn);
+      }
+    }
+
     async function uploadAllClips() {
       showStep('upload');
       // Authenticate anonymously so Firebase Storage rules allow the upload
       try {
         if (!fbAuth.currentUser) await signInAnonymously(fbAuth);
+        console.log('Auth uid:', fbAuth.currentUser?.uid);
       } catch (authErr) {
         console.warn('Anonymous auth failed:', authErr.message);
         // Continue anyway — rules might allow unauthenticated writes
       }
-      for (let i = 0; i < recordedBlobs.length; i++) {
-        document.getElementById('upload-clip-num').textContent = i + 1;
-        document.getElementById('upload-progress').style.width = '0%';
-        document.getElementById('upload-pct').textContent = '0%';
+      try {
+        for (let i = 0; i < recordedBlobs.length; i++) {
+          document.getElementById('upload-clip-num').textContent = i + 1;
+          document.getElementById('upload-progress').style.width = '0%';
+          document.getElementById('upload-pct').textContent = '0%';
 
-        const blob     = recordedBlobs[i];
-        const ext      = blob.type.includes('mp4') ? 'mp4' : 'webm';
-        const filename = 'stories/' + STORY_ID + '/players/' + webUid + '/video' + (i + 1) + '_' + Date.now() + '.' + ext;
-        const storRef  = ref(fbStorage, filename);
-        const task     = uploadBytesResumable(storRef, blob);
+          const blob     = recordedBlobs[i];
+          const ext      = blob.type.includes('mp4') ? 'mp4' : 'webm';
+          const filename = 'stories/' + STORY_ID + '/players/' + webUid + '/video' + (i + 1) + '_' + Date.now() + '.' + ext;
+          const storRef  = ref(fbStorage, filename);
+          const task     = uploadBytesResumable(storRef, blob);
 
-        await new Promise((resolve, reject) => {
-          task.on('state_changed',
-            snap => {
-              const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
-              document.getElementById('upload-progress').style.width = pct + '%';
-              document.getElementById('upload-pct').textContent = pct + '%';
-            },
-            reject,
-            async () => {
-              const url = await getDownloadURL(task.snapshot.ref);
-              // Save reflection document (matches app format)
-              await addDoc(collection(fbDb, 'reflections'), {
-                storyId:         STORY_ID,
-                videoUrl:        url,
-                playerName:      participantName,
-                participantName: participantName,
-                uid:             webUid,
-                clipNumber:      i + 1,
-                source:          'web',
-                createdAt:       serverTimestamp(),
-              });
-              resolve();
-            }
-          );
-        });
+          await new Promise((resolve, reject) => {
+            task.on('state_changed',
+              snap => {
+                const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
+                document.getElementById('upload-progress').style.width = pct + '%';
+                document.getElementById('upload-pct').textContent = pct + '%';
+              },
+              err => {
+                console.error('Upload error:', err.code, err.message);
+                reject(err);
+              },
+              async () => {
+                try {
+                  const url = await getDownloadURL(task.snapshot.ref);
+                  // Save reflection document (matches app format)
+                  await addDoc(collection(fbDb, 'reflections'), {
+                    storyId:         STORY_ID,
+                    videoUrl:        url,
+                    playerName:      participantName,
+                    participantName: participantName,
+                    uid:             webUid,
+                    clipNumber:      i + 1,
+                    source:          'web',
+                    createdAt:       serverTimestamp(),
+                  });
+                  resolve();
+                } catch (e) {
+                  reject(e);
+                }
+              }
+            );
+          });
+        }
+        stopStream();
+        showStep('done');
+      } catch (err) {
+        console.error('Upload failed:', err);
+        const msg = err.code === 'storage/unauthorized'
+          ? 'אין הרשאה להעלות. נסה שוב או פנה ליוצר.'
+          : ('שגיאה: ' + (err.message || err.code || 'לא ידוע'));
+        showUploadError(msg);
       }
-      stopStream();
-      showStep('done');
     }
 
     // ── Helpers ────────────────────────────────────────────────
