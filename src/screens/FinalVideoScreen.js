@@ -900,11 +900,15 @@ export const FinalVideoScreen = () => {
             console.log('🎵 Mixing AI music into recording...');
             setDownloadProgress(t('finalVideo.factory_mixing'));
             try {
+              const mixCtrl = new AbortController();
+              const mixTimeout = setTimeout(() => mixCtrl.abort(), 4 * 60 * 1000); // 4 min
               const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                 method: 'POST',
                 headers: SERVER_HEADERS,
                 body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.014, replaceAudio: true }),
+                signal: mixCtrl.signal,
               });
+              clearTimeout(mixTimeout);
               if (mixRes.ok) {
                 const mixResult = await mixRes.json();
                 const mixedUrl = mixResult.finalUrl || mixResult.videoUrl;
@@ -973,9 +977,9 @@ export const FinalVideoScreen = () => {
           const jobId = convertQueued.jobId;
           console.log('📹 Conversion queued, jobId:', jobId);
 
-          // Poll until done (max 5 min)
+          // Poll until done (max 8 min)
           let convertedUrl = null;
-          const maxAttempts = 100;
+          const maxAttempts = 160;
           for (let i = 0; i < maxAttempts; i++) {
             await new Promise(r => setTimeout(r, 3000));
             try {
@@ -988,6 +992,10 @@ export const FinalVideoScreen = () => {
                   break;
                 } else if (statusJson.status === 'failed') {
                   console.warn('📹 Conversion job failed:', statusJson.error);
+                  break;
+                } else if (statusJson.status === 'not_found') {
+                  // Server restarted — job is gone, fall back to webm
+                  console.warn('📹 Conversion job not found (server restarted?)');
                   break;
                 }
               }
@@ -1033,11 +1041,15 @@ export const FinalVideoScreen = () => {
               console.log('🎵 Mixing AI music into recording...');
               setDownloadProgress(t('finalVideo.factory_mixing'));
               try {
+                const mixCtrl = new AbortController();
+                const mixTimeout = setTimeout(() => mixCtrl.abort(), 4 * 60 * 1000); // 4 min
                 const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                   method: 'POST',
                   headers: SERVER_HEADERS,
                   body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.014, replaceAudio: true }),
+                  signal: mixCtrl.signal,
                 });
+                clearTimeout(mixTimeout);
                 if (mixRes.ok) {
                   const mixResult = await mixRes.json();
                   const mixedUrl = mixResult.finalUrl || mixResult.videoUrl;

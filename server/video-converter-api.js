@@ -1286,33 +1286,24 @@ app.post('/api/convert-url', async (req, res) => {
   }
   
   const conversionProcessor = async (data, updateProgress) => {
-    const https = require('https');
-    const http = require('http');
-    const protocol = data.url.startsWith('https') ? https : http;
-    
     const timestamp = Date.now();
     const inputPath = path.join(tempDir, `input_${timestamp}.webm`);
     const outputPath = path.join(convertedDir, `output_${timestamp}.mp4`);
-    
+
     updateProgress(10);
-    
-    await new Promise((resolve, reject) => {
-      const file = fs.createWriteStream(inputPath);
-      protocol.get(data.url, (response) => {
-        response.pipe(file);
-        file.on('finish', () => {
-          file.close();
-          resolve();
-        });
-      }).on('error', (err) => {
-        fs.unlink(inputPath, () => {});
-        reject(err);
-      });
-    });
-    
-    console.log('📥 Downloaded to:', inputPath);
+
+    // Use downloadFile which handles redirects (301/302) and connection errors
+    await downloadFile(data.url, inputPath);
+
+    // Validate downloaded file is non-empty
+    const fileSize = fs.existsSync(inputPath) ? fs.statSync(inputPath).size : 0;
+    console.log(`📥 Downloaded to: ${inputPath} (${fileSize} bytes)`);
+    if (fileSize < 1000) {
+      if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+      throw new Error(`Downloaded file too small (${fileSize} bytes) — likely a redirect or error page`);
+    }
     updateProgress(30);
-    
+
     await convertVideo(inputPath, outputPath);
     updateProgress(70);
     
@@ -1656,6 +1647,13 @@ app.post('/api/mix-music-with-video', async (req, res) => {
       downloadFile(videoUrl, videoPath),
       downloadFile(musicUrl, musicPath),
     ]);
+
+    // Validate downloads before ffmpeg
+    const videoSize = fs.existsSync(videoPath) ? fs.statSync(videoPath).size : 0;
+    const musicSize = fs.existsSync(musicPath) ? fs.statSync(musicPath).size : 0;
+    console.log(`📦 Downloaded: video=${videoSize}b, music=${musicSize}b`);
+    if (videoSize < 1000) throw new Error(`Video download too small (${videoSize}b) — likely redirect/error page`);
+    if (musicSize < 1000) throw new Error(`Music download too small (${musicSize}b) — likely redirect/error page`);
 
     // Probe for audio — cube recordings (canvas MediaRecorder) have no audio track.
     // When there is no voice audio, music IS the only audio so we use a fixed, audible volume.
