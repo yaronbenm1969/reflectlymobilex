@@ -798,16 +798,19 @@ export const FinalVideoScreen = () => {
   const handleRecordingComplete = async (fileUri) => {
     console.log('📹 Recording complete:', fileUri);
     setRecordNextPlayback(false);
-    setClientRecordingInProgress(false);
+    // NOTE: do NOT clear clientRecordingInProgress here yet.
+    // It must stay true until isUploadingRecording is set to true, to prevent
+    // the overlay from briefly disappearing (both flags false) between the two state updates.
     setDownloadProgress('');
-    
+
     let validRecording = false;
     if (!fileUri) {
       // recordingFailed was called (e.g. canvas taint, captureStream not working)
       console.warn('📹 Recording returned null — disabling client recording');
+      setClientRecordingInProgress(false);
       setClientRecordingSupported(false);
       clientRecordingSupportedRef.current = false;
-    } else if (fileUri) {
+    } else {
       try {
         const info = await FileSystem.getInfoAsync(fileUri);
         const MIN_VALID_SIZE = 50000;
@@ -816,9 +819,13 @@ export const FinalVideoScreen = () => {
           validRecording = true;
           setCachedRecordingUri(fileUri);
           cachedRecordingRef.current = fileUri;
+          // Clear clientRecordingInProgress BEFORE calling convertAndUploadRecording,
+          // so both this and setIsUploadingRecording(true) are batched in the same render.
+          setClientRecordingInProgress(false);
           convertAndUploadRecording(fileUri);
         } else {
           console.warn('📹 Recording too small - iOS captureStream likely not supported. Will use server render.');
+          setClientRecordingInProgress(false);
           setCachedRecordingUri(null);
           cachedRecordingRef.current = null;
           setClientRecordingSupported(false);
@@ -826,6 +833,7 @@ export const FinalVideoScreen = () => {
         }
       } catch (e) {
         console.warn('📹 Cannot check recording file:', e.message);
+        setClientRecordingInProgress(false);
       }
     }
     
@@ -1158,7 +1166,30 @@ export const FinalVideoScreen = () => {
         console.warn('📹 Firebase download failed:', e.message);
       }
     } else if (fbUrl && !isMp4(fbUrl)) {
-      console.warn('📹 fbUrl is webm — skipping gallery save (server conversion may have failed)');
+      // fbUrl is webm — server conversion previously failed. Try converting now.
+      console.warn('📹 fbUrl is webm — attempting on-demand conversion for sharing...');
+      try {
+        const convertRes = await fetch(`${VIDEO_CONVERTER_URL}/api/convert-url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: fbUrl }),
+        });
+        if (convertRes.ok) {
+          const convertData = await convertRes.json();
+          const mp4Url = convertData.url || convertData.convertedUrl;
+          if (mp4Url && isMp4(mp4Url)) {
+            firebaseUrlRef.current = mp4Url;
+            setRecordingFirebaseUrl(mp4Url);
+            const localPath = await downloadVideoToLocal(mp4Url, 'share_converted');
+            if (await isValidLocal(localPath)) {
+              console.log('📹 On-demand conversion succeeded for sharing');
+              return localPath;
+            }
+          }
+        }
+      } catch (convErr) {
+        console.warn('📹 On-demand conversion failed:', convErr.message);
+      }
     }
     if (localVideoUri && await isValidLocal(localVideoUri)) {
       console.log('📹 Using localVideoUri (server-processed format)');
