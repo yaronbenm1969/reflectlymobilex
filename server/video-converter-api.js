@@ -39,7 +39,7 @@ app.use(express.json());
 const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -185,6 +185,53 @@ app.get('/record/:storyId', async (req, res) => {
 
   res.set('Content-Type', 'text/html');
   res.send(buildWebRecordHtml(storyData, firebaseConfig));
+});
+
+// Upload a player clip via server (bypasses Firebase Storage rules for unauthenticated browsers)
+app.post('/api/upload-player-clip', upload.single('video'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No video file' });
+  const { storyId, playerName, clipNumber = '1', webUid } = req.body;
+  if (!storyId) { fs.unlinkSync(req.file.path); return res.status(400).json({ error: 'storyId required' }); }
+
+  try {
+    const ext = req.file.originalname?.endsWith('.mp4') ? 'mp4' : 'webm';
+    const storagePath = `stories/${storyId}/players/${webUid || ('web_' + Date.now())}/video${clipNumber}_${Date.now()}.${ext}`;
+
+    let downloadUrl;
+    if (bucket) {
+      await bucket.upload(req.file.path, {
+        destination: storagePath,
+        metadata: { contentType: ext === 'mp4' ? 'video/mp4' : 'video/webm' },
+      });
+      await bucket.file(storagePath).makePublic();
+      downloadUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+    } else {
+      return res.status(503).json({ error: 'Storage not configured' });
+    }
+
+    fs.unlinkSync(req.file.path);
+
+    // Save reflection document to Firestore
+    if (firestoreDb && playerName) {
+      await firestoreDb.collection('reflections').add({
+        storyId,
+        videoUrl:        downloadUrl,
+        playerName:      playerName,
+        participantName: playerName,
+        uid:             webUid || 'web_anonymous',
+        clipNumber:      parseInt(clipNumber, 10),
+        source:          'web',
+        createdAt:       new Date(),
+      });
+    }
+
+    console.log(`✅ Player clip uploaded: ${storagePath}`);
+    res.json({ success: true, url: downloadUrl });
+  } catch (err) {
+    console.error('❌ upload-player-clip failed:', err.message);
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/maintenance-status', (req, res) => {

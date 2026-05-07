@@ -186,17 +186,8 @@ function buildWebRecordHtml(story, firebaseConfig) {
   </div>
 
   <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-    import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
-    import { getFirestore, collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-    import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-
-    // ── Firebase init ──────────────────────────────────────────
-    const firebaseConfig = ${firebaseConfigJSON};
-    const fbApp = initializeApp(firebaseConfig);
-    const fbStorage = getStorage(fbApp);
-    const fbDb = getFirestore(fbApp);
-    const fbAuth = getAuth(fbApp);
+    // Uploads go through the server endpoint (/api/upload-player-clip) —
+    // no Firebase client SDK needed (server uses Admin SDK, bypasses Storage rules)
 
     // ── Constants ──────────────────────────────────────────────
     const STORY_ID    = '${escJs(storyId)}';
@@ -378,69 +369,55 @@ function buildWebRecordHtml(story, firebaseConfig) {
       }
     }
 
+    // Upload via server (Admin SDK) — bypasses Firebase Storage security rules
+    function uploadClipViaServer(blob, clipNumber) {
+      return new Promise((resolve, reject) => {
+        const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+        const fd  = new FormData();
+        fd.append('video',       blob, 'clip' + clipNumber + '.' + ext);
+        fd.append('storyId',     STORY_ID);
+        fd.append('playerName',  participantName);
+        fd.append('clipNumber',  String(clipNumber));
+        fd.append('webUid',      webUid);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload-player-clip');
+        xhr.upload.onprogress = e => {
+          if (e.lengthComputable) {
+            const pct = Math.round(e.loaded / e.total * 100);
+            document.getElementById('upload-progress').style.width = pct + '%';
+            document.getElementById('upload-pct').textContent = pct + '%';
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            try { resolve(JSON.parse(xhr.responseText)); }
+            catch (e) { reject(new Error('Bad response: ' + xhr.responseText.slice(0, 100))); }
+          } else {
+            let msg = 'שגיאת שרת ' + xhr.status;
+            try { msg = JSON.parse(xhr.responseText).error || msg; } catch (_) {}
+            reject(new Error(msg));
+          }
+        };
+        xhr.onerror = () => reject(new Error('שגיאת רשת — בדוק חיבור אינטרנט'));
+        xhr.send(fd);
+      });
+    }
+
     async function uploadAllClips() {
       showStep('upload');
-      // Authenticate anonymously so Firebase Storage rules allow the upload
-      try {
-        if (!fbAuth.currentUser) await signInAnonymously(fbAuth);
-        console.log('Auth uid:', fbAuth.currentUser?.uid);
-      } catch (authErr) {
-        console.warn('Anonymous auth failed:', authErr.message);
-        // Continue anyway — rules might allow unauthenticated writes
-      }
       try {
         for (let i = 0; i < recordedBlobs.length; i++) {
           document.getElementById('upload-clip-num').textContent = i + 1;
           document.getElementById('upload-progress').style.width = '0%';
           document.getElementById('upload-pct').textContent = '0%';
-
-          const blob     = recordedBlobs[i];
-          const ext      = blob.type.includes('mp4') ? 'mp4' : 'webm';
-          const filename = 'stories/' + STORY_ID + '/players/' + webUid + '/video' + (i + 1) + '_' + Date.now() + '.' + ext;
-          const storRef  = ref(fbStorage, filename);
-          const task     = uploadBytesResumable(storRef, blob);
-
-          await new Promise((resolve, reject) => {
-            task.on('state_changed',
-              snap => {
-                const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
-                document.getElementById('upload-progress').style.width = pct + '%';
-                document.getElementById('upload-pct').textContent = pct + '%';
-              },
-              err => {
-                console.error('Upload error:', err.code, err.message);
-                reject(err);
-              },
-              async () => {
-                try {
-                  const url = await getDownloadURL(task.snapshot.ref);
-                  // Save reflection document (matches app format)
-                  await addDoc(collection(fbDb, 'reflections'), {
-                    storyId:         STORY_ID,
-                    videoUrl:        url,
-                    playerName:      participantName,
-                    participantName: participantName,
-                    uid:             webUid,
-                    clipNumber:      i + 1,
-                    source:          'web',
-                    createdAt:       serverTimestamp(),
-                  });
-                  resolve();
-                } catch (e) {
-                  reject(e);
-                }
-              }
-            );
-          });
+          await uploadClipViaServer(recordedBlobs[i], i + 1);
         }
         stopStream();
         showStep('done');
       } catch (err) {
         console.error('Upload failed:', err);
-        const msg = err.code === 'storage/unauthorized'
-          ? 'אין הרשאה להעלות. נסה שוב או פנה ליוצר.'
-          : ('שגיאה: ' + (err.message || err.code || 'לא ידוע'));
-        showUploadError(msg);
+        showUploadError('שגיאה: ' + (err.message || 'לא ידוע'));
       }
     }
 
