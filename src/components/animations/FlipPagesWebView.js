@@ -739,36 +739,72 @@ const FlipPagesWebView = ({
       video.currentTime = 0;
       
       var earlyFlipDone = false;
-      
+      var flipStallTimer = null;
+      function clearFlipStall() { if (flipStallTimer) { clearTimeout(flipStallTimer); flipStallTimer = null; } }
+
+      function cleanupFlipListeners() {
+        video.ontimeupdate = null;
+        video.onended      = null;
+        video.onwaiting    = null;
+        video.onplaying    = null;
+        clearFlipStall();
+      }
+
+      function doFlipAdvance() {
+        if (currentIndex !== playingIndex) return;
+        cleanupFlipListeners();
+        if (!earlyFlipDone) {
+          earlyFlipDone = true;
+          flipPage(playingIndex, function() {
+            if (currentIndex === playingIndex) advanceToNext();
+          });
+        } else {
+          setTimeout(function() {
+            if (currentIndex === playingIndex) advanceToNext();
+          }, 100);
+        }
+      }
+
       if ((playingIndex + 1) % 4 === 0 && (playingIndex + 1) < fullVideoQueue.length) {
         prepareNextBatchBehindLastPage();
       }
-      
+
       video.ontimeupdate = function() {
-        if (earlyFlipDone) return;
-        var remaining = video.duration - video.currentTime;
-        if (remaining <= 1.8 && video.duration > 2) {
-          earlyFlipDone = true;
-          console.log('⚡ Early flip at ' + remaining.toFixed(1) + 's remaining');
-          flipPage(playingIndex, null);
-        }
-      };
-      
-      video.onended = function() {
-        video.ontimeupdate = null;
-        if (!earlyFlipDone) {
-          flipPage(playingIndex, function() {
-            console.log('🎬 Video ended: ' + playingIndex);
-            if (currentIndex === playingIndex) advanceToNext();
-          });
+        clearFlipStall(); // progressing — clear stall timer
+        if (video.duration > 0 && video.currentTime >= video.duration - 0.3) {
+          // Near end: reliable end detection (onended unreliable on iOS WKWebView)
+          console.log('⏱️ ontimeupdate end: ' + playingIndex);
+          doFlipAdvance();
           return;
         }
-        console.log('🎬 Video ended: ' + playingIndex);
-        setTimeout(function() {
-          if (currentIndex === playingIndex) advanceToNext();
-        }, 100);
+        if (!earlyFlipDone) {
+          var remaining = video.duration - video.currentTime;
+          if (remaining <= 1.8 && video.duration > 2) {
+            earlyFlipDone = true;
+            console.log('⚡ Early flip at ' + remaining.toFixed(1) + 's remaining');
+            flipPage(playingIndex, null);
+          }
+        }
       };
-      
+
+      // Stall detection: if currentTime doesn't advance for 5s, skip
+      video.onwaiting = function() {
+        clearFlipStall();
+        var stallAt = video.currentTime;
+        flipStallTimer = setTimeout(function() {
+          if (currentIndex !== playingIndex) return;
+          if (video.currentTime > stallAt + 0.1) return; // progressed — false alarm
+          console.log('⚠️ FlipPages stall at ' + video.currentTime.toFixed(1) + 's — skipping');
+          doFlipAdvance();
+        }, 5000);
+      };
+      video.onplaying = function() { clearFlipStall(); };
+
+      video.onended = function() {
+        console.log('🎬 Video ended: ' + playingIndex);
+        doFlipAdvance();
+      };
+
       video.play().then(function() {
         console.log('▶️ Playing video ' + currentIndex + ' (unmuted)');
         postMessage('videoStart', { pageIndex: currentIndex });

@@ -374,7 +374,7 @@ ${bgHtml}
   const STEP        = ${STEP};     // frame width + gap
   const INIT_X      = ${Math.round(SCREEN_WIDTH / 2 - STEP / 2)};  // translateX to center frame 0
   const STORY_NAME  = ${JSON.stringify(storyName)};
-  const MAX_VIDEO_DURATION = 45;
+  const MAX_VIDEO_DURATION = 30;
 
   // ─── STATE ────────────────────────────────────────────
   let fullVideoQueue = ${facesJSON};
@@ -576,18 +576,42 @@ ${bgHtml}
     video.volume = 1;
 
     var stallTimer = null;
+    var capturedIdx = idx;
     function clearStall() { if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; } }
     function resetStallTimer() {
       clearStall();
-      stallTimer = setTimeout(function() { clearStall(); advanceToNext(); }, 7000);
+      var stallAt = video.currentTime;
+      stallTimer = setTimeout(function() {
+        if (currentIndex !== capturedIdx) return;
+        if (video.currentTime > stallAt + 0.1) return;
+        clearStall(); advanceToNext();
+      }, 4000);
+    }
+
+    function doAdvanceFilm() {
+      if (currentIndex !== capturedIdx) return;
+      video.ontimeupdate = null;
+      video.onended     = null;
+      video.onwaiting   = null;
+      video.onstalled   = null;
+      clearStall();
+      if (videoTimeoutId) { clearTimeout(videoTimeoutId); videoTimeoutId = null; }
+      advanceToNext();
     }
 
     function doPlay() {
       video.currentTime = 0;
-      video.onerror = function() { clearStall(); if (videoTimeoutId) clearTimeout(videoTimeoutId); advanceToNext(); };
-      video.onwaiting = resetStallTimer;
-      video.onstalled = resetStallTimer;
-      video.ontimeupdate = function() { clearStall(); };
+      video.onerror = function() { doAdvanceFilm(); };
+      video.onwaiting  = resetStallTimer;
+      video.onstalled  = resetStallTimer;
+      video.ontimeupdate = function() {
+        if (currentIndex !== capturedIdx) { video.ontimeupdate = null; return; }
+        clearStall(); // progressing — clear stall
+        // End detection: reliable backup for iOS where onended may not fire
+        if (video.duration > 0 && video.currentTime >= video.duration - 0.3) {
+          doAdvanceFilm();
+        }
+      };
 
       video.play().then(function() {
         postMessage('videoStart', { faceId: idx % N, queueIndex: idx });
@@ -596,21 +620,19 @@ ${bgHtml}
 
         var dur = video.duration;
         var timeout = (dur && isFinite(dur) && dur > 0)
-          ? (dur + 2) * 1000
+          ? (dur + 5) * 1000
           : MAX_VIDEO_DURATION * 1000;
 
-        videoTimeoutId = setTimeout(function() { clearStall(); advanceToNext(); }, timeout);
+        videoTimeoutId = setTimeout(function() {
+          if (currentIndex !== capturedIdx) return;
+          doAdvanceFilm();
+        }, timeout);
         preloadNext(idx);
 
-      }).catch(function() { clearStall(); advanceToNext(); });
+      }).catch(function() { if (currentIndex === capturedIdx) advanceToNext(); });
     }
 
-    video.onended = function() {
-      clearStall();
-      if (videoTimeoutId) clearTimeout(videoTimeoutId);
-      videoTimeoutId = null;
-      advanceToNext();
-    };
+    video.onended = function() { doAdvanceFilm(); };
 
     if (video.readyState >= 2) {
       doPlay();
