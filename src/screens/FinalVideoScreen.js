@@ -1236,7 +1236,20 @@ export const FinalVideoScreen = () => {
       }
     }
     // Use server-processed video loaded from Firestore (when coming from EditRoom, finalVideoUri is null)
-    const firestoreUrl = firestoreVideoUrlRef.current;
+    let firestoreUrl = firestoreVideoUrlRef.current;
+    // If not loaded yet (user pressed share before useEffect resolved), do a fresh fetch now
+    if (!firestoreUrl && currentStoryId) {
+      try {
+        console.log('📹 firestoreVideoUrlRef empty — fetching finalVideoUrl from Firestore now...');
+        const freshRes = await storiesService.getStory(currentStoryId);
+        const freshUrl = freshRes.success && freshRes.story?.finalVideoUrl;
+        if (freshUrl) {
+          firestoreVideoUrlRef.current = freshUrl;
+          firestoreUrl = freshUrl;
+          console.log('📹 Fresh Firestore fetch got finalVideoUrl');
+        }
+      } catch (e) { console.warn('📹 Fresh Firestore fetch failed:', e.message); }
+    }
     if (firestoreUrl) {
       console.log('📹 Using Firestore videoUrl, downloading...');
       try {
@@ -1251,6 +1264,8 @@ export const FinalVideoScreen = () => {
       console.log('📹 Recording not cached yet, recording now');
       setIsDownloading(true);
       const fileUri = await performClientRecording();
+      // Restore end screen so VideoFactoryWaiting (upload overlay) doesn't block the share dialog
+      setShowEndScreen(true);
       if (fileUri && await isValidLocal(fileUri)) return fileUri;
       console.log('📹 Client recording failed or too small, falling back to server');
     }
