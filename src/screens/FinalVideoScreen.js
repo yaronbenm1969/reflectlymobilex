@@ -1631,6 +1631,12 @@ export const FinalVideoScreen = () => {
                   {downloadProgress ? (
                     <Text style={styles.downloadProgressText}>{downloadProgress}</Text>
                   ) : null}
+                  <TouchableOpacity
+                    onPress={() => { setIsDownloading(false); setDownloadProgress(''); }}
+                    style={{ marginTop: 18, paddingVertical: 8, paddingHorizontal: 24, borderRadius: 20, borderWidth: 1, borderColor: '#8446b0' }}
+                  >
+                    <Text style={{ color: '#8446b0', fontSize: 14 }}>ביטול</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             )}
