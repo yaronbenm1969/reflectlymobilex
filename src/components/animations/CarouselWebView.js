@@ -245,7 +245,7 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
   const N           = ${N};
   const ANGLE_STEP  = ${ANGLE_STEP};
   const RADIUS      = ${RADIUS};
-  const MAX_VIDEO_DURATION = 45; // seconds
+  const MAX_VIDEO_DURATION = 30; // seconds — last-resort fallback (ontimeupdate handles normal end)
 
   // ─── STATE ────────────────────────────────────────────
   let fullVideoQueue  = ${facesJSON};
@@ -253,6 +253,7 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
   let currentIndex    = 0;
   let isPlaying       = false;
   let videoTimeoutId  = null;
+  let stallTimerId    = null;
 
   // ─── ROTATION SYNC (video-time-driven, like cube) ─────
   const HALF_STEP     = ${ANGLE_STEP} / 2; // half panel step for enter/exit
@@ -407,6 +408,31 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     postMessage('faceChange', { faceIndex: idx });
   }
 
+  // ─── CLEANUP VIDEO LISTENERS ─────────────────────────
+  function cleanupVideoListeners(video) {
+    video.ontimeupdate = null;
+    video.onended      = null;
+    video.onwaiting    = null;
+    video.onplaying    = null;
+    video.oncanplay    = null;
+  }
+
+  function clearStallTimer() {
+    if (stallTimerId) { clearTimeout(stallTimerId); stallTimerId = null; }
+  }
+
+  function armStallTimer(video, capturedIdx) {
+    clearStallTimer();
+    var stallAt = video.currentTime;
+    stallTimerId = setTimeout(function() {
+      if (currentIndex !== capturedIdx) return; // already advanced past this panel
+      if (video.currentTime > stallAt + 0.1) return; // false alarm — video did progress
+      console.log('⚠️ Stall at ' + video.currentTime.toFixed(1) + 's — skipping panel ' + capturedIdx);
+      cleanupVideoListeners(video);
+      advanceToNext();
+    }, 4000);
+  }
+
   // ─── PLAY PANEL ───────────────────────────────────────
   function playPanel(idx) {
     if (idx >= fullVideoQueue.length) {
@@ -423,13 +449,17 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     var video = entry.video;
     var data  = fullVideoQueue[idx];
 
-    // Pause all other panels
+    // Pause all other panels and clear their listeners
     for (var k in panelElements) {
       if (parseInt(k) !== (idx % N)) {
-        panelElements[k].video.pause();
-        panelElements[k].video.muted = true;
+        var other = panelElements[k].video;
+        cleanupVideoListeners(other);
+        other.pause();
+        other.muted = true;
       }
     }
+    clearStallTimer();
+    if (videoTimeoutId) { clearTimeout(videoTimeoutId); videoTimeoutId = null; }
 
     // Ensure correct video is loaded
     if (data && data.videoUrl && video._loadedUrl !== data.videoUrl) {
@@ -439,9 +469,20 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     video.muted  = false;
     video.volume = 1;
 
+    var capturedIdx = idx; // for stale-callback guard
+
+    function doAdvanceFromPanel() {
+      if (currentIndex !== capturedIdx) return;
+      cleanupVideoListeners(video);
+      clearStallTimer();
+      if (videoTimeoutId) { clearTimeout(videoTimeoutId); videoTimeoutId = null; }
+      advanceToNext();
+    }
+
     function doPlay() {
       video.currentTime = 0;
       video.play().then(function() {
+        if (currentIndex !== capturedIdx) return; // advanced while play() was resolving
         postMessage('videoStart', { faceId: idx % N, queueIndex: idx });
 
         // Start rotation sync with video time
@@ -449,38 +490,49 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
 
         var dur = video.duration;
         var timeout = (dur && isFinite(dur) && dur > 0)
-          ? (dur + 2) * 1000
+          ? (dur + 5) * 1000          // dur + 5s safety buffer
           : MAX_VIDEO_DURATION * 1000;
 
         videoTimeoutId = setTimeout(function() {
-          advanceToNext();
+          if (currentIndex !== capturedIdx) return;
+          doAdvanceFromPanel();
         }, timeout);
+
+        // ontimeupdate: reliable end detection on iOS WKWebView (onended is unreliable)
+        video.ontimeupdate = function() {
+          if (currentIndex !== capturedIdx) { video.ontimeupdate = null; return; }
+          if (video.duration > 0 && video.currentTime >= video.duration - 0.3) {
+            doAdvanceFromPanel();
+          }
+        };
+
+        // Stall detection: arm when buffering, clear when playing
+        video.onwaiting = function() { armStallTimer(video, capturedIdx); };
+        video.onplaying = function() { clearStallTimer(); };
+
+        // onended: backup (for platforms where ontimeupdate may miss the very end)
+        video.onended = function() { doAdvanceFromPanel(); };
 
         // Preload next
         preloadNext(idx);
 
       }).catch(function(e) {
         console.log('Play failed: ' + e);
-        advanceToNext();
+        if (currentIndex === capturedIdx) advanceToNext();
       });
     }
-
-    video.onended = function() {
-      if (videoTimeoutId) clearTimeout(videoTimeoutId);
-      videoTimeoutId = null;
-      advanceToNext();
-    };
 
     if (video.readyState >= 2) {
       doPlay();
     } else {
-      var timeout = setTimeout(function() {
-        doPlay();
+      var waitTimeout = setTimeout(function() {
+        video.oncanplay = null;
+        doPlay(); // attempt even if not fully ready
       }, 3000);
       video.oncanplay = function() {
         video.oncanplay = null;
         video.style.opacity = '1';
-        clearTimeout(timeout);
+        clearTimeout(waitTimeout);
         doPlay();
       };
     }
@@ -513,6 +565,7 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
   // ─── ADVANCE ──────────────────────────────────────────
   function advanceToNext() {
     if (videoTimeoutId) { clearTimeout(videoTimeoutId); videoTimeoutId = null; }
+    clearStallTimer();
     postMessage('videoEnd', { faceId: currentIndex % N });
     var next = currentIndex + 1;
     if (next >= fullVideoQueue.length) {
