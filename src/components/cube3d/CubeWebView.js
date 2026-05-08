@@ -895,9 +895,27 @@ const CubeWebView = ({
 
       let stallTimerId = null;
       let startupTimerId = null;
+      let watchdogId = null;
+      let watchdogLastTime = -1;
       let hasStartedPlaying = false;
       const clearStall = () => { if (stallTimerId) { clearTimeout(stallTimerId); stallTimerId = null; } };
       const clearStartupTimer = () => { if (startupTimerId) { clearTimeout(startupTimerId); startupTimerId = null; } };
+      const stopWatchdog = () => { if (watchdogId) { clearInterval(watchdogId); watchdogId = null; } };
+      const startWatchdog = () => {
+        stopWatchdog();
+        watchdogLastTime = video.currentTime;
+        watchdogId = setInterval(function() {
+          if (currentIndex !== playingIndex) { stopWatchdog(); return; }
+          if (video.currentTime <= watchdogLastTime + 0.1) {
+            console.log('🐕 Watchdog: queue[' + playingIndex + '] frozen at ' + video.currentTime.toFixed(1) + 's');
+            stopWatchdog();
+            cleanup();
+            if (currentIndex === playingIndex) advanceToNext();
+          } else {
+            watchdogLastTime = video.currentTime;
+          }
+        }, 4000);
+      };
       const armStall = () => {
         clearStall();
         const stallAt = video.currentTime;
@@ -921,6 +939,7 @@ const CubeWebView = ({
         video.muted = true;
         clearStall();
         clearStartupTimer();
+        stopWatchdog();
         if (videoTimeoutId) { clearTimeout(videoTimeoutId); videoTimeoutId = null; }
         clearRotationSync();
       };
@@ -941,6 +960,7 @@ const CubeWebView = ({
           video.onplaying = null;
           clearStall();
           clearStartupTimer();
+          stopWatchdog();
           if (videoTimeoutId) { clearTimeout(videoTimeoutId); videoTimeoutId = null; }
           clearRotationSync();
           console.log('🎬 Video end via timeupdate: queue[' + playingIndex + ']');
@@ -959,6 +979,7 @@ const CubeWebView = ({
         hasStartedPlaying = true;
         clearStartupTimer();
         clearStall();
+        startWatchdog();
       };
 
       // Set up rotation sync BEFORE play() so cube starts rotating immediately (no freeze)
@@ -985,7 +1006,7 @@ const CubeWebView = ({
 
         const duration = video.duration;
         const timeout = (duration && isFinite(duration) && duration > 0)
-          ? (duration + 2) * 1000
+          ? (duration + 5) * 1000
           : MAX_VIDEO_DURATION * 1000;
 
         videoTimeoutId = setTimeout(() => {
