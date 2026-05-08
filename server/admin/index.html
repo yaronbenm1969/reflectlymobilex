@@ -236,8 +236,8 @@ header small { opacity: .8; font-size: 12px; }
   <!-- ── Gate ── -->
   <div id="gate">
     <h2>כניסה לאדמין</h2>
-    <p>הכנס כתובת שרת וקוד גישה</p>
-    <div class="gate-field">
+    <p id="gate-subtitle">הכנס קוד גישה</p>
+    <div class="gate-field" id="server-field">
       כתובת שרת
       <input id="server-input" type="text" placeholder="https://your-tunnel.trycloudflare.com" />
     </div>
@@ -424,6 +424,24 @@ function showPage(page, el) {
   if (page === 'music' && allTracks.length === 0) loadMusic();
 }
 
+// ── Init: auto-detect server URL when loaded from the server itself ──────────
+(function init() {
+  const origin = window.location.origin;
+  const isRemote = origin.startsWith('http') && !origin.startsWith('file');
+  if (isRemote) {
+    // Hide server URL field — we know the server is the current origin
+    document.getElementById('server-field').style.display = 'none';
+    document.getElementById('server-input').value = origin;
+  } else {
+    // Restore saved server URL for local file:// usage
+    const saved = localStorage.getItem('adminServer');
+    if (saved) document.getElementById('server-input').value = saved;
+  }
+  // Restore saved code
+  const savedCode = localStorage.getItem('adminCode');
+  if (savedCode) document.getElementById('code-input').value = savedCode;
+})();
+
 // ── Auth ────────────────────────────────────────────────────────────────────
 function doLogin() {
   SERVER = (document.getElementById('server-input').value || '').trim().replace(/\/$/, '');
@@ -439,6 +457,7 @@ function doLogin() {
       document.getElementById('server-url-label').textContent = SERVER,
       document.getElementById('logout-btn').style.display = 'block',
       localStorage.setItem('adminServer', SERVER),
+      localStorage.setItem('adminCode', ACCESS_CODE),
       loadBackgrounds()
     ) : Promise.reject('שגיאה'))
     .catch(() => {

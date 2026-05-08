@@ -279,12 +279,12 @@ const LIBRARY_TRACKS = [
 ];
 const STORAGE_BUCKET = 'reflectly-playback.firebasestorage.app';
 
-async function generateMusicForVideo(transcriptionSegments, totalDuration, style, numClips, db, userHint, excludeSet) {
+async function generateMusicForVideo(transcriptionSegments, totalDuration, style, numClips, db, userHint, excludeSet, forceEngine) {
   console.log('🎶 Starting music generation pipeline...');
-  console.log(`Duration: ${totalDuration}s, Style hint: ${style || 'auto'}, Clips: ${numClips || 'auto'}`);
+  console.log(`Duration: ${totalDuration}s, Style hint: ${style || 'auto'}, Clips: ${numClips || 'auto'}, Engine: ${forceEngine || 'auto'}`);
 
-  // ── Suno pre-made track bank (preferred over MusicGen) ──────────────────
-  if (db) {
+  // ── Suno pre-made track bank (preferred over MusicGen, unless forceEngine='musicgen') ──
+  if (db && forceEngine !== 'musicgen') {
     try {
       // Quick check: does the suno_tracks collection have any documents?
       const probe = await db.collection('suno_tracks').limit(1).get();
@@ -308,6 +308,8 @@ async function generateMusicForVideo(transcriptionSegments, totalDuration, style
     } catch (err) {
       console.warn('⚠️ Suno probe failed, falling back to MusicGen:', err.message);
     }
+  } else if (forceEngine === 'musicgen') {
+    console.log('🎸 MusicGen engine forced (premium mode) — skipping Suno');
   }
 
   // Large group shortcut (>10 clips): use internal library track — no Replicate call needed

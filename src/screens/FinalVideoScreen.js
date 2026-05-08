@@ -100,6 +100,7 @@ export const FinalVideoScreen = () => {
   const [musicRetryTrigger, setMusicRetryTrigger] = useState(0);
   const [isRemixingMusic, setIsRemixingMusic] = useState(false);
   const [musicHint, setMusicHint] = useState('');
+  const [musicEngine, setMusicEngine] = useState('suno'); // 'suno' | 'musicgen'
   const clientRecordingResolveRef = useRef(null);
   const autoRecordTriggeredRef = useRef(false);
   const isUploadingRef = useRef(false);
@@ -1427,7 +1428,7 @@ export const FinalVideoScreen = () => {
       const res = await fetch(`${VIDEO_CONVERTER_URL}/api/remix-music`, {
         method: 'POST',
         headers: SERVER_HEADERS,
-        body: JSON.stringify({ storyId: currentStoryId, userHint: musicHint.trim() || undefined }),
+        body: JSON.stringify({ storyId: currentStoryId, userHint: musicHint.trim() || undefined, musicEngine }),
       });
       const data = await res.json();
       if (!res.ok || !data.finalVideoUrl) {
@@ -1768,6 +1769,21 @@ export const FinalVideoScreen = () => {
                     multiline={false}
                     returnKeyType="done"
                   />
+                  {/* Engine toggle: Suno (default) vs MusicGen (premium AI) */}
+                  <View style={styles.engineToggleRow}>
+                    <TouchableOpacity
+                      style={[styles.engineToggleBtn, musicEngine === 'suno' && styles.engineToggleBtnActive]}
+                      onPress={() => setMusicEngine('suno')}
+                    >
+                      <Text style={[styles.engineToggleBtnText, musicEngine === 'suno' && styles.engineToggleBtnTextActive]}>🎵 Suno</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.engineToggleBtn, musicEngine === 'musicgen' && styles.engineToggleBtnActive]}
+                      onPress={() => setMusicEngine('musicgen')}
+                    >
+                      <Text style={[styles.engineToggleBtnText, musicEngine === 'musicgen' && styles.engineToggleBtnTextActive]}>✨ MusicGen AI</Text>
+                    </TouchableOpacity>
+                  </View>
                   <TouchableOpacity
                     style={[styles.remixMusicBtn, isRemixingMusic && styles.disabledBtn]}
                     onPress={handleRemixMusic}
@@ -2780,6 +2796,32 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
+  },
+  engineToggleRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  engineToggleBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  engineToggleBtnActive: {
+    backgroundColor: 'rgba(132,70,176,0.5)',
+    borderColor: '#8446b0',
+  },
+  engineToggleBtnText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  engineToggleBtnTextActive: {
+    color: 'white',
+    fontWeight: '700',
   },
   endScreenBottomBtns: {
     flexDirection: 'row',

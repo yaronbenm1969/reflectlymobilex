@@ -312,6 +312,9 @@ app.post('/api/verify-access', (req, res) => {
   res.json({ valid: isValid });
 });
 
+// Serve admin HTML before access control so the page itself loads without a header
+app.use('/admin', express.static(path.join(__dirname, 'admin')));
+
 app.use(accessControlMiddleware);
 
 const tempDir = path.join(os.tmpdir(), 'reflectly-server', 'uploads');
@@ -1484,7 +1487,7 @@ app.use('/converted', express.static(convertedDir));
 const musicJobs = new Map();
 
 app.post('/api/generate-music', async (req, res) => {
-  const { storyId, transcriptionSegments, totalDuration, style, numClips } = req.body;
+  const { storyId, transcriptionSegments, totalDuration, style, numClips, musicEngine } = req.body;
   
   if (!storyId || !totalDuration) {
     return res.status(400).json({ error: 'storyId and totalDuration are required' });
@@ -1514,7 +1517,7 @@ app.post('/api/generate-music', async (req, res) => {
 
       const segments = transcriptionSegments || [{ start: 0, end: totalDuration, text: '' }];
 
-      const result = await generateMusicForVideo(segments, totalDuration, style, numClips, firestoreDb);
+      const result = await generateMusicForVideo(segments, totalDuration, style, numClips, firestoreDb, null, null, musicEngine);
 
       if (!result.success) {
         musicJobs.set(jobId, { status: 'failed', error: result.error });
@@ -1809,7 +1812,7 @@ app.post('/api/mix-music-with-video', async (req, res) => {
 
 // POST /api/remix-music — re-generate music for an existing story with optional user hint
 app.post('/api/remix-music', express.json(), async (req, res) => {
-  const { storyId, userHint } = req.body;
+  const { storyId, userHint, musicEngine } = req.body;
   if (!storyId) return res.status(400).json({ error: 'storyId required' });
   if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
 
@@ -1843,7 +1846,7 @@ app.post('/api/remix-music', express.json(), async (req, res) => {
     // 1. Generate new music (Suno or MusicGen) with userHint
     console.log(`🎵 Remixing music for story ${storyId}${userHint ? ` | hint: "${userHint}"` : ''}`);
     const musicResult = await generateMusicForVideo(
-      transcriptionSegments, totalDuration, null, numClips, firestoreDb, userHint, excludeSet
+      transcriptionSegments, totalDuration, null, numClips, firestoreDb, userHint, excludeSet, musicEngine
     );
     if (!musicResult.success) {
       return res.status(500).json({ error: `Music generation failed: ${musicResult.error}` });
@@ -1999,9 +2002,6 @@ app.get('/api/ambient-track/:trackId', async (req, res) => {
 // ─── Admin: Backgrounds ────────────────────────────────────────────────────
 
 const bgUpload = multer({ dest: tempDir, limits: { fileSize: 200 * 1024 * 1024 } });
-
-// Serve the admin HTML page
-app.use('/admin', express.static(path.join(__dirname, 'admin')));
 
 // GET /admin/backgrounds — list all backgrounds from Firestore
 app.get('/admin/backgrounds', async (req, res) => {
