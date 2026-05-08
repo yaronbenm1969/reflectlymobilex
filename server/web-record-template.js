@@ -369,19 +369,28 @@ function buildWebRecordHtml(story, firebaseConfig) {
       }
     }
 
-    // Upload via server (Admin SDK) — bypasses Firebase Storage security rules
-    function uploadClipViaServer(blob, clipNumber) {
-      return new Promise((resolve, reject) => {
-        const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
-        const fd  = new FormData();
-        fd.append('video',       blob, 'clip' + clipNumber + '.' + ext);
-        fd.append('storyId',     STORY_ID);
-        fd.append('playerName',  participantName);
-        fd.append('clipNumber',  String(clipNumber));
-        fd.append('webUid',      webUid);
+    // Upload via GCS signed URL — browser uploads directly to Firebase Storage
+    // (no double-hop through Render: much faster, shows real progress)
+    async function uploadClipViaSignedUrl(blob, clipNumber) {
+      const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+      const contentType = (blob.type && blob.type !== 'video/x-msvideo') ? blob.type
+        : (ext === 'mp4' ? 'video/mp4' : 'video/webm');
 
+      // Step 1: Get a signed upload URL from the server
+      const params = new URLSearchParams({ storyId: STORY_ID, clipNumber: String(clipNumber), webUid, contentType });
+      const urlRes = await fetch('/api/player-upload-url?' + params);
+      if (!urlRes.ok) {
+        let errMsg = 'שגיאה בקבלת כתובת העלאה (' + urlRes.status + ')';
+        try { errMsg = (await urlRes.json()).error || errMsg; } catch (_) {}
+        throw new Error(errMsg);
+      }
+      const { signedUrl, storagePath } = await urlRes.json();
+
+      // Step 2: PUT directly to Google Cloud Storage (shows real upload progress)
+      await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/upload-player-clip');
+        xhr.open('PUT', signedUrl);
+        xhr.setRequestHeader('Content-Type', contentType);
         xhr.upload.onprogress = e => {
           if (e.lengthComputable) {
             const pct = Math.round(e.loaded / e.total * 100);
@@ -390,18 +399,25 @@ function buildWebRecordHtml(story, firebaseConfig) {
           }
         };
         xhr.onload = () => {
-          if (xhr.status === 200) {
-            try { resolve(JSON.parse(xhr.responseText)); }
-            catch (e) { reject(new Error('Bad response: ' + xhr.responseText.slice(0, 100))); }
-          } else {
-            let msg = 'שגיאת שרת ' + xhr.status;
-            try { msg = JSON.parse(xhr.responseText).error || msg; } catch (_) {}
-            reject(new Error(msg));
-          }
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error('שגיאת העלאה ' + xhr.status));
         };
         xhr.onerror = () => reject(new Error('שגיאת רשת — בדוק חיבור אינטרנט'));
-        xhr.send(fd);
+        xhr.send(blob);
       });
+
+      // Step 3: Notify server to make file public and create Firestore reflection doc
+      const doneRes = await fetch('/api/player-clip-done', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storyId: STORY_ID, storagePath, playerName: participantName, clipNumber, webUid }),
+      });
+      if (!doneRes.ok) {
+        let errMsg = 'שגיאה בשמירת הקליפ (' + doneRes.status + ')';
+        try { errMsg = (await doneRes.json()).error || errMsg; } catch (_) {}
+        throw new Error(errMsg);
+      }
+      return await doneRes.json();
     }
 
     async function uploadAllClips() {
@@ -411,7 +427,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
           document.getElementById('upload-clip-num').textContent = i + 1;
           document.getElementById('upload-progress').style.width = '0%';
           document.getElementById('upload-pct').textContent = '0%';
-          await uploadClipViaServer(recordedBlobs[i], i + 1);
+          await uploadClipViaSignedUrl(recordedBlobs[i], i + 1);
         }
         stopStream();
         showStep('done');

@@ -39,7 +39,7 @@ app.use(express.json());
 const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -234,6 +234,62 @@ app.post('/api/upload-player-clip', upload.single('video'), async (req, res) => 
   }
 });
 
+// Generate a signed URL so the browser can PUT directly to GCS (no double-hop through Render)
+app.get('/api/player-upload-url', async (req, res) => {
+  const { storyId, clipNumber = '1', webUid, contentType = 'video/webm' } = req.query;
+  if (!storyId) return res.status(400).json({ error: 'storyId required' });
+  if (!bucket) return res.status(503).json({ error: 'Storage not configured' });
+
+  const ext = contentType.includes('mp4') ? 'mp4' : 'webm';
+  const uid = webUid || ('web_' + Date.now());
+  const storagePath = `stories/${storyId}/players/${uid}/video${clipNumber}_${Date.now()}.${ext}`;
+
+  try {
+    const [signedUrl] = await bucket.file(storagePath).getSignedUrl({
+      version: 'v4',
+      action: 'write',
+      expires: Date.now() + 3600 * 1000,
+      contentType,
+    });
+    res.json({ signedUrl, storagePath });
+  } catch (err) {
+    console.error('getSignedUrl failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Called after direct GCS upload — makes file public and saves reflection to Firestore
+app.post('/api/player-clip-done', async (req, res) => {
+  const { storyId, storagePath, playerName, clipNumber, webUid } = req.body;
+  if (!storyId || !storagePath) return res.status(400).json({ error: 'storyId and storagePath required' });
+
+  try {
+    if (bucket) {
+      await bucket.file(storagePath).makePublic();
+    }
+    const downloadUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+
+    if (firestoreDb && playerName) {
+      await firestoreDb.collection('reflections').add({
+        storyId,
+        videoUrl:        downloadUrl,
+        playerName:      playerName,
+        participantName: playerName,
+        uid:             webUid || 'web_anonymous',
+        clipNumber:      parseInt(clipNumber, 10) || 1,
+        source:          'web',
+        createdAt:       new Date(),
+      });
+    }
+
+    console.log(`✅ Player clip done (direct upload): ${storagePath}`);
+    res.json({ success: true, url: downloadUrl });
+  } catch (err) {
+    console.error('❌ player-clip-done failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/maintenance-status', (req, res) => {
   res.json({ 
     maintenance: MAINTENANCE_MODE,
@@ -296,6 +352,15 @@ try {
     const storage = getStorage();
     bucket = storage.bucket();
     console.log('Firebase Storage initialized for video converter');
+    // Configure CORS so browsers can PUT directly to GCS via signed URLs
+    bucket.setMetadata({
+      cors: [{
+        origin: ['*'],
+        method: ['PUT', 'GET', 'HEAD'],
+        responseHeader: ['Content-Type', 'Content-Length'],
+        maxAgeSeconds: 3600,
+      }],
+    }).catch(e => console.warn('CORS set (non-fatal):', e.message));
   } else {
     console.log('Firebase credentials not found - using local storage only');
   }
@@ -413,7 +478,7 @@ async function convertVideo(inputPath, outputPath) {
   }
   
   return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
+    const command = ffmpeg(inputPath)
       .outputOptions([
         '-c:v', 'libx264',
         '-profile:v', 'baseline',
@@ -435,14 +500,23 @@ async function convertVideo(inputPath, outputPath) {
         if (p.percent) console.log(`Progress: ${Math.round(p.percent)}%`);
       })
       .on('end', () => {
+        clearTimeout(killTimer);
         console.log('Conversion completed');
         resolve(outputPath);
       })
       .on('error', (err) => {
+        clearTimeout(killTimer);
         console.error('Conversion error:', err);
         reject(err);
       })
       .run();
+
+    // Kill ffmpeg if it hangs (5 min max per file)
+    const killTimer = setTimeout(() => {
+      console.error('⏱️ ffmpeg timed out after 5 min, killing process');
+      try { command.kill('SIGKILL'); } catch (_) {}
+      reject(new Error('ffmpeg conversion timed out after 5 minutes'));
+    }, 5 * 60 * 1000);
   });
 }
 

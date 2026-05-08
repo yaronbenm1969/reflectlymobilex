@@ -988,13 +988,17 @@ export const FinalVideoScreen = () => {
           // Poll until done (max 8 min)
           let convertedUrl = null;
           const maxAttempts = 160;
+          let lastSeenProgress = -1;
+          let stuckCount = 0;
+          const STUCK_LIMIT = 20; // 20 × 3s = 60s with no progress → give up
           for (let i = 0; i < maxAttempts; i++) {
             await new Promise(r => setTimeout(r, 3000));
             try {
               const statusRes = await fetch(`${VIDEO_CONVERTER_URL}/api/queue/job/${jobId}`);
               if (statusRes.ok) {
                 const statusJson = await statusRes.json();
-                console.log(`📹 Conversion status [${i+1}]:`, statusJson.status, statusJson.progress || '');
+                const curProgress = statusJson.progress || 0;
+                console.log(`📹 Conversion status [${i+1}]:`, statusJson.status, curProgress);
                 if (statusJson.status === 'completed' && statusJson.result?.convertedUrl) {
                   convertedUrl = statusJson.result.convertedUrl;
                   break;
@@ -1005,6 +1009,17 @@ export const FinalVideoScreen = () => {
                   // Server restarted — job is gone, fall back to webm
                   console.warn('📹 Conversion job not found (server restarted?)');
                   break;
+                }
+                // Detect stuck progress — if same value for 60s, give up
+                if (curProgress === lastSeenProgress) {
+                  stuckCount++;
+                  if (stuckCount >= STUCK_LIMIT) {
+                    console.warn(`📹 Conversion stuck at ${curProgress}% for ${STUCK_LIMIT * 3}s — falling back to webm`);
+                    break;
+                  }
+                } else {
+                  stuckCount = 0;
+                  lastSeenProgress = curProgress;
                 }
               }
             } catch (pollErr) {
@@ -1166,14 +1181,18 @@ export const FinalVideoScreen = () => {
         console.warn('📹 Firebase download failed:', e.message);
       }
     } else if (fbUrl && !isMp4(fbUrl)) {
-      // fbUrl is webm — server conversion previously failed. Try converting now.
+      // fbUrl is webm — server conversion previously failed. Try converting now (2-min timeout).
       console.warn('📹 fbUrl is webm — attempting on-demand conversion for sharing...');
       try {
+        const convCtrl = new AbortController();
+        const convTimer = setTimeout(() => convCtrl.abort(), 2 * 60 * 1000);
         const convertRes = await fetch(`${VIDEO_CONVERTER_URL}/api/convert-url`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: fbUrl }),
+          signal: convCtrl.signal,
         });
+        clearTimeout(convTimer);
         if (convertRes.ok) {
           const convertData = await convertRes.json();
           const mp4Url = convertData.url || convertData.convertedUrl;

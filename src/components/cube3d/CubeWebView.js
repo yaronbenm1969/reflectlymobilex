@@ -1655,7 +1655,7 @@ const CubeWebView = ({
         setupAudioCapture(stream);
         
         var mimeType = '';
-        ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm', 'video/mp4'].some(function(m) {
+        ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm'].some(function(m) {
           if (MediaRecorder.isTypeSupported(m)) { mimeType = m; return true; }
         });
         if (!mimeType) {
