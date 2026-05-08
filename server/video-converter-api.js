@@ -1799,6 +1799,14 @@ app.post('/api/mix-music-with-video', async (req, res) => {
     if (bucket) {
       const storagePath = `edited/${storyId || 'unknown'}/final_music_${Date.now()}.mp4`;
       finalUrl = await uploadToFirebase(outputPath, storagePath);
+    } else {
+      // No Firebase bucket configured — serve file directly via /converted static route
+      const filename = `mixed_${Date.now()}.mp4`;
+      const servePath = path.join(convertedDir, filename);
+      fs.copyFileSync(outputPath, servePath);
+      const serverBase = (process.env.EXPO_PUBLIC_API_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+      finalUrl = `${serverBase}/converted/${filename}`;
+      console.log('⚠️ No Firebase bucket — serving mixed file directly:', finalUrl);
     }
 
     fs.rmSync(jobDir, { recursive: true, force: true });

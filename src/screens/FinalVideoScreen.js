@@ -1261,24 +1261,34 @@ export const FinalVideoScreen = () => {
         }
       } catch (e) { console.warn('📹 Firestore videoUrl download failed:', e.message); }
     }
-    if (isAnimatedFormat && clientRecordingSupportedRef.current) {
-      console.log('📹 Recording not cached yet, recording now');
+    // Only re-record if we have NO known URL for this story.
+    // If we do have a URL (Firestore/Firebase) but downloads failed, don't re-record —
+    // that would show a black screen + audio and re-upload unnecessarily.
+    const hasKnownUrl = !!(firestoreVideoUrlRef.current || firebaseUrlRef.current);
+    if (isAnimatedFormat && clientRecordingSupportedRef.current && !hasKnownUrl) {
+      console.log('📹 No known URL — recording now');
       setIsDownloading(true);
       const fileUri = await performClientRecording();
       // Restore end screen so VideoFactoryWaiting (upload overlay) doesn't block the share dialog
       setShowEndScreen(true);
       if (fileUri && await isValidLocal(fileUri)) return fileUri;
       console.log('📹 Client recording failed or too small, falling back to server');
+    } else if (hasKnownUrl) {
+      console.log('📹 Has known URL but downloads failed — not re-recording');
     }
     console.log('📹 Falling back to server-side render');
     return await renderConcatenatedVideo(label);
   };
 
-  const downloadVideoToLocal = async (url, prefix = 'video') => {
+  const downloadVideoToLocal = async (url, prefix = 'video', timeoutMs = 30000) => {
     const filename = `${prefix}_${Date.now()}.mp4`;
     const localUri = FileSystem.cacheDirectory + filename;
-    const downloadResult = await FileSystem.downloadAsync(url, localUri);
-    if (downloadResult.status !== 200) throw new Error('Download failed');
+    const downloadPromise = FileSystem.downloadAsync(url, localUri);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Download timeout after ' + timeoutMs / 1000 + 's')), timeoutMs)
+    );
+    const downloadResult = await Promise.race([downloadPromise, timeoutPromise]);
+    if (downloadResult.status !== 200) throw new Error('Download failed: status ' + downloadResult.status);
     return downloadResult.uri;
   };
 
