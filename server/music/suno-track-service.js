@@ -204,6 +204,50 @@ async function selectSet(transcriptionSegments, numClips, style, userHint, exclu
 }
 
 // ---------------------------------------------------------------------------
+// Per-clip track selection: GPT picks best track for a specific clip
+// ---------------------------------------------------------------------------
+async function selectTrackForClip(clipText, setTracks, usedIds) {
+  const available = setTracks.filter(t => !usedIds.has(t.id) && t.url);
+  const pool = available.length > 0 ? available : setTracks.filter(t => t.url); // fallback: reuse
+
+  if (pool.length === 1) return pool[0];
+  if (!clipText.trim()) {
+    // No transcription — pick randomly from pool
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  const descriptions = pool
+    .map((t, i) => `${i + 1}. "${t.description || t.id}"`)
+    .join('\n');
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      max_tokens: 10,
+      messages: [
+        {
+          role: 'system',
+          content: 'Music supervisor. Pick the best track number for this video clip based on its content. Reply with ONLY the number.',
+        },
+        {
+          role: 'user',
+          content: `Clip: "${clipText.slice(0, 400)}"\n\nTracks:\n${descriptions}\n\nBest number:`,
+        },
+      ],
+    });
+    const raw = (response.choices[0]?.message?.content || '').trim();
+    const idx = parseInt(raw, 10) - 1;
+    if (idx >= 0 && idx < pool.length) {
+      console.log(`🎵 GPT picked track "${pool[idx].description || pool[idx].id}" for this clip`);
+      return pool[idx];
+    }
+  } catch (err) {
+    console.warn('⚠️ Per-clip track selection failed:', err.message);
+  }
+  return pool[0];
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 /**
@@ -247,71 +291,108 @@ async function generateSunoMusicForVideo(transcriptionSegments, totalDuration, s
   console.log(`🎵 Suno library: ${allTracks.length} tracks across sets ${availableSets.join(', ')}`);
 
   // ------------------------------------------------------------------
-  // 2. Select best set via GPT-4o
+  // 2. Select best set via GPT-4o (one call for overall mood)
   // ------------------------------------------------------------------
   let chosenSet = await selectSet(transcriptionSegments, numClips, style, userHint, excludeSet);
   if (!bySet[chosenSet] || bySet[chosenSet].length === 0) {
-    // Fallback: find closest available set, preferring one different from excludeSet
     const preferred = availableSets.filter(s => s !== excludeSet);
     chosenSet = preferred.length > 0 ? preferred[0] : availableSets[0];
     console.warn(`⚠️ Chosen set not available, using Set ${chosenSet}`);
   }
-  // If still same as excludeSet and there's an alternative, switch
   if (excludeSet && chosenSet === excludeSet && availableSets.length > 1) {
     const alt = availableSets.find(s => s !== excludeSet);
     if (alt) { chosenSet = alt; console.log(`🎵 Switched to Set ${chosenSet} to avoid repeat`); }
   }
-  const setTracks = [...bySet[chosenSet]]; // copy so we can shuffle
+  const setTracks = bySet[chosenSet].filter(t => t.url);
   console.log(`🎵 Using Set ${chosenSet} — ${setTracks.length} tracks available`);
 
   // ------------------------------------------------------------------
-  // 3. Determine clip mode and cut parameters
+  // 3. Determine cut mode
+  //    ≤10 clips → per-clip GPT track selection (one track per clip)
+  //    >10 clips → legacy shuffle+cycle (too many clips for individual GPT calls)
   // ------------------------------------------------------------------
-  const clips        = numClips || 1;
-  const avgClipDur   = totalDuration / clips;
-  const isShortClips = avgClipDur <= 20; // 15s mode
+  const clips      = numClips || 1;
+  const clipDur    = totalDuration / clips;
+  const perClipMode = clips <= 10;
 
-  const clipsPerTrack  = isShortClips ? 3 : 1;
-  const trackCutDur    = isShortClips ? 45 : 30;
-  const numCuts        = Math.ceil(clips / clipsPerTrack);
+  console.log(`🎵 Mode: ${perClipMode ? 'per-clip selection' : 'shuffle+cycle'} | ${clips} clips | ~${clipDur.toFixed(1)}s each`);
 
-  console.log(`🎵 Clip mode: ${isShortClips ? '15s' : '30s'} | clipsPerTrack=${clipsPerTrack} | cuts needed=${numCuts}`);
+  // ------------------------------------------------------------------
+  // 4. Build a download cache (avoid re-downloading same track for multiple clips)
+  // ------------------------------------------------------------------
+  const dlCache = {}; // trackId → localPath
+  const tempFiles = [];
 
-  // Shuffle tracks for variety (Fisher-Yates)
-  for (let i = setTracks.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [setTracks[i], setTracks[j]] = [setTracks[j], setTracks[i]];
+  async function getTrackFile(track) {
+    if (dlCache[track.id]) return dlCache[track.id];
+    const dlPath = path.join(TEMP_DIR, `suno_dl_${ts}_${track.id}.mp3`);
+    console.log(`⬇️  Downloading ${track.id}...`);
+    await downloadFile(track.url, dlPath);
+    tempFiles.push(dlPath);
+    dlCache[track.id] = dlPath;
+    return dlPath;
   }
 
   // ------------------------------------------------------------------
-  // 4. Download and cut each track
+  // 5. Select and cut tracks
   // ------------------------------------------------------------------
   const cutPaths = [];
-  const tempFiles = [];
 
   try {
-    for (let i = 0; i < numCuts; i++) {
-      const track = setTracks[i % setTracks.length]; // cycle through set tracks
-      const startOffset = typeof track.startOffset === 'number' ? track.startOffset : 45;
+    if (perClipMode) {
+      // Per-clip: GPT picks best track from set for each clip individually
+      const usedIds = new Set();
+      for (let i = 0; i < clips; i++) {
+        // Extract this clip's transcription text from segments
+        const clipStart = i * clipDur;
+        const clipEnd   = (i + 1) * clipDur;
+        const clipText  = (transcriptionSegments || [])
+          .filter(s => (s.start ?? 0) >= clipStart - 5 && (s.start ?? 0) < clipEnd + 5)
+          .map(s => s.text || s.transcription || '')
+          .join(' ')
+          .trim();
 
-      if (!track.url) {
-        console.warn(`⚠️ Track ${track.id} has no URL — skipping`);
-        continue;
+        const track = await selectTrackForClip(clipText, setTracks, usedIds);
+        usedIds.add(track.id);
+
+        const startOffset = typeof track.startOffset === 'number' ? track.startOffset : 45;
+        const cutDur      = Math.max(Math.ceil(clipDur), 15); // match clip duration, min 15s
+
+        const dlPath  = await getTrackFile(track);
+        const cutPath = path.join(TEMP_DIR, `suno_cut_${ts}_${i}.wav`);
+        await ffmpegCut(dlPath, cutPath, startOffset, cutDur);
+        cutPaths.push(cutPath);
+        tempFiles.push(cutPath);
+
+        console.log(`✂️  Clip ${i + 1}/${clips}: ${track.id} [${startOffset}s +${cutDur}s] — "${clipText.slice(0, 60) || '(no text)'}"`);
+      }
+    } else {
+      // Legacy mode for large groups: shuffle set tracks, one cut per clipsPerTrack clips
+      const avgClipDur   = clipDur;
+      const isShortClips = avgClipDur <= 20;
+      const clipsPerTrack = isShortClips ? 3 : 1;
+      const trackCutDur   = isShortClips ? 45 : 30;
+      const numCuts       = Math.ceil(clips / clipsPerTrack);
+
+      console.log(`🎵 Legacy: clipsPerTrack=${clipsPerTrack} | cuts=${numCuts}`);
+
+      // Shuffle for variety
+      const shuffled = [...setTracks];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
 
-      // Download
-      const dlPath = path.join(TEMP_DIR, `suno_dl_${ts}_${i}.mp3`);
-      console.log(`⬇️  Downloading ${track.id} (Set ${chosenSet}, offset ${startOffset}s)...`);
-      await downloadFile(track.url, dlPath);
-      tempFiles.push(dlPath);
-
-      // Cut from startOffset
-      const cutPath = path.join(TEMP_DIR, `suno_cut_${ts}_${i}.wav`);
-      await ffmpegCut(dlPath, cutPath, startOffset, trackCutDur);
-      cutPaths.push(cutPath);
-      tempFiles.push(cutPath);
-
-      console.log(`✂️  Cut ${i + 1}/${numCuts}: ${track.id} [${startOffset}s → ${startOffset + trackCutDur}s]`);
+      for (let i = 0; i < numCuts; i++) {
+        const track       = shuffled[i % shuffled.length];
+        const startOffset = typeof track.startOffset === 'number' ? track.startOffset : 45;
+        const dlPath      = await getTrackFile(track);
+        const cutPath     = path.join(TEMP_DIR, `suno_cut_${ts}_${i}.wav`);
+        await ffmpegCut(dlPath, cutPath, startOffset, trackCutDur);
+        cutPaths.push(cutPath);
+        tempFiles.push(cutPath);
+        console.log(`✂️  Cut ${i + 1}/${numCuts}: ${track.id} [${startOffset}s +${trackCutDur}s]`);
+      }
     }
   } catch (err) {
     cleanup(tempFiles);
@@ -323,7 +404,7 @@ async function generateSunoMusicForVideo(transcriptionSegments, totalDuration, s
   }
 
   // ------------------------------------------------------------------
-  // 5. Concatenate cuts
+  // 6. Concatenate cuts
   // ------------------------------------------------------------------
   const rawPath = path.join(TEMP_DIR, `suno_raw_${ts}.wav`);
   try {
@@ -336,7 +417,7 @@ async function generateSunoMusicForVideo(transcriptionSegments, totalDuration, s
   }
 
   // ------------------------------------------------------------------
-  // 6. Apply fade-in/out and loop to cover totalDuration
+  // 7. Apply fade-in/out and loop to cover totalDuration
   // ------------------------------------------------------------------
   const finalPath = path.join(TEMP_DIR, `suno_final_${ts}.m4a`);
   try {
