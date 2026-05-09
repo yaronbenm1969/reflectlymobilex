@@ -1,6 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
 import { getFirestore, doc, getDoc, collection, addDoc, query, where, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-storage.js';
+import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
 import { firebaseConfig } from './config.js';
 
 function isInAppBrowser() {
@@ -59,6 +60,7 @@ function showWebViewRedirect() {
 }
 
 let app, db, storage;
+let API_URL = ''; // Filled from /api/server-config on init
 let currentStory = null;
 let participantId = null;
 let participantName = null;
@@ -247,10 +249,26 @@ function continueToApp() {
 
 async function initFirebase() {
     try {
+        // Fetch API URL from server config (so conversion calls go to the right place)
+        try {
+            const cfg = await fetch('/api/server-config').then(r => r.json());
+            if (cfg.apiUrl) { API_URL = cfg.apiUrl.replace(/\/$/, ''); }
+            console.log('API_URL:', API_URL || '(relative)');
+        } catch (e) {
+            console.warn('Could not fetch server-config:', e.message);
+        }
+
         app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         storage = getStorage(app);
-        console.log('Firebase initialized');
+        // Sign in anonymously so Firebase Storage rules (auth != null) pass
+        try {
+            const auth = getAuth(app);
+            await signInAnonymously(auth);
+            console.log('Firebase initialized + anonymous auth OK');
+        } catch (authError) {
+            console.warn('Anonymous auth failed (Storage uploads may fail):', authError.code);
+        }
         return true;
     } catch (error) {
         console.error('Firebase init error:', error);
@@ -740,7 +758,8 @@ function updateClipsProgress() {
 async function convertVideoToMp4(webmUrl) {
     try {
         console.log('🔄 Starting video conversion for:', webmUrl.substring(0, 80));
-        const response = await fetch('/api/convert-url', {
+        const convertEndpoint = API_URL ? `${API_URL}/api/convert-url` : '/api/convert-url';
+        const response = await fetch(convertEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: webmUrl })

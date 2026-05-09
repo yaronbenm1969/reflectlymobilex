@@ -315,6 +315,15 @@ app.post('/api/verify-access', (req, res) => {
 // Serve admin HTML before access control so the page itself loads without a header
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
 
+// Serve web player static assets at root (before access control — players are unauthenticated)
+// index.html uses absolute paths like /app.js, /config.js — must be at root
+const webPlayerDir = path.join(__dirname, '..', 'web-player');
+app.use(express.static(webPlayerDir));
+// Handle /s/:storyId deep links → serve index.html
+app.get('/s/:storyId', (req, res) => {
+  res.sendFile(path.join(webPlayerDir, 'index.html'));
+});
+
 app.use(accessControlMiddleware);
 
 const tempDir = path.join(os.tmpdir(), 'reflectly-server', 'uploads');
