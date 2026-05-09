@@ -1,4 +1,5 @@
-const puppeteer = require('puppeteer-core');
+let puppeteer;
+try { puppeteer = require('puppeteer-core'); } catch { puppeteer = null; }
 const { execSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -766,7 +767,9 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
     localServer = await startLocalVideoServer(videosDir, localPort);
     
     onProgress(18, 'מפעיל דפדפן');
-    
+
+    if (!puppeteer) throw new Error('puppeteer-core not available on this server');
+
     browser = await puppeteer.launch({
       executablePath: CHROMIUM_PATH,
       headless: 'new',
