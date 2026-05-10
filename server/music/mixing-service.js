@@ -380,7 +380,8 @@ async function mixCubeWithVoicesAndMusic(videoPath, clipPaths, musicPath, output
     `${concatInputs}concat=n=${N}:v=0:a=1[voices]`,
     `[voices]highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,loudnorm=I=-14:LRA=7:TP=-1.5[v]`,
     `[${musicIdx}:a]volume=${musicVolume}[m]`,
-    `[v][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
+    `[v][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[premix]`,
+    `[premix]loudnorm=I=-14:LRA=7:TP=-1[aout]`
   ].join(';');
 
   const args = [

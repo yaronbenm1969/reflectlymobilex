@@ -931,7 +931,7 @@ export const FinalVideoScreen = () => {
               const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                 method: 'POST',
                 headers: SERVER_HEADERS,
-                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.12, replaceAudio: true, clipUrls: orderedClipUrls }),
+                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.06, replaceAudio: true, clipUrls: orderedClipUrls }),
                 signal: mixCtrl.signal,
               });
               clearTimeout(mixTimeout);
