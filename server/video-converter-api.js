@@ -1752,14 +1752,14 @@ function probeVideoHasAudio(videoPath) {
 }
 
 app.post('/api/mix-music-with-video', async (req, res) => {
-  const { videoUrl, musicUrl, musicVolume = 0.08, storyId, replaceAudio = false } = req.body;
+  const { videoUrl, musicUrl, musicVolume = 0.08, storyId, replaceAudio = false, clipUrls } = req.body;
 
   if (!videoUrl || !musicUrl) {
     return res.status(400).json({ error: 'videoUrl and musicUrl are required' });
   }
 
   try {
-    const { mixMusicWithVideo, mixMusicWithVideoNoAudio } = require('./music/mixing-service');
+    const { mixMusicWithVideo, mixMusicWithVideoNoAudio, mixCubeWithVoicesAndMusic } = require('./music/mixing-service');
 
     const jobDir = path.join(tempDir, `mix_${Date.now()}`);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -1768,10 +1768,21 @@ app.post('/api/mix-music-with-video', async (req, res) => {
     const musicPath = path.join(jobDir, 'music.m4a');
     const outputPath = path.join(jobDir, 'final_with_music.mp4');
 
-    await Promise.all([
+    // Download cube video + music; also download participant clips if provided
+    const clipPaths = [];
+    const downloads = [
       downloadFile(videoUrl, videoPath),
       downloadFile(musicUrl, musicPath),
-    ]);
+    ];
+    if (clipUrls && Array.isArray(clipUrls) && clipUrls.length > 0) {
+      clipUrls.forEach((url, i) => {
+        const p = path.join(jobDir, `clip_${i}.mp4`);
+        clipPaths.push(p);
+        downloads.push(downloadFile(url, p));
+      });
+      console.log(`📥 Downloading ${clipUrls.length} participant clips for voice mix...`);
+    }
+    await Promise.all(downloads);
 
     // Validate downloads before ffmpeg
     const videoSize = fs.existsSync(videoPath) ? fs.statSync(videoPath).size : 0;
@@ -1780,20 +1791,21 @@ app.post('/api/mix-music-with-video', async (req, res) => {
     if (videoSize < 1000) throw new Error(`Video download too small (${videoSize}b) — likely redirect/error page`);
     if (musicSize < 1000) throw new Error(`Music download too small (${musicSize}b) — likely redirect/error page`);
 
-    // Probe for audio — cube recordings (canvas MediaRecorder) have no audio track.
-    // When there is no voice audio, music IS the only audio so we use a fixed, audible volume.
-    // When voice audio exists, we use the caller-supplied musicVolume (voice-relative balance).
-    const hasAudio = !replaceAudio && await probeVideoHasAudio(videoPath);
-    console.log(`🔊 Video has audio: ${hasAudio}, replaceAudio: ${replaceAudio}, musicVolume sent: ${musicVolume}`);
-    if (hasAudio) {
-      await mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume);
+    if (clipPaths.length > 0) {
+      // Cube format: mix concatenated participant voices + music into silent cube video
+      console.log(`🎬 Cube voice+music mix (${clipPaths.length} clips, musicVol=${musicVolume})`);
+      await mixCubeWithVoicesAndMusic(videoPath, clipPaths, musicPath, outputPath, musicVolume);
     } else {
-      // No voice audio — music is the only audio track. Use a moderate background level.
-      // The musicVolume param was designed for voice-relative mixing (e.g. 0.019),
-      // so we use a fixed value here that sounds right as standalone background music.
-      const noAudioVolume = 0.9;
-      console.log(`🎵 No audio track (replaceAudio) — music-only mix at ${noAudioVolume}`);
-      await mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, noAudioVolume);
+      // Probe for audio — cube recordings (canvas MediaRecorder) have no audio track.
+      const hasAudio = !replaceAudio && await probeVideoHasAudio(videoPath);
+      console.log(`🔊 Video has audio: ${hasAudio}, replaceAudio: ${replaceAudio}, musicVolume sent: ${musicVolume}`);
+      if (hasAudio) {
+        await mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume);
+      } else {
+        const noAudioVolume = 0.9;
+        console.log(`🎵 No audio track — music-only mix at ${noAudioVolume}`);
+        await mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, noAudioVolume);
+      }
     }
 
     let finalUrl = null;

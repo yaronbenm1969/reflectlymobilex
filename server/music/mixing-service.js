@@ -356,9 +356,64 @@ async function mixVocalsWithMusic(videoPath, vocalsPath, musicPath, outputPath, 
   });
 }
 
+/**
+ * Mix a cube recording (canvas-only, no audio) with concatenated voices from participant clips + music.
+ * Clip audios are concatenated in order (matching cube face playback sequence).
+ */
+async function mixCubeWithVoicesAndMusic(videoPath, clipPaths, musicPath, outputPath, musicVolume = 0.1) {
+  console.log(`🎬 Cube mix: ${clipPaths.length} voice clips + music at vol=${musicVolume}...`);
+
+  if (clipPaths.length === 0) {
+    return mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, 0.9);
+  }
+
+  // [0]=cube_video (silent), [1..N]=participant clips, [N+1]=music
+  const inputs = ['-i', videoPath];
+  clipPaths.forEach(p => inputs.push('-i', p));
+  inputs.push('-i', musicPath);
+
+  const N = clipPaths.length;
+  const musicIdx = N + 1;
+  const concatInputs = clipPaths.map((_, i) => `[${i + 1}:a]`).join('');
+
+  const filterComplex = [
+    `${concatInputs}concat=n=${N}:v=0:a=1[voices]`,
+    `[voices]highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,loudnorm=I=-14:LRA=7:TP=-1.5[v]`,
+    `[${musicIdx}:a]volume=${musicVolume}[m]`,
+    `[v][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
+  ].join(';');
+
+  const args = [
+    ...inputs,
+    '-filter_complex', filterComplex,
+    '-map', '0:v',
+    '-map', '[aout]',
+    '-c:v', 'copy',
+    '-c:a', 'aac',
+    '-b:a', '192k',
+    '-movflags', '+faststart',
+    '-shortest',
+    '-y', outputPath
+  ];
+
+  return new Promise((resolve, reject) => {
+    execFile('ffmpeg', args, { timeout: 300000 }, (err, stdout, stderr) => {
+      if (err) {
+        console.error('❌ mixCubeWithVoicesAndMusic failed:', err.message);
+        console.error('FFmpeg stderr:', stderr?.substring(0, 500));
+        reject(err);
+      } else {
+        console.log('✅ Cube video with voices + music done:', outputPath);
+        resolve(outputPath);
+      }
+    });
+  });
+}
+
 module.exports = {
   mixStemsWithTimeline,
   mixMusicWithVideo,
   mixMusicWithVideoNoAudio,
-  mixVocalsWithMusic
+  mixVocalsWithMusic,
+  mixCubeWithVoicesAndMusic
 };

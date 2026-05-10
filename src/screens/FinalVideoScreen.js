@@ -909,12 +909,29 @@ export const FinalVideoScreen = () => {
             console.log('🎵 Mixing AI music into recording...');
             setDownloadProgress(t('finalVideo.factory_mixing'));
             try {
+              // Build ordered clip URLs (same interleave order as cube playback)
+              const orderedClipUrls = (() => {
+                const groups = {};
+                reflections.forEach(r => {
+                  const key = r.playerName || r.participantName || 'default';
+                  if (!groups[key]) groups[key] = [];
+                  groups[key].push(r);
+                });
+                Object.values(groups).forEach(g => g.sort((a, b) => (a.clipNumber || 0) - (b.clipNumber || 0)));
+                const players = Object.values(groups);
+                const result = [];
+                const maxLen = Math.max(...players.map(p => p.length), 0);
+                for (let i = 0; i < maxLen; i++) {
+                  players.forEach(group => { if (i < group.length) result.push(group[i]); });
+                }
+                return result;
+              })().map(r => r.videoUrl).filter(Boolean);
               const mixCtrl = new AbortController();
               const mixTimeout = setTimeout(() => mixCtrl.abort(), 4 * 60 * 1000); // 4 min
               const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                 method: 'POST',
                 headers: SERVER_HEADERS,
-                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.014, replaceAudio: true }),
+                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.014, replaceAudio: true, clipUrls: orderedClipUrls }),
                 signal: mixCtrl.signal,
               });
               clearTimeout(mixTimeout);
