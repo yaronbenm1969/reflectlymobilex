@@ -39,6 +39,12 @@ app.use(express.json());
 const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
 const ACCESS_CODE = process.env.ACCESS_CODE || '';
 
+const tempDir = path.join(os.tmpdir(), 'reflectly-server', 'uploads');
+const convertedDir = path.join(os.tmpdir(), 'reflectly-server', 'converted');
+if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+if (!fs.existsSync(convertedDir)) fs.mkdirSync(convertedDir, { recursive: true });
+const upload = multer({ dest: tempDir, limits: { fileSize: 100 * 1024 * 1024 } });
+
 const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done'];
 
 const accessControlMiddleware = (req, res, next) => {
@@ -326,20 +332,6 @@ app.get('/s/:storyId', (req, res) => {
 
 app.use(accessControlMiddleware);
 
-const tempDir = path.join(os.tmpdir(), 'reflectly-server', 'uploads');
-const convertedDir = path.join(os.tmpdir(), 'reflectly-server', 'converted');
-
-if (!fs.existsSync(tempDir)) {
-  fs.mkdirSync(tempDir, { recursive: true });
-}
-if (!fs.existsSync(convertedDir)) {
-  fs.mkdirSync(convertedDir, { recursive: true });
-}
-
-const upload = multer({ 
-  dest: tempDir,
-  limits: { fileSize: 100 * 1024 * 1024 }
-});
 
 let bucket = null;
 
