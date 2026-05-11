@@ -1759,7 +1759,7 @@ app.post('/api/mix-music-with-video', async (req, res) => {
   }
 
   try {
-    const { mixMusicWithVideo, mixMusicWithVideoNoAudio, mixCubeWithVoicesAndMusic } = require('./music/mixing-service');
+    const { mixMusicWithVideo, mixMusicWithVideoNoAudio, mixCubeWithVoicesAndMusic, mixRecordingAudioWithMusic } = require('./music/mixing-service');
 
     const jobDir = path.join(tempDir, `mix_${Date.now()}`);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -1796,11 +1796,12 @@ app.post('/api/mix-music-with-video', async (req, res) => {
       console.log(`🎬 Cube voice+music mix (${clipPaths.length} clips, musicVol=${musicVolume})`);
       await mixCubeWithVoicesAndMusic(videoPath, clipPaths, musicPath, outputPath, musicVolume);
     } else {
-      // Probe for audio — cube recordings (canvas MediaRecorder) have no audio track.
+      // No clipUrls — use the recording's own audio [0:a] which is in-sync with video frames.
+      // Fast single-pass with alimiter (no 2-pass loudnorm delay).
       const hasAudio = !replaceAudio && await probeVideoHasAudio(videoPath);
-      console.log(`🔊 Video has audio: ${hasAudio}, replaceAudio: ${replaceAudio}, musicVolume sent: ${musicVolume}`);
+      console.log(`🔊 Video has audio: ${hasAudio}, replaceAudio: ${replaceAudio}`);
       if (hasAudio) {
-        await mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume);
+        await mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musicVolume);
       } else {
         const noAudioVolume = 0.9;
         console.log(`🎵 No audio track — music-only mix at ${noAudioVolume}`);

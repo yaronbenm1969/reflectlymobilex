@@ -363,6 +363,47 @@ async function mixVocalsWithMusic(videoPath, vocalsPath, musicPath, outputPath, 
   });
 }
 
+// Fast single-pass mix using the recording's own audio [0:a] + music.
+// Uses alimiter (zero latency) instead of 2-pass loudnorm → much faster, lip-sync preserved.
+async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musicVolume = 0.1) {
+  console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
+  const voiceFilter = 'highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,alimiter=limit=0.95';
+  const filterComplex = [
+    `[0:v]setpts=PTS-STARTPTS[vout]`,
+    `[0:a]${voiceFilter}[v]`,
+    `[1:a]volume=${musicVolume}[m]`,
+    `[v][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
+  ].join(';');
+  const args = [
+    '-i', videoPath,
+    '-stream_loop', '-1',
+    '-i', musicPath,
+    '-filter_complex', filterComplex,
+    '-map', '[vout]',
+    '-map', '[aout]',
+    '-c:v', 'libx264',
+    '-preset', 'veryfast',
+    '-r', '30',
+    '-c:a', 'aac',
+    '-b:a', '192k',
+    '-movflags', '+faststart',
+    '-shortest',
+    '-y', outputPath
+  ];
+  return new Promise((resolve, reject) => {
+    execFile('ffmpeg', args, { timeout: 300000 }, (err, stdout, stderr) => {
+      if (err) {
+        console.error('❌ mixRecordingAudioWithMusic failed:', err.message);
+        console.error('FFmpeg stderr:', stderr?.substring(0, 500));
+        reject(err);
+      } else {
+        console.log('✅ Recording audio + music mixed (fast, lip-sync preserved):', outputPath);
+        resolve(outputPath);
+      }
+    });
+  });
+}
+
 async function mixCubeWithVoicesAndMusic(videoPath, clipPaths, musicPath, outputPath, musicVolume = 0.1) {
   console.log(`🎬 Cube mix: ${clipPaths.length} voice clips + music at vol=${musicVolume}...`);
 
@@ -424,5 +465,6 @@ module.exports = {
   mixMusicWithVideo,
   mixMusicWithVideoNoAudio,
   mixVocalsWithMusic,
-  mixCubeWithVoicesAndMusic
+  mixCubeWithVoicesAndMusic,
+  mixRecordingAudioWithMusic
 };
