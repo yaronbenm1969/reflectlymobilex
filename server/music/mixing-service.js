@@ -239,7 +239,12 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
     voiceFilter = `${voiceEnhance},volume=2.5`;
   }
 
-  const filterComplex = `[0:a]${voiceFilter}[voice];[1:a]volume=${musicVolume}[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`;
+  const filterComplex = [
+    `[0:v]setpts=PTS-STARTPTS[vout]`,
+    `[0:a]${voiceFilter}[voice]`,
+    `[1:a]volume=${musicVolume}[music]`,
+    `[voice][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
+  ].join(';');
 
   console.log('🎬 Pass 2: Mixing with music...');
   console.log(`Music: ${musicPath} at ${musicVolume}`);
@@ -250,9 +255,11 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
       '-stream_loop', '-1',
       '-i', musicPath,
       '-filter_complex', filterComplex,
-      '-map', '0:v',
+      '-map', '[vout]',
       '-map', '[aout]',
-      '-c:v', 'copy',
+      '-c:v', 'libx264',
+      '-preset', 'veryfast',
+      '-r', '30',
       '-c:a', 'aac',
       '-b:a', '192k',
       '-movflags', '+faststart',
@@ -356,10 +363,6 @@ async function mixVocalsWithMusic(videoPath, vocalsPath, musicPath, outputPath, 
   });
 }
 
-/**
- * Mix a cube recording (canvas-only, no audio) with concatenated voices from participant clips + music.
- * Clip audios are concatenated in order (matching cube face playback sequence).
- */
 async function mixCubeWithVoicesAndMusic(videoPath, clipPaths, musicPath, outputPath, musicVolume = 0.1) {
   console.log(`🎬 Cube mix: ${clipPaths.length} voice clips + music at vol=${musicVolume}...`);
 
@@ -377,19 +380,24 @@ async function mixCubeWithVoicesAndMusic(videoPath, clipPaths, musicPath, output
   const concatInputs = clipPaths.map((_, i) => `[${i + 1}:a]`).join('');
 
   const filterComplex = [
+    // Reset video PTS to start at 0 — fixes audio/video drift when source is WebM-converted MP4
+    `[0:v]setpts=PTS-STARTPTS[vout]`,
     `${concatInputs}concat=n=${N}:v=0:a=1[voices]`,
-    `[voices]highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,loudnorm=I=-14:LRA=7:TP=-1.5[v]`,
+    // alimiter instead of loudnorm: loudnorm adds ~1.7s lookahead latency per pass → voices lag video.
+    // alimiter is near-zero latency and prevents clipping.
+    `[voices]highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,alimiter=limit=0.95[v]`,
     `[${musicIdx}:a]volume=${musicVolume}[m]`,
-    `[v][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[premix]`,
-    `[premix]loudnorm=I=-14:LRA=7:TP=-1[aout]`
+    `[v][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
   ].join(';');
 
   const args = [
     ...inputs,
     '-filter_complex', filterComplex,
-    '-map', '0:v',
+    '-map', '[vout]',
     '-map', '[aout]',
-    '-c:v', 'copy',
+    '-c:v', 'libx264',   // re-encode so muxer writes correct PTS (copy preserves WebM drift)
+    '-preset', 'veryfast',
+    '-r', '30',          // force CFR 30fps — prevents WhatsApp recompression sync drift
     '-c:a', 'aac',
     '-b:a', '192k',
     '-movflags', '+faststart',

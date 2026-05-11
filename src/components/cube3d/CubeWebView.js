@@ -29,6 +29,7 @@ const CubeWebView = ({
   recordNextPlayback = false,
   backgroundUrl = null,
   backgroundMediaType = 'video',
+  musicUrl = null,
 }) => {
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -108,8 +109,10 @@ const CubeWebView = ({
   useEffect(() => {
     if (recordNextPlayback && webViewRef.current) {
       console.log('📹 Enabling recording for next playback');
+      const safeMusicUrl = musicUrl ? musicUrl.replace(/\\/g, '\\\\').replace(/'/g, "\\'") : '';
       webViewRef.current.injectJavaScript(`
         window._recEnabled = true;
+        ${safeMusicUrl ? `window._musicUrl = '${safeMusicUrl}'; if (typeof window._preloadMusic === 'function') { window._preloadMusic('${safeMusicUrl}'); }` : ''}
         true;
       `);
     }
@@ -1368,12 +1371,31 @@ const CubeWebView = ({
     
     // ============ CLIENT-SIDE RECORDING MODULE ============
     window._recEnabled = false;
+    window._musicUrl = null;
+
+    // Pre-load music as a blob URL so it's ready when recording starts
+    var _musicBlobUrl = null;
+    var _musicAudioEl = null;
+    var _musicCaptured = false;
+    window._preloadMusic = function(url) {
+      if (!url) return;
+      console.log('🎵 Pre-loading music for recording...');
+      fetch(url, { mode: 'cors' })
+        .then(function(r) { return r.blob(); })
+        .then(function(blob) {
+          if (_musicBlobUrl) URL.revokeObjectURL(_musicBlobUrl);
+          _musicBlobUrl = URL.createObjectURL(blob);
+          console.log('🎵 Music pre-loaded as blob, ready for recording');
+        })
+        .catch(function(e) { console.warn('🎵 Music pre-load failed:', e.message); });
+    };
+
     var _recModule = (function() {
       var hasRecorder = typeof MediaRecorder !== 'undefined';
-      var hasCapture = HTMLCanvasElement.prototype && 
+      var hasCapture = HTMLCanvasElement.prototype &&
                        typeof HTMLCanvasElement.prototype.captureStream === 'function';
       var supported = hasRecorder && hasCapture;
-      
+
       setTimeout(function() {
         postMessage('recordingSupport', { supported: supported });
       }, 200);
@@ -1617,10 +1639,33 @@ const CubeWebView = ({
             }
           });
           
+          // Also capture AI music if pre-loaded — routes music to recording only (not speaker)
+          // User hears music via Expo AV on native side; WebView captures it silently for the recording
+          _musicCaptured = false;
+          if (_musicBlobUrl) {
+            try {
+              _musicAudioEl = document.createElement('audio');
+              _musicAudioEl.src = _musicBlobUrl;
+              _musicAudioEl.loop = true;
+              var musicSource = _audioCtx.createMediaElementSource(_musicAudioEl);
+              var musicGain = _audioCtx.createGain();
+              musicGain.gain.value = 0.12; // match server musicVolume
+              musicSource.connect(musicGain);
+              musicGain.connect(dest); // only to recording dest, NOT to audioCtx.destination → silent to speaker
+              _musicAudioEl.play().catch(function(e) { console.warn('🎵 Music play error:', e.message); });
+              _musicCaptured = true;
+              console.log('🎵 Music audio captured for recording (silent to speaker)');
+            } catch(me) {
+              console.warn('🎵 Music capture setup failed:', me.message);
+            }
+          } else {
+            console.log('🎵 No music blob ready — recording without music (server will mix)');
+          }
+
           dest.stream.getAudioTracks().forEach(function(track) {
             stream.addTrack(track);
           });
-          console.log('🔊 Audio capture added (' + _audioSources.size + ' sources)');
+          console.log('🔊 Audio capture added (' + _audioSources.size + ' voice sources, music=' + _musicCaptured + ')');
           return true;
         } catch(e) {
           console.warn('🔇 Audio capture failed:', e.message);
@@ -1656,9 +1701,13 @@ const CubeWebView = ({
         });
       }
       
-      function startRec() {
+      function startRec(skipWait) {
         if (recState !== 'idle') return;
-        
+        // skipWait=true: start immediately (used when triggered by videoStart — video is already playing)
+        if (skipWait) {
+          actualStartRec();
+          return;
+        }
         waitForFaceVideos().then(function(allReady) {
           if (!allReady) {
             console.warn('📹 Not all videos ready but proceeding anyway');
@@ -1709,7 +1758,7 @@ const CubeWebView = ({
             console.log('📹 Cube base64 length: ' + b64.length + ' chars');
             var CHUNK = 64 * 1024;
             var total = Math.ceil(b64.length / CHUNK);
-            postMessage('recordingMeta', { totalChunks: total, sizeBytes: blob.size, mimeType: mimeType });
+            postMessage('recordingMeta', { totalChunks: total, sizeBytes: blob.size, mimeType: mimeType, hasMusic: _musicCaptured });
             
             var sendIdx = 0;
             function sendNext() {
@@ -1739,6 +1788,10 @@ const CubeWebView = ({
         console.log('📹 Stopping recording...');
         if (recAnimId) cancelAnimationFrame(recAnimId);
         recorder.stop();
+        if (_musicAudioEl) {
+          try { _musicAudioEl.pause(); _musicAudioEl.src = ''; } catch(e) {}
+          _musicAudioEl = null;
+        }
         if (_audioCtx) {
           try { _audioCtx.close(); } catch(e) {}
           _audioCtx = null;
@@ -1753,13 +1806,17 @@ const CubeWebView = ({
         isRec: function() { return recState === 'recording'; }
       };
     })();
-    
+
     var _origPostMsg = postMessage;
     postMessage = function(type, data) {
       _origPostMsg(type, data);
-      if (type === 'animationStarted' && window._recEnabled) {
+      // Start recording when first video actually starts playing (not during reveal animation).
+      // 'animationStarted' fires before revealFromTopFace (~2-3s). Starting there puts the
+      // recording 2-3s ahead of the audio concat → desync. 'videoStart' queueIndex=0 fires
+      // exactly when video 0 begins, so audio and video start at the same moment.
+      if (type === 'videoStart' && data.queueIndex === 0 && window._recEnabled) {
         window._recEnabled = false;
-        _recModule.start();
+        _recModule.start(true); // skipWait — face 0 is already playing
       }
       if (type === 'allVideosComplete' && _recModule.isRec()) {
         setTimeout(function() { _recModule.stop(); }, 500);
@@ -1839,11 +1896,12 @@ const CubeWebView = ({
           const recExt = recMime.includes('mp4') ? '.mp4' : '.webm';
           console.log('📹 Recording mimeType:', recMime, 'extension:', recExt);
           const fileUri = FileSystem.cacheDirectory + 'cube_recording_' + Date.now() + recExt;
+          const recMeta = { hasMusic: recordingMetaRef.current?.hasMusic === true };
           FileSystem.writeAsStringAsync(fileUri, base64Data, {
             encoding: FileSystem.EncodingType.Base64,
           }).then(() => {
-            console.log('📹 Recording saved:', fileUri);
-            onRecordingComplete?.(fileUri);
+            console.log('📹 Recording saved:', fileUri, 'hasMusic:', recMeta.hasMusic);
+            onRecordingComplete?.(fileUri, recMeta);
             recordingChunksRef.current = [];
             recordingMetaRef.current = null;
           }).catch(err => {

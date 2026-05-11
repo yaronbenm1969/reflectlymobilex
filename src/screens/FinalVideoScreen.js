@@ -796,8 +796,8 @@ export const FinalVideoScreen = () => {
     }
   };
 
-  const handleRecordingComplete = async (fileUri) => {
-    console.log('📹 Recording complete:', fileUri);
+  const handleRecordingComplete = async (fileUri, meta = {}) => {
+    console.log('📹 Recording complete:', fileUri, 'hasMusic:', meta.hasMusic);
     setRecordNextPlayback(false);
     // NOTE: do NOT clear clientRecordingInProgress here yet.
     // It must stay true until isUploadingRecording is set to true, to prevent
@@ -823,7 +823,7 @@ export const FinalVideoScreen = () => {
           // Clear clientRecordingInProgress BEFORE calling convertAndUploadRecording,
           // so both this and setIsUploadingRecording(true) are batched in the same render.
           setClientRecordingInProgress(false);
-          convertAndUploadRecording(fileUri);
+          convertAndUploadRecording(fileUri, meta);
         } else {
           console.warn('📹 Recording too small - iOS captureStream likely not supported. Will use server render.');
           setClientRecordingInProgress(false);
@@ -855,8 +855,9 @@ export const FinalVideoScreen = () => {
     }
   };
 
-  const convertAndUploadRecording = async (fileUri) => {
+  const convertAndUploadRecording = async (fileUri, meta = {}) => {
     if (!currentStoryId || !fileUri) return;
+    const recordingHasMusic = meta.hasMusic === true;
     const isAlreadyMp4 = fileUri.toLowerCase().includes('.mp4');
     
     try {
@@ -903,10 +904,10 @@ export const FinalVideoScreen = () => {
             else console.log('⚠️ Music not ready / timed out, mixing without');
           }
 
-          // Mix AI music into the recording if available
+          // Mix AI music into the recording if available — skip if recording already has music captured
           const musicUrl = generatedMusicUrlRef.current;
-          if (musicUrl) {
-            console.log('🎵 Mixing AI music into recording...');
+          if (musicUrl && !recordingHasMusic) {
+            console.log('🎵 Mixing AI music into recording (server-side)...');
             setDownloadProgress(t('finalVideo.factory_mixing'));
             try {
               // Build ordered clip URLs (same interleave order as cube playback)
@@ -931,7 +932,7 @@ export const FinalVideoScreen = () => {
               const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                 method: 'POST',
                 headers: SERVER_HEADERS,
-                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.06, replaceAudio: true, clipUrls: orderedClipUrls }),
+                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.12, replaceAudio: true, clipUrls: orderedClipUrls }),
                 signal: mixCtrl.signal,
               });
               clearTimeout(mixTimeout);
@@ -946,6 +947,8 @@ export const FinalVideoScreen = () => {
             } catch (mixErr) {
               console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
             }
+          } else if (recordingHasMusic) {
+            console.log('🎵 Recording already has music captured in-sync — skipping server mix');
           }
 
           setRecordingFirebaseUrl(finalMp4Url);
@@ -994,7 +997,7 @@ export const FinalVideoScreen = () => {
         // Send async request to avoid Cloudflare tunnel timeout on large files
         const convertResponse = await fetch(`${VIDEO_CONVERTER_URL}/api/convert-url`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: SERVER_HEADERS,
           body: JSON.stringify({ url: webmUrl, async: true }),
         });
 
@@ -1076,18 +1079,34 @@ export const FinalVideoScreen = () => {
               else console.log('⚠️ Music not ready / timed out, mixing without');
             }
 
-            // Mix AI music into the recording if available
+            // Mix AI music into the recording if available — skip if recording already has music captured
             const musicUrl = generatedMusicUrlRef.current;
-            if (musicUrl) {
-              console.log('🎵 Mixing AI music into recording...');
+            if (musicUrl && !recordingHasMusic) {
+              console.log('🎵 Mixing AI music into cube recording (server-side)...');
               setDownloadProgress(t('finalVideo.factory_mixing'));
               try {
+                const orderedClipUrls = (() => {
+                  const groups = {};
+                  reflections.forEach(r => {
+                    const key = r.playerName || r.participantName || 'default';
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(r);
+                  });
+                  Object.values(groups).forEach(g => g.sort((a, b) => (a.clipNumber || 0) - (b.clipNumber || 0)));
+                  const players = Object.values(groups);
+                  const result = [];
+                  const maxLen = Math.max(...players.map(p => p.length), 0);
+                  for (let i = 0; i < maxLen; i++) {
+                    players.forEach(group => { if (i < group.length) result.push(group[i]); });
+                  }
+                  return result;
+                })().map(r => r.videoUrl).filter(Boolean);
                 const mixCtrl = new AbortController();
                 const mixTimeout = setTimeout(() => mixCtrl.abort(), 4 * 60 * 1000); // 4 min
                 const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                   method: 'POST',
                   headers: SERVER_HEADERS,
-                  body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.014, replaceAudio: true }),
+                  body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.12, replaceAudio: true, clipUrls: orderedClipUrls }),
                   signal: mixCtrl.signal,
                 });
                 clearTimeout(mixTimeout);
@@ -1102,6 +1121,8 @@ export const FinalVideoScreen = () => {
               } catch (mixErr) {
                 console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
               }
+            } else if (recordingHasMusic) {
+              console.log('🎵 Recording already has music captured in-sync — skipping server mix');
             }
 
             setRecordingFirebaseUrl(finalMp4Url);
@@ -1206,7 +1227,7 @@ export const FinalVideoScreen = () => {
         const convTimer = setTimeout(() => convCtrl.abort(), 2 * 60 * 1000);
         const convertRes = await fetch(`${VIDEO_CONVERTER_URL}/api/convert-url`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: SERVER_HEADERS,
           body: JSON.stringify({ url: fbUrl }),
           signal: convCtrl.signal,
         });
@@ -1281,7 +1302,13 @@ export const FinalVideoScreen = () => {
     // Only re-record if we have NO known URL for this story.
     // If we do have a URL (Firestore/Firebase) but downloads failed, don't re-record —
     // that would show a black screen + audio and re-upload unnecessarily.
-    const hasKnownUrl = !!(firestoreVideoUrlRef.current || firebaseUrlRef.current);
+    // Only treat as "known" if we have a non-webm URL — webm-only means conversion failed,
+    // so re-recording is still worth attempting for animated formats.
+    const isWebm = (u) => u && u.toLowerCase().includes('.webm');
+    const hasKnownUrl = !!(
+      (firestoreVideoUrlRef.current && !isWebm(firestoreVideoUrlRef.current)) ||
+      (firebaseUrlRef.current && !isWebm(firebaseUrlRef.current))
+    );
     if (isAnimatedFormat && clientRecordingSupportedRef.current && !hasKnownUrl) {
       console.log('📹 No known URL — recording now');
       setIsDownloading(true);
@@ -1584,6 +1611,7 @@ export const FinalVideoScreen = () => {
             isFullscreen={isCubeFullscreen}
             triggerAutoPlay={triggerAutoPlay}
             recordNextPlayback={recordNextPlayback}
+            musicUrl={generatedMusicUrl || null}
             backgroundUrl={backgroundVideoUrl || null}
             backgroundMediaType={backgroundMediaType || 'video'}
             onFaceChange={handleFaceChange}
