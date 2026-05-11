@@ -908,7 +908,7 @@ export const FinalVideoScreen = () => {
           // Do NOT pass clipUrls/replaceAudio — that discards the in-sync recording audio
           // and rebuilds from clip files which causes lip-sync drift.
           const musicUrl = generatedMusicUrlRef.current;
-          if (musicUrl && !recordingHasMusic) {
+          if (musicUrl) {
             console.log('🎵 Mixing AI music into recording (using recording audio for sync)...');
             setDownloadProgress(t('finalVideo.factory_mixing'));
             try {
@@ -932,8 +932,6 @@ export const FinalVideoScreen = () => {
             } catch (mixErr) {
               console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
             }
-          } else if (recordingHasMusic) {
-            console.log('🎵 Recording already has music captured in-sync — skipping server mix');
           }
 
           setRecordingFirebaseUrl(finalMp4Url);
@@ -1067,7 +1065,7 @@ export const FinalVideoScreen = () => {
             // Mix AI music using the recording's own audio ([0:a]) — NOT clip files.
             // clipUrls/replaceAudio would discard the in-sync recording audio → lip-sync drift.
             const musicUrl = generatedMusicUrlRef.current;
-            if (musicUrl && !recordingHasMusic) {
+            if (musicUrl) {
               console.log('🎵 Mixing AI music into cube recording (using recording audio for sync)...');
               setDownloadProgress(t('finalVideo.factory_mixing'));
               try {
@@ -1091,8 +1089,6 @@ export const FinalVideoScreen = () => {
               } catch (mixErr) {
                 console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
               }
-            } else if (recordingHasMusic) {
-              console.log('🎵 Recording already has music captured in-sync — skipping server mix');
             }
 
             setRecordingFirebaseUrl(finalMp4Url);
