@@ -489,6 +489,7 @@ function updateMusicModeBanner() {
     const banner = document.getElementById('music-mode-banner');
     if (!banner) return;
     const trackId = getAmbientTrackId();
+    alert('DEBUG music: ' + JSON.stringify(currentStory?.music) + ' | trackId: ' + trackId);
     banner.style.display = trackId ? 'block' : 'none';
 }
 
