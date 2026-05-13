@@ -298,10 +298,27 @@
                 <button class="btn-back light" id="back-to-watch-from-3clips">←</button>
                 <h1>הקלט 3 שיקופים</h1>
             </div>
-            
+
             <div class="instructions-banner" id="instructions-banner">
                 <div class="instructions-icon">📋</div>
                 <p id="instructions-text-display">הוראות מהיוצר יופיעו כאן</p>
+            </div>
+
+            <!-- Music mode banner — shown only when story has ambient music -->
+            <div id="music-mode-banner" style="display:none; margin:12px 16px 4px; background:linear-gradient(135deg,#f3e5ff,#e8eaff); border-radius:14px; padding:14px; border:1.5px solid #c8a8f0;">
+                <p style="font-size:13px; font-weight:700; color:#6a1b9a; margin:0 0 10px 0; text-align:center;">🎵 יש מוזיקה לסיפור זה — בחר מצב הקלטה</p>
+                <div style="display:flex; gap:10px;">
+                    <button class="music-mode-btn" data-mode="none" id="music-btn-none"
+                        style="flex:1; padding:12px 8px; border-radius:12px; border:2px solid #8446b0; background:#8446b0; color:#fff; font-size:13px; font-weight:700; cursor:pointer; line-height:1.4; text-align:center;">
+                        🔇 ללא מוזיקה
+                        <div style="font-size:11px; font-weight:400; margin-top:3px; opacity:0.85;">ברירת מחדל</div>
+                    </button>
+                    <button class="music-mode-btn" data-mode="performance" id="music-btn-performance"
+                        style="flex:1; padding:12px 8px; border-radius:12px; border:2px solid #ddd; background:#fff; color:#6a1b9a; font-size:13px; font-weight:700; cursor:pointer; line-height:1.4; text-align:center;">
+                        🎤 שיר עם מוזיקה
+                        <div style="font-size:11px; font-weight:400; margin-top:3px; color:#888;">מנגן בזמן הצילום</div>
+                    </button>
+                </div>
             </div>
 
             <div class="clips-container">
@@ -386,6 +403,18 @@
                 <div class="countdown-overlay" id="countdown-overlay">
                     <span id="countdown-number">3</span>
                 </div>
+            </div>
+            <!-- Performance music controls — shown only in "שיר עליה" mode -->
+            <div id="performance-music-bar" style="display:none; margin:8px 16px; padding:10px 14px; background:linear-gradient(135deg,#f3e5ff,#e8eaff); border-radius:12px; border:1.5px solid #c8a8f0; display:none; align-items:center; justify-content:space-between; gap:10px;">
+                <button id="play-music-btn" onclick="handlePlayMusicBtn()"
+                    style="flex:1; padding:10px; border-radius:10px; border:2px solid #8446b0; background:#8446b0; color:#fff; font-size:14px; font-weight:700; cursor:pointer;">
+                    🎵 הפעל מוזיקה
+                </button>
+                <button id="stop-music-btn" onclick="stopAmbientMusic()" style="display:none;
+                    flex:1; padding:10px; border-radius:10px; border:2px solid #ddd; background:#fff; color:#666; font-size:14px; font-weight:600; cursor:pointer;">
+                    ⏹ עצור מוזיקה
+                </button>
+                <span id="music-playing-label" style="font-size:12px; color:#9c4dcc; display:none;">🎵 מתנגנת...</span>
             </div>
             <div class="timing-info">
                 <p>⏱️ זמן מקסימלי: <span id="max-time-display">30</span> שניות</p>

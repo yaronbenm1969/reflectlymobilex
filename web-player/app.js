@@ -74,6 +74,7 @@ let currentRecordingClip = null;
 let maxRecordTime = 30;
 let autoStopTimeout = null;
 let ambientAudio = null;
+let webPlayerMusicMode = 'none'; // 'none' | 'performance'
 const MUSIC_BASE_URL = 'https://storage.googleapis.com/reflectly-playback.firebasestorage.app/music/library';
 
 const clipRecordings = {
@@ -484,11 +485,19 @@ async function loadStory(code) {
     return true;
 }
 
+function updateMusicModeBanner() {
+    const banner = document.getElementById('music-mode-banner');
+    if (!banner) return;
+    const trackId = getAmbientTrackId();
+    banner.style.display = trackId ? 'block' : 'none';
+}
+
 function handleStartRecording() {
     if (!currentStory) {
         console.log('⚠️ No story loaded');
         return;
     }
+    updateMusicModeBanner();
     
     const publishingEnabled = currentStory.privacySettings?.publishingEnabled;
     const existingApproval = localStorage.getItem(`publishing_approval_${currentStory.id}_${participantId}`);
@@ -582,24 +591,45 @@ function getAmbientTrackId() {
 }
 
 function startAmbientMusic(clipNumber) {
+    // Web player has no automatic music — 'none' is default, 'performance' uses explicit button
+    return;
+}
+
+// Called by the explicit "הפעל מוזיקה" button — user gesture ensures browser allows playback
+function handlePlayMusicBtn() {
     const trackId = getAmbientTrackId();
     if (!trackId) return;
 
     stopAmbientMusic();
 
-    const phaseNum = Math.min(clipNumber, 3);
+    const phaseNum = Math.min(currentRecordingClip || 1, 3);
     const url = `${MUSIC_BASE_URL}/${trackId}/phase${phaseNum}.mp3`;
 
     ambientAudio = new Audio(url);
-    ambientAudio.volume = 0.25;
+    ambientAudio.volume = 0.55;
     ambientAudio.loop = true;
-    ambientAudio.play().catch(err => {
-        console.warn('Ambient music autoplay blocked:', err.message);
+    ambientAudio.play().then(() => {
+        document.getElementById('play-music-btn').style.display = 'none';
+        const stopBtn = document.getElementById('stop-music-btn');
+        const label = document.getElementById('music-playing-label');
+        if (stopBtn) stopBtn.style.display = 'flex';
+        if (label) label.style.display = 'inline';
+        console.log('🎵 Performance music started by user tap');
+    }).catch(err => {
+        console.warn('🎵 Music play failed:', err.message);
+        alert('לא ניתן להפעיל מוזיקה. נסה שוב.');
     });
-    console.log(`🎵 Web player: ambient phase ${phaseNum} playing (${trackId})`);
 }
 
 function stopAmbientMusic() {
+    // Reset performance music bar UI
+    const playMusicBtn = document.getElementById('play-music-btn');
+    const stopMusicBtn = document.getElementById('stop-music-btn');
+    const musicPlayingLabel = document.getElementById('music-playing-label');
+    if (playMusicBtn) playMusicBtn.style.display = 'flex';
+    if (stopMusicBtn) stopMusicBtn.style.display = 'none';
+    if (musicPlayingLabel) musicPlayingLabel.style.display = 'none';
+
     if (!ambientAudio) return;
 
     const fadingAudio = ambientAudio;
@@ -807,7 +837,8 @@ async function submitAllClips() {
                     participantId: participantId,
                     participantName: participantName || `משתתף ${participantId.slice(-4)}`,
                     createdAt: serverTimestamp(),
-                    status: 'pending'
+                    status: 'pending',
+                    hasMusicInRecording: webPlayerMusicMode === 'performance',
                 });
                 
                 uploadedClips.push({ docId: docRef.id, webmUrl: downloadUrl, clipNumber: i });
@@ -983,6 +1014,20 @@ function setupEventListeners() {
             document.getElementById('rec-timer').textContent = '00:00';
             document.getElementById('rec-timer').style.color = 'white';
             
+            // Show/hide performance music bar based on mode
+            const perfBar = document.getElementById('performance-music-bar');
+            if (perfBar) {
+                const hasMusicTrack = !!getAmbientTrackId();
+                perfBar.style.display = (webPlayerMusicMode === 'performance' && hasMusicTrack) ? 'flex' : 'none';
+            }
+            // Reset play/stop button state
+            const playMusicBtn = document.getElementById('play-music-btn');
+            const stopMusicBtn = document.getElementById('stop-music-btn');
+            const musicPlayingLabel = document.getElementById('music-playing-label');
+            if (playMusicBtn) playMusicBtn.style.display = 'flex';
+            if (stopMusicBtn) stopMusicBtn.style.display = 'none';
+            if (musicPlayingLabel) musicPlayingLabel.style.display = 'none';
+
             showScreen('recordSingle');
             await startCamera();
         });
@@ -1022,6 +1067,23 @@ function setupEventListeners() {
     
     document.getElementById('submit-all-btn').addEventListener('click', async () => {
         await submitAllClips();
+    });
+
+    // Music mode buttons (2 modes: none / performance)
+    document.querySelectorAll('.music-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            webPlayerMusicMode = btn.dataset.mode;
+            // Reset all buttons to inactive
+            document.querySelectorAll('.music-mode-btn').forEach(b => {
+                b.style.border = '2px solid #ddd';
+                b.style.background = '#fff';
+                b.style.color = '#6a1b9a';
+            });
+            // Highlight selected button
+            btn.style.border = '2px solid #8446b0';
+            btn.style.background = '#8446b0';
+            btn.style.color = '#fff';
+        });
     });
 }
 
