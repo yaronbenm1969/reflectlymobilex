@@ -489,7 +489,10 @@ function updateMusicModeBanner() {
     const banner = document.getElementById('music-mode-banner');
     if (!banner) return;
     const trackId = getAmbientTrackId();
-    alert('DEBUG music: ' + JSON.stringify(currentStory?.music) + ' | trackId: ' + trackId);
+    // DEBUG: show music value on screen
+    let dbg = document.getElementById('_dbg_music');
+    if (!dbg) { dbg = document.createElement('div'); dbg.id = '_dbg_music'; dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;background:red;color:white;font-size:14px;padding:8px;z-index:9999;text-align:center;'; document.body.appendChild(dbg); }
+    dbg.textContent = 'music=' + JSON.stringify(currentStory?.music) + ' trackId=' + trackId;
     banner.style.display = trackId ? 'block' : 'none';
 }
 
