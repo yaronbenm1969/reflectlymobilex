@@ -591,7 +591,9 @@ async function handlePublishingApproval(approved) {
 
 function getAmbientTrackId() {
     if (!currentStory) return null;
-    // Check musicAmbient.id first (set by MusicSelectionScreen), then music field
+    // musicAmbient.url = direct URL from Firestore (ambient library tracks)
+    if (currentStory.musicAmbient?.url) return currentStory.musicAmbient.id || 'ambient';
+    // musicAmbient.id (without url) or music field = Suno/other track ID
     const ambientId = currentStory.musicAmbient?.id;
     if (ambientId && ambientId !== 'none') return ambientId;
     const music = currentStory.music;
@@ -611,8 +613,10 @@ function handlePlayMusicBtn() {
 
     stopAmbientMusic();
 
+    // Use musicAmbient.url if available (ambient library tracks), else construct from trackId (Suno tracks)
+    const directUrl = currentStory?.musicAmbient?.url;
     const phaseNum = Math.min(currentRecordingClip || 1, 3);
-    const url = `${MUSIC_BASE_URL}/${trackId}/phase${phaseNum}.mp3`;
+    const url = directUrl || `${MUSIC_BASE_URL}/${trackId}/phase${phaseNum}.mp3`;
 
     ambientAudio = new Audio(url);
     ambientAudio.volume = 0.55;
