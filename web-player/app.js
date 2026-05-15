@@ -489,10 +489,6 @@ function updateMusicModeBanner() {
     const banner = document.getElementById('music-mode-banner');
     if (!banner) return;
     const trackId = getAmbientTrackId();
-    // DEBUG: show music value on screen
-    let dbg = document.getElementById('_dbg_music');
-    if (!dbg) { dbg = document.createElement('div'); dbg.id = '_dbg_music'; dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;background:red;color:white;font-size:14px;padding:8px;z-index:9999;text-align:center;'; document.body.appendChild(dbg); }
-    dbg.textContent = 'music=' + JSON.stringify(currentStory?.music) + ' trackId=' + trackId;
     banner.style.display = trackId ? 'block' : 'none';
 }
 
@@ -589,6 +585,9 @@ async function handlePublishingApproval(approved) {
 
 function getAmbientTrackId() {
     if (!currentStory) return null;
+    // Check musicAmbient.id first (set by MusicSelectionScreen), then music field
+    const ambientId = currentStory.musicAmbient?.id;
+    if (ambientId && ambientId !== 'none') return ambientId;
     const music = currentStory.music;
     if (!music || music === 'none' || music === 'ai-generated') return null;
     return music;
@@ -850,29 +849,8 @@ async function submitAllClips() {
             }
         }
         
-        submitBtn.textContent = 'ממיר סרטונים...';
-        
-        const { updateDoc } = await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js');
-        
-        for (const clip of uploadedClips) {
-            submitBtn.textContent = `ממיר קליפ ${clip.clipNumber}...`;
-            const convertedUrl = await convertVideoToMp4(clip.webmUrl);
-            
-            const reflectionRef = doc(db, 'reflections', clip.docId);
-            if (convertedUrl) {
-                await updateDoc(reflectionRef, {
-                    convertedUrl: convertedUrl,
-                    conversionStatus: 'ready'
-                });
-                console.log(`✅ Clip ${clip.clipNumber} converted and updated`);
-            } else {
-                await updateDoc(reflectionRef, {
-                    conversionStatus: 'failed'
-                });
-                console.warn(`⚠️ Clip ${clip.clipNumber} conversion failed`);
-            }
-        }
-        
+        // Conversion is handled server-side by the native app with proper auth
+        // Web player just uploads WebM — native app converts when generating final video
         showScreen('success');
         
     } catch (error) {
