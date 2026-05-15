@@ -140,6 +140,7 @@ function showScreen(screenName) {
         screens[screenName].classList.add('active');
     }
     updateBanner(screenName);
+    if (screenName === 'record3clips') updateMusicModeBanner();
 }
 
 async function checkAccessStatus() {

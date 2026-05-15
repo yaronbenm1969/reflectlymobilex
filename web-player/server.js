@@ -103,6 +103,14 @@ setTimeout(()=>location.href='/cube3d-v2.html?v=${Date.now()}',500);
         return;
     }
 
+    // Return API URL so web player can call conversion directly
+    if (req.url === '/api/server-config') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        const apiUrl = process.env.API_URL || 'https://reflectlymobilex.onrender.com';
+        res.end(JSON.stringify({ apiUrl }));
+        return;
+    }
+
     if (req.url === '/api/version') {
         res.writeHead(200, { 
             'Content-Type': 'application/json',
@@ -223,8 +231,10 @@ setTimeout(()=>location.href='/cube3d-v2.html?v=${Date.now()}',500);
     }
     
     let filePath = req.url.split('?')[0];
-    
-    if (filePath === '/' || filePath.startsWith('/s/') || !filePath.includes('.')) {
+
+    if (filePath === '/') {
+        filePath = 'landing.html';
+    } else if (filePath.startsWith('/s/') || !filePath.includes('.')) {
         filePath = 'index.html';
     } else {
         filePath = filePath.replace(/^\/+/, '');
