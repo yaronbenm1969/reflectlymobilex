@@ -13,8 +13,8 @@ function isInAppBrowser() {
     }
     
     const ua = navigator.userAgent || navigator.vendor || window.opera;
-    // WhatsApp on Android uses Chrome Custom Tabs — camera works fine, allow recording
-    // if (/WhatsApp/i.test(ua)) return true;
+    // WhatsApp players must be able to record — explicitly allow before any other check
+    if (/WhatsApp/i.test(ua)) return false;
     if (/FBAN|FBAV|FB_IAB/i.test(ua)) return true;
     if (/Instagram/i.test(ua)) return true;
     if (/wv|WebView/i.test(ua)) return true;
