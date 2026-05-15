@@ -324,7 +324,13 @@ app.use('/admin', express.static(path.join(__dirname, 'admin')));
 // Serve web player static assets at root (before access control — players are unauthenticated)
 // index.html uses absolute paths like /app.js, /config.js — must be at root
 const webPlayerDir = path.join(__dirname, '..', 'web-player');
-app.use(express.static(webPlayerDir));
+app.use(express.static(webPlayerDir, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js') || filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  }
+}));
 // Handle /s/:storyId deep links → serve index.html
 app.get('/s/:storyId', (req, res) => {
   res.sendFile(path.join(webPlayerDir, 'index.html'));
