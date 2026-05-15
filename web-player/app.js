@@ -489,14 +489,16 @@ async function loadStory(code) {
 
 function updateMusicModeBanner() {
     const banner = document.getElementById('music-mode-banner');
-    if (!banner || !currentStory) return;
-    // Always show banner when story is loaded
+    if (!banner) return;
+    // Always show banner — both buttons always visible
     banner.style.display = 'block';
-    // Show "שיר עם מוזיקה" only when story has a specific music track
     const trackId = getAmbientTrackId();
+    console.log('🎵 updateMusicModeBanner: trackId=', trackId,
+        'music=', currentStory?.music,
+        'musicAmbient=', JSON.stringify(currentStory?.musicAmbient));
+    // Always show performance button; if no track, pressing it will warn the user
     const perfBtn = document.getElementById('music-btn-performance');
-    if (perfBtn) perfBtn.style.display = trackId ? '' : 'none';
-    // If no track and mode was set to performance, reset to none
+    if (perfBtn) perfBtn.style.display = '';
     if (!trackId && webPlayerMusicMode === 'performance') webPlayerMusicMode = 'none';
 }
 
@@ -611,7 +613,10 @@ function startAmbientMusic(clipNumber) {
 // Called by the explicit "הפעל מוזיקה" button — user gesture ensures browser allows playback
 async function handlePlayMusicBtn() {
     const trackId = getAmbientTrackId();
-    if (!trackId) return;
+    if (!trackId) {
+        alert('לסיפור זה לא נבחרה מוזיקה. בחר ללא מוזיקה.');
+        return;
+    }
 
     stopAmbientMusic();
 
@@ -1020,8 +1025,7 @@ function setupEventListeners() {
             // Show/hide performance music bar based on mode
             const perfBar = document.getElementById('performance-music-bar');
             if (perfBar) {
-                const hasMusicTrack = !!getAmbientTrackId();
-                perfBar.style.display = (webPlayerMusicMode === 'performance' && hasMusicTrack) ? 'flex' : 'none';
+                perfBar.style.display = (webPlayerMusicMode === 'performance') ? 'flex' : 'none';
             }
             // Reset play/stop button state
             const playMusicBtn = document.getElementById('play-music-btn');
@@ -1089,6 +1093,10 @@ function setupEventListeners() {
         });
     });
 }
+
+// Expose functions used by inline onclick attributes (module scope ≠ global)
+window.handlePlayMusicBtn = handlePlayMusicBtn;
+window.stopAmbientMusic = stopAmbientMusic;
 
 async function init() {
     console.log('🌐 User Agent:', navigator.userAgent);
