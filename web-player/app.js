@@ -487,9 +487,15 @@ async function loadStory(code) {
 
 function updateMusicModeBanner() {
     const banner = document.getElementById('music-mode-banner');
-    if (!banner) return;
+    if (!banner || !currentStory) return;
+    // Always show banner when story is loaded
+    banner.style.display = 'block';
+    // Show "שיר עם מוזיקה" only when story has a specific music track
     const trackId = getAmbientTrackId();
-    banner.style.display = trackId ? 'block' : 'none';
+    const perfBtn = document.getElementById('music-btn-performance');
+    if (perfBtn) perfBtn.style.display = trackId ? '' : 'none';
+    // If no track and mode was set to performance, reset to none
+    if (!trackId && webPlayerMusicMode === 'performance') webPlayerMusicMode = 'none';
 }
 
 function handleStartRecording() {
