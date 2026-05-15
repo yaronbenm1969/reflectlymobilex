@@ -607,16 +607,25 @@ function startAmbientMusic(clipNumber) {
 }
 
 // Called by the explicit "הפעל מוזיקה" button — user gesture ensures browser allows playback
-function handlePlayMusicBtn() {
+async function handlePlayMusicBtn() {
     const trackId = getAmbientTrackId();
     if (!trackId) return;
 
     stopAmbientMusic();
 
-    // Use musicAmbient.url if available (ambient library tracks), else construct from trackId (Suno tracks)
-    const directUrl = currentStory?.musicAmbient?.url;
-    const phaseNum = Math.min(currentRecordingClip || 1, 3);
-    const url = directUrl || `${MUSIC_BASE_URL}/${trackId}/phase${phaseNum}.mp3`;
+    // Get playback URL: prefer stored URL, else fetch download URL from Firebase Storage
+    let url = currentStory?.musicAmbient?.url;
+    if (!url) {
+        try {
+            const audioRef = ref(storage, `music/library/${trackId}/phase1.mp3`);
+            url = await getDownloadURL(audioRef);
+            console.log('🎵 Got download URL from Firebase Storage');
+        } catch (e) {
+            console.warn('🎵 Could not get audio URL:', e.message);
+            alert('לא נמצאה מוזיקה לנגינה לסיפור זה.');
+            return;
+        }
+    }
 
     ambientAudio = new Audio(url);
     ambientAudio.volume = 0.55;
@@ -627,7 +636,7 @@ function handlePlayMusicBtn() {
         const label = document.getElementById('music-playing-label');
         if (stopBtn) stopBtn.style.display = 'flex';
         if (label) label.style.display = 'inline';
-        console.log('🎵 Performance music started by user tap');
+        console.log('🎵 Performance music started');
     }).catch(err => {
         console.warn('🎵 Music play failed:', err.message);
         alert('לא ניתן להפעיל מוזיקה. נסה שוב.');
