@@ -331,8 +331,9 @@ app.use(express.static(webPlayerDir, {
     }
   }
 }));
-// Handle /s/:storyId deep links → serve index.html
+// Handle /s/:storyId deep links → serve index.html (no-cache so users always get latest)
 app.get('/s/:storyId', (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(webPlayerDir, 'index.html'));
 });
 
