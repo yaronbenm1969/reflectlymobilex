@@ -198,6 +198,7 @@ app.get('/record/:storyId', async (req, res) => {
   };
 
   res.set('Content-Type', 'text/html');
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.send(buildWebRecordHtml(storyData, firebaseConfig));
 });
 
