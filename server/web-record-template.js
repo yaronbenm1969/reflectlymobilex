@@ -164,9 +164,8 @@ function buildWebRecordHtml(story, firebaseConfig) {
     <div class="clip-dots" id="clip-dots"></div>
     <p class="clip-label" id="clip-label">קליפ 1 מתוך ${clipCount}</p>
     <div class="play-music-bar" id="play-music-bar" style="display:none">
-      <button id="play-music-btn" onclick="playMusic()">🎵 הפעל מוזיקה</button>
-      <span id="music-playing-label">🎵 מנגן...</span>
-      <button id="stop-music-btn" onclick="stopMusic()">⏹ עצור</button>
+      <span style="font-size:15px">🎵</span>
+      <span style="flex:1;font-size:13px;color:#6a1b9a;font-weight:700">מוזיקה תתחיל עם ההקלטה</span>
     </div>
     <div class="camera-wrap">
       <video id="preview" autoplay muted playsinline></video>
@@ -326,18 +325,17 @@ function buildWebRecordHtml(story, firebaseConfig) {
         const d = document.getElementById('dot-' + i);
         d.className = 'clip-dot' + (i < currentClipIdx ? ' done' : i === currentClipIdx ? ' current' : '');
       }
-      // Show music bar only in performance mode
+      // Show music status bar only in performance mode
       const bar = document.getElementById('play-music-bar');
       if (bar) bar.style.display = musicMode === 'performance' ? 'flex' : 'none';
-      // Reset play/stop state
       stopMusic();
-      document.getElementById('play-music-btn').style.display = 'block';
     }
 
     // ── Step 3: Countdown + Record ─────────────────────────────
     window.startCountdown = async function() {
       document.getElementById('start-btn').style.display = 'none';
       document.getElementById('rec-error').textContent = '';
+      if (musicMode === 'performance') playMusic();
       const overlay = document.getElementById('countdown-overlay');
       const num     = document.getElementById('countdown-num');
       overlay.style.display = 'flex';
