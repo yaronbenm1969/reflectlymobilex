@@ -187,6 +187,8 @@ app.get('/record/:storyId', async (req, res) => {
     clipCount:      story.clipCount      || 3,
     maxClipDuration:story.maxClipDuration|| 60,
     instructions:   story.instructions  || '',
+    musicUrl:       story.musicAmbient?.url || null,
+    hasMusic:       !!(story.musicAmbient?.id || (story.music && story.music !== 'none' && story.music !== 'ai-generated')),
   };
 
   res.set('Content-Type', 'text/html');

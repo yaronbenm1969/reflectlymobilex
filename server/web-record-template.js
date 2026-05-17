@@ -12,6 +12,8 @@ function buildWebRecordHtml(story, firebaseConfig) {
     clipCount,
     maxClipDuration,
     instructions,
+    musicUrl,
+    hasMusic,
   } = story;
 
   const APP_STORE_URL = 'https://apps.apple.com/app/reflectly/id0000000000'; // TODO: update after publish
@@ -101,6 +103,19 @@ function buildWebRecordHtml(story, firebaseConfig) {
     .clip-label { font-size: 14px; color: var(--sub); text-align: center; margin-bottom: 8px; }
     .instructions-box { background: #fef9c3; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-size: 14px; color: #78350f; line-height: 1.6; text-align: right; }
     .error-msg { color: #ef4444; font-size: 13px; text-align: center; margin: 8px 0; min-height: 20px; }
+
+    /* Music mode banner */
+    .music-banner { background: linear-gradient(135deg,#f3e5ff,#e8eaff); border-radius: 14px; padding: 14px; border: 1.5px solid #c8a8f0; margin-bottom: 16px; width: 100%; }
+    .music-banner p { font-size: 13px; font-weight: 700; color: #6a1b9a; margin: 0 0 10px 0; text-align: center; }
+    .music-mode-btns { display: flex; gap: 10px; }
+    .music-mode-btn { flex: 1; padding: 12px 8px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; line-height: 1.4; text-align: center; transition: all 0.2s; }
+    .music-mode-btn.active { border: 2px solid #8446b0; background: #8446b0; color: #fff; }
+    .music-mode-btn.inactive { border: 2px solid #ddd; background: #fff; color: #6a1b9a; }
+    .play-music-bar { display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg,#f3e5ff,#e8eaff); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; border: 1.5px solid #c8a8f0; width: 100%; }
+    .play-music-bar button { flex: 1; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; border: 2px solid #8446b0; }
+    #play-music-btn { background: #8446b0; color: #fff; }
+    #stop-music-btn { background: #fff; color: #8446b0; display: none; }
+    #music-playing-label { font-size: 12px; color: #6a1b9a; flex: 1; text-align: center; display: none; }
   </style>
 </head>
 <body>
@@ -115,6 +130,17 @@ function buildWebRecordHtml(story, firebaseConfig) {
       <h2>ברוך הבא!</h2>
       <p>תצלם ${clipCount} קליפ${clipCount > 1 ? 'ים קצרים' : ' קצר'} ישירות מהדפדפן — ללא צורך בהתקנת אפליקציה.</p>
       ${instructions ? `<div class="instructions-box">📋 ${escHtml(instructions)}</div>` : ''}
+      <div class="music-banner">
+        <p>🎵 בחר מצב הקלטה</p>
+        <div class="music-mode-btns">
+          <button class="music-mode-btn active" id="btn-mode-none" onclick="setMusicMode('none')">
+            🔇 ללא מוזיקה<div style="font-size:11px;font-weight:400;margin-top:3px;opacity:0.85;">ברירת מחדל</div>
+          </button>
+          <button class="music-mode-btn inactive" id="btn-mode-perf" onclick="setMusicMode('performance')">
+            🎤 שיר עם מוזיקה<div style="font-size:11px;font-weight:400;margin-top:3px;color:#888;">מנגן בזמן הצילום</div>
+          </button>
+        </div>
+      </div>
       <input type="text" id="name-input" placeholder="השם שלך" maxlength="40" />
       <div class="error-msg" id="name-error"></div>
       <button class="btn-primary" onclick="handleNameContinue()">המשך ▸</button>
@@ -136,6 +162,11 @@ function buildWebRecordHtml(story, firebaseConfig) {
   <div id="step-record" class="step">
     <div class="clip-dots" id="clip-dots"></div>
     <p class="clip-label" id="clip-label">קליפ 1 מתוך ${clipCount}</p>
+    <div class="play-music-bar" id="play-music-bar" style="display:none">
+      <button id="play-music-btn" onclick="playMusic()">🎵 הפעל מוזיקה</button>
+      <span id="music-playing-label">🎵 מנגן...</span>
+      <button id="stop-music-btn" onclick="stopMusic()">⏹ עצור</button>
+    </div>
     <div class="camera-wrap">
       <video id="preview" autoplay muted playsinline></video>
       <div class="rec-badge" id="rec-badge"><div class="rec-dot"></div> מקליט</div>
@@ -195,6 +226,9 @@ function buildWebRecordHtml(story, firebaseConfig) {
     const MAX_SEC     = ${maxClipDuration};
     const webUid      = 'web_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
 
+    // ── Constants ── Music
+    const MUSIC_URL = ${musicUrl ? `'${escJs(musicUrl)}'` : 'null'};
+
     // ── State ──────────────────────────────────────────────────
     let participantName = '';
     let currentClipIdx  = 0;       // 0-based index of clip being recorded
@@ -204,6 +238,35 @@ function buildWebRecordHtml(story, firebaseConfig) {
     let chunks          = [];
     let timerInterval   = null;
     let elapsedSec      = 0;
+    let musicMode       = 'none';  // 'none' | 'performance'
+    let ambientAudio    = null;
+
+    // ── Music mode ─────────────────────────────────────────────
+    window.setMusicMode = function(mode) {
+      musicMode = mode;
+      document.getElementById('btn-mode-none').className = 'music-mode-btn ' + (mode === 'none' ? 'active' : 'inactive');
+      document.getElementById('btn-mode-perf').className = 'music-mode-btn ' + (mode === 'performance' ? 'active' : 'inactive');
+    };
+
+    window.playMusic = function() {
+      if (!MUSIC_URL) { alert('לא נמצאה מוזיקה לסיפור זה.'); return; }
+      if (ambientAudio) { ambientAudio.pause(); ambientAudio = null; }
+      ambientAudio = new Audio(MUSIC_URL);
+      ambientAudio.loop = true;
+      ambientAudio.volume = 0.55;
+      ambientAudio.play().then(() => {
+        document.getElementById('play-music-btn').style.display = 'none';
+        document.getElementById('stop-music-btn').style.display = 'block';
+        document.getElementById('music-playing-label').style.display = 'block';
+      }).catch(e => alert('שגיאה בהפעלת מוזיקה: ' + e.message));
+    };
+
+    window.stopMusic = function() {
+      if (ambientAudio) { ambientAudio.pause(); ambientAudio = null; }
+      document.getElementById('play-music-btn').style.display = 'block';
+      document.getElementById('stop-music-btn').style.display = 'none';
+      document.getElementById('music-playing-label').style.display = 'none';
+    };
 
     // ── Step navigation ────────────────────────────────────────
     function showStep(id) {
@@ -261,6 +324,12 @@ function buildWebRecordHtml(story, firebaseConfig) {
         const d = document.getElementById('dot-' + i);
         d.className = 'clip-dot' + (i < currentClipIdx ? ' done' : i === currentClipIdx ? ' current' : '');
       }
+      // Show music bar only in performance mode
+      const bar = document.getElementById('play-music-bar');
+      if (bar) bar.style.display = musicMode === 'performance' ? 'flex' : 'none';
+      // Reset play/stop state
+      stopMusic();
+      document.getElementById('play-music-btn').style.display = 'block';
     }
 
     // ── Step 3: Countdown + Record ─────────────────────────────
@@ -310,6 +379,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
 
     function onRecordingStopped() {
       clearInterval(timerInterval);
+      stopMusic();
       document.getElementById('rec-badge').style.display = 'none';
       document.getElementById('timer-badge').style.display = 'none';
       document.getElementById('stop-btn').style.display = 'none';
