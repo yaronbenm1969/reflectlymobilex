@@ -105,18 +105,16 @@ function buildWebRecordHtml(story, firebaseConfig) {
     .instructions-box { background: #fef9c3; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-size: 14px; color: #78350f; line-height: 1.6; text-align: right; }
     .error-msg { color: #ef4444; font-size: 13px; text-align: center; margin: 8px 0; min-height: 20px; }
 
-    /* Music mode banner */
-    .music-banner { background: linear-gradient(135deg,#f3e5ff,#e8eaff); border-radius: 14px; padding: 14px; border: 1.5px solid #c8a8f0; margin-bottom: 16px; width: 100%; }
-    .music-banner p { font-size: 13px; font-weight: 700; color: #6a1b9a; margin: 0 0 10px 0; text-align: center; }
-    .music-mode-btns { display: flex; gap: 10px; }
-    .music-mode-btn { flex: 1; padding: 12px 8px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; line-height: 1.4; text-align: center; transition: all 0.2s; }
-    .music-mode-btn.active { border: 2px solid #8446b0; background: #8446b0; color: #fff; }
-    .music-mode-btn.inactive { border: 2px solid #ddd; background: #fff; color: #6a1b9a; }
-    .play-music-bar { display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg,#f3e5ff,#e8eaff); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; border: 1.5px solid #c8a8f0; width: 100%; }
-    .play-music-bar button { flex: 1; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; border: 2px solid #8446b0; }
-    #play-music-btn { background: #8446b0; color: #fff; }
-    #stop-music-btn { background: #fff; color: #8446b0; display: none; }
-    #music-playing-label { font-size: 12px; color: #6a1b9a; flex: 1; text-align: center; display: none; }
+    /* Music track picker */
+    .music-picker { background: #f9f3ff; border-radius: 14px; border: 1.5px solid #c8a8f0; margin-bottom: 12px; width: 100%; overflow: hidden; }
+    .music-picker-title { font-size: 13px; font-weight: 700; color: #6a1b9a; padding: 10px 14px 6px; }
+    .music-tracks { max-height: 170px; overflow-y: auto; }
+    .track-row { display: flex; align-items: center; padding: 9px 14px; gap: 10px; cursor: pointer; border-top: 1px solid #ede4f9; transition: background 0.15s; }
+    .track-row.selected { background: #8446b0; }
+    .track-name { flex: 1; font-size: 13px; font-weight: 600; color: #3b0764; }
+    .track-row.selected .track-name { color: #fff; }
+    .track-prev { width: 28px; height: 28px; border-radius: 50%; border: none; background: #8446b0; color: #fff; font-size: 11px; cursor: pointer; flex-shrink: 0; padding: 0; }
+    .track-row.selected .track-prev { background: rgba(255,255,255,0.3); }
   </style>
 </head>
 <body>
@@ -152,16 +150,9 @@ function buildWebRecordHtml(story, firebaseConfig) {
   <div id="step-record" class="step">
     <div class="clip-dots" id="clip-dots"></div>
     <p class="clip-label" id="clip-label">קליפ 1 מתוך ${clipCount}</p>
-    <div class="music-banner" id="music-banner" style="display:${hasMusic ? 'block' : 'none'}">
-      <p>🎵 בחר מצב לקליפ זה</p>
-      <div class="music-mode-btns">
-        <button class="music-mode-btn active" id="btn-mode-none" onclick="setMusicMode('none')">
-          🔇 ללא מוזיקה
-        </button>
-        <button class="music-mode-btn inactive" id="btn-mode-perf" onclick="setMusicMode('performance')">
-          🎤 שיר עם מוזיקה
-        </button>
-      </div>
+    <div class="music-picker" id="music-picker">
+      <div class="music-picker-title">🎵 בחר מוזיקה לקליפ זה</div>
+      <div class="music-tracks" id="music-tracks"></div>
     </div>
     <div class="camera-wrap">
       <video id="preview" autoplay muted playsinline></video>
@@ -222,9 +213,22 @@ function buildWebRecordHtml(story, firebaseConfig) {
     const MAX_SEC     = ${maxClipDuration};
     const webUid      = 'web_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
 
-    // ── Constants ── Music
-    const MUSIC_TRACK_ID = ${musicTrackId ? `'${escJs(musicTrackId)}'` : 'null'};
-    let MUSIC_URL = '${escJs(musicUrl || (musicTrackId && firebaseConfig.storageBucket ? `https://storage.googleapis.com/${firebaseConfig.storageBucket}/music/library/${musicTrackId}/phase1.mp3` : ''))}' || null;
+    // ── Music library ───────────────────────────────────────────
+    const STORAGE_BASE = 'https://storage.googleapis.com/${escJs(firebaseConfig.storageBucket || '')}/music/library';
+    const MUSIC_LIBRARY = [
+      { id: 'reflective-space',    name: 'מרחב פנימי' },
+      { id: 'gentle-warmth',       name: 'חום עדין' },
+      { id: 'soft-hope',           name: 'תקווה שקטה' },
+      { id: 'tender-vulnerability',name: 'עדינות רגשית' },
+      { id: 'quiet-strength',      name: 'כוח שקט' },
+      { id: 'light-movement',      name: 'תנועה עדינה' },
+      { id: 'floating-memory',     name: 'זיכרון מרחף' },
+      { id: 'subtle-uplift',       name: 'התעלות עדינה' },
+      { id: 'open-horizon',        name: 'אופק פתוח' },
+    ];
+    let MUSIC_URL = null;
+    let selectedTrackId = null;
+    let previewAudio = null;
 
     // ── State ──────────────────────────────────────────────────
     let participantName = '';
@@ -235,15 +239,54 @@ function buildWebRecordHtml(story, firebaseConfig) {
     let chunks          = [];
     let timerInterval   = null;
     let elapsedSec      = 0;
-    let musicMode       = 'none';  // 'none' | 'performance'
     let ambientAudio    = null;
 
-    // ── Music mode ─────────────────────────────────────────────
-    window.setMusicMode = function(mode) {
-      musicMode = mode;
-      document.getElementById('btn-mode-none').className = 'music-mode-btn ' + (mode === 'none' ? 'active' : 'inactive');
-      document.getElementById('btn-mode-perf').className = 'music-mode-btn ' + (mode === 'performance' ? 'active' : 'inactive');
+    // ── Music track picker ──────────────────────────────────────
+    function buildTrackPicker() {
+      const container = document.getElementById('music-tracks');
+      // "none" row
+      const noneRow = document.createElement('div');
+      noneRow.className = 'track-row selected';
+      noneRow.id = 'track-none';
+      noneRow.innerHTML = '<span class="track-name">🔇 ללא מוזיקה</span>';
+      noneRow.onclick = () => selectTrack(null);
+      container.appendChild(noneRow);
+      // library rows
+      MUSIC_LIBRARY.forEach(t => {
+        const row = document.createElement('div');
+        row.className = 'track-row';
+        row.id = 'track-' + t.id;
+        row.innerHTML = '<span class="track-name">' + t.name + '</span><button class="track-prev" id="prev-' + t.id + '">▶</button>';
+        row.querySelector('.track-prev').onclick = e => { e.stopPropagation(); togglePreview(t.id); };
+        row.onclick = () => selectTrack(t.id);
+        container.appendChild(row);
+      });
+    }
+
+    window.selectTrack = function(id) {
+      selectedTrackId = id;
+      MUSIC_URL = id ? (STORAGE_BASE + '/' + id + '/phase1.mp3') : null;
+      document.querySelectorAll('.track-row').forEach(r => r.classList.remove('selected'));
+      document.getElementById('track-' + (id || 'none')).classList.add('selected');
+      if (!id) stopPreview();
     };
+
+    function togglePreview(id) {
+      if (previewAudio && previewAudio._id === id) { stopPreview(); return; }
+      stopPreview();
+      previewAudio = new Audio(STORAGE_BASE + '/' + id + '/phase1.mp3');
+      previewAudio._id = id;
+      previewAudio.volume = 0.5;
+      previewAudio.play().catch(() => {});
+      const btn = document.getElementById('prev-' + id);
+      if (btn) btn.textContent = '⏹';
+      previewAudio.onended = () => { stopPreview(); };
+    }
+
+    function stopPreview() {
+      if (previewAudio) { previewAudio.pause(); previewAudio = null; }
+      document.querySelectorAll('.track-prev').forEach(b => b.textContent = '▶');
+    }
 
     window.playMusic = function() {
       if (!MUSIC_URL) { alert('לא נמצאה מוזיקה לסיפור זה.'); return; }
@@ -314,19 +357,15 @@ function buildWebRecordHtml(story, firebaseConfig) {
         const d = document.getElementById('dot-' + i);
         d.className = 'clip-dot' + (i < currentClipIdx ? ' done' : i === currentClipIdx ? ' current' : '');
       }
-      // Reset music mode to none for each clip
-      musicMode = 'none';
-      const btnNone = document.getElementById('btn-mode-none');
-      const btnPerf = document.getElementById('btn-mode-perf');
-      if (btnNone) { btnNone.className = 'music-mode-btn active'; }
-      if (btnPerf) { btnPerf.className = 'music-mode-btn inactive'; }
+      // Reset music selection for each clip
+      selectTrack(null);
       stopMusic();
     }
 
     // ── Step 3: Countdown + Record ─────────────────────────────
     // Sync handler — preserves user gesture context for audio play in Safari
     window.handleStartBtn = function() {
-      if (musicMode === 'performance') playMusic();
+      if (MUSIC_URL) playMusic();
       startCountdown();
     };
 
@@ -377,6 +416,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
     function onRecordingStopped() {
       clearInterval(timerInterval);
       stopMusic();
+      stopPreview();
       document.getElementById('rec-badge').style.display = 'none';
       document.getElementById('timer-badge').style.display = 'none';
       document.getElementById('stop-btn').style.display = 'none';
@@ -521,6 +561,9 @@ function buildWebRecordHtml(story, firebaseConfig) {
     }
 
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // ── Init ───────────────────────────────────────────────────
+    buildTrackPicker();
   </script>
 </body>
 </html>`;
