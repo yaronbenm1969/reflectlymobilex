@@ -180,21 +180,10 @@ app.get('/record/:storyId', async (req, res) => {
     appId:             process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
   };
 
-  // Resolve music URL: prefer stored URL, else look up from ambientLibrary in Firestore
-  let musicUrl = story.musicAmbient?.url || null;
-  if (!musicUrl && firestoreDb) {
-    const trackId = story.musicAmbient?.id || (
-      story.music && story.music !== 'none' && story.music !== 'ai-generated' ? story.music : null
-    );
-    if (trackId) {
-      try {
-        const libDoc = await firestoreDb.collection('settings').doc('ambientLibrary').get();
-        if (libDoc.exists) musicUrl = libDoc.data()?.tracks?.[trackId]?.url || null;
-      } catch (e) {
-        console.warn('Could not fetch ambient track URL:', e.message);
-      }
-    }
-  }
+  const musicTrackId = story.musicAmbient?.id || (
+    story.music && story.music !== 'none' && story.music !== 'ai-generated' ? story.music : null
+  );
+  const musicUrl = story.musicAmbient?.url || null;
 
   const storyData = {
     id:             story.id,
@@ -204,7 +193,8 @@ app.get('/record/:storyId', async (req, res) => {
     maxClipDuration:story.maxClipDuration|| 60,
     instructions:   story.instructions  || '',
     musicUrl,
-    hasMusic:       !!(story.musicAmbient?.id || (story.music && story.music !== 'none' && story.music !== 'ai-generated')),
+    musicTrackId,
+    hasMusic:       !!musicTrackId,
   };
 
   res.set('Content-Type', 'text/html');

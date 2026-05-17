@@ -13,6 +13,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
     maxClipDuration,
     instructions,
     musicUrl,
+    musicTrackId,
     hasMusic,
   } = story;
 
@@ -227,7 +228,8 @@ function buildWebRecordHtml(story, firebaseConfig) {
     const webUid      = 'web_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
 
     // ── Constants ── Music
-    const MUSIC_URL = ${musicUrl ? `'${escJs(musicUrl)}'` : 'null'};
+    let MUSIC_URL = ${musicUrl ? `'${escJs(musicUrl)}'` : 'null'};
+    const MUSIC_TRACK_ID = ${musicTrackId ? `'${escJs(musicTrackId)}'` : 'null'};
 
     // ── State ──────────────────────────────────────────────────
     let participantName = '';
@@ -248,7 +250,14 @@ function buildWebRecordHtml(story, firebaseConfig) {
       document.getElementById('btn-mode-perf').className = 'music-mode-btn ' + (mode === 'performance' ? 'active' : 'inactive');
     };
 
-    window.playMusic = function() {
+    window.playMusic = async function() {
+      if (!MUSIC_URL && MUSIC_TRACK_ID) {
+        try {
+          const r = await fetch('/api/ambient-track/' + MUSIC_TRACK_ID);
+          const d = await r.json();
+          MUSIC_URL = d.track?.url || null;
+        } catch(e) {}
+      }
       if (!MUSIC_URL) { alert('לא נמצאה מוזיקה לסיפור זה.'); return; }
       if (ambientAudio) { ambientAudio.pause(); ambientAudio = null; }
       ambientAudio = new Audio(MUSIC_URL);
