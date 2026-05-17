@@ -250,14 +250,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
       document.getElementById('btn-mode-perf').className = 'music-mode-btn ' + (mode === 'performance' ? 'active' : 'inactive');
     };
 
-    window.playMusic = async function() {
-      if (!MUSIC_URL && MUSIC_TRACK_ID) {
-        try {
-          const r = await fetch('/api/ambient-track/' + MUSIC_TRACK_ID);
-          const d = await r.json();
-          MUSIC_URL = d.track?.url || null;
-        } catch(e) {}
-      }
+    window.playMusic = function() {
       if (!MUSIC_URL) { alert('לא נמצאה מוזיקה לסיפור זה.'); return; }
       if (ambientAudio) { ambientAudio.pause(); ambientAudio = null; }
       ambientAudio = new Audio(MUSIC_URL);
@@ -267,7 +260,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
         document.getElementById('play-music-btn').style.display = 'none';
         document.getElementById('stop-music-btn').style.display = 'block';
         document.getElementById('music-playing-label').style.display = 'block';
-      }).catch(e => alert('שגיאה בהפעלת מוזיקה: ' + e.message));
+      }).catch(e => alert('שגיאה: ' + e.name + ': ' + e.message));
     };
 
     window.stopMusic = function() {
