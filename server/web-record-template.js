@@ -218,6 +218,9 @@ function buildWebRecordHtml(story, firebaseConfig) {
   </div>
 
   <script type="module">
+    // Uploads go through the server endpoint (/api/upload-player-clip) —
+    // no Firebase client SDK needed (server uses Admin SDK, bypasses Storage rules)
+
     // ── Constants ──────────────────────────────────────────────
     const STORY_ID    = '${escJs(storyId)}';
     const CLIP_COUNT  = ${clipCount};
@@ -225,13 +228,8 @@ function buildWebRecordHtml(story, firebaseConfig) {
     const webUid      = 'web_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
 
     // ── Constants ── Music
-    // Use direct public GCS URL — same as native app (useAmbientPlayback.js)
-    const STORAGE_BUCKET = ${JSON.stringify(firebaseConfig.storageBucket || '')};
     const MUSIC_TRACK_ID = ${musicTrackId ? `'${escJs(musicTrackId)}'` : 'null'};
-    let MUSIC_URL = ${musicUrl ? `'${escJs(musicUrl)}'` : 'null'};
-    if (!MUSIC_URL && MUSIC_TRACK_ID && STORAGE_BUCKET) {
-      MUSIC_URL = 'https://storage.googleapis.com/' + STORAGE_BUCKET + '/music/library/' + MUSIC_TRACK_ID + '/phase1.mp3';
-    }
+    let MUSIC_URL = '${escJs(musicUrl || (musicTrackId && firebaseConfig.storageBucket ? `https://storage.googleapis.com/${firebaseConfig.storageBucket}/music/library/${musicTrackId}/phase1.mp3` : ''))}' || null;
 
     // ── State ──────────────────────────────────────────────────
     let participantName = '';
@@ -253,10 +251,14 @@ function buildWebRecordHtml(story, firebaseConfig) {
     };
 
     window.playMusic = async function() {
-      if (!MUSIC_URL) {
-        alert('לא נמצאה מוזיקה לסיפור זה.\nTrack: ' + MUSIC_TRACK_ID + '\nBucket: ' + STORAGE_BUCKET);
-        return;
+      if (!MUSIC_URL && MUSIC_TRACK_ID) {
+        try {
+          const r = await fetch('/api/ambient-track/' + MUSIC_TRACK_ID);
+          const d = await r.json();
+          MUSIC_URL = d.track?.url || null;
+        } catch(e) {}
       }
+      if (!MUSIC_URL) { alert('לא נמצאה מוזיקה לסיפור זה.'); return; }
       if (ambientAudio) { ambientAudio.pause(); ambientAudio = null; }
       ambientAudio = new Audio(MUSIC_URL);
       ambientAudio.loop = true;
