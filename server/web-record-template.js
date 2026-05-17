@@ -131,17 +131,6 @@ function buildWebRecordHtml(story, firebaseConfig) {
       <h2>ברוך הבא!</h2>
       <p>תצלם ${clipCount} קליפ${clipCount > 1 ? 'ים קצרים' : ' קצר'} ישירות מהדפדפן — ללא צורך בהתקנת אפליקציה.</p>
       ${instructions ? `<div class="instructions-box">📋 ${escHtml(instructions)}</div>` : ''}
-      <div class="music-banner">
-        <p>🎵 בחר מצב הקלטה</p>
-        <div class="music-mode-btns">
-          <button class="music-mode-btn active" id="btn-mode-none" onclick="setMusicMode('none')">
-            🔇 ללא מוזיקה<div style="font-size:11px;font-weight:400;margin-top:3px;opacity:0.85;">ברירת מחדל</div>
-          </button>
-          <button class="music-mode-btn inactive" id="btn-mode-perf" onclick="setMusicMode('performance')">
-            🎤 שיר עם מוזיקה<div style="font-size:11px;font-weight:400;margin-top:3px;color:#888;">מנגן בזמן הצילום</div>
-          </button>
-        </div>
-      </div>
       <input type="text" id="name-input" placeholder="השם שלך" maxlength="40" />
       <div class="error-msg" id="name-error"></div>
       <button class="btn-primary" onclick="handleNameContinue()">המשך ▸</button>
@@ -163,9 +152,16 @@ function buildWebRecordHtml(story, firebaseConfig) {
   <div id="step-record" class="step">
     <div class="clip-dots" id="clip-dots"></div>
     <p class="clip-label" id="clip-label">קליפ 1 מתוך ${clipCount}</p>
-    <div class="play-music-bar" id="play-music-bar" style="display:none">
-      <span style="font-size:15px">🎵</span>
-      <span style="flex:1;font-size:13px;color:#6a1b9a;font-weight:700">מוזיקה תתחיל עם ההקלטה</span>
+    <div class="music-banner" id="music-banner" style="display:${hasMusic ? 'block' : 'none'}">
+      <p>🎵 בחר מצב לקליפ זה</p>
+      <div class="music-mode-btns">
+        <button class="music-mode-btn active" id="btn-mode-none" onclick="setMusicMode('none')">
+          🔇 ללא מוזיקה
+        </button>
+        <button class="music-mode-btn inactive" id="btn-mode-perf" onclick="setMusicMode('performance')">
+          🎤 שיר עם מוזיקה
+        </button>
+      </div>
     </div>
     <div class="camera-wrap">
       <video id="preview" autoplay muted playsinline></video>
@@ -318,9 +314,12 @@ function buildWebRecordHtml(story, firebaseConfig) {
         const d = document.getElementById('dot-' + i);
         d.className = 'clip-dot' + (i < currentClipIdx ? ' done' : i === currentClipIdx ? ' current' : '');
       }
-      // Show music status bar only in performance mode
-      const bar = document.getElementById('play-music-bar');
-      if (bar) bar.style.display = musicMode === 'performance' ? 'flex' : 'none';
+      // Reset music mode to none for each clip
+      musicMode = 'none';
+      const btnNone = document.getElementById('btn-mode-none');
+      const btnPerf = document.getElementById('btn-mode-perf');
+      if (btnNone) { btnNone.className = 'music-mode-btn active'; }
+      if (btnPerf) { btnPerf.className = 'music-mode-btn inactive'; }
       stopMusic();
     }
 
