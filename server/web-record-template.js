@@ -217,14 +217,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
     </div>
   </div>
 
-  <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
-    import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
-
-    const _fbApp  = initializeApp(${firebaseConfigJSON});
-    const _fbAuth = getAuth(_fbApp);
-    signInAnonymously(_fbAuth).catch(() => {});
-
+  <script>
     // ── Constants ──────────────────────────────────────────────
     const STORY_ID    = '${escJs(storyId)}';
     const CLIP_COUNT  = ${clipCount};
