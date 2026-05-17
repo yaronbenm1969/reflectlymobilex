@@ -33,6 +33,20 @@ import theme from '../theme/theme';
 import Constants from 'expo-constants';
 
 const isWeb = Platform.OS === 'web';
+
+const TRACK_LIBRARY = [
+  { id: 'reflective-space',     nameHe: 'מרחב פנימי',   icon: 'water-outline' },
+  { id: 'gentle-warmth',        nameHe: 'חום עדין',      icon: 'heart-outline' },
+  { id: 'soft-hope',            nameHe: 'תקווה שקטה',    icon: 'sunny-outline' },
+  { id: 'tender-vulnerability', nameHe: 'עדינות רגשית',  icon: 'flower-outline' },
+  { id: 'quiet-strength',       nameHe: 'כוח שקט',       icon: 'shield-outline' },
+  { id: 'light-movement',       nameHe: 'תנועה עדינה',   icon: 'walk-outline' },
+  { id: 'floating-memory',      nameHe: 'זיכרון מרחף',   icon: 'cloud-outline' },
+  { id: 'subtle-uplift',        nameHe: 'התעלות עדינה',  icon: 'trending-up-outline' },
+  { id: 'open-horizon',         nameHe: 'אופק פתוח',     icon: 'globe-outline' },
+  { id: 'electric-pulse',       nameHe: 'פעימה חשמלית',  icon: 'flash-outline' },
+  { id: 'world-celebration',    nameHe: 'חגיגה עולמית',  icon: 'earth-outline' },
+];
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ||
   Constants.expoConfig?.extra?.videoConverterUrl ||
   'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
@@ -65,6 +79,7 @@ export const PlayerRecordScreen = () => {
   const storyIdForMusic = playerStoryId || currentStoryId;
 
   const selectedMusic = useAppState((state) => state.selectedMusic);
+  const preferredMusicEngine = useAppState((state) => state.preferredMusicEngine);
   const storyClipCount = useAppState((state) => state.storyClipCount);
   const storyMaxClipDuration = useAppState((state) => state.storyMaxClipDuration);
   const backgroundVideoUrl = useAppState((state) => state.backgroundVideoUrl);
@@ -81,8 +96,8 @@ export const PlayerRecordScreen = () => {
   const maxClipDuration = playerStoryData?.maxClipDuration || storyMaxClipDuration || 60;
   const clipTimes = Array.from({ length: clipCount }, () => maxClipDuration);
 
-  const storyMusic = playerStoryData?.music || navigationParams?.music || null;
-  const ambient = useAmbientPlayback(storyMusic);
+  const [selectedTrackId, setSelectedTrackId] = useState(null);
+  const ambient = useAmbientPlayback(selectedTrackId);
 
   const cameraRef = useRef(null);
   const recordingTimerRef = useRef(null);
@@ -383,7 +398,7 @@ export const PlayerRecordScreen = () => {
             } catch (e) { console.warn('Transcription failed:', e.message); }
             const genRes = await fetch(getApiUrl('/api/generate-music'), {
               method: 'POST', headers: SERVER_HEADERS,
-              body: JSON.stringify({ storyId: storyIdForMusic, totalDuration, numClips: uploadedUrls.length, style: selectedMusic || undefined, ...(transcriptionSegments && { transcriptionSegments }) }),
+              body: JSON.stringify({ storyId: storyIdForMusic, totalDuration, numClips: uploadedUrls.length, style: selectedMusic || undefined, musicEngine: preferredMusicEngine || 'suno', ...(transcriptionSegments && { transcriptionSegments }) }),
             });
             const genJson = await genRes.json();
             const musicJobId = genJson.jobId;
@@ -637,6 +652,33 @@ export const PlayerRecordScreen = () => {
               </Text>
             </View>
           )}
+        </View>
+
+        {/* Track picker — player chooses per clip */}
+        <View style={styles.trackPickerWrap}>
+          <Text style={styles.trackPickerTitle}>🎵 בחר מוזיקה לקליפ</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trackScroll}>
+            <TouchableOpacity
+              style={[styles.trackChip, !selectedTrackId && styles.trackChipSelected]}
+              onPress={() => { setSelectedTrackId(null); ambient.stop(); }}
+            >
+              <Ionicons name="volume-mute" size={13} color={!selectedTrackId ? '#fff' : theme.colors.accent} />
+              <Text style={[styles.trackChipText, !selectedTrackId && styles.trackChipTextSelected]}>ללא</Text>
+            </TouchableOpacity>
+            {TRACK_LIBRARY.map(track => {
+              const sel = selectedTrackId === track.id;
+              return (
+                <TouchableOpacity
+                  key={track.id}
+                  style={[styles.trackChip, sel && styles.trackChipSelected]}
+                  onPress={() => setSelectedTrackId(sel ? null : track.id)}
+                >
+                  <Ionicons name={track.icon} size={13} color={sel ? '#fff' : theme.colors.accent} />
+                  <Text style={[styles.trackChipText, sel && styles.trackChipTextSelected]}>{track.nameHe}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         {ambient.hasTrack && (
@@ -1200,6 +1242,43 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   musicBoostTextActive: {
+    color: '#fff',
+  },
+  trackPickerWrap: {
+    marginBottom: theme.spacing[3],
+    width: '100%',
+  },
+  trackPickerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.accent,
+    marginBottom: 8,
+  },
+  trackScroll: {
+    gap: 8,
+    paddingBottom: 2,
+  },
+  trackChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: `${theme.colors.accent}15`,
+    borderWidth: 1,
+    borderColor: `${theme.colors.accent}35`,
+  },
+  trackChipSelected: {
+    backgroundColor: theme.colors.accent,
+    borderColor: theme.colors.accent,
+  },
+  trackChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.accent,
+  },
+  trackChipTextSelected: {
     color: '#fff',
   },
   musicPanel: {
