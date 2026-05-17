@@ -220,11 +220,9 @@ function buildWebRecordHtml(story, firebaseConfig) {
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
     import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
-    import { getStorage, ref, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-storage.js';
 
     const _fbApp  = initializeApp(${firebaseConfigJSON});
     const _fbAuth = getAuth(_fbApp);
-    const _fbStorage = getStorage(_fbApp);
     signInAnonymously(_fbAuth).catch(() => {});
 
     // ── Constants ──────────────────────────────────────────────
@@ -234,8 +232,13 @@ function buildWebRecordHtml(story, firebaseConfig) {
     const webUid      = 'web_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
 
     // ── Constants ── Music
-    let MUSIC_URL = ${musicUrl ? `'${escJs(musicUrl)}'` : 'null'};
+    // Use direct public GCS URL — same as native app (useAmbientPlayback.js)
+    const STORAGE_BUCKET = ${JSON.stringify(firebaseConfig.storageBucket || '')};
     const MUSIC_TRACK_ID = ${musicTrackId ? `'${escJs(musicTrackId)}'` : 'null'};
+    let MUSIC_URL = ${musicUrl ? `'${escJs(musicUrl)}'` : 'null'};
+    if (!MUSIC_URL && MUSIC_TRACK_ID && STORAGE_BUCKET) {
+      MUSIC_URL = 'https://storage.googleapis.com/' + STORAGE_BUCKET + '/music/library/' + MUSIC_TRACK_ID + '/phase1.mp3';
+    }
 
     // ── State ──────────────────────────────────────────────────
     let participantName = '';
@@ -257,20 +260,10 @@ function buildWebRecordHtml(story, firebaseConfig) {
     };
 
     window.playMusic = async function() {
-      if (!MUSIC_URL && MUSIC_TRACK_ID) {
-        try {
-          const audioRef = ref(_fbStorage, 'music/library/' + MUSIC_TRACK_ID + '/phase1.mp3');
-          MUSIC_URL = await getDownloadURL(audioRef);
-        } catch(e) {
-          console.warn('Storage URL failed, trying API:', e.message);
-          try {
-            const r = await fetch('/api/ambient-track/' + MUSIC_TRACK_ID);
-            const d = await r.json();
-            MUSIC_URL = d.track?.url || null;
-          } catch(e2) {}
-        }
+      if (!MUSIC_URL) {
+        alert('לא נמצאה מוזיקה לסיפור זה.\nTrack: ' + MUSIC_TRACK_ID + '\nBucket: ' + STORAGE_BUCKET);
+        return;
       }
-      if (!MUSIC_URL) { alert('לא נמצאה מוזיקה לסיפור זה.'); return; }
       if (ambientAudio) { ambientAudio.pause(); ambientAudio = null; }
       ambientAudio = new Audio(MUSIC_URL);
       ambientAudio.loop = true;
