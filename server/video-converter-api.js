@@ -180,6 +180,22 @@ app.get('/record/:storyId', async (req, res) => {
     appId:             process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
   };
 
+  // Resolve music URL: prefer stored URL, else look up from ambientLibrary in Firestore
+  let musicUrl = story.musicAmbient?.url || null;
+  if (!musicUrl && firestoreDb) {
+    const trackId = story.musicAmbient?.id || (
+      story.music && story.music !== 'none' && story.music !== 'ai-generated' ? story.music : null
+    );
+    if (trackId) {
+      try {
+        const libDoc = await firestoreDb.collection('settings').doc('ambientLibrary').get();
+        if (libDoc.exists) musicUrl = libDoc.data()?.tracks?.[trackId]?.url || null;
+      } catch (e) {
+        console.warn('Could not fetch ambient track URL:', e.message);
+      }
+    }
+  }
+
   const storyData = {
     id:             story.id,
     name:           story.name           || 'סיפור',
@@ -187,7 +203,7 @@ app.get('/record/:storyId', async (req, res) => {
     clipCount:      story.clipCount      || 3,
     maxClipDuration:story.maxClipDuration|| 60,
     instructions:   story.instructions  || '',
-    musicUrl:       story.musicAmbient?.url || null,
+    musicUrl,
     hasMusic:       !!(story.musicAmbient?.id || (story.music && story.music !== 'none' && story.music !== 'ai-generated')),
   };
 
