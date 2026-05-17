@@ -217,7 +217,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
     </div>
   </div>
 
-  <script>
+  <script type="module">
     // ── Constants ──────────────────────────────────────────────
     const STORY_ID    = '${escJs(storyId)}';
     const CLIP_COUNT  = ${clipCount};
