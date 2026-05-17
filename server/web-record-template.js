@@ -175,7 +175,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
         <div class="countdown-num" id="countdown-num">3</div>
       </div>
     </div>
-    <button class="btn-primary" id="start-btn" onclick="startCountdown()">⏺ התחל הקלטה</button>
+    <button class="btn-primary" id="start-btn" onclick="handleStartBtn()">⏺ התחל הקלטה</button>
     <button class="btn-outline" id="stop-btn" style="display:none" onclick="stopRecording()">⏹ סיים הקלטה</button>
     <div class="error-msg" id="rec-error"></div>
   </div>
@@ -332,10 +332,15 @@ function buildWebRecordHtml(story, firebaseConfig) {
     }
 
     // ── Step 3: Countdown + Record ─────────────────────────────
+    // Sync handler — preserves user gesture context for audio play in Safari
+    window.handleStartBtn = function() {
+      if (musicMode === 'performance') playMusic();
+      startCountdown();
+    };
+
     window.startCountdown = async function() {
       document.getElementById('start-btn').style.display = 'none';
       document.getElementById('rec-error').textContent = '';
-      if (musicMode === 'performance') playMusic();
       const overlay = document.getElementById('countdown-overlay');
       const num     = document.getElementById('countdown-num');
       overlay.style.display = 'flex';
