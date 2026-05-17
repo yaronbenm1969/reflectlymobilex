@@ -218,8 +218,14 @@ function buildWebRecordHtml(story, firebaseConfig) {
   </div>
 
   <script type="module">
-    // Uploads go through the server endpoint (/api/upload-player-clip) —
-    // no Firebase client SDK needed (server uses Admin SDK, bypasses Storage rules)
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+    import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
+    import { getStorage, ref, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-storage.js';
+
+    const _fbApp  = initializeApp(${firebaseConfigJSON});
+    const _fbAuth = getAuth(_fbApp);
+    const _fbStorage = getStorage(_fbApp);
+    signInAnonymously(_fbAuth).catch(() => {});
 
     // ── Constants ──────────────────────────────────────────────
     const STORY_ID    = '${escJs(storyId)}';
@@ -253,10 +259,16 @@ function buildWebRecordHtml(story, firebaseConfig) {
     window.playMusic = async function() {
       if (!MUSIC_URL && MUSIC_TRACK_ID) {
         try {
-          const r = await fetch('/api/ambient-track/' + MUSIC_TRACK_ID);
-          const d = await r.json();
-          MUSIC_URL = d.track?.url || null;
-        } catch(e) {}
+          const audioRef = ref(_fbStorage, 'music/library/' + MUSIC_TRACK_ID + '/phase1.mp3');
+          MUSIC_URL = await getDownloadURL(audioRef);
+        } catch(e) {
+          console.warn('Storage URL failed, trying API:', e.message);
+          try {
+            const r = await fetch('/api/ambient-track/' + MUSIC_TRACK_ID);
+            const d = await r.json();
+            MUSIC_URL = d.track?.url || null;
+          } catch(e2) {}
+        }
       }
       if (!MUSIC_URL) { alert('לא נמצאה מוזיקה לסיפור זה.'); return; }
       if (ambientAudio) { ambientAudio.pause(); ambientAudio = null; }
