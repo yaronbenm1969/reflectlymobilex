@@ -255,18 +255,11 @@ function buildWebRecordHtml(story, firebaseConfig) {
       ambientAudio = new Audio(MUSIC_URL);
       ambientAudio.loop = true;
       ambientAudio.volume = 0.55;
-      ambientAudio.play().then(() => {
-        document.getElementById('play-music-btn').style.display = 'none';
-        document.getElementById('stop-music-btn').style.display = 'block';
-        document.getElementById('music-playing-label').style.display = 'block';
-      }).catch(e => alert('שגיאה: ' + e.name + ': ' + e.message));
+      ambientAudio.play().catch(e => alert('שגיאה: ' + e.name + ': ' + e.message));
     };
 
     window.stopMusic = function() {
       if (ambientAudio) { ambientAudio.pause(); ambientAudio = null; }
-      document.getElementById('play-music-btn').style.display = 'block';
-      document.getElementById('stop-music-btn').style.display = 'none';
-      document.getElementById('music-playing-label').style.display = 'none';
     };
 
     // ── Step navigation ────────────────────────────────────────
