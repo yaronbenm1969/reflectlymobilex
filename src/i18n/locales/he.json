@@ -79,7 +79,7 @@
     "terms_link": "תנאי שימוש"
   },
   "sideMenu": {
-    "title": "Reflectly",
+    "title": "RILIO",
     "new_story": "סיפור חדש",
     "my_stories": "הסיפורים שלי",
     "community": "קהילה",
@@ -114,7 +114,7 @@
     "message_title": "הסרטונים שלך בדרך אל {{creatorName}}",
     "message_text": "כשכל החברים יסיימו להקליט, {{creatorName}} יקבל סרטון מרגש עם כל השיקופים משולבים יחד",
     "download_title": "רוצה ליצור סיפורים משלך?",
-    "download_text": "הורד את Reflectly וצור סיפורי וידאו מרגשים עם החברים שלך",
+    "download_text": "הורד את RILIO וצור סיפורי וידאו מרגשים עם החברים שלך",
     "download_label": "הורד מ-",
     "button_close": "סגור",
     "default_creator": "החבר שלך",
@@ -181,7 +181,7 @@
     "btn_test": "בדוק כשחקן",
     "error_no_story": "אין סיפור פעיל",
     "message_with_link": "היי! 🎬\n\nהוזמנת לשתף שיקוף בסיפור \"{{storyName}}\" 🎥\n\nלחץ על הלינק ועקוב אחר ההנחיות:\n{{participantLink}}\n\nתודה! ❤️",
-    "message_no_link": "היי! 🎬\n\nהוזמנת לשתף שיקוף בסיפור \"{{storyName}}\"\n\nהתקן את אפליקציית Reflectly ופתח את הלינק.\n\nתודה! ❤️",
+    "message_no_link": "היי! 🎬\n\nהוזמנת לשתף שיקוף בסיפור \"{{storyName}}\"\n\nהתקן את אפליקציית RILIO ופתח את הלינק.\n\nתודה! ❤️",
     "story_not_found": "לא נמצא סיפור",
     "native_share_title": "הסיפור שלי: {{storyName}}"
   },

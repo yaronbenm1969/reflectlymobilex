@@ -27,16 +27,16 @@ export const AboutScreen = () => {
             end={{ x: 1, y: 1 }}
             style={styles.heroGradient}
           >
-            <Text style={styles.appName}>Reflectly</Text>
+            <Text style={styles.appName}>RILIO</Text>
             <Text style={styles.version}>Version 1.0.0</Text>
             <Text style={styles.tagline}>Share your story, invite reflections</Text>
           </LinearGradient>
         </Card>
 
         <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>About Reflectly</Text>
+          <Text style={styles.sectionTitle}>About RILIO</Text>
           <Text style={styles.description}>
-            Reflectly is an interactive video storytelling platform that enables you to record personal stories, 
+            RILIO is an interactive video storytelling platform that enables you to record personal stories, 
             invite friends to record reflection clips, and automatically generate beautifully edited final videos.
           </Text>
         </Card>

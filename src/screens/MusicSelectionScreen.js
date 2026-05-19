@@ -130,6 +130,8 @@ export const MusicSelectionScreen = ({ route }) => {
   const setSelectedMusic = useAppState((state) => state.setSelectedMusic);
   const selectedMusic = useAppState((state) => state.selectedMusic);
   const currentStoryId = useAppState((state) => state.currentStoryId);
+  const preferredMusicEngine = useAppState((state) => state.preferredMusicEngine);
+  const setPreferredMusicEngine = useAppState((state) => state.setPreferredMusicEngine);
   const [currentSelection, setCurrentSelection] = useState(selectedMusic || null);
   const [isReady, setIsReady] = useState(false);
   const [playingPreview, setPlayingPreview] = useState(null);
@@ -214,6 +216,8 @@ export const MusicSelectionScreen = ({ route }) => {
         music: currentSelection || 'none',
       };
       
+      musicData.preferredMusicEngine = preferredMusicEngine || 'suno';
+
       if (selectedOption) {
         musicData.musicAmbient = {
           id: selectedOption.id,
@@ -345,6 +349,36 @@ export const MusicSelectionScreen = ({ route }) => {
               </View>
             </TouchableOpacity>
           ))}
+        </View>
+
+        {/* AI Music Engine selection */}
+        <View style={styles.engineSection}>
+          <Text style={styles.engineTitle}>✨ מנוע מוזיקה AI</Text>
+          <Text style={styles.engineSubtitle}>בחר איזה AI יחולל את מוזיקת הרקע לסרטון שלך</Text>
+          <View style={styles.engineRow}>
+            <TouchableOpacity
+              style={[styles.engineBtn, (preferredMusicEngine || 'suno') === 'suno' && styles.engineBtnActive]}
+              onPress={() => setPreferredMusicEngine('suno')}
+            >
+              <Text style={[styles.engineBtnTitle, (preferredMusicEngine || 'suno') === 'suno' && styles.engineBtnTitleActive]}>
+                🎵 Suno
+              </Text>
+              <Text style={[styles.engineBtnDesc, (preferredMusicEngine || 'suno') === 'suno' && styles.engineBtnDescActive]}>
+                מהיר · סגנונות עשירים
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.engineBtn, preferredMusicEngine === 'musicgen' && styles.engineBtnActive]}
+              onPress={() => setPreferredMusicEngine('musicgen')}
+            >
+              <Text style={[styles.engineBtnTitle, preferredMusicEngine === 'musicgen' && styles.engineBtnTitleActive]}>
+                🤖 MusicGen AI
+              </Text>
+              <Text style={[styles.engineBtnDesc, preferredMusicEngine === 'musicgen' && styles.engineBtnDescActive]}>
+                מותאם אישית לתוכן · לוקח יותר זמן
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.actions}>
@@ -525,5 +559,62 @@ const styles = StyleSheet.create({
   actions: {
     paddingTop: theme.spacing[5],
     paddingBottom: theme.spacing[8],
+  },
+  engineSection: {
+    marginTop: theme.spacing[6],
+    marginBottom: theme.spacing[2],
+    padding: theme.spacing[4],
+    backgroundColor: '#f9f0ff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e0c8f8',
+  },
+  engineTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#6a1b9a',
+    textAlign: 'right',
+    marginBottom: 4,
+  },
+  engineSubtitle: {
+    fontSize: 13,
+    color: '#9c4dcc',
+    textAlign: 'right',
+    marginBottom: theme.spacing[3],
+    opacity: 0.8,
+  },
+  engineRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  engineBtn: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e0c8f8',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+  },
+  engineBtnActive: {
+    borderColor: '#8446b0',
+    backgroundColor: '#f3e5ff',
+  },
+  engineBtnTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#888',
+    marginBottom: 3,
+  },
+  engineBtnTitleActive: {
+    color: '#6a1b9a',
+  },
+  engineBtnDesc: {
+    fontSize: 11,
+    color: '#aaa',
+    textAlign: 'center',
+  },
+  engineBtnDescActive: {
+    color: '#9c4dcc',
   },
 });

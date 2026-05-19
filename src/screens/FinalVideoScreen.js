@@ -64,6 +64,7 @@ export const FinalVideoScreen = () => {
   const selectedMusic = useAppState((state) => state.selectedMusic);
   const generatedMusicUrl = useAppState((state) => state.generatedMusicUrl);
   const setGeneratedMusicUrl = useAppState((state) => state.setGeneratedMusicUrl);
+  const preferredMusicEngine = useAppState((state) => state.preferredMusicEngine);
   const backgroundVideoUrl = useAppState((state) => state.backgroundVideoUrl);
   const backgroundMediaType = useAppState((state) => state.backgroundMediaType);
   const setBackgroundVideoUrl = useAppState((state) => state.setBackgroundVideoUrl);
@@ -123,6 +124,12 @@ export const FinalVideoScreen = () => {
   // musicRetryTrigger is incremented when user presses retry — re-runs the effect.
   useEffect(() => {
     if (!currentStoryId || generatedMusicUrl) return;
+    // Skip AI music generation if clips were recorded in performance mode (music already in audio)
+    const hasPerformanceClips = reflections.some(r => r.hasMusicInRecording === true);
+    if (hasPerformanceClips) {
+      console.log('🎵 Skipping AI music — clips contain performance recordings with music already mixed in');
+      return;
+    }
     let cancelled = false;
     // On explicit retry (trigger > 0), skip Firestore poll and go straight to generation
     let attempts = musicRetryTrigger > 0 ? 5 : 0;
@@ -166,7 +173,7 @@ export const FinalVideoScreen = () => {
         console.log('🎵 Calling /api/generate-music...');
         const genRes = await fetch(`${VIDEO_CONVERTER_URL}/api/generate-music`, {
           method: 'POST', headers: SERVER_HEADERS,
-          body: JSON.stringify({ storyId: currentStoryId, totalDuration, numClips: urlsForMusic.length, ...(selectedMusic && { style: selectedMusic }), ...(transcriptionSegments && { transcriptionSegments }) }),
+          body: JSON.stringify({ storyId: currentStoryId, totalDuration, numClips: urlsForMusic.length, ...(selectedMusic && { style: selectedMusic }), musicEngine: preferredMusicEngine || 'suno', ...(transcriptionSegments && { transcriptionSegments }) }),
         });
         if (!genRes.ok) {
           const errText = await genRes.text().catch(() => genRes.status);
@@ -917,7 +924,7 @@ export const FinalVideoScreen = () => {
               const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                 method: 'POST',
                 headers: SERVER_HEADERS,
-                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.12 }),
+                body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.06 }),
                 signal: mixCtrl.signal,
               });
               clearTimeout(mixTimeout);
@@ -1074,7 +1081,7 @@ export const FinalVideoScreen = () => {
                 const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                   method: 'POST',
                   headers: SERVER_HEADERS,
-                  body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.12 }),
+                  body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.06 }),
                   signal: mixCtrl.signal,
                 });
                 clearTimeout(mixTimeout);
@@ -1311,37 +1318,59 @@ export const FinalVideoScreen = () => {
         return;
       }
 
-      const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
-      if (allVideos.length === 0 && !finalVideoUri) {
-        Alert.alert(t('common.error'), t('finalVideo.no_video'));
-        return;
-      }
+      // Try known URLs / local cache first — avoids triggering re-recording
+      const knownRemoteUrl = firebaseUrlRef.current || recordingFirebaseUrl || firestoreVideoUrlRef.current;
+      const knownLocalCache = cachedRecordingRef.current || cachedRecordingUri || localVideoUri;
 
-      const videoUri = await getVideoForSharing(t('finalVideo.saving_label'));
-      setDownloadProgress(t('finalVideo.saving_to_gallery'));
-      const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
-      let localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, storyName.replace(/[^a-zA-Zא-ת0-9]/g, '_'));
-      
-      const fileInfo = await FileSystem.getInfoAsync(localUri);
-      console.log('📹 File to save:', localUri, 'size:', fileInfo.size, 'exists:', fileInfo.exists);
-      
-      if (!fileInfo.exists || fileInfo.size < 1000) {
-        console.warn('📹 Local file too small or missing, trying Firebase URL...');
-        const fbUrl = firebaseUrlRef.current || recordingFirebaseUrl;
-        if (fbUrl) {
-          localUri = await downloadVideoToLocal(fbUrl, 'gallery_save');
-          const reInfo = await FileSystem.getInfoAsync(localUri);
-          console.log('📹 Re-downloaded from Firebase:', reInfo.size, 'bytes');
+      let localUri = null;
+
+      // 1. Use local cache if valid
+      if (knownLocalCache) {
+        const info = await FileSystem.getInfoAsync(knownLocalCache);
+        if (info.exists && info.size > 10000) {
+          localUri = knownLocalCache;
+          console.log('📹 Gallery save: using local cache', localUri);
         }
       }
-      
+
+      // 2. Download from known remote URL
+      if (!localUri && knownRemoteUrl) {
+        setDownloadProgress(t('finalVideo.saving_to_gallery'));
+        try {
+          localUri = await downloadVideoToLocal(knownRemoteUrl, 'gallery_save');
+          console.log('📹 Gallery save: downloaded from remote URL');
+        } catch (dlErr) {
+          console.warn('📹 Remote download failed:', dlErr.message);
+        }
+      }
+
+      // 3. Fall back to full getVideoForSharing logic (may trigger re-record for animated formats)
+      if (!localUri) {
+        const allVideos = cubeFaces.map(f => f?.videoUrl).filter(Boolean);
+        if (allVideos.length === 0 && !finalVideoUri && !knownRemoteUrl) {
+          Alert.alert(t('common.error'), t('finalVideo.no_video'));
+          return;
+        }
+        setDownloadProgress(t('finalVideo.saving_to_gallery'));
+        const videoUri = await getVideoForSharing(t('finalVideo.saving_label'));
+        const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
+        localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, storyName.replace(/[^a-zA-Zא-ת0-9]/g, '_'));
+      }
+
+      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      console.log('📹 File to save:', localUri, 'size:', fileInfo.size, 'exists:', fileInfo.exists);
+
+      if (!fileInfo.exists || fileInfo.size < 1000) {
+        throw new Error(t('finalVideo.error_save', { message: 'file too small or missing' }));
+      }
+
       if (!localUri.endsWith('.mp4')) {
         const mp4Path = localUri.replace(/\.[^.]+$/, '.mp4');
         await FileSystem.copyAsync({ from: localUri, to: mp4Path });
         localUri = mp4Path;
         console.log('📹 Renamed to .mp4 for gallery save:', mp4Path);
       }
-      
+
       try {
         const asset = await MediaLibrary.createAssetAsync(localUri);
         console.log('📹 Asset created:', asset.uri);
@@ -1350,9 +1379,7 @@ export const FinalVideoScreen = () => {
         await MediaLibrary.saveToLibraryAsync(localUri);
       }
       
-      Alert.alert(t('finalVideo.saved_success'), allVideos.length > 1
-        ? t('finalVideo.saved_multi', { count: allVideos.length })
-        : t('finalVideo.saved_single'));
+      Alert.alert(t('finalVideo.saved_success'), t('finalVideo.saved_single'));
     } catch (error) {
       console.error('Save to gallery error:', error);
       Alert.alert(t('common.error'), t('finalVideo.error_save', { message: error.message }));
@@ -2049,22 +2076,20 @@ export const FinalVideoScreen = () => {
         </View>
 
         <View style={styles.actions}>
-            {!is3DFormat && (
-              <TouchableOpacity 
-                style={styles.actionButton} 
-                onPress={handleDownload}
-                disabled={isDownloading}
-              >
-                <View style={styles.actionIcon}>
-                  {isDownloading ? (
-                    <ActivityIndicator size="small" color={theme.colors.primary} />
-                  ) : (
-                    <Ionicons name="download-outline" size={28} color={theme.colors.primary} />
-                  )}
-                </View>
-                <Text style={styles.actionLabel}>{t('finalVideo.btn_download')}</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleSaveToGallery}
+              disabled={isDownloading}
+            >
+              <View style={styles.actionIcon}>
+                {isDownloading ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                ) : (
+                  <Ionicons name="download-outline" size={28} color={theme.colors.primary} />
+                )}
+              </View>
+              <Text style={styles.actionLabel}>{t('finalVideo.btn_download')}</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
               <View style={styles.actionIcon}>

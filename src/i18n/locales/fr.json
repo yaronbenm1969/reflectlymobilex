@@ -81,7 +81,7 @@
     "terms_link": "Conditions d'utilisation"
   },
   "sideMenu": {
-    "title": "Reflectly",
+    "title": "RILIO",
     "new_story": "Nouvelle histoire",
     "my_stories": "Mes histoires",
     "community": "Communauté",
@@ -116,7 +116,7 @@
     "message_title": "Vos vidéos sont en route vers {{creatorName}}",
     "message_text": "Quand tous les amis auront fini d'enregistrer, {{creatorName}} recevra une vidéo émouvante avec toutes les réflexions combinées",
     "download_title": "Envie de créer vos propres histoires ?",
-    "download_text": "Téléchargez Reflectly et créez des histoires vidéo émouvantes avec vos amis",
+    "download_text": "Téléchargez RILIO et créez des histoires vidéo émouvantes avec vos amis",
     "download_label": "Télécharger sur",
     "button_close": "Fermer",
     "default_creator": "Votre ami",
@@ -183,7 +183,7 @@
     "btn_test": "Tester comme joueur",
     "error_no_story": "Pas d'histoire active",
     "message_with_link": "Bonjour ! 🎬\n\nVous êtes invité à partager une réflexion dans l'histoire \"{{storyName}}\" 🎥\n\nAppuyez sur le lien et suivez les instructions :\n{{participantLink}}\n\nMerci ! ❤️",
-    "message_no_link": "Bonjour ! 🎬\n\nVous êtes invité à partager une réflexion dans l'histoire \"{{storyName}}\"\n\nInstallez l'app Reflectly et ouvrez le lien.\n\nMerci ! ❤️",
+    "message_no_link": "Bonjour ! 🎬\n\nVous êtes invité à partager une réflexion dans l'histoire \"{{storyName}}\"\n\nInstallez l'app RILIO et ouvrez le lien.\n\nMerci ! ❤️",
     "story_not_found": "Histoire introuvable",
     "native_share_title": "Mon histoire : {{storyName}}"
   },

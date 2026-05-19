@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Reflectly",
+    "name": "RILIO",
     "slug": "reflectly",
     "version": "1.0.1",
     "orientation": "portrait",
@@ -68,7 +68,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Reflectly to record your video stories"
+          "cameraPermission": "Allow RILIO to record your video stories"
         }
       ],
       "expo-asset",

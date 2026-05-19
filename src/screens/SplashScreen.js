@@ -61,7 +61,7 @@ export const SplashScreen = () => {
           style={styles.logo}
           resizeMode="contain"
         />
-        <Text style={styles.appName}>Reflectly</Text>
+        <Text style={styles.appName}>RILIO</Text>
         <Text style={styles.tagline}>{t('splash.tagline')}</Text>
       </Animated.View>
     </LinearGradient>

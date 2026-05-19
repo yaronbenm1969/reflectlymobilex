@@ -99,7 +99,7 @@ export default function AuthScreen() {
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.title}>Reflectly</Text>
+            <Text style={styles.title}>RILIO</Text>
             <Text style={styles.subtitle}>{t('auth.subtitle')}</Text>
           </View>
 

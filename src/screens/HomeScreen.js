@@ -117,7 +117,7 @@ export const HomeScreen = () => {
                 style={styles.headerLogo}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>Reflectly</Text>
+              <Text style={styles.title}>RILIO</Text>
             </View>
             <TouchableOpacity 
               style={styles.menuButton}

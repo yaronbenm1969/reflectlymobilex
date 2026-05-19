@@ -69,7 +69,7 @@ export const TermsScreen = () => {
             {'\n\n'}
             Email: demo@example.com
             {'\n'}
-            Website: Reflectly App
+            Website: rilio.io
             {'\n\n'}
             This is placeholder contact information for demo purposes.
           </Text>
@@ -80,7 +80,7 @@ export const TermsScreen = () => {
             Last updated: {new Date().toLocaleDateString()}
           </Text>
           <Text style={styles.footerText}>
-            Reflectly Demo v1.0.0
+            RILIO v1.0.0
           </Text>
         </View>
       </ScrollView>

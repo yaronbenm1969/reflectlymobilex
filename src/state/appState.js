@@ -31,6 +31,7 @@ export const useAppState = create((set, get) => ({
   backgroundMediaType: null,   // 'video' | 'image' | null
   clipMusicMode: 'none', // 'headphones' | 'none' | 'performance'
   generatedMusicUrl: null,
+  preferredMusicEngine: 'suno', // 'suno' | 'musicgen'
   
   // Player instructions
   playerInstructions: {
@@ -121,6 +122,7 @@ export const useAppState = create((set, get) => ({
   setBackgroundMediaType: (type) => set({ backgroundMediaType: type }),
   setClipMusicMode: (mode) => set({ clipMusicMode: mode }),
   setGeneratedMusicUrl: (url) => set({ generatedMusicUrl: url }),
+  setPreferredMusicEngine: (engine) => set({ preferredMusicEngine: engine }),
   
   // Player instructions actions
   setPlayerInstructions: (instructions) => set({ 

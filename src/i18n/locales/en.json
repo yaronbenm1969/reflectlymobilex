@@ -79,7 +79,7 @@
     "terms_link": "Terms of Use"
   },
   "sideMenu": {
-    "title": "Reflectly",
+    "title": "RILIO",
     "new_story": "New Story",
     "my_stories": "My Stories",
     "community": "Community",
@@ -114,7 +114,7 @@
     "message_title": "Your videos are on their way to {{creatorName}}",
     "message_text": "When all friends finish recording, {{creatorName}} will get an emotional video with all reflections combined",
     "download_title": "Want to create your own stories?",
-    "download_text": "Download Reflectly and create emotional video stories with your friends",
+    "download_text": "Download RILIO and create emotional video stories with your friends",
     "download_label": "Download from",
     "button_close": "Close",
     "default_creator": "Your friend",
@@ -181,7 +181,7 @@
     "btn_test": "Test as Player",
     "error_no_story": "No active story",
     "message_with_link": "Hi! 🎬\n\nYou're invited to share a reflection in the story \"{{storyName}}\" 🎥\n\nTap the link and follow the instructions:\n{{participantLink}}\n\nThank you! ❤️",
-    "message_no_link": "Hi! 🎬\n\nYou're invited to share a reflection in the story \"{{storyName}}\"\n\nInstall the Reflectly app and open the link.\n\nThank you! ❤️",
+    "message_no_link": "Hi! 🎬\n\nYou're invited to share a reflection in the story \"{{storyName}}\"\n\nInstall the RILIO app and open the link.\n\nThank you! ❤️",
     "story_not_found": "Story not found",
     "native_share_title": "My Story: {{storyName}}"
   },

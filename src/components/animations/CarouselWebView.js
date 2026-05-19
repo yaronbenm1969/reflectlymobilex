@@ -35,6 +35,8 @@ const CarouselWebView = ({
   const webViewKeyRef = useRef(Date.now());
   const injectedThumbsRef = useRef({});
   const lastVideoUrlsRef = useRef('');
+  const recordingChunksRef = useRef([]);
+  const recordingMetaRef = useRef(null);
 
   // Wait until first batch of videos is ready before mounting WebView
   useEffect(() => {
@@ -82,6 +84,14 @@ const CarouselWebView = ({
     if (!triggerAutoPlay || !webViewRef.current || !hasInitializedRef.current) return;
     webViewRef.current.injectJavaScript(`window.startPlayback && window.startPlayback(); true;`);
   }, [triggerAutoPlay]);
+
+  // Enable recording before next playback
+  useEffect(() => {
+    if (recordNextPlayback && webViewRef.current) {
+      console.log('📹 [Carousel] Enabling recording for next playback');
+      webViewRef.current.injectJavaScript(`window._recEnabled = true; true;`);
+    }
+  }, [recordNextPlayback]);
 
   // Background HTML
   const safeBgUrl = (backgroundUrl || '').replace(/'/g, '');
@@ -480,6 +490,7 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     }
 
     function doPlay() {
+      video.style.opacity = '1'; // ensure visible even if oncanplay already fired during load
       video.currentTime = 0;
       video.play().then(function() {
         if (currentIndex !== capturedIdx) return; // advanced while play() was resolving
@@ -558,7 +569,10 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     document.body.appendChild(fade);
     requestAnimationFrame(function() { requestAnimationFrame(function() {
       fade.style.opacity = '1';
-      setTimeout(function() { postMessage('playbackComplete', {}); }, 1500);
+      setTimeout(function() {
+        if (_recModule.isRec()) _recModule.stop();
+        postMessage('playbackComplete', {});
+      }, 1500);
     }); });
   }
 
@@ -586,6 +600,10 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     if (bgVid && bgVid.tagName === 'VIDEO') bgVid.play();
     postMessage('playbackStart', {});
     startAnimLoop();
+    if (window._recEnabled) {
+      window._recEnabled = false;
+      _recModule.start();
+    }
     playPanel(0);
   };
 
@@ -627,6 +645,181 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     }
   }
 
+  // ─── RECORDING MODULE ─────────────────────────────────
+  window._recEnabled = false;
+  var _recModule = (function() {
+    var hasRecorder = typeof MediaRecorder !== 'undefined';
+    var hasCapture = !!(HTMLCanvasElement.prototype &&
+                        typeof HTMLCanvasElement.prototype.captureStream === 'function');
+    var supported = hasRecorder && hasCapture;
+
+    setTimeout(function() {
+      postMessage('recordingSupport', { supported: supported });
+    }, 200);
+
+    if (!supported) {
+      console.log('📹 [Carousel] Recording not supported');
+      return { supported: false, start: function(){}, stop: function(){}, isRec: function(){ return false; } };
+    }
+
+    console.log('📹 [Carousel] Client-side recording available');
+
+    var RW = 720, RH = 1280;
+    var cvs = document.createElement('canvas');
+    cvs.width = RW; cvs.height = RH;
+    var ctx = cvs.getContext('2d');
+
+    var recorder = null;
+    var chunks = [];
+    var recAnimId = null;
+    var recState = 'idle';
+
+    function roundedRectPath(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function renderRecFrame() {
+      if (recState !== 'recording') return;
+
+      // Dark background
+      ctx.fillStyle = '#0a0a1a';
+      ctx.fillRect(0, 0, RW, RH);
+
+      // Draw active video panel
+      if (activeVideo && activeVideo.readyState >= 2) {
+        var vw = activeVideo.videoWidth || 720;
+        var vh = activeVideo.videoHeight || 1280;
+        var pad = 32;
+        var panW = RW - pad * 2;
+        var panH = RH - pad * 2;
+        var scale = Math.max(panW / vw, panH / vh);
+        var dw = vw * scale;
+        var dh = vh * scale;
+        var dx = pad + (panW - dw) / 2;
+        var dy = pad + (panH - dh) / 2;
+
+        ctx.save();
+        roundedRectPath(pad, pad, panW, panH, 20);
+        ctx.clip();
+        try { ctx.drawImage(activeVideo, dx, dy, dw, dh); } catch(e) {}
+        ctx.restore();
+
+        // Panel border
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 3;
+        ctx.save();
+        roundedRectPath(pad, pad, panW, panH, 20);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Player name label
+      var face = fullVideoQueue[currentIndex];
+      if (face && face.playerName) {
+        var labelH = 120;
+        var grad = ctx.createLinearGradient(0, RH - 32 - labelH, 0, RH - 32);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.8)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(32, RH - 32 - labelH, RW - 64, labelH);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 40px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(face.playerName, RW / 2, RH - 32 - labelH / 2.8);
+      }
+
+      recAnimId = requestAnimationFrame(renderRecFrame);
+    }
+
+    function startRec() {
+      if (recState !== 'idle') return;
+      recState = 'recording';
+      chunks = [];
+
+      var stream = cvs.captureStream(30);
+
+      var mimeType = '';
+      ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm'].some(function(m) {
+        if (MediaRecorder.isTypeSupported(m)) { mimeType = m; return true; }
+      });
+      if (!mimeType) {
+        postMessage('recordingError', { error: 'No supported format' });
+        recState = 'idle'; return;
+      }
+
+      recorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 8000000 });
+      recorder.ondataavailable = function(e) {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      };
+      recorder.onstop = function() {
+        recState = 'processing';
+        var blob = new Blob(chunks, { type: mimeType });
+        var sizeMB = (blob.size / 1024 / 1024).toFixed(2);
+        console.log('📹 [Carousel] Recording blob: ' + sizeMB + 'MB (' + chunks.length + ' chunks)');
+        if (blob.size < 50000) {
+          postMessage('recordingFailed', { error: 'Recording too small', sizeBytes: blob.size });
+          recState = 'idle'; return;
+        }
+        postMessage('recordingProcessing', { sizeBytes: blob.size });
+
+        var reader = new FileReader();
+        reader.onloadend = function() {
+          var b64Marker = ';base64,';
+          var b64Idx = reader.result.indexOf(b64Marker);
+          var b64 = b64Idx >= 0 ? reader.result.substring(b64Idx + b64Marker.length) : reader.result.split(',').slice(1).join(',');
+          var CHUNK = 64 * 1024;
+          var total = Math.ceil(b64.length / CHUNK);
+          postMessage('recordingMeta', { totalChunks: total, sizeBytes: blob.size, mimeType: mimeType });
+
+          var sendIdx = 0;
+          function sendNext() {
+            if (sendIdx >= total) {
+              postMessage('recordingComplete', { totalChunks: total, sizeBytes: blob.size });
+              recState = 'idle'; return;
+            }
+            var chunk = b64.substring(sendIdx * CHUNK, (sendIdx + 1) * CHUNK);
+            postMessage('recordingChunk', { index: sendIdx, data: chunk, total: total });
+            sendIdx++;
+            setTimeout(sendNext, 5);
+          }
+          sendNext();
+        };
+        reader.readAsDataURL(blob);
+      };
+
+      recorder.start(1000);
+      recAnimId = requestAnimationFrame(renderRecFrame);
+      postMessage('recordingStarted', {});
+      console.log('📹 [Carousel] Recording started: ' + mimeType);
+    }
+
+    function stopRec() {
+      if (recState !== 'recording' || !recorder) return;
+      console.log('📹 [Carousel] Stopping recording...');
+      if (recAnimId) { cancelAnimationFrame(recAnimId); recAnimId = null; }
+      recorder.stop();
+    }
+
+    return {
+      supported: true,
+      start: startRec,
+      stop: stopRec,
+      isRec: function() { return recState === 'recording'; }
+    };
+  })();
+
   // ─── INIT ─────────────────────────────────────────────
   buildPanels();
   postMessage('readyToPlay', { videoCount: fullVideoQueue.length });
@@ -651,9 +844,59 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
         case 'faceChange':    onFaceChange?.(data.faceIndex); break;
         case 'videoStart':    onVideoStart?.(data.faceId); break;
         case 'videoEnd':      onVideoEnd?.(data.faceId); break;
+        case 'recordingSupport':
+          console.log('📹 [Carousel] Recording support:', data.supported);
+          onRecordingSupport?.(data.supported);
+          break;
+        case 'recordingStarted':
+          console.log('📹 [Carousel] Recording started in WebView');
+          break;
+        case 'recordingProcessing':
+          onRecordingProgress?.({ phase: 'processing', progress: 0 });
+          break;
+        case 'recordingMeta':
+          recordingMetaRef.current = { ...data };
+          recordingChunksRef.current = [];
+          onRecordingProgress?.({ phase: 'transferring', progress: 0 });
+          break;
+        case 'recordingChunk':
+          recordingChunksRef.current.push(data.data);
+          if (recordingMetaRef.current) {
+            const pct = Math.round(((data.index + 1) / data.total) * 100);
+            onRecordingProgress?.({ phase: 'transferring', progress: pct });
+          }
+          break;
+        case 'recordingComplete': {
+          console.log('📹 [Carousel] All chunks received:', data.totalChunks);
+          onRecordingProgress?.({ phase: 'saving', progress: 90 });
+          const base64Data = recordingChunksRef.current.join('');
+          const recMime = recordingMetaRef.current?.mimeType || '';
+          const recExt = recMime.includes('mp4') ? '.mp4' : '.webm';
+          const fileUri = FileSystem.cacheDirectory + 'carousel_recording_' + Date.now() + recExt;
+          FileSystem.writeAsStringAsync(fileUri, base64Data, {
+            encoding: FileSystem.EncodingType.Base64,
+          }).then(() => {
+            console.log('📹 [Carousel] Recording saved:', fileUri);
+            onRecordingComplete?.(fileUri);
+            recordingChunksRef.current = [];
+            recordingMetaRef.current = null;
+          }).catch(err => {
+            console.error('📹 [Carousel] Failed to save recording:', err);
+            onRecordingComplete?.(null);
+          });
+          break;
+        }
+        case 'recordingFailed':
+          console.warn('📹 [Carousel] Recording failed (too small):', data.sizeBytes, 'bytes');
+          onRecordingComplete?.(null);
+          break;
+        case 'recordingError':
+          console.error('📹 [Carousel] Recording error:', data.error);
+          onRecordingComplete?.(null);
+          break;
       }
     } catch (e) {}
-  }, [onReadyToPlay, onPlaybackStart, onPlaybackComplete, onFaceChange, onVideoStart, onVideoEnd]);
+  }, [onReadyToPlay, onPlaybackStart, onPlaybackComplete, onFaceChange, onVideoStart, onVideoEnd, onRecordingSupport, onRecordingComplete, onRecordingProgress]);
 
   if (error) return <View style={styles.container}><View style={styles.errorBox} /></View>;
 

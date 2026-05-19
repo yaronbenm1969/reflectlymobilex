@@ -276,7 +276,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
       stopPreview();
       previewAudio = new Audio(STORAGE_BASE + '/' + id + '/phase1.mp3');
       previewAudio._id = id;
-      previewAudio.volume = 0.5;
+      previewAudio.volume = 0.15;
       previewAudio.play().catch(() => {});
       const btn = document.getElementById('prev-' + id);
       if (btn) btn.textContent = '⏹';
@@ -293,7 +293,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
       if (ambientAudio) { ambientAudio.pause(); ambientAudio = null; }
       ambientAudio = new Audio(MUSIC_URL);
       ambientAudio.loop = true;
-      ambientAudio.volume = 0.55;
+      ambientAudio.volume = 0.15;
       ambientAudio.play().catch(e => alert('שגיאה: ' + e.name + ': ' + e.message));
     };
 
