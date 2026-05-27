@@ -260,7 +260,7 @@ async function selectTrackForClip(clipText, setTracks, usedIds) {
  * @param {string}   [userHint]            - Optional free-text from creator ("something more uplifting")
  * @returns {{ success, musicPath, set, error? }}
  */
-async function generateSunoMusicForVideo(transcriptionSegments, totalDuration, style, numClips, db, userHint, excludeSet) {
+async function generateSunoMusicForVideo(transcriptionSegments, totalDuration, style, numClips, db, userHint, excludeSet, lockedSet) {
   ensureDir();
   const ts = Date.now();
 
@@ -291,17 +291,23 @@ async function generateSunoMusicForVideo(transcriptionSegments, totalDuration, s
   console.log(`🎵 Suno library: ${allTracks.length} tracks across sets ${availableSets.join(', ')}`);
 
   // ------------------------------------------------------------------
-  // 2. Select best set via GPT-4o (one call for overall mood)
+  // 2. Select best set — respect lockedSet if creator already chose one
   // ------------------------------------------------------------------
-  let chosenSet = await selectSet(transcriptionSegments, numClips, style, userHint, excludeSet);
-  if (!bySet[chosenSet] || bySet[chosenSet].length === 0) {
-    const preferred = availableSets.filter(s => s !== excludeSet);
-    chosenSet = preferred.length > 0 ? preferred[0] : availableSets[0];
-    console.warn(`⚠️ Chosen set not available, using Set ${chosenSet}`);
-  }
-  if (excludeSet && chosenSet === excludeSet && availableSets.length > 1) {
-    const alt = availableSets.find(s => s !== excludeSet);
-    if (alt) { chosenSet = alt; console.log(`🎵 Switched to Set ${chosenSet} to avoid repeat`); }
+  let chosenSet;
+  if (lockedSet && bySet[lockedSet]) {
+    chosenSet = lockedSet;
+    console.log(`🎵 Using creator's locked Set ${chosenSet}`);
+  } else {
+    chosenSet = await selectSet(transcriptionSegments, numClips, style, userHint, excludeSet);
+    if (!bySet[chosenSet] || bySet[chosenSet].length === 0) {
+      const preferred = availableSets.filter(s => s !== excludeSet);
+      chosenSet = preferred.length > 0 ? preferred[0] : availableSets[0];
+      console.warn(`⚠️ Chosen set not available, using Set ${chosenSet}`);
+    }
+    if (excludeSet && chosenSet === excludeSet && availableSets.length > 1) {
+      const alt = availableSets.find(s => s !== excludeSet);
+      if (alt) { chosenSet = alt; console.log(`🎵 Switched to Set ${chosenSet} to avoid repeat`); }
+    }
   }
   const setTracks = bySet[chosenSet].filter(t => t.url);
   console.log(`🎵 Using Set ${chosenSet} — ${setTracks.length} tracks available`);

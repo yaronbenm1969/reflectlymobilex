@@ -45,7 +45,7 @@ if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 if (!fs.existsSync(convertedDir)) fs.mkdirSync(convertedDir, { recursive: true });
 const upload = multer({ dest: tempDir, limits: { fileSize: 100 * 1024 * 1024 } });
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/ambient-track'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/ambient-track', '/api/suno-sets'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -1504,7 +1504,7 @@ app.use('/converted', express.static(convertedDir));
 const musicJobs = new Map();
 
 app.post('/api/generate-music', async (req, res) => {
-  const { storyId, transcriptionSegments, totalDuration, style, numClips, musicEngine } = req.body;
+  const { storyId, transcriptionSegments, totalDuration, style, numClips, musicEngine, lockedSet } = req.body;
   
   if (!storyId || !totalDuration) {
     return res.status(400).json({ error: 'storyId and totalDuration are required' });
@@ -1534,7 +1534,7 @@ app.post('/api/generate-music', async (req, res) => {
 
       const segments = transcriptionSegments || [{ start: 0, end: totalDuration, text: '' }];
 
-      const result = await generateMusicForVideo(segments, totalDuration, style, numClips, firestoreDb, null, null, musicEngine);
+      const result = await generateMusicForVideo(segments, totalDuration, style, numClips, firestoreDb, null, null, musicEngine, lockedSet ? parseInt(lockedSet) : null);
 
       if (!result.success) {
         musicJobs.set(jobId, { status: 'failed', error: result.error });
@@ -1968,6 +1968,65 @@ async function downloadFile(url, outputPath) {
 app.get('/api/ambient-library', (req, res) => {
   const { getAllPresets } = require('./music/ambient-library');
   res.json({ success: true, presets: getAllPresets() });
+});
+
+// GET /api/suno-sets — returns available Suno sets (grouped by set number)
+// Each set entry includes: set number, key, bpm, tone, description, and preview URL (first track)
+app.get('/api/suno-sets', async (req, res) => {
+  const SET_META = [
+    { set: 1,  key: 'Dm', bpm: 48,  tone: 'אובדן, עצב עמוק',      toneEn: 'loss, grief',            icon: 'rainy-outline' },
+    { set: 2,  key: 'Am', bpm: 58,  tone: 'מלנכוליה, ערגה',        toneEn: 'melancholy, longing',     icon: 'moon-outline' },
+    { set: 3,  key: 'C',  bpm: 64,  tone: 'תקווה, ריפוי',           toneEn: 'hope, healing',           icon: 'sunny-outline' },
+    { set: 4,  key: 'G',  bpm: 70,  tone: 'חמימות, משפחה',          toneEn: 'warmth, family',          icon: 'heart-outline' },
+    { set: 5,  key: 'D',  bpm: 76,  tone: 'הישג, גאווה',            toneEn: 'achievement, pride',      icon: 'trophy-outline' },
+    { set: 6,  key: 'G',  bpm: 82,  tone: 'חגיגי, שמחה',            toneEn: 'celebratory, joyful',     icon: 'star-outline' },
+    { set: 7,  key: 'D',  bpm: 92,  tone: 'אירוע גדול, קהילה',      toneEn: 'grand event, community',  icon: 'people-outline' },
+    { set: 8,  key: 'A',  bpm: 104, tone: 'ספורט, אנרגיה',          toneEn: 'sport, energy',           icon: 'flash-outline' },
+    { set: 9,  key: 'F',  bpm: 66,  tone: 'אינטימי, אישי',          toneEn: 'intimate, personal',      icon: 'flower-outline' },
+    { set: 10, key: 'C',  bpm: 60,  tone: 'אוניברסלי, אמביינט',    toneEn: 'universal, ambient',      icon: 'globe-outline' },
+    { set: 11, key: 'Em', bpm: 110, tone: 'דיגיטלי, מודרני',        toneEn: 'digital, modern',         icon: 'pulse-outline' },
+  ];
+
+  try {
+    // Find which sets actually have tracks in Firestore
+    let availableSets = new Set();
+    if (firestoreDb) {
+      const snap = await firestoreDb.collection('suno_tracks').get();
+      snap.docs.forEach(d => {
+        const s = parseInt(d.data().set);
+        if (s) availableSets.add(s);
+      });
+
+      // Build result: only sets that have at least one track with a URL
+      const tracksBySet = {};
+      snap.docs.forEach(d => {
+        const data = d.data();
+        const s = parseInt(data.set);
+        if (!s || !data.url) return;
+        if (!tracksBySet[s]) tracksBySet[s] = [];
+        tracksBySet[s].push({ id: d.id, ...data });
+      });
+
+      const result = SET_META
+        .filter(m => tracksBySet[m.set])
+        .map(m => {
+          const tracks = tracksBySet[m.set].sort((a, b) => (a.posInSet || 0) - (b.posInSet || 0));
+          return {
+            ...m,
+            trackCount: tracks.length,
+            previewUrl: tracks[0]?.url || null,
+            previewTrackId: tracks[0]?.id || null,
+          };
+        });
+
+      return res.json({ success: true, sets: result });
+    }
+  } catch (err) {
+    console.error('suno-sets error:', err.message);
+  }
+
+  // Fallback: return all sets without availability info
+  res.json({ success: true, sets: SET_META.map(m => ({ ...m, trackCount: 0, previewUrl: null })) });
 });
 
 app.post('/api/generate-ambient-library', async (req, res) => {

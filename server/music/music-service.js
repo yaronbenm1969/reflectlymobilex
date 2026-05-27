@@ -279,7 +279,7 @@ const LIBRARY_TRACKS = [
 ];
 const STORAGE_BUCKET = 'reflectly-playback.firebasestorage.app';
 
-async function generateMusicForVideo(transcriptionSegments, totalDuration, style, numClips, db, userHint, excludeSet, forceEngine) {
+async function generateMusicForVideo(transcriptionSegments, totalDuration, style, numClips, db, userHint, excludeSet, forceEngine, lockedSet) {
   console.log('🎶 Starting music generation pipeline...');
   console.log(`Duration: ${totalDuration}s, Style hint: ${style || 'auto'}, Clips: ${numClips || 'auto'}, Engine: ${forceEngine || 'auto'}`);
 
@@ -291,7 +291,7 @@ async function generateMusicForVideo(transcriptionSegments, totalDuration, style
       if (!probe.empty) {
         console.log('🎵 Suno track library detected — using pre-made tracks');
         const sunoResult = await generateSunoMusicForVideo(
-          transcriptionSegments, totalDuration, style, numClips, db, userHint, excludeSet
+          transcriptionSegments, totalDuration, style, numClips, db, userHint, excludeSet, lockedSet
         );
         if (sunoResult.success) {
           return {
