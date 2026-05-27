@@ -24,6 +24,9 @@ const AnimationPlayer = ({
   recordNextPlayback = false,
   backgroundUrl = null,
   backgroundMediaType = null,
+  musicUrl = null,
+  autoRotate = true,
+  rotationSpeed = 12000,
 }) => {
   console.log('🎬 AnimationPlayer rendering format:', format);
   
@@ -114,6 +117,9 @@ const AnimationPlayer = ({
           recordNextPlayback={recordNextPlayback}
           backgroundUrl={backgroundUrl}
           backgroundMediaType={backgroundMediaType}
+          musicUrl={musicUrl}
+          autoRotate={autoRotate}
+          rotationSpeed={rotationSpeed}
         />
       );
   }

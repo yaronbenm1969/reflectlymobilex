@@ -64,13 +64,16 @@ const CubeWebView = ({
     const first4 = faces.slice(0, 4);
     const minRequired = Math.min(4, faces.length);
     const readyCount = first4.filter(f => f?.videoUrl).length;
-    
+
+    // Wait for logoDataUri so cubeHTML is only generated once (avoids WebView reload mid-play)
+    if (!logoDataUri) return;
+
     if (minRequired > 0 && readyCount >= minRequired) {
       console.log(`🎲 All ${minRequired} initial videos ready - initializing cube`);
       hasInitializedRef.current = true;
       setInitialFaces([...faces]);
     }
-  }, [faces]);
+  }, [faces, logoDataUri]);
 
   useEffect(() => {
     if (!hasInitializedRef.current || !initialFaces || !webViewRef.current) return;
