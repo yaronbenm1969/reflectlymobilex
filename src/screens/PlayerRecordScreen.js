@@ -34,19 +34,13 @@ import Constants from 'expo-constants';
 
 const isWeb = Platform.OS === 'web';
 
-const TRACK_LIBRARY = [
-  { id: 'reflective-space',     nameHe: 'מרחב פנימי',   icon: 'water-outline' },
-  { id: 'gentle-warmth',        nameHe: 'חום עדין',      icon: 'heart-outline' },
-  { id: 'soft-hope',            nameHe: 'תקווה שקטה',    icon: 'sunny-outline' },
-  { id: 'tender-vulnerability', nameHe: 'עדינות רגשית',  icon: 'flower-outline' },
-  { id: 'quiet-strength',       nameHe: 'כוח שקט',       icon: 'shield-outline' },
-  { id: 'light-movement',       nameHe: 'תנועה עדינה',   icon: 'walk-outline' },
-  { id: 'floating-memory',      nameHe: 'זיכרון מרחף',   icon: 'cloud-outline' },
-  { id: 'subtle-uplift',        nameHe: 'התעלות עדינה',  icon: 'trending-up-outline' },
-  { id: 'open-horizon',         nameHe: 'אופק פתוח',     icon: 'globe-outline' },
-  { id: 'electric-pulse',       nameHe: 'פעימה חשמלית',  icon: 'flash-outline' },
-  { id: 'world-celebration',    nameHe: 'חגיגה עולמית',  icon: 'earth-outline' },
+const WAITING_TRACKS = [
+  'reflective-space', 'gentle-warmth', 'soft-hope', 'tender-vulnerability',
+  'quiet-strength', 'light-movement', 'floating-memory', 'subtle-uplift',
+  'open-horizon', 'electric-pulse', 'world-celebration',
 ];
+const randomWaitingTrack = () => WAITING_TRACKS[Math.floor(Math.random() * WAITING_TRACKS.length)];
+
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ||
   Constants.expoConfig?.extra?.videoConverterUrl ||
   'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
@@ -96,8 +90,10 @@ export const PlayerRecordScreen = () => {
   const maxClipDuration = playerStoryData?.maxClipDuration || storyMaxClipDuration || 60;
   const clipTimes = Array.from({ length: clipCount }, () => maxClipDuration);
 
-  const [selectedTrackId, setSelectedTrackId] = useState(null);
-  const ambient = useAmbientPlayback(selectedTrackId);
+  const sunoTrackUrl = playerStoryData?.musicAmbient?.url || null;
+  const ambient = useAmbientPlayback(null, sunoTrackUrl);
+  const [waitingTrackId, setWaitingTrackId] = useState(null);
+  const waitingAmbient = useAmbientPlayback(waitingTrackId);
 
   const cameraRef = useRef(null);
   const recordingTimerRef = useRef(null);
@@ -145,8 +141,25 @@ export const PlayerRecordScreen = () => {
     return () => {
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
       ambient.stop();
+      waitingAmbient.stop();
     };
   }, []);
+
+  // Play random waiting music during upload
+  useEffect(() => {
+    if (isUploading) {
+      setWaitingTrackId(randomWaitingTrack());
+    } else {
+      waitingAmbient.stop();
+      setWaitingTrackId(null);
+    }
+  }, [isUploading]);
+
+  useEffect(() => {
+    if (waitingTrackId) {
+      waitingAmbient.playPhase(1, 0.15);
+    }
+  }, [waitingTrackId]);
 
   // Determine whether consent is needed (player mode only)
   useEffect(() => {
@@ -398,7 +411,7 @@ export const PlayerRecordScreen = () => {
             } catch (e) { console.warn('Transcription failed:', e.message); }
             const genRes = await fetch(getApiUrl('/api/generate-music'), {
               method: 'POST', headers: SERVER_HEADERS,
-              body: JSON.stringify({ storyId: storyIdForMusic, totalDuration, numClips: uploadedUrls.length, style: selectedMusic || undefined, musicEngine: preferredMusicEngine || 'suno', ...(transcriptionSegments && { transcriptionSegments }) }),
+              body: JSON.stringify({ storyId: storyIdForMusic, totalDuration, numClips: uploadedUrls.length, style: selectedMusic || undefined, musicEngine: preferredMusicEngine || 'suno', ...(transcriptionSegments && { transcriptionSegments }), ...(playerStoryData?.lockedSet != null && { lockedSet: playerStoryData.lockedSet }) }),
             });
             const genJson = await genRes.json();
             const musicJobId = genJson.jobId;
@@ -654,61 +667,46 @@ export const PlayerRecordScreen = () => {
           )}
         </View>
 
-        {/* Track picker — player chooses per clip */}
-        <View style={styles.trackPickerWrap}>
-          <Text style={styles.trackPickerTitle}>🎵 בחר מוזיקה לקליפ</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trackScroll}>
-            <TouchableOpacity
-              style={[styles.trackChip, !selectedTrackId && styles.trackChipSelected]}
-              onPress={() => { setSelectedTrackId(null); ambient.stop(); }}
-            >
-              <Ionicons name="volume-mute" size={13} color={!selectedTrackId ? '#fff' : theme.colors.accent} />
-              <Text style={[styles.trackChipText, !selectedTrackId && styles.trackChipTextSelected]}>ללא</Text>
-            </TouchableOpacity>
-            {TRACK_LIBRARY.map(track => {
-              const sel = selectedTrackId === track.id;
-              return (
-                <TouchableOpacity
-                  key={track.id}
-                  style={[styles.trackChip, sel && styles.trackChipSelected]}
-                  onPress={() => setSelectedTrackId(sel ? null : track.id)}
-                >
-                  <Ionicons name={track.icon} size={13} color={sel ? '#fff' : theme.colors.accent} />
-                  <Text style={[styles.trackChipText, sel && styles.trackChipTextSelected]}>{track.nameHe}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {ambient.hasTrack && (
+        {/* Music — creator's chosen track + mode selection */}
+        {sunoTrackUrl && (
           <View style={styles.musicPanel}>
+            {/* Track preview row */}
             <View style={styles.musicPanelHeader}>
               <Ionicons name="musical-notes" size={18} color={theme.colors.accent} />
-              <Text style={styles.musicPanelTitle}>
-                {ambient.isPlaying ? t('playerRecord.music_playing') : t('playerRecord.music_will_play')}
+              <Text style={styles.musicPanelTitle} numberOfLines={1}>
+                {playerStoryData?.musicAmbient?.nameHe || playerStoryData?.musicAmbient?.name || 'מוזיקה'}
               </Text>
+              <TouchableOpacity
+                style={[styles.previewPlayBtn, ambient.isPlaying && styles.previewPlayBtnActive]}
+                onPress={() => ambient.isPlaying ? ambient.stop() : ambient.playPhase(1, 0.4)}
+              >
+                <Ionicons
+                  name={ambient.isPlaying ? 'pause' : 'play'}
+                  size={16}
+                  color={ambient.isPlaying ? '#fff' : theme.colors.accent}
+                />
+              </TouchableOpacity>
             </View>
+            {/* Mode buttons */}
             <View style={styles.musicModeRow}>
-              {[
-                { key: 'headphones', icon: 'headset',       label: t('playerRecord.mode_headphones') },
-                { key: 'none',       icon: 'volume-mute',   label: t('playerRecord.mode_none') },
-                { key: 'performance',icon: 'mic',           label: t('playerRecord.mode_performance') },
-              ].map(({ key, icon, label }) => {
-                const active = musicMode === key;
-                return (
-                  <TouchableOpacity
-                    key={key}
-                    style={[styles.musicModeBtn, active && styles.musicModeBtnActive]}
-                    onPress={() => setMusicMode(key)}
-                  >
-                    <Ionicons name={icon} size={16} color={active ? '#fff' : theme.colors.accent} />
-                    <Text style={[styles.musicModeBtnText, active && styles.musicModeBtnTextActive]}>
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+              <TouchableOpacity
+                style={[styles.musicModeBtn, musicMode === 'performance' && styles.musicModeBtnActive]}
+                onPress={() => setMusicMode('performance')}
+              >
+                <Ionicons name="mic" size={16} color={musicMode === 'performance' ? '#fff' : theme.colors.accent} />
+                <Text style={[styles.musicModeBtnText, musicMode === 'performance' && styles.musicModeBtnTextActive]}>
+                  🎤 שיר עם מוזיקה
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.musicModeBtn, musicMode === 'none' && styles.musicModeBtnActive]}
+                onPress={() => setMusicMode('none')}
+              >
+                <Ionicons name="volume-mute" size={16} color={musicMode === 'none' ? '#fff' : theme.colors.accent} />
+                <Text style={[styles.musicModeBtnText, musicMode === 'none' && styles.musicModeBtnTextActive]}>
+                  🔇 ללא מוזיקה
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -1338,6 +1336,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: theme.colors.text,
+    flex: 1,
+  },
+  previewPlayBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: `${theme.colors.accent}18`,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  previewPlayBtnActive: {
+    backgroundColor: theme.colors.accent,
   },
   musicPanelHint: {
     fontSize: 11,

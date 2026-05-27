@@ -194,7 +194,9 @@ app.get('/record/:storyId', async (req, res) => {
     instructions:   story.instructions  || '',
     musicUrl,
     musicTrackId,
-    hasMusic:       !!musicTrackId,
+    hasMusic:       !!(musicUrl || musicTrackId),
+    musicName:      story.musicAmbient?.nameHe || story.musicAmbient?.name || null,
+    lockedSet:      story.lockedSet || null,
   };
 
   res.set('Content-Type', 'text/html');

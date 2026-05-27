@@ -32,6 +32,7 @@ export const useAppState = create((set, get) => ({
   clipMusicMode: 'none', // 'headphones' | 'none' | 'performance'
   generatedMusicUrl: null,
   preferredMusicEngine: 'suno', // 'suno' | 'musicgen'
+  lockedSet: null, // set number chosen by יזם (1-11)
   
   // Player instructions
   playerInstructions: {
@@ -123,6 +124,7 @@ export const useAppState = create((set, get) => ({
   setClipMusicMode: (mode) => set({ clipMusicMode: mode }),
   setGeneratedMusicUrl: (url) => set({ generatedMusicUrl: url }),
   setPreferredMusicEngine: (engine) => set({ preferredMusicEngine: engine }),
+  setLockedSet: (setNum) => set({ lockedSet: setNum }),
   
   // Player instructions actions
   setPlayerInstructions: (instructions) => set({ 
@@ -204,6 +206,7 @@ export const useAppState = create((set, get) => ({
     storyClipCount: 3,
     storyMaxClipDuration: 60,
     selectedMusic: null,
+    lockedSet: null,
     videoFormat: null,
     backgroundStyle: null,
     backgroundVideoUrl: null,

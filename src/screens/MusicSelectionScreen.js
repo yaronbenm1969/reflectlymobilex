@@ -8,7 +8,7 @@ import { AppButton } from '../ui/AppButton';
 import { storiesService } from '../services/storiesService';
 import theme from '../theme/theme';
 
-const API_URL = process.env.EXPO_PUBLIC_VIDEO_CONVERTER_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_VIDEO_CONVERTER_URL || 'https://reflectlymobilex.onrender.com';
 
 export const MusicSelectionScreen = () => {
   const { t, i18n } = useTranslation();

@@ -65,6 +65,7 @@ export const FinalVideoScreen = () => {
   const generatedMusicUrl = useAppState((state) => state.generatedMusicUrl);
   const setGeneratedMusicUrl = useAppState((state) => state.setGeneratedMusicUrl);
   const preferredMusicEngine = useAppState((state) => state.preferredMusicEngine);
+  const lockedSet = useAppState((state) => state.lockedSet);
   const backgroundVideoUrl = useAppState((state) => state.backgroundVideoUrl);
   const backgroundMediaType = useAppState((state) => state.backgroundMediaType);
   const setBackgroundVideoUrl = useAppState((state) => state.setBackgroundVideoUrl);
@@ -173,7 +174,7 @@ export const FinalVideoScreen = () => {
         console.log('🎵 Calling /api/generate-music...');
         const genRes = await fetch(`${VIDEO_CONVERTER_URL}/api/generate-music`, {
           method: 'POST', headers: SERVER_HEADERS,
-          body: JSON.stringify({ storyId: currentStoryId, totalDuration, numClips: urlsForMusic.length, ...(selectedMusic && { style: selectedMusic }), musicEngine: preferredMusicEngine || 'suno', ...(transcriptionSegments && { transcriptionSegments }) }),
+          body: JSON.stringify({ storyId: currentStoryId, totalDuration, numClips: urlsForMusic.length, ...(selectedMusic && { style: selectedMusic }), musicEngine: preferredMusicEngine || 'suno', ...(transcriptionSegments && { transcriptionSegments }), ...(lockedSet != null && { lockedSet }) }),
         });
         if (!genRes.ok) {
           const errText = await genRes.text().catch(() => genRes.status);

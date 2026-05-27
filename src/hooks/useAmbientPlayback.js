@@ -4,7 +4,7 @@ import { Audio } from 'expo-av';
 const STORAGE_BUCKET = 'reflectly-playback.firebasestorage.app';
 const BASE_URL = `https://storage.googleapis.com/${STORAGE_BUCKET}/music/library`;
 
-export const useAmbientPlayback = (trackId) => {
+export const useAmbientPlayback = (trackId, directUrl = null) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [currentPhase, setCurrentPhase] = useState(null);
@@ -40,12 +40,13 @@ export const useAmbientPlayback = (trackId) => {
   };
 
   const getPhaseUrl = (phaseNumber) => {
+    if (directUrl) return directUrl;
     if (!trackId || trackId === 'none') return null;
     return `${BASE_URL}/${trackId}/phase${phaseNumber}.mp3`;
   };
 
   const playPhase = useCallback(async (phaseNumber, volume = 0.2, duringRecording = false) => {
-    if (!trackId || trackId === 'none') return;
+    if (!directUrl && (!trackId || trackId === 'none')) return;
 
     const url = getPhaseUrl(phaseNumber);
     if (!url) return;
@@ -168,6 +169,6 @@ export const useAmbientPlayback = (trackId) => {
     isLoaded,
     currentPhase,
     error,
-    hasTrack: !!trackId && trackId !== 'none',
+    hasTrack: !!directUrl || (!!trackId && trackId !== 'none'),
   };
 };

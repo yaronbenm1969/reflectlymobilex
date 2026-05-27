@@ -82,6 +82,7 @@ export const EditRoomScreen = () => {
   const setReflectionsLoading = useAppState((state) => state.setReflectionsLoading);
   const setVideoFormat = useAppState((state) => state.setVideoFormat);
   const setSelectedMusic = useAppState((state) => state.setSelectedMusic);
+  const setLockedSet = useAppState((state) => state.setLockedSet);
   const setBackgroundStyle = useAppState((state) => state.setBackgroundStyle);
   const setKeyStoryUri = useAppState((state) => state.setKeyStoryUri);
   const reflections = useAppState((state) => state.reflections);
@@ -130,6 +131,9 @@ export const EditRoomScreen = () => {
             if (storyData.music) {
               setSelectedMusic(storyData.music);
               console.log('🎵 Loaded music from Firebase:', storyData.music);
+            }
+            if (storyData.lockedSet != null) {
+              setLockedSet(storyData.lockedSet);
             }
             if (storyData.backgroundStyle) {
               setBackgroundStyle(storyData.backgroundStyle);
