@@ -334,8 +334,6 @@ function buildWebRecordHtml(story, firebaseConfig) {
         const d = document.getElementById('dot-' + i);
         d.className = 'clip-dot' + (i < currentClipIdx ? ' done' : i === currentClipIdx ? ' current' : '');
       }
-      // Reset music selection for each clip
-      selectTrack(null);
       stopMusic();
     }
 
