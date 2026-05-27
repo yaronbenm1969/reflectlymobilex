@@ -15,7 +15,22 @@ function buildWebRecordHtml(story, firebaseConfig) {
     musicUrl,
     musicTrackId,
     hasMusic,
+    musicName,
+    lockedSet,
   } = story;
+
+  const musicPanelHtml = hasMusic ? `
+    <div class="music-panel" id="music-panel">
+      <div class="music-panel-header">
+        <span>&#127925;</span>
+        <span class="music-panel-name">${escHtml(musicName || 'מוזיקה')}</span>
+        <button class="music-preview-btn" id="preview-btn" onclick="toggleMusicPreview()">&#9654;</button>
+      </div>
+      <div class="music-mode-btns">
+        <button class="music-mode-btn" id="btn-performance" onclick="setMusicMode('performance')">&#127908; שיר עם מוזיקה</button>
+        <button class="music-mode-btn active" id="btn-none" onclick="setMusicMode('none')">&#128263; ללא מוזיקה</button>
+      </div>
+    </div>` : '';
 
   const APP_STORE_URL = 'https://apps.apple.com/app/reflectly/id0000000000'; // TODO: update after publish
   const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.reflectly.app';
@@ -149,18 +164,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
   <div id="step-record" class="step">
     <div class="clip-dots" id="clip-dots"></div>
     <p class="clip-label" id="clip-label">קליפ 1 מתוך ${clipCount}</p>
-    ${storyData.hasMusic ? `
-    <div class="music-panel" id="music-panel">
-      <div class="music-panel-header">
-        <span>🎵</span>
-        <span class="music-panel-name">${escHtml(storyData.musicName || 'מוזיקה')}</span>
-        <button class="music-preview-btn" id="preview-btn" onclick="toggleMusicPreview()">▶</button>
-      </div>
-      <div class="music-mode-btns">
-        <button class="music-mode-btn" id="btn-performance" onclick="setMusicMode('performance')">🎤 שיר עם מוזיקה</button>
-        <button class="music-mode-btn active" id="btn-none" onclick="setMusicMode('none')">🔇 ללא מוזיקה</button>
-      </div>
-    </div>` : ''}
+    ${musicPanelHtml}
     <div class="camera-wrap">
       <video id="preview" autoplay muted playsinline></video>
       <div class="rec-badge" id="rec-badge"><div class="rec-dot"></div> מקליט</div>
@@ -221,7 +225,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
     const webUid      = 'web_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
 
     // ── Music ──────────────────────────────────────────────────
-    const MUSIC_URL = ${storyData.musicUrl ? `'${escJs(storyData.musicUrl)}'` : 'null'};
+    const MUSIC_URL = ${musicUrl ? `'${escJs(musicUrl)}'` : 'null'};
     let musicMode = 'none'; // 'performance' | 'none'
     let previewAudio = null;
 
