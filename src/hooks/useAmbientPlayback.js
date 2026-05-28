@@ -102,7 +102,7 @@ export const useAmbientPlayback = (trackId, directUrl = null) => {
       setError(err.message);
       setIsPlaying(false);
     }
-  }, [trackId]);
+  }, [trackId, directUrl]);
 
   const stop = useCallback(async () => {
     await unloadSound();

@@ -183,7 +183,30 @@ app.get('/record/:storyId', async (req, res) => {
   const musicTrackId = story.musicAmbient?.id || (
     story.music && story.music !== 'none' && story.music !== 'ai-generated' ? story.music : null
   );
-  const musicUrl = story.musicAmbient?.url || null;
+  let musicUrl = story.musicAmbient?.url || null;
+
+  // If musicUrl is missing but lockedSet is known, look up first track URL from suno_tracks
+  if (!musicUrl && story.lockedSet != null && firestoreDb) {
+    try {
+      const snap = await firestoreDb.collection('suno_tracks')
+        .where('set', '==', story.lockedSet).limit(5).get();
+      const tracks = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(t => t.url)
+        .sort((a, b) => (a.posInSet || 0) - (b.posInSet || 0));
+      if (tracks.length) {
+        musicUrl = tracks[0].url;
+        // Patch story in Firestore so native app also benefits next load
+        firestoreDb.collection('stories').doc(story.id).update({
+          'musicAmbient.url': musicUrl,
+          'musicAmbient.previewTrackId': tracks[0].id,
+        }).catch(() => {});
+        console.log(`🎵 Auto-filled musicUrl for lockedSet ${story.lockedSet}: ${musicUrl.substring(0, 60)}`);
+      }
+    } catch (e) {
+      console.warn('Could not auto-fill musicUrl:', e.message);
+    }
+  }
 
   const storyData = {
     id:             story.id,

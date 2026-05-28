@@ -18,8 +18,22 @@ export const MusicSelectionScreen = () => {
   const selectedMusic       = useAppState((state) => state.selectedMusic);
   const currentStoryId      = useAppState((state) => state.currentStoryId);
 
-  const [sunoSets, setSunoSets]             = useState([]);
-  const [loadingSets, setLoadingSets]       = useState(true);
+  // Hardcoded fallback — same data as server's SET_META, shown immediately
+  const FALLBACK_SETS = [
+    { set: 1,  key: 'Dm', bpm: 48,  tone: 'אובדן, עצב עמוק',    toneEn: 'loss, grief',           icon: 'rainy-outline',   trackCount: 0, previewUrl: null },
+    { set: 2,  key: 'Am', bpm: 58,  tone: 'מלנכוליה, ערגה',      toneEn: 'melancholy, longing',   icon: 'moon-outline',    trackCount: 0, previewUrl: null },
+    { set: 3,  key: 'C',  bpm: 64,  tone: 'תקווה, ריפוי',         toneEn: 'hope, healing',         icon: 'sunny-outline',   trackCount: 0, previewUrl: null },
+    { set: 4,  key: 'G',  bpm: 70,  tone: 'חמימות, משפחה',        toneEn: 'warmth, family',        icon: 'heart-outline',   trackCount: 0, previewUrl: null },
+    { set: 5,  key: 'D',  bpm: 76,  tone: 'הישג, גאווה',          toneEn: 'achievement, pride',    icon: 'trophy-outline',  trackCount: 0, previewUrl: null },
+    { set: 6,  key: 'G',  bpm: 82,  tone: 'חגיגי, שמחה',          toneEn: 'celebratory, joyful',   icon: 'star-outline',    trackCount: 0, previewUrl: null },
+    { set: 7,  key: 'D',  bpm: 92,  tone: 'אירוע גדול, קהילה',    toneEn: 'grand event, community',icon: 'people-outline',  trackCount: 0, previewUrl: null },
+    { set: 8,  key: 'A',  bpm: 104, tone: 'ספורט, אנרגיה',        toneEn: 'sport, energy',         icon: 'flash-outline',   trackCount: 0, previewUrl: null },
+    { set: 9,  key: 'F',  bpm: 66,  tone: 'אינטימי, אישי',        toneEn: 'intimate, personal',    icon: 'flower-outline',  trackCount: 0, previewUrl: null },
+    { set: 10, key: 'C',  bpm: 60,  tone: 'אוניברסלי, אמביינט',  toneEn: 'universal, ambient',    icon: 'globe-outline',   trackCount: 0, previewUrl: null },
+    { set: 11, key: 'Em', bpm: 110, tone: 'דיגיטלי, מודרני',      toneEn: 'digital, modern',       icon: 'pulse-outline',   trackCount: 0, previewUrl: null },
+  ];
+  const [sunoSets, setSunoSets]             = useState(FALLBACK_SETS);
+  const [loadingSets, setLoadingSets]       = useState(false);
   // selectedMusic could be 'suno-set-2' (new) or 'gentle-warmth' (old) or 'none'
   const initialSet = selectedMusic === 'none' ? 'none'
     : selectedMusic?.startsWith('suno-set-') ? parseInt(selectedMusic.replace('suno-set-', ''))
@@ -29,19 +43,22 @@ export const MusicSelectionScreen = () => {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const soundRef = useRef(null);
 
-  // Load available Suno sets from server
+  // Enrich sets from server in background (adds previewUrl + real trackCount)
   useEffect(() => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
     (async () => {
       try {
-        const res  = await fetch(`${API_URL}/api/suno-sets`);
+        const res  = await fetch(`${API_URL}/api/suno-sets`, { signal: controller.signal });
         const data = await res.json();
-        if (data.success) setSunoSets(data.sets || []);
+        if (data.success && data.sets?.length) setSunoSets(data.sets);
       } catch (err) {
-        console.warn('Could not load Suno sets:', err.message);
+        if (err.name !== 'AbortError') console.warn('Could not enrich Suno sets:', err.message);
       } finally {
-        setLoadingSets(false);
+        clearTimeout(timer);
       }
     })();
+    return () => { clearTimeout(timer); controller.abort(); };
   }, []);
 
   useEffect(() => {
