@@ -90,7 +90,22 @@ export const PlayerRecordScreen = () => {
   const maxClipDuration = playerStoryData?.maxClipDuration || storyMaxClipDuration || 60;
   const clipTimes = Array.from({ length: clipCount }, () => maxClipDuration);
 
-  const sunoTrackUrl = playerStoryData?.musicAmbient?.url || null;
+  const [resolvedTrackUrl, setResolvedTrackUrl] = useState(null);
+  useEffect(() => {
+    const stored = playerStoryData?.musicAmbient?.url;
+    if (stored) { setResolvedTrackUrl(stored); return; }
+    const lockedSet = playerStoryData?.lockedSet;
+    if (!lockedSet) return;
+    // musicAmbient.url missing — fetch live from server
+    fetch(`${API_BASE_URL}/api/suno-sets`, { headers: SERVER_HEADERS })
+      .then(r => r.json())
+      .then(data => {
+        const found = data.sets?.find(s => s.set === lockedSet);
+        if (found?.previewUrl) setResolvedTrackUrl(found.previewUrl);
+      })
+      .catch(() => {});
+  }, [playerStoryData]);
+  const sunoTrackUrl = resolvedTrackUrl;
   const ambient = useAmbientPlayback(null, sunoTrackUrl);
   const [waitingTrackId, setWaitingTrackId] = useState(null);
   const waitingAmbient = useAmbientPlayback(waitingTrackId);
