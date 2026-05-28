@@ -91,22 +91,24 @@ export const PlayerRecordScreen = () => {
   const clipTimes = Array.from({ length: clipCount }, () => maxClipDuration);
 
   const [resolvedTrackUrl, setResolvedTrackUrl] = useState(null);
+  const [resolvedTrackId, setResolvedTrackId] = useState(null);
   useEffect(() => {
+    if (!playerStoryData) return;
     const stored = playerStoryData?.musicAmbient?.url;
     if (stored) { setResolvedTrackUrl(stored); return; }
     const lockedSet = playerStoryData?.lockedSet;
-    if (!lockedSet) return;
-    // musicAmbient.url missing — fetch live from server
+    if (!lockedSet) { setResolvedTrackId(randomWaitingTrack()); return; }
+    // musicAmbient.url missing — try server, fallback to library track
     fetch(`${API_BASE_URL}/api/suno-sets`, { headers: SERVER_HEADERS })
       .then(r => r.json())
       .then(data => {
         const found = data.sets?.find(s => s.set === lockedSet);
         if (found?.previewUrl) setResolvedTrackUrl(found.previewUrl);
+        else setResolvedTrackId(randomWaitingTrack());
       })
-      .catch(() => {});
+      .catch(() => setResolvedTrackId(randomWaitingTrack()));
   }, [playerStoryData]);
-  const sunoTrackUrl = resolvedTrackUrl;
-  const ambient = useAmbientPlayback(null, sunoTrackUrl);
+  const ambient = useAmbientPlayback(resolvedTrackId, resolvedTrackUrl);
   const [waitingTrackId, setWaitingTrackId] = useState(null);
   const waitingAmbient = useAmbientPlayback(waitingTrackId);
 
@@ -683,7 +685,7 @@ export const PlayerRecordScreen = () => {
         </View>
 
         {/* Music — creator's chosen track + mode selection */}
-        {sunoTrackUrl && (
+        {ambient.hasTrack && (
           <View style={styles.musicPanel}>
             {/* Track preview row */}
             <View style={styles.musicPanelHeader}>
