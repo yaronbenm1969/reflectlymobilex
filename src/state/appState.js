@@ -187,6 +187,7 @@ export const useAppState = create((set, get) => ({
     playerStoryData: storyData,
     currentScreen: 'PlayerView',
     screenHistory: [],
+    navigationParams: null, // clear stale creator-flow params so PlayerViewScreen waits for real data
   }),
   setPlayerStoryData: (data) => set({ playerStoryData: data }),
   exitPlayerMode: () => set({

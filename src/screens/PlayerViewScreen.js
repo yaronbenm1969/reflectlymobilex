@@ -26,18 +26,25 @@ export const PlayerViewScreen = () => {
   const navigationParams = useAppState((state) => state.navigationParams);
   const playerStoryData = useAppState((state) => state.playerStoryData);
 
-  const [hasWatched, setHasWatched] = useState(true);
+  const [hasWatched, setHasWatched] = useState(false);
   const [isBuffering, setIsBuffering] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const videoRef = useRef(null);
   const fullscreenVideoRef = useRef(null);
 
-  const storyData = playerStoryData || navigationParams || {};
-  const storyName = storyData.name || storyData.storyName || 'הסיפור';
+  // Use only playerStoryData (not stale navigationParams) for the player gate
+  const storyData = playerStoryData || {};
+  const isDataLoaded = !!playerStoryData;
+  const storyName = storyData.name || storyData.storyName || navigationParams?.storyName || 'הסיפור';
   const creatorName = storyData.creatorName || 'חבר';
-  const instructions = storyData.instructions || 'שתף את החוויה שלך';
+  const instructions = storyData.instructions || '';
   const videoUri = storyData.videoUri || storyData.videoUrl || storyData.keyStoryUrl || null;
+
+  // Only allow skipping if data loaded AND confirmed no video exists
+  React.useEffect(() => {
+    if (isDataLoaded && !videoUri) setHasWatched(true);
+  }, [isDataLoaded, videoUri]);
 
   const handlePlayPause = async () => {
     if (!videoRef.current) return;
@@ -209,6 +216,19 @@ export const PlayerViewScreen = () => {
           <Text style={styles.instructionsText}>{instructions}</Text>
         </View>
 
+        {!isDataLoaded && (
+          <View style={styles.loadingHint}>
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+          </View>
+        )}
+
+        {isDataLoaded && videoUri && !hasWatched && (
+          <View style={styles.watchHint}>
+            <Ionicons name="play-circle-outline" size={18} color={theme.colors.primary} />
+            <Text style={styles.watchHintText}>{t('playerView.watch_first')}</Text>
+          </View>
+        )}
+
         {hasWatched && (
           <View style={styles.actions}>
             <AppButton
@@ -331,6 +351,21 @@ const styles = StyleSheet.create({
   actions: {
     marginTop: 'auto',
     paddingTop: theme.spacing[4],
+  },
+  loadingHint: {
+    marginTop: theme.spacing[4],
+    alignItems: 'center',
+  },
+  watchHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: theme.spacing[4],
+  },
+  watchHintText: {
+    ...theme.typography.body,
+    color: theme.colors.primary,
   },
   hint: {
     ...theme.typography.body,

@@ -454,13 +454,39 @@ async function loadStory(code) {
         
         const finalVideoUrl = videoEl.src;
         
+        // Lock record button until video is watched
+        const recordBtn = document.getElementById('start-record-btn');
+        const watchHint = document.getElementById('watch-hint');
+        if (recordBtn) {
+            recordBtn.disabled = true;
+            recordBtn.style.opacity = '0.4';
+            recordBtn.style.cursor = 'not-allowed';
+        }
+        if (watchHint) watchHint.style.display = 'flex';
+
         videoEl.oncanplay = () => {
             console.log('✅ Video can play!');
             placeholder.classList.add('hidden');
         };
-        
+
+        videoEl.addEventListener('ended', () => {
+            if (recordBtn) {
+                recordBtn.disabled = false;
+                recordBtn.style.opacity = '';
+                recordBtn.style.cursor = '';
+            }
+            if (watchHint) watchHint.style.display = 'none';
+        });
+
         videoEl.onerror = (e) => {
             console.error('❌ Video load error:', e);
+            // On error, unblock the record button so the player isn't stuck
+            if (recordBtn) {
+                recordBtn.disabled = false;
+                recordBtn.style.opacity = '';
+                recordBtn.style.cursor = '';
+            }
+            if (watchHint) watchHint.style.display = 'none';
             placeholder.innerHTML = `
                 <div class="placeholder-icon">🎬</div>
                 <p>לחץ להפעלת הסרטון</p>
@@ -477,12 +503,33 @@ async function loadStory(code) {
                 ">▶️ הפעל סרטון</button>
             `;
         };
-        
+
         videoEl.load();
     } else {
         placeholder.innerHTML = '<div class="placeholder-icon">📹</div><p>אין סרטון זמין</p>';
+        // No video — lock button until user explicitly confirms they read the instructions
+        const recordBtn = document.getElementById('start-record-btn');
+        const watchHint = document.getElementById('watch-hint');
+        if (recordBtn) {
+            recordBtn.disabled = true;
+            recordBtn.style.opacity = '0.4';
+            recordBtn.style.cursor = 'not-allowed';
+        }
+        if (watchHint) {
+            watchHint.style.display = 'flex';
+            watchHint.querySelector('span:last-child').textContent = 'קרא את ההוראות לפני ההמשך';
+        }
+        // Show confirm button after 2 seconds
+        setTimeout(() => {
+            if (recordBtn) {
+                recordBtn.disabled = false;
+                recordBtn.style.opacity = '';
+                recordBtn.style.cursor = '';
+            }
+            if (watchHint) watchHint.style.display = 'none';
+        }, 2000);
     }
-    
+
     showScreen('watch');
     return true;
 }
