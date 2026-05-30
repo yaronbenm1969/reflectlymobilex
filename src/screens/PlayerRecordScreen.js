@@ -9,12 +9,10 @@ import {
   Platform,
   ActivityIndicator,
   ScrollView,
-  Image,
   Modal,
-  FlatList,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNav } from '../hooks/useNav';
@@ -24,7 +22,6 @@ import storageService from '../services/storageService';
 import reflectionsService from '../services/reflectionsService';
 import { storiesService } from '../services/storiesService';
 import { notificationsService } from '../services/notificationsService';
-import { backgroundsService } from '../services/backgroundsService';
 
 import { useTranslation } from 'react-i18next';
 import { AppButton } from '../ui/AppButton';
@@ -76,10 +73,6 @@ export const PlayerRecordScreen = () => {
   const preferredMusicEngine = useAppState((state) => state.preferredMusicEngine);
   const storyClipCount = useAppState((state) => state.storyClipCount);
   const storyMaxClipDuration = useAppState((state) => state.storyMaxClipDuration);
-  const backgroundVideoUrl = useAppState((state) => state.backgroundVideoUrl);
-  const backgroundMediaType = useAppState((state) => state.backgroundMediaType);
-  const setBackgroundVideoUrl = useAppState((state) => state.setBackgroundVideoUrl);
-  const setBackgroundMediaType = useAppState((state) => state.setBackgroundMediaType);
 
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState('front');
@@ -92,6 +85,32 @@ export const PlayerRecordScreen = () => {
 
   const [resolvedTrackUrl, setResolvedTrackUrl] = useState(null);
   const [resolvedTrackId, setResolvedTrackId] = useState(null);
+
+  // Audio instruction playback
+  const [isPlayingInstruction, setIsPlayingInstruction] = useState(false);
+  const instructionSoundRef = useRef(null);
+
+  const playInstructionAudio = async () => {
+    const audioUrl = playerStoryData?.instructionAudioUrl || navigationParams?.instructionAudioUrl;
+    if (!audioUrl) return;
+    try {
+      if (instructionSoundRef.current) {
+        await instructionSoundRef.current.unloadAsync();
+        instructionSoundRef.current = null;
+      }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      const { sound } = await Audio.Sound.createAsync({ uri: audioUrl }, { volume: 1.0 });
+      instructionSoundRef.current = sound;
+      setIsPlayingInstruction(true);
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate((s) => {
+        if (s.didJustFinish) setIsPlayingInstruction(false);
+      });
+    } catch (e) {
+      console.error('Instruction audio play failed', e);
+      setIsPlayingInstruction(false);
+    }
+  };
   useEffect(() => {
     if (!playerStoryData) return;
     const stored = playerStoryData?.musicAmbient?.url;
@@ -116,10 +135,6 @@ export const PlayerRecordScreen = () => {
   const recordingTimerRef = useRef(null);
 
   const [clipRecordings, setClipRecordings] = useState(() => Array(clipCount).fill(null));
-  const [showBgPicker, setShowBgPicker] = useState(false);
-  const [bgList, setBgList] = useState([]);
-  const [bgFilter, setBgFilter] = useState('all'); // 'all' | 'image' | 'video'
-  const [previewBg, setPreviewBg] = useState(null); // bg object being previewed
   // Reset clip slots if clipCount changes (e.g. story data arrives from Firestore after mount)
   const prevClipCountRef = useRef(clipCount);
   useEffect(() => {
@@ -291,48 +306,6 @@ export const PlayerRecordScreen = () => {
     }
   };
 
-  const openBgPicker = async () => {
-    if (bgList.length === 0) {
-      const list = await backgroundsService.getActiveBackgrounds();
-      setBgList(list);
-    }
-    setShowBgPicker(true);
-  };
-
-  const selectBg = (url, mediaType) => {
-    setBackgroundVideoUrl(url);
-    setBackgroundMediaType(mediaType);
-    setPreviewBg(null);
-    setShowBgPicker(false);
-  };
-
-  const resetBg = () => {
-    setBackgroundVideoUrl(null);
-    setBackgroundMediaType(null);
-    setShowBgPicker(false);
-  };
-
-  const pickBgFromGallery = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(t('common.permission_required'), t('playerRecord.permission_gallery'));
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
-      quality: 0.85,
-      base64: true,
-    });
-    if (!result.canceled && result.assets?.[0]) {
-      const asset = result.assets[0];
-      const isImage = asset.type === 'image';
-      const url = isImage
-        ? `data:image/jpeg;base64,${asset.base64}`
-        : asset.uri;
-      selectBg(url, isImage ? 'image' : 'video');
-    }
-  };
-
   const toggleCameraType = async () => {
     try { await Haptics.selectionAsync(); } catch (e) {}
     setFacing(current => (current === 'back' ? 'front' : 'back'));
@@ -398,14 +371,6 @@ export const PlayerRecordScreen = () => {
         notificationsService.registerForPushNotifications().then(token => {
           if (token) storiesService.updateStory(storyIdForMusic, { pushToken: token }).catch(() => {});
         });
-      }
-
-      // Save background selection to Firestore so FinalVideoScreen can load it
-      if (storyIdForMusic && backgroundVideoUrl) {
-        storiesService.updateStory(storyIdForMusic, {
-          backgroundVideoUrl,
-          backgroundMediaType: backgroundMediaType || 'video',
-        }).catch(() => {});
       }
 
       // Fire-and-forget: generate AI music in background from uploaded clips
@@ -624,26 +589,37 @@ export const PlayerRecordScreen = () => {
                 ? t('playerRecord.camera_timer', { current: formatTime(recordingTimer), max: formatTime(maxTime) })
                 : t('playerRecord.camera_until', { time: formatTime(maxTime) })}
             </Text>
-            <TouchableOpacity
-              style={[
-                styles.recordBtn,
-                isRecording && styles.recordBtnActive,
-              ]}
-              onPress={() => {
-                if (isRecording) {
-                  stopRecordingClip(activeClip);
-                } else {
-                  startRecordingClip(activeClip);
-                }
-              }}
-            >
-              <View
+            <View style={styles.recordRow}>
+              <TouchableOpacity
                 style={[
-                  styles.recordBtnInner,
-                  isRecording && styles.recordBtnInnerActive,
+                  styles.recordBtn,
+                  isRecording && styles.recordBtnActive,
                 ]}
-              />
-            </TouchableOpacity>
+                onPress={() => {
+                  if (isRecording) {
+                    stopRecordingClip(activeClip);
+                  } else {
+                    startRecordingClip(activeClip);
+                  }
+                }}
+              >
+                <View
+                  style={[
+                    styles.recordBtnInner,
+                    isRecording && styles.recordBtnInnerActive,
+                  ]}
+                />
+              </TouchableOpacity>
+              {activeClip > 0 && !isRecording && (
+                <TouchableOpacity
+                  style={styles.skipBtn}
+                  onPress={() => setActiveClip(null)}
+                >
+                  <Ionicons name="play-skip-forward" size={20} color="rgba(255,255,255,0.8)" />
+                  <Text style={styles.skipBtnText}>{t('playerRecord.camera_skip')}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             <Text style={styles.recordHint}>
               {isRecording ? t('playerRecord.camera_stop') : t('playerRecord.camera_record')}
             </Text>
@@ -681,6 +657,22 @@ export const PlayerRecordScreen = () => {
                 {playerStoryData?.instructions || navigationParams?.instructions}
               </Text>
             </View>
+          )}
+          {!!(playerStoryData?.instructionAudioUrl || navigationParams?.instructionAudioUrl) && (
+            <TouchableOpacity
+              style={styles.listenInstructionBtn}
+              onPress={playInstructionAudio}
+              disabled={isPlayingInstruction}
+            >
+              <Ionicons
+                name={isPlayingInstruction ? 'volume-high' : 'headset'}
+                size={18}
+                color="white"
+              />
+              <Text style={styles.listenInstructionText}>
+                {isPlayingInstruction ? t('playerRecord.playing_instruction') : t('playerRecord.listen_instruction')}
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -727,27 +719,6 @@ export const PlayerRecordScreen = () => {
             </View>
           </View>
         )}
-
-        {/* Background selector panel */}
-        <TouchableOpacity style={styles.bgPanel} onPress={openBgPicker}>
-          <View style={styles.bgPanelLeft}>
-            <Ionicons name="image-outline" size={20} color={backgroundVideoUrl ? theme.colors.primary : theme.colors.subtext} />
-            <Text style={styles.bgPanelLabel}>{t('playerRecord.bg_panel_label')}</Text>
-          </View>
-          <View style={styles.bgPanelRight}>
-            {backgroundVideoUrl ? (
-              <>
-                <Text style={styles.bgPanelValue} numberOfLines={1}>{t('playerRecord.bg_selected')}</Text>
-                <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); resetBg(); }} hitSlop={8}>
-                  <Ionicons name="close-circle" size={18} color={theme.colors.subtext} />
-                </TouchableOpacity>
-              </>
-            ) : (
-              <Text style={styles.bgPanelPlaceholder}>{t('playerRecord.bg_choose')}</Text>
-            )}
-            <Ionicons name="chevron-forward" size={18} color={theme.colors.subtext} />
-          </View>
-        </TouchableOpacity>
 
         <View style={styles.clipCards}>
           {Array.from({ length: clipCount }, (_, i) => i).map((i) => {
@@ -829,100 +800,6 @@ export const PlayerRecordScreen = () => {
         </View>
       </ScrollView>
 
-      {/* Background Picker Modal */}
-      <Modal visible={showBgPicker} animationType="slide" onRequestClose={() => setShowBgPicker(false)}>
-        <View style={styles.bgModalContainer}>
-          <View style={styles.bgModalHeader}>
-            <Text style={styles.bgModalTitle}>{t('playerRecord.bg_modal_title')}</Text>
-            <TouchableOpacity onPress={() => setShowBgPicker(false)}>
-              <Ionicons name="close" size={26} color={theme.colors.text} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Filter tabs */}
-          <View style={styles.bgFilterRow}>
-            {[['all', t('playerRecord.bg_filter_all')],['image', t('playerRecord.bg_filter_images')],['video', t('playerRecord.bg_filter_videos')]].map(([key, label]) => (
-              <TouchableOpacity
-                key={key}
-                style={[styles.bgFilterTab, bgFilter === key && styles.bgFilterTabActive]}
-                onPress={() => setBgFilter(key)}
-              >
-                <Text style={[styles.bgFilterTabText, bgFilter === key && styles.bgFilterTabTextActive]}>
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Grid */}
-          <FlatList
-            data={[
-              { firestoreId: '__default__', nameHe: t('playerRecord.bg_default'), mediaType: 'default', url: null },
-              ...bgList.filter(b => bgFilter === 'all' || b.mediaType === bgFilter),
-            ]}
-            keyExtractor={(item) => item.firestoreId}
-            numColumns={3}
-            contentContainerStyle={styles.bgGrid}
-            renderItem={({ item }) => {
-              const isSelected = item.url === backgroundVideoUrl || (item.url === null && !backgroundVideoUrl);
-              return (
-                <TouchableOpacity
-                  style={[styles.bgGridItem, isSelected && styles.bgGridItemSelected]}
-                  onPress={() => item.url === null ? resetBg() : selectBg(item.url, item.mediaType)}
-                >
-                  {item.mediaType === 'default' ? (
-                    <View style={styles.bgGridThumb}>
-                      <Ionicons name="sparkles" size={26} color="#a78bfa" />
-                    </View>
-                  ) : item.mediaType === 'image' ? (
-                    <Image source={{ uri: item.url }} style={styles.bgGridThumb} />
-                  ) : (
-                    <View style={[styles.bgGridThumb, styles.bgGridThumbVideo]}>
-                      <Ionicons name="videocam" size={24} color="#a78bfa" />
-                    </View>
-                  )}
-                  <Text style={styles.bgGridName} numberOfLines={1}>{item.nameHe}</Text>
-                  {item.mediaType === 'image' && (
-                    <TouchableOpacity
-                      style={styles.bgPreviewBtn}
-                      onPress={() => setPreviewBg(item)}
-                    >
-                      <Text style={styles.bgPreviewBtnText}>{t('playerRecord.bg_preview')}</Text>
-                    </TouchableOpacity>
-                  )}
-                  {isSelected && (
-                    <View style={styles.bgGridCheck}>
-                      <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            }}
-          />
-
-          <TouchableOpacity style={styles.bgGalleryBtn} onPress={pickBgFromGallery}>
-            <Ionicons name="images-outline" size={22} color="white" />
-            <Text style={styles.bgGalleryBtnText}>{t('playerRecord.bg_gallery')}</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
-      {/* Preview Modal */}
-      {previewBg && (
-        <Modal visible={!!previewBg} animationType="fade" onRequestClose={() => setPreviewBg(null)}>
-          <View style={styles.previewModalContainer}>
-            <Image source={{ uri: previewBg.url }} style={styles.previewImage} resizeMode="contain" />
-            <View style={styles.previewActions}>
-              <TouchableOpacity style={styles.previewSelectBtn} onPress={() => selectBg(previewBg.url, previewBg.mediaType)}>
-                <Text style={styles.previewSelectBtnText}>{t('playerRecord.bg_select')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.previewCloseBtn} onPress={() => setPreviewBg(null)}>
-                <Text style={styles.previewCloseBtnText}>{t('common.close')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      )}
     </View>
   );
 };
@@ -1096,6 +973,22 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     textAlign: 'right',
     lineHeight: 20,
+  },
+  listenInstructionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: theme.spacing[3],
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primary,
+    alignSelf: 'flex-end',
+  },
+  listenInstructionText: {
+    fontSize: 14,
+    color: 'white',
+    fontWeight: '600',
   },
   musicIndicator: {
     flexDirection: 'row',
@@ -1546,120 +1439,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: theme.spacing[2],
   },
-  bgPanel: {
+  recordRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 14,
-    marginBottom: theme.spacing[3],
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    borderWidth: 1,
-    borderColor: `${theme.colors.primary}25`,
-    ...theme.shadows.sm,
-  },
-  bgPanelLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  bgPanelLabel: { color: theme.colors.text, fontSize: 15, fontWeight: '500' },
-  bgPanelRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  bgPanelValue: { color: theme.colors.primary, fontSize: 14 },
-  bgPanelPlaceholder: { color: theme.colors.subtext, fontSize: 14 },
-  bgModalContainer: {
-    flex: 1,
-    backgroundColor: theme.colors.bg,
-    paddingTop: 56,
-  },
-  bgModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  bgModalTitle: { fontSize: 20, fontWeight: 'bold', color: theme.colors.text },
-  bgFilterRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 8,
-    marginBottom: 16,
-  },
-  bgFilterTab: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: `${theme.colors.primary}15`,
-    alignItems: 'center',
-  },
-  bgFilterTabActive: { backgroundColor: theme.colors.primary },
-  bgFilterTabText: { color: theme.colors.subtext, fontSize: 14 },
-  bgFilterTabTextActive: { color: 'white', fontWeight: '600' },
-  bgGrid: { paddingHorizontal: 12, paddingBottom: 100 },
-  bgGridItem: {
-    flex: 1,
-    margin: 6,
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    padding: 6,
-    backgroundColor: 'white',
-    ...theme.shadows.sm,
-  },
-  bgGridItemSelected: { borderColor: theme.colors.primary },
-  bgGridThumb: {
-    width: '100%',
-    aspectRatio: 1.4,
-    borderRadius: 8,
-    backgroundColor: `${theme.colors.primary}15`,
     justifyContent: 'center',
-    alignItems: 'center',
   },
-  bgGridThumbVideo: { backgroundColor: `${theme.colors.secondary}20` },
-  bgGridName: { color: theme.colors.text, fontSize: 11, marginTop: 5, textAlign: 'center' },
-  bgPreviewBtn: {
+  skipBtn: {
+    marginLeft: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+  },
+  skipBtnText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
     marginTop: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    backgroundColor: `${theme.colors.primary}20`,
-    borderRadius: 6,
   },
-  bgPreviewBtnText: { color: theme.colors.primary, fontSize: 11 },
-  bgGridCheck: { position: 'absolute', top: 8, right: 8 },
-  bgGalleryBtn: {
-    position: 'absolute',
-    bottom: 30,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: theme.colors.primary,
-    borderRadius: 14,
-    paddingVertical: 14,
-  },
-  bgGalleryBtnText: { color: 'white', fontSize: 16, fontWeight: '600' },
-  previewModalContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-    justifyContent: 'center',
-  },
-  previewImage: { width: '100%', flex: 1 },
-  previewActions: {
-    padding: 20,
-    gap: 10,
-  },
-  previewSelectBtn: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  previewSelectBtnText: { color: 'white', fontSize: 16, fontWeight: '600' },
-  previewCloseBtn: {
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  previewCloseBtnText: { color: theme.colors.subtext, fontSize: 15 },
 });

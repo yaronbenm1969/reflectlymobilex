@@ -96,10 +96,22 @@ export const InstructionsScreen = () => {
         
         if (uploadResult.success) {
           console.log('✅ Video uploaded, URL:', uploadResult.url);
-          
+
+          // Upload audio instruction if exists
+          let instructionAudioUrl = null;
+          if (instructionAudioUri) {
+            console.log('📤 Uploading audio instruction...');
+            const audioResult = await storageService.uploadAudio(instructionAudioUri, currentStoryId);
+            if (audioResult.success) {
+              instructionAudioUrl = audioResult.url;
+              console.log('✅ Audio instruction uploaded:', instructionAudioUrl);
+            }
+          }
+
           const updateResult = await storiesService.updateStory(currentStoryId, {
             videoUri: uploadResult.url,
             instructions: genericInstructions,
+            instructionAudioUrl,
             videoTimings: { video1: video1Time, video2: video2Time, video3: video3Time },
             privacySettings: { allowSocialMedia, privateOnly: !allowSocialMedia, publishingEnabled },
             communitySettings: { communityMode, maxPlayers, approvalMode },

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 export const useAppState = create((set, get) => ({
   // Initial state
-  currentScreen: 'Splash',
+  currentScreen: null,
   navigationParams: null,
   screenHistory: [],
   

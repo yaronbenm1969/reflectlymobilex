@@ -9,14 +9,14 @@ import { Quicksand_400Regular } from '@expo-google-fonts/quicksand/400Regular';
 import { Quicksand_500Medium } from '@expo-google-fonts/quicksand/500Medium';
 import { Quicksand_600SemiBold } from '@expo-google-fonts/quicksand/600SemiBold';
 import { Quicksand_700Bold } from '@expo-google-fonts/quicksand/700Bold';
-import { 
+import {
   AuthScreen,
-  SplashScreen,
-  HomeScreen, 
+  HomeScreen,
   RecordScreen, 
   ReviewScreen, 
   MusicSelectionScreen,
   FormatSelectionScreen,
+  BackgroundSelectionScreen,
   InstructionsScreen,
   WhatsAppShareScreen,
   ProcessingScreen,
@@ -31,7 +31,6 @@ import {
   HelpScreen,
   TermsScreen,
   ThankYouScreen,
-  WatchExperienceScreen,
   CommunityFeedScreen,
   MemberOnboardingScreen,
 } from './src/screens';
@@ -49,6 +48,7 @@ export default function App() {
     Quicksand_700Bold,
   });
   const [i18nReady, setI18nReady] = useState(false);
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
 
   useEffect(() => {
     initI18n().finally(() => setI18nReady(true));
@@ -150,10 +150,13 @@ export default function App() {
       if (user) {
         console.log('🔐 User logged in:', user.email || user.uid);
         setUser(user);
+        if (!useAppState.getState().currentScreen) navigateTo('Home');
       } else {
         console.log('🔐 No user session - will redirect to Auth');
         setUser(null);
+        if (!useAppState.getState().currentScreen) navigateTo('Auth');
       }
+      setIsAuthChecked(true);
     });
 
     // Check for initial deep link
@@ -174,8 +177,6 @@ export default function App() {
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'Splash':
-        return <SplashScreen />;
       case 'Auth':
         return <AuthScreen />;
       case 'Record':
@@ -194,10 +195,12 @@ export default function App() {
         );
       case 'FormatSelection':
         return (
-          <FormatSelectionScreen 
-            route={{ params: navigationParams || {} }} 
+          <FormatSelectionScreen
+            route={{ params: navigationParams || {} }}
           />
         );
+      case 'BackgroundSelection':
+        return <BackgroundSelectionScreen />;
       case 'Instructions':
         return <InstructionsScreen />;
       case 'WhatsAppShare':
@@ -226,8 +229,6 @@ export default function App() {
         return <TermsScreen />;
       case 'ThankYou':
         return <ThankYouScreen />;
-      case 'WatchExperience':
-        return <WatchExperienceScreen />;
       case 'CommunityFeed':
         return <CommunityFeedScreen />;
       case 'MemberOnboarding':
@@ -237,7 +238,7 @@ export default function App() {
     }
   };
 
-  if (!fontsLoaded || !i18nReady) {
+  if (!fontsLoaded || !i18nReady || !isAuthChecked) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#8446b0" />
@@ -268,12 +269,12 @@ export default function App() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#F5F0FA',
+    backgroundColor: '#8446b0',
     alignItems: 'center',
     justifyContent: 'center',
   },
   container: {
     flex: 1,
-    backgroundColor: '#F5F0FA',
+    backgroundColor: '#F5F0FA', // screens set their own bg
   },
 });

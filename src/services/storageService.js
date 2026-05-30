@@ -79,6 +79,32 @@ export const storageService = {
     }
   },
 
+  uploadAudio: async (uri, storyId) => {
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const filename = `stories/${storyId}/instruction_audio_${Date.now()}.m4a`;
+      const storageRef = ref(storage, filename);
+      return new Promise((resolve, reject) => {
+        const uploadTask = uploadBytesResumable(storageRef, blob);
+        uploadTask.on('state_changed', null,
+          (error) => {
+            console.error('Audio upload error:', error.message);
+            reject({ success: false, error: error.message });
+          },
+          async () => {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            console.log('Audio instruction uploaded:', downloadURL);
+            resolve({ success: true, url: downloadURL });
+          }
+        );
+      });
+    } catch (error) {
+      console.error('Audio upload error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
   uploadPlayerVideo: async (uri, storyId, participantId, videoNumber, onProgress = null) => {
     try {
       console.log(`Uploading player video ${videoNumber} directly to Firebase...`);
