@@ -371,6 +371,34 @@ app.get('/s/:storyId', (req, res) => {
   res.sendFile(path.join(webPlayerDir, 'index.html'));
 });
 
+// Proxy creator video for web player (no auth needed — players are unauthenticated)
+app.get('/proxy-video', async (req, res) => {
+  const videoUrl = req.query.url;
+  if (!videoUrl) return res.status(400).json({ error: 'Missing url' });
+  try {
+    const https = require('https');
+    const http = require('http');
+    const parsed = new URL(videoUrl);
+    const protocol = parsed.protocol === 'https:' ? https : http;
+    const proxyReq = protocol.get(videoUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (proxyRes) => {
+      res.writeHead(proxyRes.statusCode, {
+        'Content-Type': proxyRes.headers['content-type'] || 'video/mp4',
+        'Content-Length': proxyRes.headers['content-length'],
+        'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=3600',
+      });
+      proxyRes.pipe(res);
+    });
+    proxyReq.on('error', (err) => {
+      console.error('proxy-video error:', err.message);
+      res.status(502).json({ error: 'Failed to fetch video' });
+    });
+  } catch (err) {
+    res.status(400).json({ error: 'Invalid URL' });
+  }
+});
+
 app.use(accessControlMiddleware);
 
 
@@ -802,15 +830,24 @@ app.post('/api/transcribe', upload.single('video'), async (req, res) => {
     return res.status(400).json({ error: 'No video file provided' });
   }
 
+  // multer saves without extension — rename so ffmpeg can detect format
+  const originalPath = req.file.path;
+  const ext = path.extname(req.file.originalname) || '.m4a';
+  const renamedPath = originalPath + ext;
   try {
-    const result = await aiService.transcribeVideo(req.file.path);
-    fs.unlinkSync(req.file.path);
+    fs.renameSync(originalPath, renamedPath);
+  } catch (e) {
+    // rename failed, continue with original
+  }
+  const filePath = fs.existsSync(renamedPath) ? renamedPath : originalPath;
+
+  try {
+    const result = await aiService.transcribeVideo(filePath);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     res.json(result);
   } catch (error) {
     console.error('Transcription error:', error);
-    if (fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     res.status(500).json({ error: 'Transcription failed', details: error.message });
   }
 });
@@ -1007,8 +1044,22 @@ async function concatenateVideos(inputPaths, outputPath) {
 
 const TRANSITION_DURATION = 0.5;
 
+// Cycling transitions for cinematic format — CapCut-style variety
+const CINEMATIC_TRANSITIONS = [
+  'slideleft',
+  'zoomin',
+  'fadeblack',
+  'slideup',
+  'radial',
+  'pixelize',
+  'circleopen',
+  'slideright',
+];
+
 function getTransitionFilter(format) {
   switch (format) {
+    case 'cinematic':
+      return 'cycling';
     case 'fade':
     case 'scale-fade':
       return 'fade';
@@ -1078,13 +1129,17 @@ async function ensureAudioTrack(inputPath) {
 
 async function concatenateWithTransitions(inputPaths, outputPath, format) {
   const transition = getTransitionFilter(format);
-  
-  if (!transition || inputPaths.length < 2) {
+  const isCycling = transition === 'cycling';
+
+  if ((!transition || inputPaths.length < 2) && !isCycling) {
     console.log(`Using simple concatenation (format: ${format})`);
     return concatenateVideos(inputPaths, outputPath);
   }
-  
-  console.log(`Concatenating with ${transition} transitions (format: ${format})`);
+  if (inputPaths.length < 2) {
+    return concatenateVideos(inputPaths, outputPath);
+  }
+
+  console.log(`Concatenating with ${isCycling ? 'cycling' : transition} transitions (format: ${format})`);
 
   const processedPaths = [];
   const durations = [];
@@ -1112,22 +1167,26 @@ async function concatenateWithTransitions(inputPaths, outputPath, format) {
       filterComplex += `[${i}:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[a${i}];`;
     }
     
+    const getTransition = (index) => isCycling
+      ? CINEMATIC_TRANSITIONS[index % CINEMATIC_TRANSITIONS.length]
+      : transition;
+
     if (n === 2) {
       const offset = Math.max(0.5, durations[0] - TRANSITION_DURATION);
-      filterComplex += `[v0][v1]xfade=transition=${transition}:duration=${TRANSITION_DURATION}:offset=${offset.toFixed(2)}[vout];`;
+      filterComplex += `[v0][v1]xfade=transition=${getTransition(0)}:duration=${TRANSITION_DURATION}:offset=${offset.toFixed(2)}[vout];`;
       filterComplex += `[a0][a1]acrossfade=d=${TRANSITION_DURATION}[aout]`;
     } else {
       let lastV = 'v0';
       let lastA = 'a0';
       let cumulativeOffset = Math.max(0.5, durations[0] - TRANSITION_DURATION);
-      
+
       for (let i = 1; i < n; i++) {
         const outV = i === n - 1 ? 'vout' : `vt${i}`;
         const outA = i === n - 1 ? 'aout' : `at${i}`;
-        
-        filterComplex += `[${lastV}][v${i}]xfade=transition=${transition}:duration=${TRANSITION_DURATION}:offset=${cumulativeOffset.toFixed(2)}[${outV}];`;
+
+        filterComplex += `[${lastV}][v${i}]xfade=transition=${getTransition(i - 1)}:duration=${TRANSITION_DURATION}:offset=${cumulativeOffset.toFixed(2)}[${outV}];`;
         filterComplex += `[${lastA}][a${i}]acrossfade=d=${TRANSITION_DURATION}[${outA}];`;
-        
+
         lastV = outV;
         lastA = outA;
         if (i < n - 1) {
