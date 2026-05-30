@@ -363,175 +363,144 @@ async function findStoryByCode(code) {
 
 async function loadStory(code) {
     const story = await findStoryByCode(code);
-    
+
     if (!story) {
         console.log('⚠️ Story not found for code:', code);
         return false;
     }
-    
+
     currentStory = story;
-    
-    participantId = localStorage.getItem(`participant_${story.id}`) || 
+
+    participantId = localStorage.getItem(`participant_${story.id}`) ||
                    `participant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     localStorage.setItem(`participant_${story.id}`, participantId);
-    
+
     console.log('📖 Story loaded:', story);
     console.log('👤 Participant ID:', participantId);
-    console.log('📖 Story details - name:', story.name, 'instructions:', story.instructions, 'creatorName:', story.creatorName);
-    
+
     document.getElementById('story-title').textContent = story.name || story.inviteCode || 'הסיפור';
-    
+
     const creatorNameEl = document.getElementById('creator-name');
     if (creatorNameEl) {
         creatorNameEl.textContent = `מאת: ${story.creatorName || story.creatorEmail || 'חבר'}`;
     }
-    
+
     const instructionsText = story.instructions || story.genericInstructions || '';
-    document.getElementById('creator-instructions').textContent = 
+    document.getElementById('creator-instructions').textContent =
         instructionsText || 'צפה בסרטון והקלט את השיקוף שלך';
-    
+
     const videoTimings = story.videoTimings || {};
     clipTimes[1] = videoTimings.video1 || 30;
     clipTimes[2] = videoTimings.video2 || 30;
     clipTimes[3] = videoTimings.video3 || 30;
-    
+
     document.getElementById('clip1-time').textContent = `${clipTimes[1]} שניות`;
     document.getElementById('clip2-time').textContent = `${clipTimes[2]} שניות`;
     document.getElementById('clip3-time').textContent = `${clipTimes[3]} שניות`;
-    
+
     if (story.instructions) {
         document.getElementById('instructions-text-display').textContent = story.instructions;
     }
-    
-    const videoEl = document.getElementById('story-video');
-    const placeholder = document.getElementById('video-placeholder');
-    
+
+    // Lock record button immediately — before showing screen
+    const recordBtn = document.getElementById('start-record-btn');
+    const watchHint = document.getElementById('watch-hint');
+    if (recordBtn) {
+        recordBtn.disabled = true;
+        recordBtn.style.opacity = '0.4';
+        recordBtn.style.cursor = 'not-allowed';
+    }
+
+    // Show watch screen right away — don't wait for video conversion
+    showScreen('watch');
+
+    // Load video asynchronously in the background
     const videoUrl = story.videoUri || story.videoUrl;
     console.log('📹 Video URL:', videoUrl);
-    
-    if (videoUrl) {
-        const lowerUrl = videoUrl.toLowerCase();
-        const needsConversion = lowerUrl.includes('.mov') || 
-                                lowerUrl.includes('.hevc') ||
-                                lowerUrl.includes('.m4v');
-        
-        if (needsConversion) {
-            console.log('🔄 Video needs conversion...');
-            placeholder.innerHTML = '<div class="placeholder-icon">🔄</div><p>ממיר סרטון לפורמט תואם...</p>';
-            
-            try {
-                console.log('📤 Calling conversion API...');
-                const convertResponse = await fetch('/api/convert-from-url', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ videoUrl, storyId: story.id }),
-                    signal: AbortSignal.timeout(120000)
-                });
-                
-                console.log('📥 Conversion API response status:', convertResponse.status);
-                
-                if (convertResponse.ok) {
-                    const result = await convertResponse.json();
-                    console.log('✅ Conversion result:', result);
-                    if (result.url) {
-                        console.log('🎬 Setting video src to converted URL:', result.url);
-                        videoEl.src = '/proxy-video?url=' + encodeURIComponent(result.url);
-                    } else {
-                        console.log('⚠️ No URL in result, using original');
-                        videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
-                    }
-                } else {
-                    console.log('❌ Conversion API error, using original URL');
-                    videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
-                }
-            } catch (error) {
-                console.error('❌ Conversion error:', error);
-                videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
-            }
-        } else {
-            videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
-        }
-        
-        const finalVideoUrl = videoEl.src;
-        
-        // Lock record button until video is watched
-        const recordBtn = document.getElementById('start-record-btn');
-        const watchHint = document.getElementById('watch-hint');
-        if (recordBtn) {
-            recordBtn.disabled = true;
-            recordBtn.style.opacity = '0.4';
-            recordBtn.style.cursor = 'not-allowed';
-        }
-        if (watchHint) watchHint.style.display = 'flex';
+    setupStoryVideo(videoUrl, story.id, recordBtn, watchHint);
 
-        videoEl.oncanplay = () => {
-            console.log('✅ Video can play!');
-            placeholder.classList.add('hidden');
-        };
+    return true;
+}
 
-        videoEl.addEventListener('ended', () => {
-            if (recordBtn) {
-                recordBtn.disabled = false;
-                recordBtn.style.opacity = '';
-                recordBtn.style.cursor = '';
-            }
-            if (watchHint) watchHint.style.display = 'none';
-        });
+async function setupStoryVideo(videoUrl, storyId, recordBtn, watchHint) {
+    const videoEl = document.getElementById('story-video');
+    const placeholder = document.getElementById('video-placeholder');
 
-        videoEl.onerror = (e) => {
-            console.error('❌ Video load error:', e);
-            // On error, unblock the record button so the player isn't stuck
-            if (recordBtn) {
-                recordBtn.disabled = false;
-                recordBtn.style.opacity = '';
-                recordBtn.style.cursor = '';
-            }
-            if (watchHint) watchHint.style.display = 'none';
-            placeholder.innerHTML = `
-                <div class="placeholder-icon">🎬</div>
-                <p>לחץ להפעלת הסרטון</p>
-                <button onclick="window.open('${finalVideoUrl}', '_blank')" style="
-                    display: inline-block;
-                    margin-top: 15px;
-                    padding: 12px 24px;
-                    background: linear-gradient(135deg, #8446b0, #464fb0);
-                    color: white;
-                    border: none;
-                    border-radius: 25px;
-                    font-size: 16px;
-                    cursor: pointer;
-                ">▶️ הפעל סרטון</button>
-            `;
-        };
-
-        videoEl.load();
-    } else {
-        placeholder.innerHTML = '<div class="placeholder-icon">📹</div><p>אין סרטון זמין</p>';
-        // No video — lock button until user explicitly confirms they read the instructions
-        const recordBtn = document.getElementById('start-record-btn');
-        const watchHint = document.getElementById('watch-hint');
-        if (recordBtn) {
-            recordBtn.disabled = true;
-            recordBtn.style.opacity = '0.4';
-            recordBtn.style.cursor = 'not-allowed';
-        }
+    if (!videoUrl) {
+        placeholder.innerHTML = '<div class="placeholder-icon">📹</div><p>אין סרטון — קרא את ההוראות</p>';
         if (watchHint) {
             watchHint.style.display = 'flex';
             watchHint.querySelector('span:last-child').textContent = 'קרא את ההוראות לפני ההמשך';
         }
-        // Show confirm button after 2 seconds
         setTimeout(() => {
-            if (recordBtn) {
-                recordBtn.disabled = false;
-                recordBtn.style.opacity = '';
-                recordBtn.style.cursor = '';
-            }
+            if (recordBtn) { recordBtn.disabled = false; recordBtn.style.opacity = ''; recordBtn.style.cursor = ''; }
             if (watchHint) watchHint.style.display = 'none';
-        }, 2000);
+        }, 5000);
+        return;
     }
 
-    showScreen('watch');
-    return true;
+    if (watchHint) watchHint.style.display = 'flex';
+
+    const lowerUrl = videoUrl.toLowerCase();
+    const needsConversion = lowerUrl.includes('.mov') || lowerUrl.includes('.hevc') || lowerUrl.includes('.m4v');
+
+    if (needsConversion) {
+        console.log('🔄 Video needs conversion (background)...');
+        placeholder.innerHTML = '<div class="placeholder-icon">🔄</div><p>ממיר סרטון לפורמט תואם...</p>';
+        try {
+            const convertResponse = await fetch('/api/convert-from-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ videoUrl, storyId }),
+                signal: AbortSignal.timeout(120000)
+            });
+            if (convertResponse.ok) {
+                const result = await convertResponse.json();
+                videoEl.src = result.url
+                    ? '/proxy-video?url=' + encodeURIComponent(result.url)
+                    : '/proxy-video?url=' + encodeURIComponent(videoUrl);
+            } else {
+                videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
+            }
+        } catch (error) {
+            console.error('❌ Conversion error:', error);
+            videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
+        }
+    } else {
+        videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
+    }
+
+    const finalVideoUrl = videoEl.src;
+
+    videoEl.oncanplay = () => {
+        console.log('✅ Video can play!');
+        placeholder.classList.add('hidden');
+    };
+
+    videoEl.addEventListener('ended', () => {
+        if (recordBtn) { recordBtn.disabled = false; recordBtn.style.opacity = ''; recordBtn.style.cursor = ''; }
+        if (watchHint) watchHint.style.display = 'none';
+    });
+
+    videoEl.onerror = () => {
+        console.error('❌ Video load error — unlocking after 4s');
+        placeholder.innerHTML = `
+            <div class="placeholder-icon">🎬</div>
+            <p>לחץ להפעלת הסרטון</p>
+            <button onclick="window.open('${finalVideoUrl}', '_blank')" style="
+                display: inline-block; margin-top: 15px; padding: 12px 24px;
+                background: linear-gradient(135deg, #8446b0, #464fb0); color: white;
+                border: none; border-radius: 25px; font-size: 16px; cursor: pointer;
+            ">▶️ הפעל סרטון</button>
+        `;
+        // Wait 4 seconds before unlocking — so player reads instructions first
+        setTimeout(() => {
+            if (recordBtn) { recordBtn.disabled = false; recordBtn.style.opacity = ''; recordBtn.style.cursor = ''; }
+            if (watchHint) watchHint.style.display = 'none';
+        }, 4000);
+    };
+
+    videoEl.load();
 }
 
 function updateMusicModeBanner() {
