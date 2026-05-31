@@ -12,6 +12,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
     clipCount,
     maxClipDuration,
     instructions,
+    videoUri,
     musicUrl,
     musicTrackId,
     hasMusic,
@@ -137,8 +138,27 @@ function buildWebRecordHtml(story, firebaseConfig) {
     <p>${creatorName ? `הוזמנת על ידי ${escHtml(creatorName)}` : 'צלם את השיקוף שלך'}</p>
   </div>
 
+  <!-- Step 0: Watch Creator's Video (first step when videoUri exists) -->
+  <div id="step-watch" class="step${videoUri ? ' active' : ''}">
+    <div style="width:100%; max-width:420px; padding:16px;">
+      <div style="background:linear-gradient(135deg,#f3e5ff,#e8eaff); border-radius:14px; padding:14px 16px; margin-bottom:14px; border:1.5px solid #c8a8f0;">
+        <p style="font-size:13px; font-weight:700; color:#6a1b9a; margin:0 0 6px;">📋 הוראות מהיוצר</p>
+        <p style="font-size:14px; color:#444; line-height:1.6; margin:0;">${escHtml(instructions || 'צפה בסרטון והקלט את השיקוף שלך')}</p>
+      </div>
+      ${videoUri ? `
+      <div style="position:relative; width:100%; background:#000; border-radius:14px; overflow:hidden; margin-bottom:14px;">
+        <video id="creator-video" src="${escHtml(videoUri)}" playsinline controls preload="metadata" style="width:100%; display:block; max-height:52vh; object-fit:contain;"></video>
+      </div>
+      ` : ''}
+      <button id="watch-continue-btn" class="btn-primary" onclick="watchContinue()"${videoUri ? ' disabled' : ''}>
+        ${videoUri ? '▶ צפה בסרטון כדי להמשיך' : '✓ הבנתי — המשך להקלטה'}
+      </button>
+      ${videoUri ? `<p id="watch-hint" style="font-size:13px;color:#888;text-align:center;margin-top:8px;">הלחצן יופעל אחרי שתצפה בסרטון</p>` : ''}
+    </div>
+  </div>
+
   <!-- Step 1: Welcome + Name -->
-  <div id="step-welcome" class="step active">
+  <div id="step-welcome" class="step${videoUri ? '' : ' active'}">
     <div class="card">
       <h2>ברוך הבא!</h2>
       <p>תצלם ${clipCount} קליפ${clipCount > 1 ? 'ים קצרים' : ' קצר'} ישירות מהדפדפן — ללא צורך בהתקנת אפליקציה.</p>
@@ -222,7 +242,29 @@ function buildWebRecordHtml(story, firebaseConfig) {
     const STORY_ID    = '${escJs(storyId)}';
     const CLIP_COUNT  = ${clipCount};
     const MAX_SEC     = ${maxClipDuration};
+    const VIDEO_URI   = ${videoUri ? `'${escJs(videoUri)}'` : 'null'};
     const webUid      = 'web_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+
+    // ── Creator Video Watch Step ────────────────────────────────
+    window.watchContinue = function() { showStep('welcome'); };
+
+    if (VIDEO_URI) {
+      const creatorVideo = document.getElementById('creator-video');
+      const watchBtn     = document.getElementById('watch-continue-btn');
+      const watchHintEl  = document.getElementById('watch-hint');
+      function unlockWatchBtn() {
+        if (watchBtn) { watchBtn.disabled = false; watchBtn.textContent = '✓ ראיתי — המשך להקלטה'; }
+        if (watchHintEl) watchHintEl.style.display = 'none';
+      }
+      if (creatorVideo) {
+        creatorVideo.addEventListener('ended', unlockWatchBtn);
+        // Also unlock after 15 sec in case user skips/seeks
+        creatorVideo.addEventListener('timeupdate', function() {
+          if (creatorVideo.currentTime > 15) unlockWatchBtn();
+        });
+        creatorVideo.addEventListener('error', unlockWatchBtn);
+      }
+    }
 
     // ── Music ──────────────────────────────────────────────────
     const MUSIC_URL = ${musicUrl ? `'${escJs(musicUrl)}'` : 'null'};
