@@ -230,6 +230,7 @@ export const InstructionsScreen = () => {
       await dictationRecording.current.stopAndUnloadAsync();
       const uri = dictationRecording.current.getURI();
       dictationRecording.current = null;
+      setInstructionAudioUri(uri); // save audio so player can hear it
       setIsTranscribing(true);
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
       const formData = new FormData();
