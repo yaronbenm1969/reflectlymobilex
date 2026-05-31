@@ -389,6 +389,16 @@ async function loadStory(code) {
     document.getElementById('creator-instructions').textContent =
         instructionsText || 'צפה בסרטון והקלט את השיקוף שלך';
 
+    const listenBtn = document.getElementById('listen-instruction-btn');
+    if (listenBtn) {
+        if (story.instructionAudioUrl) {
+            listenBtn.style.display = 'flex';
+            listenBtn.dataset.audioUrl = story.instructionAudioUrl;
+        } else {
+            listenBtn.style.display = 'none';
+        }
+    }
+
     const videoTimings = story.videoTimings || {};
     clipTimes[1] = videoTimings.video1 || 30;
     clipTimes[2] = videoTimings.video2 || 30;
@@ -421,6 +431,30 @@ async function loadStory(code) {
 
     return true;
 }
+
+// Play creator's audio instruction
+window.playInstructionAudio = function() {
+    const btn = document.getElementById('listen-instruction-btn');
+    const label = document.getElementById('listen-instruction-label');
+    const audioUrl = btn?.dataset?.audioUrl;
+    if (!audioUrl) return;
+
+    if (window._instructionAudio) {
+        window._instructionAudio.pause();
+        window._instructionAudio = null;
+        if (label) label.textContent = 'שמע הוראות מהיוצר';
+        return;
+    }
+
+    const audio = new Audio(audioUrl);
+    window._instructionAudio = audio;
+    if (label) label.textContent = '🔊 מתנגן...';
+    audio.play().catch(() => {});
+    audio.onended = () => {
+        window._instructionAudio = null;
+        if (label) label.textContent = 'שמע הוראות מהיוצר';
+    };
+};
 
 // Unlock the record button — called when player confirms they've read instructions
 window.confirmReadInstructions = function() {
