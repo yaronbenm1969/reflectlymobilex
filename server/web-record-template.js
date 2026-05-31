@@ -144,7 +144,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
     <div style="width:100%; max-width:420px; padding:16px;">
       <div style="background:linear-gradient(135deg,#f3e5ff,#e8eaff); border-radius:14px; padding:14px 16px; margin-bottom:14px; border:1.5px solid #c8a8f0;">
         <p style="font-size:13px; font-weight:700; color:#6a1b9a; margin:0 0 6px;">📋 הוראות מהיוצר</p>
-        ${instructions ? `<p style="font-size:14px; color:#444; line-height:1.6; margin:0;">${escHtml(instructions)}</p>` : ''}
+        <p style="font-size:14px; color:#444; line-height:1.6; margin:0;">${escHtml(instructions || (videoUri ? 'צפה בסרטון לפני ההקלטה' : 'קרא את ההוראות לפני ההקלטה'))}</p>
       </div>
       ${videoUri ? `
       <div style="position:relative; width:100%; background:#000; border-radius:14px; overflow:hidden; margin-bottom:14px;">
