@@ -87,43 +87,49 @@ export const InstructionsScreen = () => {
     });
     setCommunitySettings({ communityMode, maxPlayers, approvalMode });
     
-    if (lastRecordingUri && currentStoryId) {
+    if (currentStoryId) {
       setIsUploading(true);
-      console.log('📤 Uploading video to Firebase Storage...');
-      
       try {
-        const uploadResult = await storageService.uploadVideo(lastRecordingUri, currentStoryId, 'key');
-        
-        if (uploadResult.success) {
-          console.log('✅ Video uploaded, URL:', uploadResult.url);
+        let videoUri = null;
+        let instructionAudioUrl = null;
 
-          // Upload audio instruction if exists
-          let instructionAudioUrl = null;
-          if (instructionAudioUri) {
-            console.log('📤 Uploading audio instruction...');
-            const audioResult = await storageService.uploadAudio(instructionAudioUri, currentStoryId);
-            if (audioResult.success) {
-              instructionAudioUrl = audioResult.url;
-              console.log('✅ Audio instruction uploaded:', instructionAudioUrl);
-            }
+        // Upload key story video if new recording exists
+        if (lastRecordingUri) {
+          console.log('📤 Uploading video to Firebase Storage...');
+          const uploadResult = await storageService.uploadVideo(lastRecordingUri, currentStoryId, 'key');
+          if (uploadResult.success) {
+            videoUri = uploadResult.url;
+            console.log('✅ Video uploaded:', videoUri);
+          } else {
+            Alert.alert(t('common.error'), t('instructions.error_upload'));
+            setIsUploading(false);
+            return;
           }
+        }
 
-          const updateResult = await storiesService.updateStory(currentStoryId, {
-            videoUri: uploadResult.url,
-            instructions: genericInstructions,
-            instructionAudioUrl,
-            videoTimings: { video1: video1Time, video2: video2Time, video3: video3Time },
-            privacySettings: { allowSocialMedia, privateOnly: !allowSocialMedia, publishingEnabled },
-            communitySettings: { communityMode, maxPlayers, approvalMode },
-          });
-          
-          if (updateResult.success) {
-            console.log('✅ Story updated with video URL');
+        // Upload audio instruction whenever dictation was recorded
+        if (instructionAudioUri) {
+          console.log('📤 Uploading audio instruction...');
+          const audioResult = await storageService.uploadAudio(instructionAudioUri, currentStoryId);
+          if (audioResult.success) {
+            instructionAudioUrl = audioResult.url;
+            console.log('✅ Audio instruction uploaded:', instructionAudioUrl);
           }
-        } else {
-          Alert.alert(t('common.error'), t('instructions.error_upload'));
-          setIsUploading(false);
-          return;
+        }
+
+        // Update story — always save instructions + audio; video only if newly uploaded
+        const updateFields = {
+          instructions: genericInstructions,
+          instructionAudioUrl,
+          videoTimings: { video1: video1Time, video2: video2Time, video3: video3Time },
+          privacySettings: { allowSocialMedia, privateOnly: !allowSocialMedia, publishingEnabled },
+          communitySettings: { communityMode, maxPlayers, approvalMode },
+        };
+        if (videoUri) updateFields.videoUri = videoUri;
+
+        const updateResult = await storiesService.updateStory(currentStoryId, updateFields);
+        if (updateResult.success) {
+          console.log('✅ Story updated');
         }
       } catch (error) {
         console.error('❌ Upload error:', error);
@@ -131,7 +137,6 @@ export const InstructionsScreen = () => {
         setIsUploading(false);
         return;
       }
-      
       setIsUploading(false);
     }
 
