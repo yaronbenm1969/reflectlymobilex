@@ -422,6 +422,38 @@ async function loadStory(code) {
     return true;
 }
 
+// Unlock the record button — called when player confirms they've read instructions
+window.confirmReadInstructions = function() {
+    const recordBtn = document.getElementById('start-record-btn');
+    const watchHint = document.getElementById('watch-hint');
+    const confirmBanner = document.getElementById('confirm-instructions-banner');
+    if (recordBtn) { recordBtn.disabled = false; recordBtn.style.opacity = ''; recordBtn.style.cursor = ''; }
+    if (watchHint) watchHint.style.display = 'none';
+    if (confirmBanner) confirmBanner.style.display = 'none';
+};
+
+function showConfirmBanner() {
+    let banner = document.getElementById('confirm-instructions-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'confirm-instructions-banner';
+        banner.style.cssText = 'background:linear-gradient(135deg,#f3e5ff,#e8eaff);border:1.5px solid #c8a8f0;border-radius:14px;padding:14px 16px;margin:10px 0;text-align:center;';
+        banner.innerHTML = `
+            <p style="margin:0 0 10px;font-size:14px;color:#6a1b9a;font-weight:600;">📋 קראת את ההוראות?</p>
+            <button onclick="confirmReadInstructions()" style="
+                background:linear-gradient(135deg,#8446b0,#464fb0);color:white;border:none;
+                border-radius:25px;padding:12px 28px;font-size:15px;font-weight:700;cursor:pointer;width:100%;
+            ">✅ הבנתי — ממשיכים להקלטה</button>
+        `;
+        // Insert before the start-record button
+        const recordBtn = document.getElementById('start-record-btn');
+        if (recordBtn && recordBtn.parentNode) {
+            recordBtn.parentNode.insertBefore(banner, recordBtn);
+        }
+    }
+    banner.style.display = 'block';
+}
+
 async function setupStoryVideo(videoUrl, storyId, recordBtn, watchHint) {
     const videoEl = document.getElementById('story-video');
     const placeholder = document.getElementById('video-placeholder');
@@ -430,12 +462,10 @@ async function setupStoryVideo(videoUrl, storyId, recordBtn, watchHint) {
         placeholder.innerHTML = '<div class="placeholder-icon">📹</div><p>אין סרטון — קרא את ההוראות</p>';
         if (watchHint) {
             watchHint.style.display = 'flex';
-            watchHint.querySelector('span:last-child').textContent = 'קרא את ההוראות לפני ההמשך';
+            const hintSpan = watchHint.querySelector('span:last-child');
+            if (hintSpan) hintSpan.textContent = 'קרא את ההוראות לפני ההמשך';
         }
-        setTimeout(() => {
-            if (recordBtn) { recordBtn.disabled = false; recordBtn.style.opacity = ''; recordBtn.style.cursor = ''; }
-            if (watchHint) watchHint.style.display = 'none';
-        }, 5000);
+        setTimeout(() => showConfirmBanner(), 2000);
         return;
     }
 
@@ -483,7 +513,7 @@ async function setupStoryVideo(videoUrl, storyId, recordBtn, watchHint) {
     });
 
     videoEl.onerror = () => {
-        console.error('❌ Video load error — unlocking after 4s');
+        console.error('❌ Video load error — showing confirm banner');
         placeholder.innerHTML = `
             <div class="placeholder-icon">🎬</div>
             <p>לחץ להפעלת הסרטון</p>
@@ -493,11 +523,8 @@ async function setupStoryVideo(videoUrl, storyId, recordBtn, watchHint) {
                 border: none; border-radius: 25px; font-size: 16px; cursor: pointer;
             ">▶️ הפעל סרטון</button>
         `;
-        // Wait 4 seconds before unlocking — so player reads instructions first
-        setTimeout(() => {
-            if (recordBtn) { recordBtn.disabled = false; recordBtn.style.opacity = ''; recordBtn.style.cursor = ''; }
-            if (watchHint) watchHint.style.display = 'none';
-        }, 4000);
+        // Show "I've read" button — player must confirm before recording
+        showConfirmBanner();
     };
 
     videoEl.load();
