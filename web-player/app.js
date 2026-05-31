@@ -474,6 +474,8 @@ async function setupStoryVideo(videoUrl, storyId, recordBtn, watchHint) {
     const lowerUrl = videoUrl.toLowerCase();
     const needsConversion = lowerUrl.includes('.mov') || lowerUrl.includes('.hevc') || lowerUrl.includes('.m4v');
 
+    // Use direct URL for mp4/firebase — iOS Safari requires Range requests which proxy doesn't support.
+    // Firebase Storage URLs include a token + CORS + Range support natively.
     if (needsConversion) {
         console.log('🔄 Video needs conversion (background)...');
         placeholder.innerHTML = '<div class="placeholder-icon">🔄</div><p>ממיר סרטון לפורמט תואם...</p>';
@@ -486,21 +488,21 @@ async function setupStoryVideo(videoUrl, storyId, recordBtn, watchHint) {
             });
             if (convertResponse.ok) {
                 const result = await convertResponse.json();
-                videoEl.src = result.url
-                    ? '/proxy-video?url=' + encodeURIComponent(result.url)
-                    : '/proxy-video?url=' + encodeURIComponent(videoUrl);
+                // Use direct URL — bypass proxy so iOS Range requests work
+                videoEl.src = result.url || videoUrl;
             } else {
-                videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
+                videoEl.src = videoUrl;
             }
         } catch (error) {
             console.error('❌ Conversion error:', error);
-            videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
+            videoEl.src = videoUrl;
         }
     } else {
-        videoEl.src = '/proxy-video?url=' + encodeURIComponent(videoUrl);
+        // Direct Firebase Storage URL — supports Range requests natively
+        videoEl.src = videoUrl;
     }
 
-    const finalVideoUrl = videoEl.src;
+    const finalVideoUrl = videoUrl;
 
     videoEl.oncanplay = () => {
         console.log('✅ Video can play!');

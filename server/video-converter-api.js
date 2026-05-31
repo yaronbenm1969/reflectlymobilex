@@ -380,19 +380,25 @@ app.get('/proxy-video', async (req, res) => {
     const http = require('http');
     const parsed = new URL(videoUrl);
     const protocol = parsed.protocol === 'https:' ? https : http;
-    const proxyReq = protocol.get(videoUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (proxyRes) => {
-      res.writeHead(proxyRes.statusCode, {
+    // Forward Range header so iOS Safari can seek/stream video properly (206 Partial Content)
+    const upstreamHeaders = { 'User-Agent': 'Mozilla/5.0' };
+    if (req.headers.range) upstreamHeaders['Range'] = req.headers.range;
+
+    const proxyReq = protocol.get(videoUrl, { headers: upstreamHeaders }, (proxyRes) => {
+      const outHeaders = {
         'Content-Type': proxyRes.headers['content-type'] || 'video/mp4',
-        'Content-Length': proxyRes.headers['content-length'],
         'Accept-Ranges': 'bytes',
         'Access-Control-Allow-Origin': '*',
         'Cache-Control': 'public, max-age=3600',
-      });
+      };
+      if (proxyRes.headers['content-length']) outHeaders['Content-Length'] = proxyRes.headers['content-length'];
+      if (proxyRes.headers['content-range']) outHeaders['Content-Range'] = proxyRes.headers['content-range'];
+      res.writeHead(proxyRes.statusCode, outHeaders);
       proxyRes.pipe(res);
     });
     proxyReq.on('error', (err) => {
       console.error('proxy-video error:', err.message);
-      res.status(502).json({ error: 'Failed to fetch video' });
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch video' });
     });
   } catch (err) {
     res.status(400).json({ error: 'Invalid URL' });
