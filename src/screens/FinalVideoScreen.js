@@ -39,7 +39,7 @@ import theme from '../theme/theme';
 const STORAGE_BUCKET = 'reflectly-playback.firebasestorage.app';
 const MUSIC_BASE_URL = `https://storage.googleapis.com/${STORAGE_BUCKET}/music/library`;
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const VIDEO_CONVERTER_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
 const SERVER_HEADERS = {
@@ -272,7 +272,7 @@ export const FinalVideoScreen = () => {
       console.warn('⏱️ Music generation timed out — server unavailable');
       setMusicTimedOut(true);
       setMusicServerDown(true);
-    }, 360000); // 6 minutes — music generation (transcription + MusicGen) can take up to 5 min
+    }, 30000); // 30 sec timeout — unblocks AnimationPlayer so user can proceed without music
     return () => clearTimeout(timer);
   }, [generatedMusicUrl, musicTimedOut]);
 
@@ -311,14 +311,22 @@ export const FinalVideoScreen = () => {
     return () => { sub1.remove(); };
   }, [player]);
 
-  const isAmbientMusic = false; // Music is captured via microphone during recording — no extra layer needed
+  const isAmbientMusic = true;
 
   const startAmbientMusic = async () => {
     if (!isAmbientMusic) return;
+    const trackId = selectedMusic || 'reflective-space';
 
     try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+      }).catch(() => {});
+
       const phaseNum = ambientPhaseIndexRef.current + 1;
-      const url = `${MUSIC_BASE_URL}/${selectedMusic}/phase${phaseNum > 3 ? 1 : phaseNum}.mp3`;
+      const url = `${MUSIC_BASE_URL}/${trackId}/phase${phaseNum > 3 ? 1 : phaseNum}.mp3`;
 
       const { sound } = await Audio.Sound.createAsync(
         { uri: url },
@@ -476,7 +484,9 @@ export const FinalVideoScreen = () => {
   const isFlipPages = videoFormat === 'flip-pages';
   const isCarousel = videoFormat === 'carousel-3d';
   const isFilmStrip = videoFormat === 'film-strip';
-  const isAnimatedFormat = isCube3D || isFlipPages || isCarousel || isFilmStrip;
+  const isSpotlight = videoFormat === 'spotlight';
+  const isCinematic = videoFormat === 'cinematic';
+  const isAnimatedFormat = isCube3D || isFlipPages || isCarousel || isFilmStrip || isSpotlight || isCinematic;
   
   console.log('🎬 FinalVideoScreen format:', videoFormat, 'isAnimatedFormat:', isAnimatedFormat, 'isFlipPages:', isFlipPages);
 
@@ -871,7 +881,8 @@ export const FinalVideoScreen = () => {
     try {
       setIsUploadingRecording(true);
       isUploadingRef.current = true;
-      
+      startAmbientMusic();
+
       if (isAlreadyMp4) {
         console.log('📹 Recording is already MP4 (iOS) - uploading directly...');
         setDownloadProgress(t('finalVideo.uploading_video'));
@@ -1138,6 +1149,7 @@ export const FinalVideoScreen = () => {
     } finally {
       setIsUploadingRecording(false);
       isUploadingRef.current = false;
+      stopAmbientMusic();
     }
   };
 
@@ -1590,9 +1602,10 @@ export const FinalVideoScreen = () => {
   return (
     <View style={[styles.container, isCubeFullscreen && styles.fullscreenMode]}>
       {/* ANIMATION PLAYER - supports cube-3d and flip-pages */}
-      {isAnimatedFormat && assetsReady && generatedMusicUrl && !musicServerDown && (
+      {isAnimatedFormat && assetsReady && (generatedMusicUrl || musicServerDown) && (
         <View style={[
           styles.cubeContainer,
+          !isCube3D && { height: SCREEN_HEIGHT * 0.62 },
           isCubeFullscreen && styles.fullscreenCubeOverlay
         ]}>
           <AnimationPlayer
@@ -1615,7 +1628,6 @@ export const FinalVideoScreen = () => {
               console.log('🚀 Animation fullscreen mode ON');
               setIsCubeFullscreen(true);
               setCubeStarted(true);
-              startAmbientMusic();
               startAiMusic();
               if (recordNextPlayback) {
                 setClientRecordingInProgress(true);
@@ -1628,7 +1640,9 @@ export const FinalVideoScreen = () => {
               stopAmbientMusic();
               stopAiMusic();
               if (clientRecordingInProgress) {
-                console.log('📹 Playback complete during recording - waiting for data');
+                console.log('📹 Playback complete during recording — VideoFactoryWaiting shows until upload done');
+                // Do NOT setShowEndScreen here — VideoFactoryWaiting will show (isUploadingRecording)
+                // and setShowEndScreen(true) will be called by convertAndUploadRecording when done.
               } else if (isRecordingMode) {
                 setIsRecordingMode(false);
                 setTimeout(() => {
@@ -1650,18 +1664,15 @@ export const FinalVideoScreen = () => {
         </View>
       )}
 
-      {/* Server down — music blocked */}
+      {/* Music timeout banner — small absolute banner, doesn't affect layout */}
       {isAnimatedFormat && !generatedMusicUrl && musicServerDown && (
         <View style={styles.musicErrorContainer}>
-          <Ionicons name="cloud-offline-outline" size={52} color="#EF4444" />
+          <Ionicons name="musical-notes-outline" size={18} color="white" />
           <Text style={styles.musicErrorTitle}>{t('finalVideo.music_server_down')}</Text>
-          <Text style={styles.musicErrorText}>{t('finalVideo.music_server_down_text')}</Text>
           <TouchableOpacity
-            style={styles.musicErrorRetryBtn}
             onPress={() => { setMusicServerDown(false); setMusicTimedOut(false); setMusicRetryTrigger(n => n + 1); }}
           >
-            <Ionicons name="refresh-outline" size={20} color="white" />
-            <Text style={styles.musicErrorRetryText}>{t('finalVideo.btn_retry')}</Text>
+            <Ionicons name="refresh-outline" size={18} color="white" />
           </TouchableOpacity>
         </View>
       )}
@@ -1678,6 +1689,7 @@ export const FinalVideoScreen = () => {
           storyName={storyName}
           title={t('finalVideo.factory_processing')}
           message={downloadProgress || (isUploadingRecording ? t('finalVideo.factory_mixing') : t('finalVideo.factory_preparing'))}
+          disableMusic
         />
       )}
 
@@ -3018,16 +3030,26 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   musicErrorContainer: {
-    flex: 1,
-    justifyContent: 'center',
+    position: 'absolute',
+    bottom: 90,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: 32,
-    gap: 16,
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(80,40,120,0.88)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    zIndex: 50,
   },
   musicErrorTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#EF4444',
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'white',
+    flex: 1,
+    textAlign: 'center',
   },
   musicErrorText: {
     fontSize: 15,
