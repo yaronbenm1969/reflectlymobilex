@@ -13,6 +13,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
     maxClipDuration,
     instructions,
     videoUri,
+    instructionAudioUrl,
     musicUrl,
     musicTrackId,
     hasMusic,
@@ -138,27 +139,36 @@ function buildWebRecordHtml(story, firebaseConfig) {
     <p>${creatorName ? `הוזמנת על ידי ${escHtml(creatorName)}` : 'צלם את השיקוף שלך'}</p>
   </div>
 
-  <!-- Step 0: Watch Creator's Video (first step when videoUri exists) -->
-  <div id="step-watch" class="step${videoUri ? ' active' : ''}">
+  <!-- Step 0: Creator Instructions (video / audio / text) — shown first when any content exists -->
+  <div id="step-watch" class="step${(videoUri || instructionAudioUrl || instructions) ? ' active' : ''}">
     <div style="width:100%; max-width:420px; padding:16px;">
       <div style="background:linear-gradient(135deg,#f3e5ff,#e8eaff); border-radius:14px; padding:14px 16px; margin-bottom:14px; border:1.5px solid #c8a8f0;">
         <p style="font-size:13px; font-weight:700; color:#6a1b9a; margin:0 0 6px;">📋 הוראות מהיוצר</p>
-        <p style="font-size:14px; color:#444; line-height:1.6; margin:0;">${escHtml(instructions || 'צפה בסרטון והקלט את השיקוף שלך')}</p>
+        ${instructions ? `<p style="font-size:14px; color:#444; line-height:1.6; margin:0;">${escHtml(instructions)}</p>` : ''}
       </div>
       ${videoUri ? `
       <div style="position:relative; width:100%; background:#000; border-radius:14px; overflow:hidden; margin-bottom:14px;">
         <video id="creator-video" src="${escHtml(videoUri)}" playsinline controls preload="metadata" style="width:100%; display:block; max-height:52vh; object-fit:contain;"></video>
       </div>
       ` : ''}
-      <button id="watch-continue-btn" class="btn-primary" onclick="watchContinue()"${videoUri ? ' disabled' : ''}>
-        ${videoUri ? '▶ צפה בסרטון כדי להמשיך' : '✓ הבנתי — המשך להקלטה'}
+      ${instructionAudioUrl && !videoUri ? `
+      <div style="background:#fff; border-radius:14px; padding:16px; margin-bottom:14px; border:1.5px solid #c8a8f0; display:flex; align-items:center; gap:12px;">
+        <button id="audio-play-btn" onclick="toggleInstructionAudio()" style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#8446b0,#464fb0);color:#fff;border:none;font-size:22px;cursor:pointer;flex-shrink:0;">▶</button>
+        <div style="flex:1;">
+          <p style="font-size:13px;font-weight:700;color:#6a1b9a;margin:0 0 2px;">הוראות קוליות</p>
+          <p style="font-size:12px;color:#888;margin:0;">לחץ להשמעה</p>
+        </div>
+      </div>
+      ` : ''}
+      <button id="watch-continue-btn" class="btn-primary" onclick="watchContinue()"${(videoUri || instructionAudioUrl) ? ' disabled' : ''}>
+        ${videoUri ? '▶ צפה בסרטון כדי להמשיך' : instructionAudioUrl ? '🔊 האזן להוראות כדי להמשיך' : '✓ הבנתי — המשך להקלטה'}
       </button>
-      ${videoUri ? `<p id="watch-hint" style="font-size:13px;color:#888;text-align:center;margin-top:8px;">הלחצן יופעל אחרי שתצפה בסרטון</p>` : ''}
+      ${(videoUri || instructionAudioUrl) ? `<p id="watch-hint" style="font-size:13px;color:#888;text-align:center;margin-top:8px;">${videoUri ? 'הלחצן יופעל אחרי שתצפה בסרטון' : 'הלחצן יופעל אחרי שתאזין להוראות'}</p>` : ''}
     </div>
   </div>
 
   <!-- Step 1: Welcome + Name -->
-  <div id="step-welcome" class="step${videoUri ? '' : ' active'}">
+  <div id="step-welcome" class="step${(videoUri || instructionAudioUrl || instructions) ? '' : ' active'}">
     <div class="card">
       <h2>ברוך הבא!</h2>
       <p>תצלם ${clipCount} קליפ${clipCount > 1 ? 'ים קצרים' : ' קצר'} ישירות מהדפדפן — ללא צורך בהתקנת אפליקציה.</p>
@@ -242,29 +252,62 @@ function buildWebRecordHtml(story, firebaseConfig) {
     const STORY_ID    = '${escJs(storyId)}';
     const CLIP_COUNT  = ${clipCount};
     const MAX_SEC     = ${maxClipDuration};
-    const VIDEO_URI   = ${videoUri ? `'${escJs(videoUri)}'` : 'null'};
+    const VIDEO_URI        = ${videoUri ? `'${escJs(videoUri)}'` : 'null'};
+    const INSTRUCTION_AUDIO = ${instructionAudioUrl ? `'${escJs(instructionAudioUrl)}'` : 'null'};
     const webUid      = 'web_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
 
-    // ── Creator Video Watch Step ────────────────────────────────
+    // ── Creator Instructions Watch Step ─────────────────────────
     window.watchContinue = function() { showStep('welcome'); };
+
+    const watchBtn    = document.getElementById('watch-continue-btn');
+    const watchHintEl = document.getElementById('watch-hint');
+    function unlockWatchBtn(label) {
+      if (watchBtn) { watchBtn.disabled = false; watchBtn.textContent = label || '✓ ראיתי — המשך להקלטה'; }
+      if (watchHintEl) watchHintEl.style.display = 'none';
+    }
 
     if (VIDEO_URI) {
       const creatorVideo = document.getElementById('creator-video');
-      const watchBtn     = document.getElementById('watch-continue-btn');
-      const watchHintEl  = document.getElementById('watch-hint');
-      function unlockWatchBtn() {
-        if (watchBtn) { watchBtn.disabled = false; watchBtn.textContent = '✓ ראיתי — המשך להקלטה'; }
-        if (watchHintEl) watchHintEl.style.display = 'none';
-      }
       if (creatorVideo) {
-        creatorVideo.addEventListener('ended', unlockWatchBtn);
-        // Also unlock after 15 sec in case user skips/seeks
+        creatorVideo.addEventListener('ended', () => unlockWatchBtn('✓ ראיתי — המשך להקלטה'));
         creatorVideo.addEventListener('timeupdate', function() {
-          if (creatorVideo.currentTime > 15) unlockWatchBtn();
+          if (creatorVideo.currentTime > 15) unlockWatchBtn('✓ ראיתי — המשך להקלטה');
         });
-        creatorVideo.addEventListener('error', unlockWatchBtn);
+        creatorVideo.addEventListener('error', () => unlockWatchBtn('✓ המשך להקלטה'));
       }
     }
+
+    // ── Audio instructions ───────────────────────────────────────
+    let instrAudio = null;
+    let instrAudioPlayed = false;
+    window.toggleInstructionAudio = function() {
+      const btn = document.getElementById('audio-play-btn');
+      if (!INSTRUCTION_AUDIO) return;
+      if (instrAudio && !instrAudio.paused) {
+        instrAudio.pause();
+        if (btn) btn.textContent = '▶';
+        return;
+      }
+      if (!instrAudio) {
+        instrAudio = new Audio(INSTRUCTION_AUDIO);
+        instrAudio.addEventListener('ended', () => {
+          if (btn) btn.textContent = '↩';
+          if (!instrAudioPlayed) {
+            instrAudioPlayed = true;
+            unlockWatchBtn('✓ שמעתי — המשך להקלטה');
+          }
+        });
+        instrAudio.addEventListener('timeupdate', function() {
+          if (instrAudio.currentTime > 10 && !instrAudioPlayed) {
+            instrAudioPlayed = true;
+            unlockWatchBtn('✓ שמעתי — המשך להקלטה');
+          }
+        });
+        instrAudio.addEventListener('error', () => unlockWatchBtn('✓ המשך להקלטה'));
+      }
+      instrAudio.play().catch(() => unlockWatchBtn('✓ המשך להקלטה'));
+      if (btn) btn.textContent = '⏸';
+    };
 
     // ── Music ──────────────────────────────────────────────────
     const MUSIC_URL = ${musicUrl ? `'${escJs(musicUrl)}'` : 'null'};

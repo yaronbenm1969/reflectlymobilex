@@ -216,6 +216,7 @@ app.get('/record/:storyId', async (req, res) => {
     maxClipDuration:story.maxClipDuration|| 60,
     instructions:   story.instructions  || '',
     videoUri:       story.videoUri || story.videoUrl || story.keyStoryUrl || null,
+    instructionAudioUrl: story.instructionAudioUrl || null,
     musicUrl,
     musicTrackId,
     hasMusic:       !!(musicUrl || musicTrackId),
