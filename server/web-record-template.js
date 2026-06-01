@@ -151,7 +151,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
         <video id="creator-video" src="${escHtml(videoUri)}" playsinline controls preload="metadata" style="width:100%; display:block; max-height:52vh; object-fit:contain;"></video>
       </div>
       ` : ''}
-      ${instructionAudioUrl && !videoUri ? `
+      ${instructionAudioUrl ? `
       <div style="background:#fff; border-radius:14px; padding:16px; margin-bottom:14px; border:1.5px solid #c8a8f0; display:flex; align-items:center; gap:12px;">
         <button id="audio-play-btn" onclick="toggleInstructionAudio()" style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#8446b0,#464fb0);color:#fff;border:none;font-size:22px;cursor:pointer;flex-shrink:0;">▶</button>
         <div style="flex:1;">
