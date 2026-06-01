@@ -143,7 +143,7 @@ function buildWebRecordHtml(story, firebaseConfig) {
   <div id="step-watch" class="step${(videoUri || instructionAudioUrl || instructions) ? ' active' : ''}">
     <div style="width:100%; max-width:420px; padding:16px;">
       <div style="background:linear-gradient(135deg,#f3e5ff,#e8eaff); border-radius:14px; padding:14px 16px; margin-bottom:14px; border:1.5px solid #c8a8f0;">
-        <p style="font-size:13px; font-weight:700; color:#6a1b9a; margin:0 0 6px;">📋 הוראות מהיוצר <span style="font-size:11px;color:#e53935;">[audio:${instructionAudioUrl ? 'YES' : 'NO'}]</span></p>
+        <p style="font-size:13px; font-weight:700; color:#6a1b9a; margin:0 0 6px;">📋 הוראות מהיוצר</p>
         <p style="font-size:14px; color:#444; line-height:1.6; margin:0;">${escHtml(instructions || (videoUri ? 'צפה בסרטון לפני ההקלטה' : 'קרא את ההוראות לפני ההקלטה'))}</p>
       </div>
       ${videoUri ? `
