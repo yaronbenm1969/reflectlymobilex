@@ -391,11 +391,9 @@ async function loadStory(code) {
 
     const listenBtn = document.getElementById('listen-instruction-btn');
     if (listenBtn) {
+        listenBtn.style.display = 'flex';
         if (story.instructionAudioUrl) {
-            listenBtn.style.display = 'flex';
             listenBtn.dataset.audioUrl = story.instructionAudioUrl;
-        } else {
-            listenBtn.style.display = 'none';
         }
     }
 
@@ -437,7 +435,7 @@ window.playInstructionAudio = function() {
     const btn = document.getElementById('listen-instruction-btn');
     const label = document.getElementById('listen-instruction-label');
     const audioUrl = btn?.dataset?.audioUrl;
-    if (!audioUrl) return;
+    if (!audioUrl) { alert('אין הקלטת הוראות לסיפור זה'); return; }
 
     if (window._instructionAudio) {
         window._instructionAudio.pause();
