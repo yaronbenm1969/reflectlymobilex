@@ -389,17 +389,13 @@ async function loadStory(code) {
     document.getElementById('creator-instructions').textContent =
         instructionsText || 'צפה בסרטון והקלט את השיקוף שלך';
 
-    console.log('🎧 instructionAudioUrl from Firestore:', story.instructionAudioUrl);
     const listenBtn = document.getElementById('listen-instruction-btn');
-    console.log('🎧 listenBtn element:', listenBtn);
     if (listenBtn) {
         if (story.instructionAudioUrl) {
             listenBtn.style.display = 'flex';
             listenBtn.dataset.audioUrl = story.instructionAudioUrl;
-            console.log('🎧 Button shown');
         } else {
             listenBtn.style.display = 'none';
-            console.log('🎧 Button hidden — no audio URL');
         }
     }
 
