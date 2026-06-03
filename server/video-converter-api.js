@@ -1899,6 +1899,17 @@ app.post('/api/mix-music-with-video', async (req, res) => {
     if (videoSize < 1000) throw new Error(`Video download too small (${videoSize}b) — likely redirect/error page`);
     if (musicSize < 1000) throw new Error(`Music download too small (${musicSize}b) — likely redirect/error page`);
 
+    // Probe video streams for diagnosis
+    await new Promise(resolve => {
+      execFile('ffprobe', ['-v', 'error', '-show_streams', '-select_streams', 'v:0',
+        '-show_entries', 'stream=codec_name,pix_fmt,width,height,r_frame_rate',
+        '-of', 'default=noprint_wrappers=1', videoPath],
+        (err, stdout) => {
+          console.log(`🔍 Video stream: ${stdout?.trim() || err?.message || 'unknown'}`);
+          resolve();
+        });
+    });
+
     if (clipPaths.length > 0) {
       // Cube format: mix concatenated participant voices + music into silent cube video
       console.log(`🎬 Cube voice+music mix (${clipPaths.length} clips, musicVol=${musicVolume})`);
