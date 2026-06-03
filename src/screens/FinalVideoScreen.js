@@ -598,10 +598,12 @@ export const FinalVideoScreen = () => {
     try {
       setIsDownloading(true);
       const videoUri = await getVideoForSharing(t('finalVideo.sharing_label'));
+      console.log('📤 getVideoForSharing returned:', videoUri?.slice(-80));
       if (videoUri && await Sharing.isAvailableAsync()) {
         setDownloadProgress(t('finalVideo.downloading'));
         const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
         const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'share');
+        console.log('📤 Sharing localUri:', localUri?.slice(-80));
         setIsDownloading(false);
         setDownloadProgress('');
         await Sharing.shareAsync(localUri, {
@@ -900,13 +902,13 @@ export const FinalVideoScreen = () => {
           console.log('📹 MP4 uploaded to Firebase:', uploadResult.url.substring(0, 60));
           let finalMp4Url = uploadResult.url;
 
-          // Wait for AI music generation if still in progress (up to 5 min)
-          // Skip wait if music is known to be unavailable (server down / timed out)
-          if (!generatedMusicUrlRef.current && !musicTimedOutRef.current) {
+          // Wait for AI music generation if still in progress (up to 3 min)
+          // UI timeout (30s) fires to unblock AnimationPlayer — but mix should still wait longer.
+          if (!generatedMusicUrlRef.current) {
             console.log('🎵 Waiting for AI music generation before mixing...');
             setDownloadProgress(t('finalVideo.waiting_for_music'));
-            const deadline = Date.now() + 5 * 60 * 1000;
-            while (!generatedMusicUrlRef.current && !musicTimedOutRef.current && Date.now() < deadline) {
+            const deadline = Date.now() + 3 * 60 * 1000;
+            while (!generatedMusicUrlRef.current && Date.now() < deadline) {
               await new Promise(r => setTimeout(r, 5000));
               if (!generatedMusicUrlRef.current && currentStoryId) {
                 try {
@@ -920,7 +922,7 @@ export const FinalVideoScreen = () => {
               }
             }
             if (generatedMusicUrlRef.current) console.log('🎵 Music ready, proceeding to mix');
-            else console.log('⚠️ Music not ready / timed out, mixing without');
+            else console.log('⚠️ Music not ready after 3min, mixing without');
           }
 
           // Mix AI music into the recording using the recording's own audio track ([0:a]).
@@ -1058,13 +1060,13 @@ export const FinalVideoScreen = () => {
             }
             let finalMp4Url = convertedUrl;
 
-            // Wait for AI music generation if still in progress (up to 5 min)
-            // Skip wait if music is known to be unavailable (server down / timed out)
-            if (!generatedMusicUrlRef.current && !musicTimedOutRef.current) {
+            // Wait for AI music generation if still in progress (up to 3 min)
+            // UI timeout (30s) fires to unblock AnimationPlayer — but mix should still wait longer.
+            if (!generatedMusicUrlRef.current) {
               console.log('🎵 Waiting for AI music generation before mixing...');
               setDownloadProgress(t('finalVideo.waiting_for_music'));
-              const deadline = Date.now() + 5 * 60 * 1000;
-              while (!generatedMusicUrlRef.current && !musicTimedOutRef.current && Date.now() < deadline) {
+              const deadline = Date.now() + 3 * 60 * 1000;
+              while (!generatedMusicUrlRef.current && Date.now() < deadline) {
                 await new Promise(r => setTimeout(r, 5000));
                 if (!generatedMusicUrlRef.current && currentStoryId) {
                   try {
@@ -1078,7 +1080,7 @@ export const FinalVideoScreen = () => {
                 }
               }
               if (generatedMusicUrlRef.current) console.log('🎵 Music ready, proceeding to mix');
-              else console.log('⚠️ Music not ready / timed out, mixing without');
+              else console.log('⚠️ Music not ready after 3min, mixing without');
             }
 
             // Mix AI music using the recording's own audio ([0:a]) — NOT clip files.
@@ -1197,7 +1199,7 @@ export const FinalVideoScreen = () => {
     if (fbUrl && isMp4(fbUrl)) {
       console.log('📹 Using Firebase converted URL, downloading...');
       try {
-        const localPath = await downloadVideoToLocal(fbUrl, 'share_mp4');
+        const localPath = await downloadVideoToLocal(fbUrl, 'share_mp4', 120000);
         if (await isValidLocal(localPath)) {
           console.log('📹 Firebase mp4 downloaded and valid');
           return localPath;
@@ -1239,8 +1241,8 @@ export const FinalVideoScreen = () => {
       console.log('📹 Using localVideoUri (server-processed format)');
       return localVideoUri;
     }
-    if (cached && await isValidLocal(cached)) {
-      console.log('📹 Using cached recording (may be webm)');
+    if (cached && isMp4(cached) && await isValidLocal(cached)) {
+      console.log('📹 Using cached mp4 recording');
       return cached;
     }
     if (finalVideoUri) {
