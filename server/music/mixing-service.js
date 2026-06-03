@@ -258,6 +258,7 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
       '-map', '[vout]',
       '-map', '[aout]',
       '-c:v', 'libx264',
+      '-pix_fmt', 'yuv420p',
       '-preset', 'veryfast',
       '-r', '30',
       '-c:a', 'aac',
@@ -382,6 +383,7 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
     '-map', '[vout]',
     '-map', '[aout]',
     '-c:v', 'libx264',
+    '-pix_fmt', 'yuv420p',
     '-preset', 'veryfast',
     '-r', '30',
     '-c:a', 'aac',
@@ -437,6 +439,7 @@ async function mixCubeWithVoicesAndMusic(videoPath, clipPaths, musicPath, output
     '-map', '[vout]',
     '-map', '[aout]',
     '-c:v', 'libx264',   // re-encode so muxer writes correct PTS (copy preserves WebM drift)
+    '-pix_fmt', 'yuv420p',
     '-preset', 'veryfast',
     '-r', '30',          // force CFR 30fps — prevents WhatsApp recompression sync drift
     '-c:a', 'aac',
