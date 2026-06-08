@@ -254,14 +254,15 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
   return new Promise((resolve, reject) => {
     const args = [
       '-i', videoPath,
-      '-stream_loop', '-1',
-      '-i', musicPath,
+      '-i', musicPath,   // no -stream_loop: duration is set explicitly via -t
       '-filter_complex', filterComplex,
       '-map', '0:v',
       '-map', '[aout]',
       '-c:v', 'copy',   // preserve original iOS H.264 — re-encoding breaks WhatsApp playback
       '-c:a', 'aac',
       '-b:a', '192k',
+      '-ar', '44100',
+      '-ac', '2',
       '-movflags', '+faststart',
       ...(duration ? ['-t', duration.toFixed(3)] : ['-shortest']),
       '-y', outputPath
@@ -390,14 +391,15 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
   ].join(';');
   const args = [
     '-i', videoPath,
-    '-stream_loop', '-1',
-    '-i', musicPath,
+    '-i', musicPath,   // no -stream_loop: duration is set explicitly via -t
     '-filter_complex', filterComplex,
     '-map', '0:v',
     '-map', '[aout]',
     '-c:v', 'copy',   // preserve original iOS H.264 — re-encoding breaks WhatsApp playback
     '-c:a', 'aac',
     '-b:a', '192k',
+    '-ar', '44100',
+    '-ac', '2',
     '-movflags', '+faststart',
     ...(duration ? ['-t', duration.toFixed(3)] : ['-shortest']),
     '-y', outputPath
