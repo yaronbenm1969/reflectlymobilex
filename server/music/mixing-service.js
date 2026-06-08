@@ -239,7 +239,6 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
     voiceFilter = `${voiceEnhance},volume=2.5`;
   }
 
-  // No video filter — copy original iOS H.264 stream to preserve WhatsApp compatibility
   const filterComplex = [
     `[0:a]${voiceFilter}[voice]`,
     `[1:a]volume=${musicVolume}[music]`,
@@ -248,23 +247,26 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
 
   console.log('🎬 Pass 2: Mixing with music...');
   console.log(`Music: ${musicPath} at ${musicVolume}`);
-  const duration = await getVideoDuration(videoPath);
-  console.log(`📏 Video duration: ${duration?.toFixed(2) ?? 'unknown'}s`);
 
   return new Promise((resolve, reject) => {
     const args = [
       '-i', videoPath,
-      '-i', musicPath,   // no -stream_loop: duration is set explicitly via -t
+      '-i', musicPath,
       '-filter_complex', filterComplex,
       '-map', '0:v',
       '-map', '[aout]',
-      '-c:v', 'copy',   // preserve original iOS H.264 — re-encoding breaks WhatsApp playback
+      '-vf', 'fps=30',          // VFR→CFR: iOS WebView records at 600/1 VFR; must convert before encoding
+      '-c:v', 'libx264',
+      '-preset', 'ultrafast',
+      '-profile:v', 'baseline',
+      '-pix_fmt', 'yuv420p',
+      '-bf', '0',
       '-c:a', 'aac',
       '-b:a', '192k',
       '-ar', '44100',
       '-ac', '2',
       '-movflags', '+faststart',
-      ...(duration ? ['-t', duration.toFixed(3)] : ['-shortest']),
+      '-shortest',
       '-y', outputPath
     ];
 
@@ -380,10 +382,7 @@ async function getVideoDuration(videoPath) {
 
 async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musicVolume = 0.1) {
   console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
-  const duration = await getVideoDuration(videoPath);
-  console.log(`📏 Video duration: ${duration?.toFixed(2) ?? 'unknown'}s`);
   const voiceFilter = 'highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,alimiter=limit=0.95';
-  // No video filter — copy original iOS H.264 stream to preserve WhatsApp compatibility
   const filterComplex = [
     `[0:a]${voiceFilter}[v]`,
     `[1:a]volume=${musicVolume}[m]`,
@@ -391,17 +390,22 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
   ].join(';');
   const args = [
     '-i', videoPath,
-    '-i', musicPath,   // no -stream_loop: duration is set explicitly via -t
+    '-i', musicPath,
     '-filter_complex', filterComplex,
     '-map', '0:v',
     '-map', '[aout]',
-    '-c:v', 'copy',   // preserve original iOS H.264 — re-encoding breaks WhatsApp playback
+    '-vf', 'fps=30',          // VFR→CFR: iOS WebView records at 600/1 VFR; must convert before encoding
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-profile:v', 'baseline',
+    '-pix_fmt', 'yuv420p',
+    '-bf', '0',
     '-c:a', 'aac',
     '-b:a', '192k',
     '-ar', '44100',
     '-ac', '2',
     '-movflags', '+faststart',
-    ...(duration ? ['-t', duration.toFixed(3)] : ['-shortest']),
+    '-shortest',
     '-y', outputPath
   ];
   return new Promise((resolve, reject) => {
