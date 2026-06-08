@@ -9,6 +9,7 @@ import {
   Modal,
   Image,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { NestableScrollContainer, NestableDraggableFlatList, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { Video } from 'expo-av';
 import * as VideoThumbnails from 'expo-video-thumbnails';
@@ -82,6 +83,7 @@ export const EditRoomScreen = () => {
   const setReflectionsLoading = useAppState((state) => state.setReflectionsLoading);
   const setVideoFormat = useAppState((state) => state.setVideoFormat);
   const setSelectedMusic = useAppState((state) => state.setSelectedMusic);
+  const setPreferredMusicEngine = useAppState((state) => state.setPreferredMusicEngine);
   const setLockedSet = useAppState((state) => state.setLockedSet);
   const setBackgroundStyle = useAppState((state) => state.setBackgroundStyle);
   const setKeyStoryUri = useAppState((state) => state.setKeyStoryUri);
@@ -93,6 +95,7 @@ export const EditRoomScreen = () => {
   const [editConfirmStep, setEditConfirmStep] = useState(0);
   const [previewVideo, setPreviewVideo] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isVideoLoading, setIsVideoLoading] = useState(false);
 
   const [storyVideoUrl, setStoryVideoUrl] = useState(null);
   const [isConverting, setIsConverting] = useState(false);
@@ -130,6 +133,7 @@ export const EditRoomScreen = () => {
             }
             if (storyData.music) {
               setSelectedMusic(storyData.music);
+              setPreferredMusicEngine(storyData.music === 'ai-generated' ? 'musicgen' : 'suno');
               console.log('🎵 Loaded music from Firebase:', storyData.music);
             }
             if (storyData.lockedSet != null) {
@@ -336,6 +340,7 @@ export const EditRoomScreen = () => {
       setIsConverting(false);
     }
     
+    setIsVideoLoading(true);
     setPreviewVideo(finalUrl);
     setIsModalVisible(true);
   };
@@ -358,13 +363,18 @@ export const EditRoomScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <LinearGradient
+        colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.header}
+      >
         <TouchableOpacity style={styles.backButton} onPress={back}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+          <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <Text style={styles.title}>{t('editRoom.title')}</Text>
         <View style={styles.placeholder} />
-      </View>
+      </LinearGradient>
 
       <NestableScrollContainer style={styles.content}>
         <Text style={styles.storyHeading}>{storyName}</Text>
@@ -554,13 +564,22 @@ export const EditRoomScreen = () => {
               <Ionicons name="close" size={28} color="white" />
             </TouchableOpacity>
             {previewVideo && (
-              <Video
-                source={{ uri: previewVideo }}
-                style={styles.modalVideo}
-                useNativeControls
-                resizeMode="contain"
-                shouldPlay
-              />
+              <View style={{ flex: 1 }}>
+                <Video
+                  source={{ uri: previewVideo }}
+                  style={styles.modalVideo}
+                  useNativeControls
+                  resizeMode="contain"
+                  shouldPlay
+                  onLoadStart={() => setIsVideoLoading(true)}
+                  onReadyForDisplay={() => setIsVideoLoading(false)}
+                />
+                {isVideoLoading && (
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="white" />
+                  </View>
+                )}
+              </View>
             )}
           </View>
         </View>
@@ -639,9 +658,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing[4],
     paddingTop: 50,
-    paddingBottom: theme.spacing[3],
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingBottom: theme.spacing[4],
   },
   backButton: {
     width: 40,
@@ -651,7 +668,7 @@ const styles = StyleSheet.create({
   },
   title: {
     ...theme.typography.h3,
-    color: theme.colors.text,
+    color: 'white',
   },
   placeholder: {
     width: 40,
@@ -738,7 +755,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingVertical: theme.spacing[2],
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: theme.colors.border,
   },
   settingInfo: {
     flexDirection: 'row',
@@ -801,7 +818,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[4],
     paddingBottom: theme.spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: theme.colors.border,
   },
   participantHeader: {
     flexDirection: 'row',
@@ -835,7 +852,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: theme.spacing[2],
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: theme.colors.border,
     gap: theme.spacing[2],
   },
   clipRowActive: {
