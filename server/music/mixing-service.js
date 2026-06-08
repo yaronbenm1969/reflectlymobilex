@@ -239,8 +239,8 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
     voiceFilter = `${voiceEnhance},volume=2.5`;
   }
 
+  // No video filter — copy original iOS H.264 stream to preserve WhatsApp compatibility
   const filterComplex = [
-    `[0:v]setpts=PTS-STARTPTS[vout]`,
     `[0:a]${voiceFilter}[voice]`,
     `[1:a]volume=${musicVolume}[music]`,
     `[voice][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
@@ -255,13 +255,9 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
       '-stream_loop', '-1',
       '-i', musicPath,
       '-filter_complex', filterComplex,
-      '-map', '[vout]',
+      '-map', '0:v',
       '-map', '[aout]',
-      '-c:v', 'libx264',
-      '-profile:v', 'baseline',
-      '-pix_fmt', 'yuv420p',
-      '-preset', 'veryfast',
-      '-r', '30',
+      '-c:v', 'copy',   // preserve original iOS H.264 — re-encoding breaks WhatsApp playback
       '-c:a', 'aac',
       '-b:a', '192k',
       '-movflags', '+faststart',
@@ -370,8 +366,8 @@ async function mixVocalsWithMusic(videoPath, vocalsPath, musicPath, outputPath, 
 async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musicVolume = 0.1) {
   console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
   const voiceFilter = 'highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,alimiter=limit=0.95';
+  // No video filter — copy original iOS H.264 stream to preserve WhatsApp compatibility
   const filterComplex = [
-    `[0:v]setpts=PTS-STARTPTS[vout]`,
     `[0:a]${voiceFilter}[v]`,
     `[1:a]volume=${musicVolume}[m]`,
     `[v][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
@@ -381,13 +377,9 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
     '-stream_loop', '-1',
     '-i', musicPath,
     '-filter_complex', filterComplex,
-    '-map', '[vout]',
+    '-map', '0:v',
     '-map', '[aout]',
-    '-c:v', 'libx264',
-    '-profile:v', 'baseline',
-    '-pix_fmt', 'yuv420p',
-    '-preset', 'veryfast',
-    '-r', '30',
+    '-c:v', 'copy',   // preserve original iOS H.264 — re-encoding breaks WhatsApp playback
     '-c:a', 'aac',
     '-b:a', '192k',
     '-movflags', '+faststart',
