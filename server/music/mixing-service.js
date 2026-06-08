@@ -248,6 +248,8 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
 
   console.log('🎬 Pass 2: Mixing with music...');
   console.log(`Music: ${musicPath} at ${musicVolume}`);
+  const duration = await getVideoDuration(videoPath);
+  console.log(`📏 Video duration: ${duration?.toFixed(2) ?? 'unknown'}s`);
 
   return new Promise((resolve, reject) => {
     const args = [
@@ -261,7 +263,7 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
       '-c:a', 'aac',
       '-b:a', '192k',
       '-movflags', '+faststart',
-      '-shortest',
+      ...(duration ? ['-t', duration.toFixed(3)] : ['-shortest']),
       '-y', outputPath
     ];
 
@@ -363,8 +365,22 @@ async function mixVocalsWithMusic(videoPath, vocalsPath, musicPath, outputPath, 
 
 // Fast single-pass mix using the recording's own audio [0:a] + music.
 // Uses alimiter (zero latency) instead of 2-pass loudnorm → much faster, lip-sync preserved.
+async function getVideoDuration(videoPath) {
+  return new Promise((resolve) => {
+    execFile('ffprobe', [
+      '-v', 'error', '-show_entries', 'format=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1', videoPath
+    ], { timeout: 10000 }, (err, stdout) => {
+      const dur = parseFloat(stdout?.trim());
+      resolve(isNaN(dur) ? null : dur);
+    });
+  });
+}
+
 async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musicVolume = 0.1) {
   console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
+  const duration = await getVideoDuration(videoPath);
+  console.log(`📏 Video duration: ${duration?.toFixed(2) ?? 'unknown'}s`);
   const voiceFilter = 'highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,alimiter=limit=0.95';
   // No video filter — copy original iOS H.264 stream to preserve WhatsApp compatibility
   const filterComplex = [
@@ -383,7 +399,7 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
     '-c:a', 'aac',
     '-b:a', '192k',
     '-movflags', '+faststart',
-    '-shortest',
+    ...(duration ? ['-t', duration.toFixed(3)] : ['-shortest']),
     '-y', outputPath
   ];
   return new Promise((resolve, reject) => {
