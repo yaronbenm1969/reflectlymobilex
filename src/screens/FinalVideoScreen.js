@@ -929,10 +929,7 @@ export const FinalVideoScreen = () => {
           // Do NOT pass clipUrls/replaceAudio — that discards the in-sync recording audio
           // and rebuilds from clip files which causes lip-sync drift.
           const musicUrl = generatedMusicUrlRef.current;
-          // When hasMusic=true the WebView already captured AI music inside the recording.
-          // Skip server mixing — FFmpeg re-encode breaks WhatsApp compatibility.
-          // Only mix when the recording has NO music (hasMusic=false).
-          if (musicUrl && !recordingHasMusic) {
+          if (musicUrl) {
             console.log('🎵 Mixing AI music into recording (using recording audio for sync)...');
             setDownloadProgress(t('finalVideo.factory_mixing'));
             try {
@@ -956,8 +953,6 @@ export const FinalVideoScreen = () => {
             } catch (mixErr) {
               console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
             }
-          } else if (recordingHasMusic) {
-            console.log('🎵 Recording already has music — skipping server mix');
           }
 
           setRecordingFirebaseUrl(finalMp4Url);
