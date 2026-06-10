@@ -1930,6 +1930,15 @@ app.post('/api/mix-music-with-video', async (req, res) => {
 
     const mixedSizeBytes = fs.existsSync(outputPath) ? fs.statSync(outputPath).size : 0;
     console.log(`📦 Mixed output size: ${mixedSizeBytes} bytes (${(mixedSizeBytes / 1024 / 1024).toFixed(2)} MB)`);
+    // Probe output video stream for diagnostics
+    await new Promise(resolve => {
+      execFile('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries',
+        'stream=codec_name,profile,pix_fmt,r_frame_rate,width,height', '-of', 'csv=p=0', outputPath],
+        { timeout: 10000 }, (err, stdout) => {
+          console.log(`🎬 Output video stream: ${stdout?.trim() || err?.message || 'none'}`);
+          resolve();
+        });
+    });
 
     let finalUrl = null;
     if (bucket) {

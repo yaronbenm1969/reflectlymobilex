@@ -1525,10 +1525,17 @@ export const FinalVideoScreen = () => {
     try {
       setIsDownloading(true);
       const videoUri = await getVideoForSharing(t('finalVideo.preparing_label'));
+      console.log('📤 handleGeneralShare videoUri:', videoUri?.slice(-80));
       if (videoUri && await Sharing.isAvailableAsync()) {
         setDownloadProgress(t('finalVideo.downloading'));
         const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
         const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'share');
+        if (isLocalFile) {
+          try {
+            const info = await FileSystem.getInfoAsync(localUri);
+            console.log('📤 Share file size:', info.size, 'bytes');
+          } catch (_) {}
+        }
         setIsDownloading(false);
         setDownloadProgress('');
         await Sharing.shareAsync(localUri, {
