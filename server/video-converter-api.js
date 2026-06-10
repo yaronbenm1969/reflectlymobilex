@@ -1859,6 +1859,42 @@ function probeVideoHasAudio(videoPath) {
   });
 }
 
+// POST /api/reencode-for-whatsapp — Re-encodes VFR iOS recording to CFR h264 baseline.
+// Use when recording already has music (performance mode) — no AI music mixing needed,
+// but VFR→CFR conversion is required for WhatsApp to show video instead of audio-only.
+app.post('/api/reencode-for-whatsapp', express.json(), async (req, res) => {
+  const { videoUrl, storyId } = req.body;
+  if (!videoUrl) return res.status(400).json({ error: 'videoUrl required' });
+  try {
+    const { reencodeForWhatsApp } = require('./music/mixing-service');
+    const jobDir = path.join(tempDir, `reencode_${Date.now()}`);
+    fs.mkdirSync(jobDir, { recursive: true });
+    const videoPath  = path.join(jobDir, 'video.mp4');
+    const outputPath = path.join(jobDir, 'output.mp4');
+    await downloadFile(videoUrl, videoPath);
+    await reencodeForWhatsApp(videoPath, outputPath);
+    const outputSize = fs.existsSync(outputPath) ? fs.statSync(outputPath).size : 0;
+    console.log(`📦 Re-encoded size: ${(outputSize / 1024 / 1024).toFixed(2)} MB`);
+    let finalUrl = null;
+    if (bucket) {
+      const storagePath = `edited/${storyId || 'unknown'}/reencoded_${Date.now()}.mp4`;
+      finalUrl = await uploadToFirebase(outputPath, storagePath);
+      console.log(`✅ Re-encoded video uploaded: ${finalUrl?.substring(0, 80)}`);
+    } else {
+      const filename = `reencoded_${Date.now()}.mp4`;
+      const servePath = path.join(convertedDir, filename);
+      fs.copyFileSync(outputPath, servePath);
+      const serverBase = (process.env.EXPO_PUBLIC_API_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+      finalUrl = `${serverBase}/converted/${filename}`;
+    }
+    fs.rmSync(jobDir, { recursive: true, force: true });
+    res.json({ success: true, finalUrl, videoUrl: finalUrl });
+  } catch (err) {
+    console.error('❌ Re-encode for WhatsApp failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/mix-music-with-video', async (req, res) => {
   const { videoUrl, musicUrl, musicVolume = 0.08, storyId, replaceAudio = false, clipUrls } = req.body;
 

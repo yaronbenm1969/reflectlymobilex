@@ -491,11 +491,47 @@ async function mixCubeWithVoicesAndMusic(videoPath, clipPaths, musicPath, output
   });
 }
 
+// Re-encodes VFR iOS recording to CFR h264 baseline (WhatsApp-compatible) without adding music.
+// Use when recording already contains music (performance mode) so no AI music mixing is needed.
+async function reencodeForWhatsApp(videoPath, outputPath) {
+  console.log('🎬 Re-encoding VFR→CFR for WhatsApp compatibility (no music)...');
+  const args = [
+    '-i', videoPath,
+    '-filter_complex', '[0:v]setpts=PTS-STARTPTS[vout]',
+    '-map', '[vout]',
+    '-map', '0:a',
+    '-c:v', 'libx264',
+    '-preset', 'veryfast',
+    '-profile:v', 'baseline',
+    '-pix_fmt', 'yuv420p',
+    '-bf', '0',
+    '-vsync', 'cfr',
+    '-r', '30',
+    '-c:a', 'aac', '-b:a', '192k',
+    '-ar', '44100', '-ac', '2',
+    '-movflags', '+faststart',
+    '-y', outputPath
+  ];
+  return new Promise((resolve, reject) => {
+    execFile('ffmpeg', args, { timeout: 300000 }, (err, _stdout, stderr) => {
+      if (err) {
+        console.error('❌ reencodeForWhatsApp failed:', err.message);
+        console.error('FFmpeg stderr:', stderr?.substring(0, 300));
+        reject(err);
+      } else {
+        console.log('✅ Re-encoded for WhatsApp (CFR h264 baseline):', outputPath);
+        resolve(outputPath);
+      }
+    });
+  });
+}
+
 module.exports = {
   mixStemsWithTimeline,
   mixMusicWithVideo,
   mixMusicWithVideoNoAudio,
   mixVocalsWithMusic,
   mixCubeWithVoicesAndMusic,
-  mixRecordingAudioWithMusic
+  mixRecordingAudioWithMusic,
+  reencodeForWhatsApp
 };

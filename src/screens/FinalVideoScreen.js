@@ -953,6 +953,32 @@ export const FinalVideoScreen = () => {
             } catch (mixErr) {
               console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
             }
+          } else {
+            // No AI music (e.g. performance mode — music already in recording).
+            // Still must re-encode VFR→CFR h264 baseline for WhatsApp compatibility.
+            console.log('🎵 No AI music — re-encoding VFR→CFR for WhatsApp compatibility...');
+            setDownloadProgress(t('finalVideo.factory_mixing'));
+            try {
+              const reCtrl = new AbortController();
+              const reTimeout = setTimeout(() => reCtrl.abort(), 4 * 60 * 1000);
+              const reRes = await fetch(`${VIDEO_CONVERTER_URL}/api/reencode-for-whatsapp`, {
+                method: 'POST',
+                headers: SERVER_HEADERS,
+                body: JSON.stringify({ videoUrl: finalMp4Url, storyId: currentStoryId }),
+                signal: reCtrl.signal,
+              });
+              clearTimeout(reTimeout);
+              if (reRes.ok) {
+                const reResult = await reRes.json();
+                const recodedUrl = reResult.finalUrl || reResult.videoUrl;
+                if (recodedUrl) {
+                  finalMp4Url = recodedUrl;
+                  console.log('✅ Re-encoded for WhatsApp (CFR h264 baseline)');
+                }
+              }
+            } catch (reErr) {
+              console.warn('⚠️ Re-encode failed, using raw mp4 (may fail in WhatsApp):', reErr.message);
+            }
           }
 
           setRecordingFirebaseUrl(finalMp4Url);
@@ -961,24 +987,23 @@ export const FinalVideoScreen = () => {
           if (currentStoryId) {
             storiesService.updateStory(currentStoryId, { sourceVideoUrl: uploadResult.url, finalVideoUrl: finalMp4Url, status: 'completed' }).catch(() => {});
           }
+          // Clear raw recording from cache BEFORE showing end screen.
+          // This forces getVideoForSharing to use firebaseUrlRef (the mixed CFR mp4)
+          // instead of the raw VFR file — which causes WhatsApp audio-only playback.
+          cachedRecordingRef.current = null;
+          setCachedRecordingUri(null);
           setShowEndScreen(true);
-          if (recordingHasMusic) {
-            // Raw recording already cached locally (set before convertAndUploadRecording call).
-            // No download needed — cachedRecordingRef.current already points to the local file.
-            console.log('📹 Using locally cached raw recording (hasMusic=true, no server mix)');
-          } else {
-            // Download the server-mixed mp4 to replace the raw recording in cache.
-            try {
-              const mp4LocalPath = FileSystem.cacheDirectory + `recording_mp4_${Date.now()}.mp4`;
-              const dlResult = await FileSystem.downloadAsync(finalMp4Url, mp4LocalPath);
-              if (dlResult.status === 200) {
-                console.log('📹 Final mp4 cached locally (iOS path):', mp4LocalPath);
-                setCachedRecordingUri(mp4LocalPath);
-                cachedRecordingRef.current = mp4LocalPath;
-              }
-            } catch (dlErr) {
-              console.warn('📹 Local cache failed (iOS path):', dlErr.message);
+          // Download the final mixed mp4 to local cache for faster sharing.
+          try {
+            const mp4LocalPath = FileSystem.cacheDirectory + `recording_mp4_${Date.now()}.mp4`;
+            const dlResult = await FileSystem.downloadAsync(finalMp4Url, mp4LocalPath);
+            if (dlResult.status === 200) {
+              console.log('📹 Final mp4 cached locally (iOS path):', mp4LocalPath);
+              setCachedRecordingUri(mp4LocalPath);
+              cachedRecordingRef.current = mp4LocalPath;
             }
+          } catch (dlErr) {
+            console.warn('📹 Local cache failed (iOS path):', dlErr.message);
           }
         } else {
           console.warn('📹 Firebase upload failed:', uploadResult.error);
