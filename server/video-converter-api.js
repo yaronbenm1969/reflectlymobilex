@@ -1928,10 +1928,15 @@ app.post('/api/mix-music-with-video', async (req, res) => {
       }
     }
 
+    const mixedSizeBytes = fs.existsSync(outputPath) ? fs.statSync(outputPath).size : 0;
+    console.log(`📦 Mixed output size: ${mixedSizeBytes} bytes (${(mixedSizeBytes / 1024 / 1024).toFixed(2)} MB)`);
+
     let finalUrl = null;
     if (bucket) {
       const storagePath = `edited/${storyId || 'unknown'}/final_music_${Date.now()}.mp4`;
+      console.log(`☁️ Uploading mixed video to Firebase: ${storagePath}`);
       finalUrl = await uploadToFirebase(outputPath, storagePath);
+      console.log(`✅ Mixed video uploaded: ${finalUrl?.substring(0, 80)}`);
     } else {
       // No Firebase bucket configured — serve file directly via /converted static route
       const filename = `mixed_${Date.now()}.mp4`;
