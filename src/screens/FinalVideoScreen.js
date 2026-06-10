@@ -929,7 +929,10 @@ export const FinalVideoScreen = () => {
           // Do NOT pass clipUrls/replaceAudio — that discards the in-sync recording audio
           // and rebuilds from clip files which causes lip-sync drift.
           const musicUrl = generatedMusicUrlRef.current;
-          if (musicUrl) {
+          // When hasMusic=true the WebView already captured AI music inside the recording.
+          // Skip server mixing — FFmpeg re-encode breaks WhatsApp compatibility.
+          // Only mix when the recording has NO music (hasMusic=false).
+          if (musicUrl && !recordingHasMusic) {
             console.log('🎵 Mixing AI music into recording (using recording audio for sync)...');
             setDownloadProgress(t('finalVideo.factory_mixing'));
             try {
@@ -953,6 +956,8 @@ export const FinalVideoScreen = () => {
             } catch (mixErr) {
               console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
             }
+          } else if (recordingHasMusic) {
+            console.log('🎵 Recording already has music — skipping server mix');
           }
 
           setRecordingFirebaseUrl(finalMp4Url);
@@ -962,17 +967,23 @@ export const FinalVideoScreen = () => {
             storiesService.updateStory(currentStoryId, { sourceVideoUrl: uploadResult.url, finalVideoUrl: finalMp4Url, status: 'completed' }).catch(() => {});
           }
           setShowEndScreen(true);
-          // Cache the final mixed mp4 locally so getVideoForSharing uses the music-mixed version
-          try {
-            const mp4LocalPath = FileSystem.cacheDirectory + `recording_mp4_${Date.now()}.mp4`;
-            const dlResult = await FileSystem.downloadAsync(finalMp4Url, mp4LocalPath);
-            if (dlResult.status === 200) {
-              console.log('📹 Final mp4 cached locally (iOS path):', mp4LocalPath);
-              setCachedRecordingUri(mp4LocalPath);
-              cachedRecordingRef.current = mp4LocalPath;
+          if (recordingHasMusic) {
+            // Raw recording already cached locally (set before convertAndUploadRecording call).
+            // No download needed — cachedRecordingRef.current already points to the local file.
+            console.log('📹 Using locally cached raw recording (hasMusic=true, no server mix)');
+          } else {
+            // Download the server-mixed mp4 to replace the raw recording in cache.
+            try {
+              const mp4LocalPath = FileSystem.cacheDirectory + `recording_mp4_${Date.now()}.mp4`;
+              const dlResult = await FileSystem.downloadAsync(finalMp4Url, mp4LocalPath);
+              if (dlResult.status === 200) {
+                console.log('📹 Final mp4 cached locally (iOS path):', mp4LocalPath);
+                setCachedRecordingUri(mp4LocalPath);
+                cachedRecordingRef.current = mp4LocalPath;
+              }
+            } catch (dlErr) {
+              console.warn('📹 Local cache failed (iOS path):', dlErr.message);
             }
-          } catch (dlErr) {
-            console.warn('📹 Local cache failed (iOS path):', dlErr.message);
           }
         } else {
           console.warn('📹 Firebase upload failed:', uploadResult.error);
