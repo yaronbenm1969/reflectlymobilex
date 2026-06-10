@@ -289,7 +289,7 @@ async function mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, musicV
       '-stream_loop', '-1',
       '-i', musicPath,
       '-filter_complex',
-      `[0:v]fps=30[vout];[1:a]volume=${musicVolume}[music]`,
+      `[0:v]setpts=PTS-STARTPTS[vout];[1:a]volume=${musicVolume}[music]`,
       '-map', '[vout]',
       '-map', '[music]',
       '-c:v', 'libx264',
@@ -297,6 +297,8 @@ async function mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, musicV
       '-profile:v', 'baseline',
       '-pix_fmt', 'yuv420p',
       '-bf', '0',
+      '-vsync', 'cfr',
+      '-r', '30',
       '-c:a', 'aac',
       '-b:a', '192k',
       '-ar', '44100',
@@ -387,10 +389,10 @@ async function getVideoDuration(videoPath) {
 async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musicVolume = 0.1) {
   console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
   const voiceFilter = 'highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,alimiter=limit=0.95';
-  // fps=30 inside filter_complex converts VFR (iOS r_frame_rate=600/1) → CFR before libx264.
-  // Do NOT use -r 30 separately — it conflicts with filter_complex on some FFmpeg versions.
+  // setpts=PTS-STARTPTS resets VFR timestamps. -vsync cfr + -r 30 forces CFR output.
+  // fps=30 inside filter_complex drops all video frames on Render's FFmpeg — do NOT use it.
   const filterComplex = [
-    `[0:v]fps=30[vout]`,
+    `[0:v]setpts=PTS-STARTPTS[vout]`,
     `[0:a]${voiceFilter}[v]`,
     `[1:a]volume=${musicVolume}[m]`,
     `[v][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
@@ -407,6 +409,8 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
     '-profile:v', 'baseline',
     '-pix_fmt', 'yuv420p',
     '-bf', '0',
+    '-vsync', 'cfr',
+    '-r', '30',
     '-c:a', 'aac',
     '-b:a', '192k',
     '-ar', '44100',
