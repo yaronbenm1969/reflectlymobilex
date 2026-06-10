@@ -239,9 +239,8 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
     voiceFilter = `${voiceEnhance},volume=2.5`;
   }
 
-  // fps=30 INSIDE filter_complex to avoid conflict with -filter_complex in some FFmpeg versions.
   const filterComplex = [
-    `[0:v]fps=30[vout]`,
+    `[0:v]setpts=PTS-STARTPTS[vout]`,
     `[0:a]${voiceFilter}[voice]`,
     `[1:a]volume=${musicVolume}[music]`,
     `[voice][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
@@ -253,19 +252,16 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
   return new Promise((resolve, reject) => {
     const args = [
       '-i', videoPath,
+      '-stream_loop', '-1',
       '-i', musicPath,
       '-filter_complex', filterComplex,
       '-map', '[vout]',
       '-map', '[aout]',
       '-c:v', 'libx264',
-      '-preset', 'ultrafast',
-      '-profile:v', 'baseline',
-      '-pix_fmt', 'yuv420p',
-      '-bf', '0',
+      '-preset', 'veryfast',
+      '-r', '30',
       '-c:a', 'aac',
       '-b:a', '192k',
-      '-ar', '44100',
-      '-ac', '2',
       '-movflags', '+faststart',
       '-shortest',
       '-y', outputPath
@@ -384,29 +380,24 @@ async function getVideoDuration(videoPath) {
 async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musicVolume = 0.1) {
   console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
   const voiceFilter = 'highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,alimiter=limit=0.95';
-  // fps=30 is INSIDE filter_complex (not -vf) to avoid conflict with -filter_complex in some FFmpeg versions.
-  // iOS WebView records at 600/1 VFR; fps filter converts to CFR before libx264 encoding.
   const filterComplex = [
-    `[0:v]fps=30[vout]`,
+    `[0:v]setpts=PTS-STARTPTS[vout]`,
     `[0:a]${voiceFilter}[v]`,
     `[1:a]volume=${musicVolume}[m]`,
     `[v][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
   ].join(';');
   const args = [
     '-i', videoPath,
+    '-stream_loop', '-1',
     '-i', musicPath,
     '-filter_complex', filterComplex,
     '-map', '[vout]',
     '-map', '[aout]',
     '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-profile:v', 'baseline',
-    '-pix_fmt', 'yuv420p',
-    '-bf', '0',
+    '-preset', 'veryfast',
+    '-r', '30',
     '-c:a', 'aac',
     '-b:a', '192k',
-    '-ar', '44100',
-    '-ac', '2',
     '-movflags', '+faststart',
     '-shortest',
     '-y', outputPath
