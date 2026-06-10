@@ -286,14 +286,21 @@ async function mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, musicV
   return new Promise((resolve, reject) => {
     const args = [
       '-i', videoPath,
+      '-stream_loop', '-1',
       '-i', musicPath,
       '-filter_complex',
-      `[1:a]volume=${musicVolume}[music]`,
-      '-map', '0:v',
+      `[0:v]fps=30[vout];[1:a]volume=${musicVolume}[music]`,
+      '-map', '[vout]',
       '-map', '[music]',
-      '-c:v', 'copy',
+      '-c:v', 'libx264',
+      '-preset', 'veryfast',
+      '-profile:v', 'baseline',
+      '-pix_fmt', 'yuv420p',
+      '-bf', '0',
       '-c:a', 'aac',
       '-b:a', '192k',
+      '-ar', '44100',
+      '-ac', '2',
       '-movflags', '+faststart',
       '-shortest',
       '-y', outputPath
@@ -380,8 +387,10 @@ async function getVideoDuration(videoPath) {
 async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musicVolume = 0.1) {
   console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
   const voiceFilter = 'highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,alimiter=limit=0.95';
+  // fps=30 inside filter_complex converts VFR (iOS r_frame_rate=600/1) → CFR before libx264.
+  // Do NOT use -r 30 separately — it conflicts with filter_complex on some FFmpeg versions.
   const filterComplex = [
-    `[0:v]setpts=PTS-STARTPTS[vout]`,
+    `[0:v]fps=30[vout]`,
     `[0:a]${voiceFilter}[v]`,
     `[1:a]volume=${musicVolume}[m]`,
     `[v][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
@@ -395,9 +404,13 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
     '-map', '[aout]',
     '-c:v', 'libx264',
     '-preset', 'veryfast',
-    '-r', '30',
+    '-profile:v', 'baseline',
+    '-pix_fmt', 'yuv420p',
+    '-bf', '0',
     '-c:a', 'aac',
     '-b:a', '192k',
+    '-ar', '44100',
+    '-ac', '2',
     '-movflags', '+faststart',
     '-shortest',
     '-y', outputPath
