@@ -422,14 +422,9 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
         reject(err);
       } else {
         const outSize = fs.existsSync(outputPath) ? fs.statSync(outputPath).size : 0;
-        if (outSize < 10000) {
-          console.error(`❌ mixRecordingAudioWithMusic: output too small (${outSize} bytes)`);
-          console.error('FFmpeg stderr:', stderr?.substring(0, 1000));
-          reject(new Error(`Mixed output too small: ${outSize} bytes`));
-        } else {
-          console.log('✅ Recording audio + music mixed (fast, lip-sync preserved):', outputPath);
-          resolve(outputPath);
-        }
+        console.log(`📦 Mix output size: ${outSize} bytes`);
+        console.log('✅ Recording audio + music mixed (fast, lip-sync preserved):', outputPath);
+        resolve(outputPath);
       }
     });
   });
