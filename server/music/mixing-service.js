@@ -390,16 +390,24 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
   console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
   // Use -c:v copy to preserve original iOS h264 stream without re-encoding.
   // Re-encoding with libx264 causes WhatsApp iOS to show audio-only.
-  // asetpts=PTS-STARTPTS on both audio inputs: iOS VFR recordings may have large
-  // audio PTS offsets that cause amix to produce empty output (7592-byte container).
-  // duration=first: use video audio duration (not shortest) to avoid early cutoff.
+  //
+  // Three fixes for the 7592-byte empty container bug (iOS VFR WebView recordings):
+  // 1. aresample=44100 before asetpts — forces full decode+flush so asetpts gets
+  //    correct STARTPTS from the actual first decoded frame (not a buffered offset).
+  // 2. -t audioDuration on music input — pre-bounds the music stream to exactly the
+  //    video audio length, making amix EOF deterministic regardless of music file length.
+  // 3. -avoid_negative_ts make_zero — muxer safety net for any remaining PTS gaps.
+  const audioDuration = await getVideoDuration(videoPath);
+  console.log(`🎬 Video audio duration: ${audioDuration}s`);
+
   const filterComplex = [
-    `[0:a]asetpts=PTS-STARTPTS[va]`,
-    `[1:a]volume=${musicVolume},asetpts=PTS-STARTPTS[m]`,
+    `[0:a]aresample=44100,asetpts=PTS-STARTPTS[va]`,
+    `[1:a]aresample=44100,volume=${musicVolume},asetpts=PTS-STARTPTS[m]`,
     `[va][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
   ].join(';');
   const args = [
     '-i', videoPath,
+    ...(audioDuration ? ['-t', String(audioDuration)] : []),
     '-i', musicPath,
     '-filter_complex', filterComplex,
     '-map', '0:v',
@@ -409,6 +417,7 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
     '-b:a', '192k',
     '-ar', '44100',
     '-ac', '2',
+    '-avoid_negative_ts', 'make_zero',
     '-movflags', '+faststart',
     '-y', outputPath
   ];
