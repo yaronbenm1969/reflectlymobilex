@@ -388,15 +388,13 @@ async function getVideoDuration(videoPath) {
 
 async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musicVolume = 0.1) {
   console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
-  const voiceFilter = 'highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,alimiter=limit=0.95';
   // Use -c:v copy to preserve original iOS h264 stream without re-encoding.
   // Re-encoding with libx264 causes WhatsApp iOS to show audio-only.
-  // No -stream_loop: Suno tracks are 2-3 min, recordings are ~40s — no loop needed.
-  // amix duration=shortest cuts at recording end (shorter of voice vs music).
+  // No voice filter: afftdn noise reduction suppresses the ambient music already
+  // captured by WebView AudioContext (at 0.12 vol). Just mix AI music on top directly.
   const filterComplex = [
-    `[0:a]${voiceFilter}[voice]`,
     `[1:a]volume=${musicVolume}[m]`,
-    `[voice][m]amix=inputs=2:duration=shortest:dropout_transition=2:normalize=0[aout]`
+    `[0:a][m]amix=inputs=2:duration=shortest:dropout_transition=2:normalize=0[aout]`
   ].join(';');
   const args = [
     '-i', videoPath,
