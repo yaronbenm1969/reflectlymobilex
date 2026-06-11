@@ -394,24 +394,14 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
   console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
   // Use -c:v copy to preserve original iOS h264 stream without re-encoding.
   // Re-encoding with libx264 causes WhatsApp iOS to show audio-only.
-  //
-  // Three fixes for the 7592-byte empty container bug (iOS VFR WebView recordings):
-  // 1. aresample=44100 before asetpts — forces full decode+flush so asetpts gets
-  //    correct STARTPTS from the actual first decoded frame (not a buffered offset).
-  // 2. -t audioDuration on music input — pre-bounds the music stream to exactly the
-  //    video audio length, making amix EOF deterministic regardless of music file length.
-  // 3. -avoid_negative_ts make_zero — muxer safety net for any remaining PTS gaps.
-  const audioDuration = await getVideoDuration(videoPath);
-  console.log(`🎬 Video audio duration: ${audioDuration}s`);
-
+  // No voice filter: afftdn noise reduction suppresses the ambient music already
+  // captured by WebView AudioContext (at 0.12 vol). Just mix AI music on top directly.
   const filterComplex = [
-    `[0:a]aresample=44100,asetpts=PTS-STARTPTS[va]`,
-    `[1:a]aresample=44100,volume=${musicVolume},asetpts=PTS-STARTPTS[m]`,
-    `[va][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
+    `[1:a]volume=${musicVolume}[m]`,
+    `[0:a][m]amix=inputs=2:duration=shortest:dropout_transition=2:normalize=0[aout]`
   ].join(';');
   const args = [
     '-i', videoPath,
-    ...(audioDuration ? ['-t', String(audioDuration)] : []),
     '-i', musicPath,
     '-filter_complex', filterComplex,
     '-map', '0:v',
@@ -421,7 +411,6 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
     '-b:a', '192k',
     '-ar', '44100',
     '-ac', '2',
-    '-avoid_negative_ts', 'make_zero',
     '-movflags', '+faststart',
     '-y', outputPath
   ];
@@ -429,12 +418,12 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
     execFile('ffmpeg', args, { timeout: 300000 }, (err, stdout, stderr) => {
       if (err) {
         console.error('❌ mixRecordingAudioWithMusic failed:', err.message);
-        console.error('FFmpeg stderr:', stderr?.substring(0, 1000));
+        console.error('FFmpeg stderr:', stderr?.substring(0, 500));
         reject(err);
       } else {
         const outSize = fs.existsSync(outputPath) ? fs.statSync(outputPath).size : 0;
         if (outSize < 10000) {
-          console.error(`❌ mixRecordingAudioWithMusic: output too small (${outSize} bytes) — empty container`);
+          console.error(`❌ mixRecordingAudioWithMusic: output too small (${outSize} bytes)`);
           console.error('FFmpeg stderr:', stderr?.substring(0, 1000));
           reject(new Error(`Mixed output too small: ${outSize} bytes`));
         } else {
