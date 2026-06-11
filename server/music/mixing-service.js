@@ -282,35 +282,39 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
 
 async function mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, musicVolume = 0.5) {
   console.log('🎬 Adding music to video (no original audio)...');
+  // Use -t videoDuration before music input instead of -stream_loop + -shortest.
+  // -stream_loop -1 + -shortest + setpts causes an infinite loop on VFR iOS recordings.
+  const videoDuration = await getVideoDuration(videoPath);
+  console.log(`🎬 Video duration: ${videoDuration}s`);
+
+  const args = [
+    '-i', videoPath,
+    ...(videoDuration ? ['-t', String(videoDuration)] : []),
+    '-i', musicPath,
+    '-filter_complex',
+    `[0:v]setpts=PTS-STARTPTS[vout];[1:a]aresample=44100,asetpts=PTS-STARTPTS,volume=${musicVolume}[music]`,
+    '-map', '[vout]',
+    '-map', '[music]',
+    '-c:v', 'libx264',
+    '-preset', 'veryfast',
+    '-profile:v', 'baseline',
+    '-pix_fmt', 'yuv420p',
+    '-bf', '0',
+    '-vsync', 'cfr',
+    '-r', '30',
+    '-c:a', 'aac',
+    '-b:a', '192k',
+    '-ar', '44100',
+    '-ac', '2',
+    '-movflags', '+faststart',
+    '-y', outputPath
+  ];
 
   return new Promise((resolve, reject) => {
-    const args = [
-      '-i', videoPath,
-      '-stream_loop', '-1',
-      '-i', musicPath,
-      '-filter_complex',
-      `[0:v]setpts=PTS-STARTPTS[vout];[1:a]volume=${musicVolume}[music]`,
-      '-map', '[vout]',
-      '-map', '[music]',
-      '-c:v', 'libx264',
-      '-preset', 'veryfast',
-      '-profile:v', 'baseline',
-      '-pix_fmt', 'yuv420p',
-      '-bf', '0',
-      '-vsync', 'cfr',
-      '-r', '30',
-      '-c:a', 'aac',
-      '-b:a', '192k',
-      '-ar', '44100',
-      '-ac', '2',
-      '-movflags', '+faststart',
-      '-shortest',
-      '-y', outputPath
-    ];
-
-    execFile('ffmpeg', args, { timeout: 180000 }, (err, stdout, stderr) => {
+    execFile('ffmpeg', args, { timeout: 300000 }, (err, stdout, stderr) => {
       if (err) {
         console.error('❌ Video+music (no audio) failed:', err.message);
+        console.error('FFmpeg stderr:', stderr?.substring(0, 500));
         reject(err);
       } else {
         console.log('✅ Music added to video:', outputPath);
