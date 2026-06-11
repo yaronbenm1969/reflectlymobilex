@@ -389,28 +389,22 @@ async function getVideoDuration(videoPath) {
 async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musicVolume = 0.1) {
   console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
   const voiceFilter = 'highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,alimiter=limit=0.95';
-  // setpts=PTS-STARTPTS resets VFR timestamps. -vsync cfr + -r 30 forces CFR output.
-  // fps=30 inside filter_complex drops all video frames on Render's FFmpeg — do NOT use it.
+  // Use -c:v copy to preserve original iOS h264 stream without re-encoding.
+  // Re-encoding with libx264 (even with baseline/cfr/yuv420p) causes WhatsApp to show audio-only.
+  // The raw iOS WebView recording IS WhatsApp-compatible — only the audio needs to be replaced/mixed.
   const filterComplex = [
-    `[0:v]setpts=PTS-STARTPTS[vout]`,
-    `[0:a]${voiceFilter}[v]`,
+    `[0:a]${voiceFilter}[voice]`,
     `[1:a]volume=${musicVolume}[m]`,
-    `[v][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
+    `[voice][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
   ].join(';');
   const args = [
     '-i', videoPath,
     '-stream_loop', '-1',
     '-i', musicPath,
     '-filter_complex', filterComplex,
-    '-map', '[vout]',
+    '-map', '0:v',
     '-map', '[aout]',
-    '-c:v', 'libx264',
-    '-preset', 'veryfast',
-    '-profile:v', 'baseline',
-    '-pix_fmt', 'yuv420p',
-    '-bf', '0',
-    '-vsync', 'cfr',
-    '-r', '30',
+    '-c:v', 'copy',
     '-c:a', 'aac',
     '-b:a', '192k',
     '-ar', '44100',
@@ -491,22 +485,15 @@ async function mixCubeWithVoicesAndMusic(videoPath, clipPaths, musicPath, output
   });
 }
 
-// Re-encodes VFR iOS recording to CFR h264 baseline (WhatsApp-compatible) without adding music.
-// Use when recording already contains music (performance mode) so no AI music mixing is needed.
+// Remux iOS recording for WhatsApp (no music added) — copy video stream, re-encode audio only.
+// The raw iOS WebView h264 stream IS WhatsApp-compatible; re-encoding it breaks playback.
 async function reencodeForWhatsApp(videoPath, outputPath) {
-  console.log('🎬 Re-encoding VFR→CFR for WhatsApp compatibility (no music)...');
+  console.log('🎬 Remuxing for WhatsApp (copy video, re-encode audio only)...');
   const args = [
     '-i', videoPath,
-    '-filter_complex', '[0:v]setpts=PTS-STARTPTS[vout]',
-    '-map', '[vout]',
+    '-map', '0:v',
     '-map', '0:a',
-    '-c:v', 'libx264',
-    '-preset', 'veryfast',
-    '-profile:v', 'baseline',
-    '-pix_fmt', 'yuv420p',
-    '-bf', '0',
-    '-vsync', 'cfr',
-    '-r', '30',
+    '-c:v', 'copy',
     '-c:a', 'aac', '-b:a', '192k',
     '-ar', '44100', '-ac', '2',
     '-movflags', '+faststart',
@@ -519,7 +506,7 @@ async function reencodeForWhatsApp(videoPath, outputPath) {
         console.error('FFmpeg stderr:', stderr?.substring(0, 300));
         reject(err);
       } else {
-        console.log('✅ Re-encoded for WhatsApp (CFR h264 baseline):', outputPath);
+        console.log('✅ Remuxed for WhatsApp (video copied, audio re-encoded):', outputPath);
         resolve(outputPath);
       }
     });
