@@ -390,16 +390,16 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
   console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
   const voiceFilter = 'highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,alimiter=limit=0.95';
   // Use -c:v copy to preserve original iOS h264 stream without re-encoding.
-  // Re-encoding with libx264 (even with baseline/cfr/yuv420p) causes WhatsApp to show audio-only.
-  // The raw iOS WebView recording IS WhatsApp-compatible — only the audio needs to be replaced/mixed.
+  // Re-encoding with libx264 causes WhatsApp iOS to show audio-only.
+  // No -stream_loop: Suno tracks are 2-3 min, recordings are ~40s — no loop needed.
+  // amix duration=shortest cuts at recording end (shorter of voice vs music).
   const filterComplex = [
     `[0:a]${voiceFilter}[voice]`,
     `[1:a]volume=${musicVolume}[m]`,
-    `[voice][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
+    `[voice][m]amix=inputs=2:duration=shortest:dropout_transition=2:normalize=0[aout]`
   ].join(';');
   const args = [
     '-i', videoPath,
-    '-stream_loop', '-1',
     '-i', musicPath,
     '-filter_complex', filterComplex,
     '-map', '0:v',
@@ -410,7 +410,6 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
     '-ar', '44100',
     '-ac', '2',
     '-movflags', '+faststart',
-    '-shortest',
     '-y', outputPath
   ];
   return new Promise((resolve, reject) => {
