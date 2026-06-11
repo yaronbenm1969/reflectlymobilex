@@ -45,7 +45,7 @@ if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 if (!fs.existsSync(convertedDir)) fs.mkdirSync(convertedDir, { recursive: true });
 const upload = multer({ dest: tempDir, limits: { fileSize: 100 * 1024 * 1024 } });
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/ambient-track', '/api/suno-sets'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/ambient-track', '/api/suno-sets', '/api/test-mix'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -1891,6 +1891,63 @@ app.post('/api/reencode-for-whatsapp', express.json(), async (req, res) => {
     res.json({ success: true, finalUrl, videoUrl: finalUrl });
   } catch (err) {
     console.error('❌ Re-encode for WhatsApp failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/test-mix — Dev shortcut: mix an existing video URL with music, no re-recording needed.
+// Body: { videoUrl (required), musicUrl? (optional — picks random Suno track if omitted), musicVolume? }
+// Returns: { success, finalUrl } — open in browser or send to WhatsApp to verify.
+app.post('/api/test-mix', express.json(), async (req, res) => {
+  const { videoUrl, musicUrl: bodyMusicUrl, musicVolume = 0.1 } = req.body;
+  if (!videoUrl) return res.status(400).json({ error: 'videoUrl required' });
+  try {
+    const { mixRecordingAudioWithMusic } = require('./music/mixing-service');
+    let musicUrl = bodyMusicUrl;
+    // Auto-pick a random Suno track if none provided
+    if (!musicUrl && firestoreDb) {
+      const snap = await firestoreDb.collection('suno_tracks').limit(20).get();
+      const tracks = snap.docs.map(d => d.data()).filter(t => t.url);
+      if (tracks.length > 0) {
+        const pick = tracks[Math.floor(Math.random() * tracks.length)];
+        musicUrl = pick.url;
+        console.log(`🎵 test-mix: auto-picked track set=${pick.set} id=${pick.id}`);
+      }
+    }
+    if (!musicUrl) return res.status(400).json({ error: 'No musicUrl and no Suno tracks in Firestore' });
+
+    const jobDir = path.join(tempDir, `testmix_${Date.now()}`);
+    fs.mkdirSync(jobDir, { recursive: true });
+    const videoPath  = path.join(jobDir, 'video.mp4');
+    const musicPath  = path.join(jobDir, 'music.mp3');
+    const outputPath = path.join(jobDir, 'output.mp4');
+
+    console.log(`⬇️  test-mix: downloading video…`);
+    await downloadFile(videoUrl, videoPath);
+    console.log(`⬇️  test-mix: downloading music…`);
+    await downloadFile(musicUrl, musicPath);
+    console.log(`🎬 test-mix: mixing…`);
+    await mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musicVolume);
+
+    const outputSize = fs.existsSync(outputPath) ? fs.statSync(outputPath).size : 0;
+    console.log(`📦 test-mix output: ${(outputSize / 1024 / 1024).toFixed(2)} MB`);
+
+    let finalUrl = null;
+    if (bucket) {
+      const storagePath = `test/testmix_${Date.now()}.mp4`;
+      finalUrl = await uploadToFirebase(outputPath, storagePath);
+    } else {
+      const filename = `testmix_${Date.now()}.mp4`;
+      const servePath = path.join(convertedDir, filename);
+      fs.copyFileSync(outputPath, servePath);
+      const serverBase = (process.env.EXPO_PUBLIC_API_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+      finalUrl = `${serverBase}/converted/${filename}`;
+    }
+    fs.rmSync(jobDir, { recursive: true, force: true });
+    console.log(`✅ test-mix done: ${finalUrl?.substring(0, 80)}`);
+    res.json({ success: true, finalUrl });
+  } catch (err) {
+    console.error('❌ test-mix failed:', err);
     res.status(500).json({ error: err.message });
   }
 });
