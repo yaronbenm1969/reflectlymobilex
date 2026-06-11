@@ -390,11 +390,13 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
   console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
   // Use -c:v copy to preserve original iOS h264 stream without re-encoding.
   // Re-encoding with libx264 causes WhatsApp iOS to show audio-only.
-  // No voice filter: afftdn noise reduction suppresses the ambient music already
-  // captured by WebView AudioContext (at 0.12 vol). Just mix AI music on top directly.
+  // asetpts=PTS-STARTPTS on both audio inputs: iOS VFR recordings may have large
+  // audio PTS offsets that cause amix to produce empty output (7592-byte container).
+  // duration=first: use video audio duration (not shortest) to avoid early cutoff.
   const filterComplex = [
-    `[1:a]volume=${musicVolume}[m]`,
-    `[0:a][m]amix=inputs=2:duration=shortest:dropout_transition=2:normalize=0[aout]`
+    `[0:a]asetpts=PTS-STARTPTS[va]`,
+    `[1:a]volume=${musicVolume},asetpts=PTS-STARTPTS[m]`,
+    `[va][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
   ].join(';');
   const args = [
     '-i', videoPath,
@@ -414,11 +416,18 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
     execFile('ffmpeg', args, { timeout: 300000 }, (err, stdout, stderr) => {
       if (err) {
         console.error('❌ mixRecordingAudioWithMusic failed:', err.message);
-        console.error('FFmpeg stderr:', stderr?.substring(0, 500));
+        console.error('FFmpeg stderr:', stderr?.substring(0, 1000));
         reject(err);
       } else {
-        console.log('✅ Recording audio + music mixed (fast, lip-sync preserved):', outputPath);
-        resolve(outputPath);
+        const outSize = fs.existsSync(outputPath) ? fs.statSync(outputPath).size : 0;
+        if (outSize < 10000) {
+          console.error(`❌ mixRecordingAudioWithMusic: output too small (${outSize} bytes) — empty container`);
+          console.error('FFmpeg stderr:', stderr?.substring(0, 1000));
+          reject(new Error(`Mixed output too small: ${outSize} bytes`));
+        } else {
+          console.log('✅ Recording audio + music mixed (fast, lip-sync preserved):', outputPath);
+          resolve(outputPath);
+        }
       }
     });
   });
