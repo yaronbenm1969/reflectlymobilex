@@ -397,8 +397,9 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
   // No voice filter: afftdn noise reduction suppresses the ambient music already
   // captured by WebView AudioContext (at 0.12 vol). Just mix AI music on top directly.
   const filterComplex = [
-    `[1:a]volume=${musicVolume}[m]`,
-    `[0:a][m]amix=inputs=2:duration=shortest:dropout_transition=2:normalize=0[aout]`
+    `[0:a]asetpts=PTS-STARTPTS[a0]`,
+    `[1:a]aresample=44100,asetpts=PTS-STARTPTS,volume=${musicVolume}[m]`,
+    `[a0][m]amix=inputs=2:duration=shortest:dropout_transition=2:normalize=0[aout]`
   ].join(';');
   const args = [
     '-i', videoPath,
