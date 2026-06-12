@@ -392,22 +392,30 @@ async function getVideoDuration(videoPath) {
 
 async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musicVolume = 0.1) {
   console.log(`🎬 Fast mix: recording audio [0:a] + music at vol=${musicVolume}...`);
-  // Use -c:v copy to preserve original iOS h264 stream without re-encoding.
-  // Re-encoding with libx264 causes WhatsApp iOS to show audio-only.
-  // No voice filter: afftdn noise reduction suppresses the ambient music already
-  // captured by WebView AudioContext (at 0.12 vol). Just mix AI music on top directly.
+  // Re-encode with libx264 -r 30 to convert iOS VFR → CFR so amix works correctly.
+  // Use -t videoDuration (not stream_loop) to avoid infinite loop on VFR input.
+  // baseline + yuv420p + bf=0 for WhatsApp iOS compatibility.
+  const videoDuration = await getVideoDuration(videoPath);
+  console.log(`🎬 Video duration: ${videoDuration}s`);
   const filterComplex = [
+    `[0:v]setpts=PTS-STARTPTS[vout]`,
     `[0:a]asetpts=PTS-STARTPTS[a0]`,
     `[1:a]aresample=44100,asetpts=PTS-STARTPTS,volume=${musicVolume}[m]`,
-    `[a0][m]amix=inputs=2:duration=shortest:dropout_transition=2:normalize=0[aout]`
+    `[a0][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
   ].join(';');
   const args = [
     '-i', videoPath,
+    ...(videoDuration ? ['-t', String(videoDuration)] : []),
     '-i', musicPath,
     '-filter_complex', filterComplex,
-    '-map', '0:v',
+    '-map', '[vout]',
     '-map', '[aout]',
-    '-c:v', 'copy',
+    '-c:v', 'libx264',
+    '-preset', 'veryfast',
+    '-profile:v', 'baseline',
+    '-pix_fmt', 'yuv420p',
+    '-bf', '0',
+    '-r', '30',
     '-c:a', 'aac',
     '-b:a', '192k',
     '-ar', '44100',
