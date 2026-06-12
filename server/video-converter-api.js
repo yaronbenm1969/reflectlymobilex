@@ -2023,6 +2023,12 @@ app.post('/api/mix-music-with-video', async (req, res) => {
 
     const mixedSizeBytes = fs.existsSync(outputPath) ? fs.statSync(outputPath).size : 0;
     console.log(`📦 Mixed output size: ${mixedSizeBytes} bytes (${(mixedSizeBytes / 1024 / 1024).toFixed(2)} MB)`);
+    if (mixedSizeBytes < 50000) {
+      fs.rmSync(jobDir, { recursive: true, force: true });
+      return res.status(422).json({
+        error: `Mix failed: output file too small (${mixedSizeBytes} bytes). amix likely produced an empty container — check Render logs for FFmpeg details.`
+      });
+    }
     // Probe output video stream for diagnostics
     await new Promise(resolve => {
       execFile('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries',

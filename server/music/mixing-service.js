@@ -379,13 +379,35 @@ async function mixVocalsWithMusic(videoPath, vocalsPath, musicPath, outputPath, 
 // Fast single-pass mix using the recording's own audio [0:a] + music.
 // Uses alimiter (zero latency) instead of 2-pass loudnorm → much faster, lip-sync preserved.
 async function getVideoDuration(videoPath) {
-  return new Promise((resolve) => {
+  // First attempt: read from container format (fast, works for most files)
+  const formatDur = await new Promise((resolve) => {
     execFile('ffprobe', [
       '-v', 'error', '-show_entries', 'format=duration',
       '-of', 'default=noprint_wrappers=1:nokey=1', videoPath
     ], { timeout: 10000 }, (err, stdout) => {
       const dur = parseFloat(stdout?.trim());
       resolve(isNaN(dur) ? null : dur);
+    });
+  });
+  if (formatDur !== null) return formatDur;
+
+  // Fallback: read duration from the video stream directly.
+  // iOS VFR recordings (600/1 timebase) sometimes have no format-level duration.
+  console.log('⚠️ getVideoDuration: format duration N/A, trying stream duration fallback...');
+  return new Promise((resolve) => {
+    execFile('ffprobe', [
+      '-v', 'error', '-select_streams', 'v:0',
+      '-show_entries', 'stream=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1', videoPath
+    ], { timeout: 10000 }, (err, stdout) => {
+      const dur = parseFloat(stdout?.trim());
+      if (!isNaN(dur)) {
+        console.log(`⚠️ getVideoDuration: stream fallback returned ${dur}s`);
+        resolve(dur);
+      } else {
+        console.error('❌ getVideoDuration: both format and stream duration probes returned N/A');
+        resolve(null);
+      }
     });
   });
 }
@@ -432,6 +454,10 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
       } else {
         const outSize = fs.existsSync(outputPath) ? fs.statSync(outputPath).size : 0;
         console.log(`📦 Mix output size: ${outSize} bytes`);
+        if (outSize < 50000) {
+          reject(new Error(`mixRecordingAudioWithMusic: output too small (${outSize} bytes) — amix produced empty container. FFmpeg stderr: ${stderr?.substring(0, 300)}`));
+          return;
+        }
         console.log('✅ Recording audio + music mixed (fast, lip-sync preserved):', outputPath);
         resolve(outputPath);
       }
