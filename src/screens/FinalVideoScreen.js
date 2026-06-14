@@ -41,7 +41,7 @@ const MUSIC_BASE_URL = `https://storage.googleapis.com/${STORAGE_BUCKET}/music/l
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const VIDEO_CONVERTER_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
+const VIDEO_CONVERTER_URL = process.env.EXPO_PUBLIC_API_URL || 'https://reflectlymobilex.onrender.com';
 const SERVER_HEADERS = {
   'Content-Type': 'application/json',
   'ngrok-skip-browser-warning': 'true',

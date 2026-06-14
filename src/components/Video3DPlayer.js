@@ -8,7 +8,7 @@ import theme from '../theme/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://reflectly-mobile-x--yaronbenm1.replit.app';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://reflectlymobilex.onrender.com';
 
 const VideoSlide = ({ item, index, isActive, onVideoEnd, width, height }) => {
   const videoRef = useRef(null);

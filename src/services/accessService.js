@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://reflectlymobilex.onrender.com';
 const EXPECTED_ACCESS_CODE = process.env.EXPO_PUBLIC_ACCESS_CODE;
 const STORAGE_KEY = '@reflectly/access_code';
 

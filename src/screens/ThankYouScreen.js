@@ -27,7 +27,7 @@ export const ThankYouScreen = () => {
     const storeUrl = Platform.select({
       ios: 'https://apps.apple.com/app/reflectly',
       android: 'https://play.google.com/store/apps/details?id=com.reflectly',
-      default: 'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev/',
+      default: 'https://reflectlymobilex.onrender.com',
     });
     
     Linking.openURL(storeUrl).catch(() => {

@@ -1,6 +1,5 @@
 // Export all screens for easy importing
 export { default as AuthScreen } from './AuthScreen';
-export { SplashScreen } from './SplashScreen';
 export { HomeScreen } from './HomeScreen';
 export { RecordScreen } from './RecordScreen';
 export { ReviewScreen } from './ReviewScreen';
