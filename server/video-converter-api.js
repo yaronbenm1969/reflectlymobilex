@@ -1391,7 +1391,7 @@ app.post('/api/stories/:storyId/render', async (req, res) => {
 
 app.post('/api/stories/:storyId/render-format', async (req, res) => {
   const { storyId } = req.params;
-  const { videoUrls, format = 'cube-3d', storyName = '' } = req.body;
+  const { videoUrls, format = 'cube-3d', storyName = '', backgroundVideoUrl = null, backgroundMediaType = 'video' } = req.body;
   
   if (!videoUrls || !Array.isArray(videoUrls) || videoUrls.length === 0) {
     return res.status(400).json({ error: 'videoUrls array is required' });
@@ -1402,9 +1402,9 @@ app.post('/api/stories/:storyId/render-format', async (req, res) => {
     return res.status(400).json({ error: 'Invalid video URLs', message: 'Only Firebase Storage URLs are allowed' });
   }
   
-  console.log(`🎬 Format render: ${videoUrls.length} videos, format: ${format}, story: ${storyName}`);
-  
-  const renderKey = `${videoUrls.sort().join('|')}_${format}`;
+  console.log(`🎬 Format render: ${videoUrls.length} videos, format: ${format}, story: ${storyName}, bg: ${backgroundVideoUrl ? 'yes' : 'none'}`);
+
+  const renderKey = `${videoUrls.sort().join('|')}_${format}_${backgroundVideoUrl || ''}`;
   for (const [existingJobId, existingJob] of renderingJobs.entries()) {
     if (existingJob._renderKey === renderKey && existingJob.status === 'processing') {
       console.log(`♻️ Duplicate render request, reusing job: ${existingJobId}`);
@@ -1442,7 +1442,7 @@ app.post('/api/stories/:storyId/render-format', async (req, res) => {
         }
       };
       
-      const outputPath = await renderFormatVideo(videoUrls, format, storyName, jobId, onProgress);
+      const outputPath = await renderFormatVideo(videoUrls, format, storyName, jobId, onProgress, backgroundVideoUrl);
       
       onProgress(92, 'Uploading');
       

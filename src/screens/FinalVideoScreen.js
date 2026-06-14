@@ -715,6 +715,8 @@ export const FinalVideoScreen = () => {
         videoUrls: allVideos,
         format: videoFormat || 'standard',
         storyName: storyName || '',
+        backgroundVideoUrl: backgroundVideoUrl || null,
+        backgroundMediaType: backgroundMediaType || 'video',
       }),
     });
 

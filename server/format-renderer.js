@@ -41,8 +41,13 @@ function getVideoDuration(filePath) {
   }
 }
 
-function generateCubeHTML(videoUrls, videoDurations) {
+function generateCubeHTML(videoUrls, videoDurations, backgroundVideoUrl = null) {
   const CUBE_SIZE = 280;
+
+  const bgHtml = backgroundVideoUrl
+    ? `<video id="custom-bg" src="${backgroundVideoUrl.replace(/'/g, '')}" autoplay loop muted playsinline
+        style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;"></video>`
+    : `<div class="space-bg"></div>`;
 
   return `<!DOCTYPE html>
 <html lang="he" dir="rtl">
@@ -51,9 +56,9 @@ function generateCubeHTML(videoUrls, videoDurations) {
   <meta name="viewport" content="width=${VIEWPORT_WIDTH}, height=${VIEWPORT_HEIGHT}">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { 
-      width: ${VIEWPORT_WIDTH}px; 
-      height: ${VIEWPORT_HEIGHT}px; 
+    html, body {
+      width: ${VIEWPORT_WIDTH}px;
+      height: ${VIEWPORT_HEIGHT}px;
       overflow: hidden;
       background: #000;
     }
@@ -147,7 +152,7 @@ function generateCubeHTML(videoUrls, videoDurations) {
   </style>
 </head>
 <body>
-  <div class="space-bg"></div>
+  ${bgHtml}
   <div class="stars">
     <div class="stars-layer stars-layer-1"></div>
     <div class="stars-layer stars-layer-2"></div>
@@ -727,7 +732,7 @@ function startLocalVideoServer(videosDir, port) {
   });
 }
 
-async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress) {
+async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress, backgroundVideoUrl = null) {
   const tmpDir = path.join(os.tmpdir(), `render_${jobId}`);
   const framesDir = path.join(tmpDir, 'frames');
   const videosDir = path.join(tmpDir, 'videos');
@@ -795,7 +800,7 @@ async function renderFormatVideo(videoUrls, format, storyName, jobId, onProgress
     if (format === 'flip-pages') {
       html = generateFlipPagesHTML(localUrls, storyName, videoDurations);
     } else {
-      html = generateCubeHTML(localUrls, videoDurations);
+      html = generateCubeHTML(localUrls, videoDurations, backgroundVideoUrl);
     }
     
     onProgress(20, 'טוען אנימציה');
