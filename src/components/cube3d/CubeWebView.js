@@ -1040,6 +1040,7 @@ const CubeWebView = ({
         revealTitleFace(function() {
           showReplayButton();
           var fade = document.createElement('div');
+          fade.id = 'playback-end-fade';
           fade.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;z-index:9999;transition:opacity 1.5s ease;pointer-events:none;';
           document.body.appendChild(fade);
           requestAnimationFrame(function() { requestAnimationFrame(function() {
@@ -1226,6 +1227,11 @@ const CubeWebView = ({
         _unlockV2.volume = 0;
         var _unlockP2 = _unlockV2.play();
         if (_unlockP2) _unlockP2.catch(function(){});
+        // Immediately pause + reset — audio context is already unlocked by play().
+        // Without this, face-0 advances during the 1.5s revealFromTopFace animation
+        // and becomes visible ~1s into the clip, then jumps back to 0 in the callback.
+        _unlockV2.pause();
+        _unlockV2.currentTime = 0;
       }
 
       // Also unlock background video — iOS autoplay is blocked until user gesture
@@ -1235,6 +1241,10 @@ const CubeWebView = ({
       }
 
       console.log('📦 Using pre-loaded videos (no reload needed)');
+
+      // Remove any black fade overlay from a previous completed playback
+      var oldFade = document.getElementById('playback-end-fade');
+      if (oldFade) oldFade.remove();
 
       postMessage('animationStarted', { videoCount: fullVideoQueue.length });
 
@@ -1249,12 +1259,10 @@ const CubeWebView = ({
         currentRotY = initial.rotY + HALF_ANGLE;
         floatStartTime = 0;
         floatAnimId = requestAnimationFrame(floatLoop);
-        // iOS unlock may have started face0 playing during the reveal animation.
-        // Pause and reset to t=0 so onplaying fires correctly in playCurrentVideo()
-        // (prevents 6s startup-stall timer from firing and skipping the first video).
+        // Ensure face-0 is at t=0 (it was paused+reset after unlock, but reset again for safety)
         var face0El = faceVideoElements[getFaceForIndex(0)];
-        if (face0El && !face0El.paused) {
-          face0El.pause();
+        if (face0El) {
+          if (!face0El.paused) face0El.pause();
           face0El.currentTime = 0;
         }
         playCurrentVideo();
@@ -1438,7 +1446,70 @@ const CubeWebView = ({
       for (var si = 0; si < 60; si++) {
         bgStars.push({ x: Math.random()*RW, y: Math.random()*RH, r: Math.random()*1.5+0.5, a: Math.random()*0.5+0.2 });
       }
-      
+
+      // Pre-render title face canvas (face-4/face-5): gradient background + logo + story title.
+      // Used by getDrawSource() so canvas recording captures the title card.
+      var _titleFaceCanvas = null;
+      function getTitleFaceCanvas() {
+        if (_titleFaceCanvas) return _titleFaceCanvas;
+        var tc = document.createElement('canvas');
+        tc.width = 720; tc.height = 720;
+        var tctx = tc.getContext('2d');
+        // Background gradient matching .face-intro CSS: linear-gradient(145deg, #0d0a1e 0%, #1a0a2e 100%)
+        var g = tctx.createLinearGradient(0, 0, tc.width, tc.height);
+        g.addColorStop(0, '#0d0a1e');
+        g.addColorStop(1, '#1a0a2e');
+        tctx.fillStyle = g;
+        tctx.fillRect(0, 0, tc.width, tc.height);
+        var cx = tc.width / 2;
+        var logoSize = 80;
+        var logoY = tc.height / 2 - 70;
+        // Draw logo by reusing the img element already in the DOM (already loaded, data URI — no CORS issue)
+        try {
+          var logoImgEl = document.querySelector('#face-5 .face-intro-logo, #face-4 .face-intro-logo');
+          if (logoImgEl && logoImgEl.complete && logoImgEl.naturalWidth > 0) {
+            var lx = cx - logoSize / 2, ly = logoY, r = 18;
+            tctx.save();
+            tctx.beginPath();
+            tctx.moveTo(lx + r, ly);
+            tctx.lineTo(lx + logoSize - r, ly);
+            tctx.quadraticCurveTo(lx + logoSize, ly, lx + logoSize, ly + r);
+            tctx.lineTo(lx + logoSize, ly + logoSize - r);
+            tctx.quadraticCurveTo(lx + logoSize, ly + logoSize, lx + logoSize - r, ly + logoSize);
+            tctx.lineTo(lx + r, ly + logoSize);
+            tctx.quadraticCurveTo(lx, ly + logoSize, lx, ly + logoSize - r);
+            tctx.lineTo(lx, ly + r);
+            tctx.quadraticCurveTo(lx, ly, lx + r, ly);
+            tctx.closePath();
+            tctx.clip();
+            tctx.drawImage(logoImgEl, lx, ly, logoSize, logoSize);
+            tctx.restore();
+          }
+        } catch(e) {}
+        // Draw story title text
+        if (storyTitle) {
+          tctx.fillStyle = '#ffffff';
+          tctx.font = 'bold 36px sans-serif';
+          tctx.textAlign = 'center';
+          tctx.textBaseline = 'top';
+          var textY = logoY + logoSize + 20;
+          var maxW = tc.width - 60;
+          var words = storyTitle.split(' ');
+          var lineStr = '', lineArr = [];
+          for (var wi = 0; wi < words.length; wi++) {
+            var test = lineStr + (lineStr ? ' ' : '') + words[wi];
+            if (tctx.measureText(test).width > maxW && lineStr) { lineArr.push(lineStr); lineStr = words[wi]; }
+            else { lineStr = test; }
+          }
+          if (lineStr) lineArr.push(lineStr);
+          for (var tli = 0; tli < lineArr.length; tli++) {
+            tctx.fillText(lineArr[tli], cx, textY + tli * 46);
+          }
+        }
+        _titleFaceCanvas = tc;
+        return _titleFaceCanvas;
+      }
+
       function rY(p, deg) {
         var r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
         return [p[0]*c + p[2]*s, p[1], -p[0]*s + p[2]*c];
@@ -1481,12 +1552,16 @@ const CubeWebView = ({
           if (v && v.readyState >= 2) return v;
           return null;
         }
+        // Face 4 (top) and 5 (bottom/title): try video, then img, then pre-rendered title canvas
         var faceEl = document.getElementById('face-' + faceId);
         if (faceEl) {
           var v = faceEl.querySelector('video');
           if (v && v.readyState >= 2) return v;
+          // Only use img if it's a full-face thumbnail (not the .face-intro-logo which is just the small logo icon)
+          var img = faceEl.querySelector('img:not(.face-intro-logo)');
+          if (img && img.complete && img.naturalWidth > 0) return img;
         }
-        return null;
+        return getTitleFaceCanvas();
       }
       
       function drawTriTextured(src, sx, sy, sw, sh, p0, p1, p2) {
@@ -1504,8 +1579,8 @@ const CubeWebView = ({
         ctx.closePath();
         ctx.clip();
         
-        var vw = src.videoWidth || src.width || 720;
-        var vh = src.videoHeight || src.height || 720;
+        var vw = src.videoWidth || src.naturalWidth || src.width || 720;
+        var vh = src.videoHeight || src.naturalHeight || src.height || 720;
         
         var a1 = (p1[0] - p0[0]) / vw;
         var b1 = (p1[1] - p0[1]) / vw;
@@ -1522,26 +1597,35 @@ const CubeWebView = ({
         var src = getDrawSource(fd.id);
         
         if (src) {
-          var vw = src.videoWidth || src.width || 720;
-          var vh = src.videoHeight || src.height || 720;
+          var vw = src.videoWidth || src.naturalWidth || src.width || 720;
+          var vh = src.videoHeight || src.naturalHeight || src.height || 720;
           var tl = proj[0], tr = proj[1], br = proj[2], bl = proj[3];
           
+          // Triangle 1: TL-TR-BL — correct for top-left half, clipped to its own region
           ctx.save();
           ctx.beginPath();
           ctx.moveTo(tl[0], tl[1]);
           ctx.lineTo(tr[0], tr[1]);
-          ctx.lineTo(br[0], br[1]);
           ctx.lineTo(bl[0], bl[1]);
           ctx.closePath();
           ctx.clip();
-          
           var a1 = (tr[0] - tl[0]) / vw;
           var b1 = (tr[1] - tl[1]) / vw;
           var c1 = (bl[0] - tl[0]) / vh;
           var d1 = (bl[1] - tl[1]) / vh;
           ctx.setTransform(a1, b1, c1, d1, tl[0], tl[1]);
           try { ctx.drawImage(src, 0, 0); } catch(ex) {}
-          
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.restore();
+
+          // Triangle 2: TR-BR-BL — correct for bottom-right half, clipped to its own region
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(tr[0], tr[1]);
+          ctx.lineTo(br[0], br[1]);
+          ctx.lineTo(bl[0], bl[1]);
+          ctx.closePath();
+          ctx.clip();
           var c2 = (br[0] - tr[0]) / vh;
           var d2 = (br[1] - tr[1]) / vh;
           var e2 = bl[0] - c2 * vh;
@@ -1550,7 +1634,6 @@ const CubeWebView = ({
           var b2 = (tr[1] - f2) / vw;
           ctx.setTransform(a2, b2, c2, d2, e2, f2);
           try { ctx.drawImage(src, 0, 0); } catch(ex) {}
-          
           ctx.setTransform(1, 0, 0, 1, 0, 0);
           ctx.restore();
         } else {
@@ -1581,31 +1664,24 @@ const CubeWebView = ({
         var ds = 0.95 + dp1 + dp2;
         var dtz = Math.sin(elapsed*0.18+2)*110 + Math.cos(elapsed*0.12)*70;
         
-        var customBgEl = document.getElementById('custom-bg');
-        if (customBgEl) {
-          try {
-            ctx.drawImage(customBgEl, 0, 0, RW, RH);
-          } catch(e) {
-            // CORS issue — fall back to black
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, RW, RH);
-          }
-        } else {
-          ctx.fillStyle = '#000';
-          ctx.fillRect(0, 0, RW, RH);
-          var grad = ctx.createRadialGradient(RW/2, RH*0.45, 0, RW/2, RH*0.45, RW*0.85);
-          grad.addColorStop(0, '#0a0a1a');
-          grad.addColorStop(1, '#000');
-          ctx.fillStyle = grad;
-          ctx.fillRect(0, 0, RW, RH);
-          ctx.fillStyle = '#fff';
-          for (var si = 0; si < bgStars.length; si++) {
-            var st = bgStars[si];
-            ctx.globalAlpha = st.a * (0.4 + 0.6 * Math.sin(elapsed*(0.8+si*0.05)));
-            ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, Math.PI*2); ctx.fill();
-          }
-          ctx.globalAlpha = 1;
+        // [RILIO_REC] Skipping remote custom background during recording to avoid iOS canvas taint.
+        // Drawing a cross-origin Firebase video element into the canvas (even with try/catch)
+        // silently taints the WKWebView canvas → captureStream returns black frames.
+        // The custom background is visible in the live preview (CSS/DOM layer, unaffected).
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, RW, RH);
+        var grad = ctx.createRadialGradient(RW/2, RH*0.45, 0, RW/2, RH*0.45, RW*0.85);
+        grad.addColorStop(0, '#0a0a1a');
+        grad.addColorStop(1, '#000');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, RW, RH);
+        ctx.fillStyle = '#fff';
+        for (var si = 0; si < bgStars.length; si++) {
+          var st = bgStars[si];
+          ctx.globalAlpha = st.a * (0.4 + 0.6 * Math.sin(elapsed*(0.8+si*0.05)));
+          ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, Math.PI*2); ctx.fill();
         }
+        ctx.globalAlpha = 1;
         
         var visible = [];
         for (var f = 0; f < 6; f++) {
