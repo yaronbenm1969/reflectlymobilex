@@ -1953,7 +1953,7 @@ app.post('/api/test-mix', express.json(), async (req, res) => {
 });
 
 app.post('/api/mix-music-with-video', async (req, res) => {
-  const { videoUrl, musicUrl, musicVolume = 0.08, storyId, replaceAudio = false, clipUrls } = req.body;
+  const { videoUrl, musicUrl, musicVolume = 0.08, storyId, replaceAudio = false, clipUrls, backgroundVideoUrl = null } = req.body;
 
   if (!videoUrl || !musicUrl) {
     return res.status(400).json({ error: 'videoUrl and musicUrl are required' });
@@ -2003,21 +2003,52 @@ app.post('/api/mix-music-with-video', async (req, res) => {
         });
     });
 
+    // === BACKGROUND COMPOSITE (optional) ===
+    console.log(`🖼️ Background composite: ${backgroundVideoUrl ? 'yes' : 'no'}`);
+    let mixInputPath = videoPath;
+    if (backgroundVideoUrl) {
+      const bgPath = path.join(jobDir, 'bg.mp4');
+      const compositedPath = path.join(jobDir, 'composited.mp4');
+      try {
+        await downloadFile(backgroundVideoUrl, bgPath);
+        console.log(`🖼️ Background downloaded: ${fs.statSync(bgPath).size} bytes`);
+        await new Promise((resolve, reject) => {
+          execFile('ffmpeg', [
+            '-stream_loop', '-1', '-i', bgPath,
+            '-i', videoPath,
+            '-filter_complex', '[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280[bg];[bg][1:v]overlay=0:0[v]',
+            '-map', '[v]',
+            '-map', '1:a',
+            '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+            '-c:a', 'copy',
+            '-shortest',
+            '-y', compositedPath,
+          ], { timeout: 120000 }, (err) => {
+            if (err) reject(err); else resolve();
+          });
+        });
+        console.log(`🖼️ Composite succeeded (${fs.statSync(compositedPath).size} bytes)`);
+        mixInputPath = compositedPath;
+      } catch (bgErr) {
+        console.warn(`⚠️ Background composite failed, using raw cube video: ${bgErr.message}`);
+      }
+    }
+
     if (clipPaths.length > 0) {
       // Cube format: mix concatenated participant voices + music into silent cube video
       console.log(`🎬 Cube voice+music mix (${clipPaths.length} clips, musicVol=${musicVolume})`);
-      await mixCubeWithVoicesAndMusic(videoPath, clipPaths, musicPath, outputPath, musicVolume);
+      await mixCubeWithVoicesAndMusic(mixInputPath, clipPaths, musicPath, outputPath, musicVolume);
     } else {
       // No clipUrls — use the recording's own audio [0:a] which is in-sync with video frames.
       // Fast single-pass with alimiter (no 2-pass loudnorm delay).
-      const hasAudio = !replaceAudio && await probeVideoHasAudio(videoPath);
+      const hasAudio = !replaceAudio && await probeVideoHasAudio(mixInputPath);
       console.log(`🔊 Video has audio: ${hasAudio}, replaceAudio: ${replaceAudio}`);
       if (hasAudio) {
-        await mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musicVolume);
+        await mixRecordingAudioWithMusic(mixInputPath, musicPath, outputPath, musicVolume);
       } else {
         const noAudioVolume = 0.9;
         console.log(`🎵 No audio track — music-only mix at ${noAudioVolume}`);
-        await mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, noAudioVolume);
+        await mixMusicWithVideoNoAudio(mixInputPath, musicPath, outputPath, noAudioVolume);
       }
     }
 
