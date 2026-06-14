@@ -72,6 +72,9 @@
     "typescript": "~5.9.2"
   },
   "overrides": {
-    "@types/react": "~19.1.10"
+    "@types/react": "~19.1.10",
+    "expo-three": {
+      "three": "^0.182.0"
+    }
   }
 }
