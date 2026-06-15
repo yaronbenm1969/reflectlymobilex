@@ -20,8 +20,10 @@ export const Card = ({ children, style }) => {
 
 const styles = StyleSheet.create({
   wrapper: {
-    borderRadius: theme.radii.lg,
+    borderRadius: theme.radii.xl,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     ...theme.shadows.md,
   },
   gradient: {

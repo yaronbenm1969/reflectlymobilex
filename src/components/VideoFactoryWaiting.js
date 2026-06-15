@@ -176,7 +176,7 @@ function LiquidDrop({ color, delay = 0 }) {
 
 // ── Main exported component ───────────────────────────────────────────────────
 
-export function VideoFactoryWaiting({ estimatedSeconds = 180, storyName, title, message }) {
+export function VideoFactoryWaiting({ estimatedSeconds = 180, storyName, title, message, disableMusic = false }) {
   const [elapsed, setElapsed] = useState(0);
   const [machineBottom, setMachineBottom] = useState(MACHINE_BOTTOM_ESTIMATE);
   const machineBodyRef = useRef(null);
@@ -185,7 +185,7 @@ export function VideoFactoryWaiting({ estimatedSeconds = 180, storyName, title, 
   const { playPhase, fadeOut } = useAmbientPlayback(selectedMusic || 'reflective-space');
 
   useEffect(() => {
-    playPhase(1, 0.15);
+    if (!disableMusic) playPhase(1, 0.15);
     return () => { fadeOut(1000); };
   }, []);
 
