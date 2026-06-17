@@ -779,11 +779,13 @@ app.post('/api/convert-from-url', async (req, res) => {
   const conversionProcessor = async (data, updateProgress) => {
     updateProgress(10);
     
+    const response = await fetch(data.videoUrl);
+    if (!response.ok) throw new Error('Failed to download video');
+    const buffer = Buffer.from(await response.arrayBuffer());
     const inputPath = path.join(tempDir, `download_${Date.now()}.mov`);
     const outputPath = path.join(convertedDir, `converted_${data.storyId || Date.now()}.mp4`);
-
-    await downloadFile(data.videoUrl, inputPath);
-    console.log(`Downloaded video: ${fs.statSync(inputPath).size} bytes`);
+    fs.writeFileSync(inputPath, buffer);
+    console.log(`Downloaded video: ${buffer.length} bytes`);
     updateProgress(30);
     
     await convertVideo(inputPath, outputPath);
