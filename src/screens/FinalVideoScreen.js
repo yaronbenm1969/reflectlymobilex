@@ -486,7 +486,7 @@ export const FinalVideoScreen = () => {
   const isFilmStrip = videoFormat === 'film-strip';
   const isSpotlight = videoFormat === 'spotlight';
   const isCinematic = videoFormat === 'cinematic';
-  const isAnimatedFormat = isCube3D || isFlipPages || isCarousel || isFilmStrip || isSpotlight || isCinematic;
+  const isAnimatedFormat = isCube3D || isFlipPages || isCarousel || isFilmStrip || isSpotlight;
   
   console.log('🎬 FinalVideoScreen format:', videoFormat, 'isAnimatedFormat:', isAnimatedFormat, 'isFlipPages:', isFlipPages);
 
@@ -2070,14 +2070,14 @@ export const FinalVideoScreen = () => {
             />
           ) : finalVideoUri ? (
             isLoadingVideo ? (
-              <View style={styles.videoPlayer}>
+              <View style={[styles.videoPlayer, isCinematic && { height: SCREEN_HEIGHT * 0.65 }]}>
                 <ActivityIndicator size="large" color={theme.colors.primary} />
                 <Text style={{ color: theme.colors.subtext, marginTop: 12 }}>{t('finalVideo.loading_video')}</Text>
               </View>
             ) : (
               <VideoView
                 player={player}
-                style={styles.videoPlayer}
+                style={[styles.videoPlayer, isCinematic && { height: SCREEN_HEIGHT * 0.65 }]}
                 nativeControls
                 contentFit="contain"
               />
