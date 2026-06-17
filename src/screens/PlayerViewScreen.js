@@ -9,7 +9,7 @@ import {
   Modal,
   StatusBar,
 } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { Video, ResizeMode, Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -30,8 +30,10 @@ export const PlayerViewScreen = () => {
   const [isBuffering, setIsBuffering] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const videoRef = useRef(null);
   const fullscreenVideoRef = useRef(null);
+  const audioSoundRef = useRef(null);
 
   // Use only playerStoryData (not stale navigationParams) for the player gate
   const storyData = playerStoryData || {};
@@ -40,6 +42,7 @@ export const PlayerViewScreen = () => {
   const creatorName = storyData.creatorName || 'חבר';
   const instructions = storyData.instructions || '';
   const videoUri = storyData.videoUri || storyData.videoUrl || storyData.keyStoryUrl || null;
+  const instructionAudioUrl = storyData.instructionAudioUrl || null;
 
   // Only allow skipping if data loaded AND confirmed no video exists
   React.useEffect(() => {
@@ -75,6 +78,31 @@ export const PlayerViewScreen = () => {
 
   const handleContinue = () => {
     go('PlayerRecord');
+  };
+
+  const handlePlayInstructionAudio = async () => {
+    if (!instructionAudioUrl) return;
+    try {
+      if (audioSoundRef.current) {
+        await audioSoundRef.current.unloadAsync();
+        audioSoundRef.current = null;
+        setIsPlayingAudio(false);
+        return;
+      }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      const { sound } = await Audio.Sound.createAsync({ uri: instructionAudioUrl }, { shouldPlay: true });
+      audioSoundRef.current = sound;
+      setIsPlayingAudio(true);
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.didJustFinish) {
+          sound.unloadAsync();
+          audioSoundRef.current = null;
+          setIsPlayingAudio(false);
+        }
+      });
+    } catch (e) {
+      setIsPlayingAudio(false);
+    }
   };
 
   const handleOpenFullscreen = async () => {
@@ -214,6 +242,14 @@ export const PlayerViewScreen = () => {
           <Ionicons name="chatbubble-ellipses" size={24} color={theme.colors.primary} />
           <Text style={styles.instructionsTitle}>{t('playerView.instructions_label')}</Text>
           <Text style={styles.instructionsText}>{instructions}</Text>
+          {!!instructionAudioUrl && (
+            <TouchableOpacity style={styles.audioBtn} onPress={handlePlayInstructionAudio}>
+              <Ionicons name={isPlayingAudio ? 'stop-circle' : 'headset'} size={20} color="white" />
+              <Text style={styles.audioBtnText}>
+                {isPlayingAudio ? t('playerView.stop_audio') : t('playerView.play_audio')}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {!isDataLoaded && (
@@ -347,6 +383,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: theme.spacing[2],
     lineHeight: 24,
+  },
+  audioBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radii.md,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginTop: theme.spacing[3],
+  },
+  audioBtnText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
   },
   actions: {
     marginTop: 'auto',

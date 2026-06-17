@@ -219,7 +219,9 @@
     "instructions_label": "Your instructions:",
     "btn_record": "I watched! I want to record",
     "hint": "Tap the video to watch",
-    "watch_first": "Please watch the video before recording"
+    "watch_first": "Please watch the video before recording",
+    "play_audio": "Play voice message",
+    "stop_audio": "Stop"
   },
   "community": {
     "title": "Community Stories",
