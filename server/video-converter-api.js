@@ -779,17 +779,11 @@ app.post('/api/convert-from-url', async (req, res) => {
   const conversionProcessor = async (data, updateProgress) => {
     updateProgress(10);
     
-    const response = await fetch(data.videoUrl);
-    if (!response.ok) {
-      throw new Error('Failed to download video');
-    }
-    
-    const buffer = Buffer.from(await response.arrayBuffer());
     const inputPath = path.join(tempDir, `download_${Date.now()}.mov`);
     const outputPath = path.join(convertedDir, `converted_${data.storyId || Date.now()}.mp4`);
-    
-    fs.writeFileSync(inputPath, buffer);
-    console.log(`Downloaded video: ${buffer.length} bytes`);
+
+    await downloadFile(data.videoUrl, inputPath);
+    console.log(`Downloaded video: ${fs.statSync(inputPath).size} bytes`);
     updateProgress(30);
     
     await convertVideo(inputPath, outputPath);
@@ -809,6 +803,7 @@ app.post('/api/convert-from-url', async (req, res) => {
     }
     
     updateProgress(100);
+    if (convertedCache.size >= 200) convertedCache.delete(convertedCache.keys().next().value);
     convertedCache.set(data.cacheKey, publicUrl);
     return { url: publicUrl, converted: true };
   };
@@ -1003,11 +998,8 @@ function isAllowedVideoUrl(url) {
 
 async function downloadVideo(url, outputPath) {
   console.log(`Downloading: ${url}`);
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Failed to download: ${url}`);
-  const buffer = Buffer.from(await response.arrayBuffer());
-  fs.writeFileSync(outputPath, buffer);
-  console.log(`Downloaded: ${outputPath} (${buffer.length} bytes)`);
+  await downloadFile(url, outputPath);
+  console.log(`Downloaded: ${outputPath} (${fs.statSync(outputPath).size} bytes)`);
   return outputPath;
 }
 
@@ -2565,6 +2557,38 @@ app.delete('/admin/music/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Memory cleanup: every 6 hours, evict job entries older than 6 hours
+const JOB_TTL_MS = 6 * 60 * 60 * 1000;
+setInterval(() => {
+  const cutoff = Date.now() - JOB_TTL_MS;
+  let cleaned = 0;
+  for (const id of renderingJobs.keys()) {
+    const ts = parseInt(id.substring(id.lastIndexOf('_') + 1));
+    if (!isNaN(ts) && ts < cutoff) { renderingJobs.delete(id); cleaned++; }
+  }
+  for (const id of musicJobs.keys()) {
+    const ts = parseInt(id.substring(id.lastIndexOf('_') + 1));
+    if (!isNaN(ts) && ts < cutoff) { musicJobs.delete(id); cleaned++; }
+  }
+  if (cleaned > 0) console.log(`🧹 Evicted ${cleaned} old job entries from memory`);
+}, JOB_TTL_MS);
+
+// Temp file cleanup: every 30 min, delete files not touched in 2+ hours
+const TMP_TTL_MS = 2 * 60 * 60 * 1000;
+setInterval(() => {
+  const cutoff = Date.now() - TMP_TTL_MS;
+  [tempDir, convertedDir].forEach(dir => {
+    try {
+      fs.readdirSync(dir).forEach(name => {
+        const p = path.join(dir, name);
+        try {
+          if (fs.statSync(p).mtimeMs < cutoff) fs.rmSync(p, { recursive: true, force: true });
+        } catch (e) {}
+      });
+    } catch (e) {}
+  });
+}, 30 * 60 * 1000);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Video Converter API running on port ${PORT}`);
