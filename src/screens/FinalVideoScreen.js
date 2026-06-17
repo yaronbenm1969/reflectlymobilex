@@ -382,7 +382,7 @@ export const FinalVideoScreen = () => {
       }
       const { sound } = await Audio.Sound.createAsync(
         { uri: musicUrl },
-        { shouldPlay: true, volume: 0.15, isLooping: true }
+        { shouldPlay: true, volume: 0.12, isLooping: true }
       );
       aiMusicSoundRef.current = sound;
       console.log('🎵 AI music started for cube playback');

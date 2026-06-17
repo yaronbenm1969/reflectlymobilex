@@ -1592,50 +1592,62 @@ const CubeWebView = ({
         ctx.restore();
       }
       
+      // GRID: number of subdivisions per face axis. 4 = 4x4=16 cells, near-perfect perspective.
+      // ROLLBACK: set GRID=1 to revert to simple 2-triangle mode (fast, slight corner error).
+      var DRAW_GRID = 4;
+
+      // Bilinear interpolation across the 4 projected face corners.
+      // proj[0]=TL, proj[1]=TR, proj[2]=BR, proj[3]=BL
+      // u: 0=left→1=right, v: 0=top→1=bottom
+      function biLerp(proj, u, v) {
+        var top = [proj[0][0] + (proj[1][0]-proj[0][0])*u, proj[0][1] + (proj[1][1]-proj[0][1])*u];
+        var bot = [proj[3][0] + (proj[2][0]-proj[3][0])*u, proj[3][1] + (proj[2][1]-proj[3][1])*u];
+        return [top[0] + (bot[0]-top[0])*v, top[1] + (bot[1]-top[1])*v];
+      }
+
       function drawQuad(fd) {
         var proj = fd.proj;
         var src = getDrawSource(fd.id);
-        
+
         if (src) {
           var vw = src.videoWidth || src.naturalWidth || src.width || 720;
           var vh = src.videoHeight || src.naturalHeight || src.height || 720;
-          var tl = proj[0], tr = proj[1], br = proj[2], bl = proj[3];
-          
-          // Triangle 1: TL-TR-BL — correct for top-left half, clipped to its own region
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(tl[0], tl[1]);
-          ctx.lineTo(tr[0], tr[1]);
-          ctx.lineTo(bl[0], bl[1]);
-          ctx.closePath();
-          ctx.clip();
-          var a1 = (tr[0] - tl[0]) / vw;
-          var b1 = (tr[1] - tl[1]) / vw;
-          var c1 = (bl[0] - tl[0]) / vh;
-          var d1 = (bl[1] - tl[1]) / vh;
-          ctx.setTransform(a1, b1, c1, d1, tl[0], tl[1]);
-          try { ctx.drawImage(src, 0, 0); } catch(ex) {}
-          ctx.setTransform(1, 0, 0, 1, 0, 0);
-          ctx.restore();
+          var G = DRAW_GRID;
+          var sw = vw / G, sh = vh / G;
 
-          // Triangle 2: TR-BR-BL — correct for bottom-right half, clipped to its own region
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(tr[0], tr[1]);
-          ctx.lineTo(br[0], br[1]);
-          ctx.lineTo(bl[0], bl[1]);
-          ctx.closePath();
-          ctx.clip();
-          var c2 = (br[0] - tr[0]) / vh;
-          var d2 = (br[1] - tr[1]) / vh;
-          var e2 = bl[0] - c2 * vh;
-          var f2 = bl[1] - d2 * vh;
-          var a2 = (tr[0] - e2) / vw;
-          var b2 = (tr[1] - f2) / vw;
-          ctx.setTransform(a2, b2, c2, d2, e2, f2);
-          try { ctx.drawImage(src, 0, 0); } catch(ex) {}
-          ctx.setTransform(1, 0, 0, 1, 0, 0);
-          ctx.restore();
+          for (var gy = 0; gy < G; gy++) {
+            for (var gx = 0; gx < G; gx++) {
+              var u0 = gx/G, u1 = (gx+1)/G, v0 = gy/G, v1 = (gy+1)/G;
+              var ctl = biLerp(proj, u0, v0);
+              var ctr = biLerp(proj, u1, v0);
+              var cbr = biLerp(proj, u1, v1);
+              var cbl = biLerp(proj, u0, v1);
+              var sx = u0*vw, sy = v0*vh;
+
+              // Triangle 1: ctl-ctr-cbl  maps (0,0)→ctl, (sw,0)→ctr, (0,sh)→cbl
+              ctx.save();
+              ctx.beginPath();
+              ctx.moveTo(ctl[0],ctl[1]); ctx.lineTo(ctr[0],ctr[1]); ctx.lineTo(cbl[0],cbl[1]);
+              ctx.closePath(); ctx.clip();
+              var a1=(ctr[0]-ctl[0])/sw, b1=(ctr[1]-ctl[1])/sw;
+              var c1=(cbl[0]-ctl[0])/sh, d1=(cbl[1]-ctl[1])/sh;
+              ctx.setTransform(a1,b1,c1,d1,ctl[0],ctl[1]);
+              try { ctx.drawImage(src,sx,sy,sw,sh,0,0,sw,sh); } catch(ex) {}
+              ctx.setTransform(1,0,0,1,0,0); ctx.restore();
+
+              // Triangle 2: ctr-cbr-cbl  maps (sw,0)→ctr, (sw,sh)→cbr, (0,sh)→cbl
+              ctx.save();
+              ctx.beginPath();
+              ctx.moveTo(ctr[0],ctr[1]); ctx.lineTo(cbr[0],cbr[1]); ctx.lineTo(cbl[0],cbl[1]);
+              ctx.closePath(); ctx.clip();
+              var c2=(cbr[0]-ctr[0])/sh, d2=(cbr[1]-ctr[1])/sh;
+              var e2=cbl[0]-c2*sh, f2=cbl[1]-d2*sh;
+              var a2=(ctr[0]-e2)/sw, b2=(ctr[1]-f2)/sw;
+              ctx.setTransform(a2,b2,c2,d2,e2,f2);
+              try { ctx.drawImage(src,sx,sy,sw,sh,0,0,sw,sh); } catch(ex) {}
+              ctx.setTransform(1,0,0,1,0,0); ctx.restore();
+            }
+          }
         } else {
           ctx.fillStyle = '#1a1a2e';
           ctx.beginPath();
@@ -1728,7 +1740,7 @@ const CubeWebView = ({
               _musicAudioEl.loop = true;
               var musicSource = _audioCtx.createMediaElementSource(_musicAudioEl);
               var musicGain = _audioCtx.createGain();
-              musicGain.gain.value = 0.12; // match server musicVolume
+              musicGain.gain.value = 0; // clips already contain mic-captured music; server adds clean music layer
               musicSource.connect(musicGain);
               musicGain.connect(dest); // only to recording dest, NOT to audioCtx.destination → silent to speaker
               _musicAudioEl.play().catch(function(e) { console.warn('🎵 Music play error:', e.message); });
