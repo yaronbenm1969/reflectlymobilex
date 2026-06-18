@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Modal,
   StatusBar,
+  ScrollView,
 } from 'react-native';
 import { Video, ResizeMode, Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -146,7 +147,7 @@ export const PlayerViewScreen = () => {
         <Text style={styles.subtitle}>{t('playerView.subtitle', { creatorName })}</Text>
       </LinearGradient>
 
-      <View style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.videoContainer}>
           {videoUri ? (
             <>
@@ -277,7 +278,7 @@ export const PlayerViewScreen = () => {
           </View>
         )}
 
-      </View>
+      </ScrollView>
     </View>
   );
 };
@@ -305,7 +306,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: theme.spacing[4],
+    paddingBottom: theme.spacing[8],
   },
   videoContainer: {
     backgroundColor: '#000',
@@ -400,8 +404,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   actions: {
-    marginTop: 'auto',
-    paddingTop: theme.spacing[4],
+    marginTop: theme.spacing[6],
   },
   loadingHint: {
     marginTop: theme.spacing[4],

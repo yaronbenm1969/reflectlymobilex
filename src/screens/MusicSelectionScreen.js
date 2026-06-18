@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
@@ -14,9 +15,10 @@ export const MusicSelectionScreen = () => {
   const { t, i18n } = useTranslation();
   const isHe = i18n.language === 'he';
   const { go, back } = useNav();
-  const setSelectedMusic    = useAppState((state) => state.setSelectedMusic);
-  const selectedMusic       = useAppState((state) => state.selectedMusic);
-  const currentStoryId      = useAppState((state) => state.currentStoryId);
+  const setSelectedMusic         = useAppState((state) => state.setSelectedMusic);
+  const selectedMusic            = useAppState((state) => state.selectedMusic);
+  const currentStoryId           = useAppState((state) => state.currentStoryId);
+  const setPreferredMusicEngine  = useAppState((state) => state.setPreferredMusicEngine);
 
   // Hardcoded fallback — same data as server's SET_META, shown immediately
   const FALLBACK_SETS = [
@@ -36,6 +38,7 @@ export const MusicSelectionScreen = () => {
   const [loadingSets, setLoadingSets]       = useState(false);
   // selectedMusic could be 'suno-set-2' (new) or 'gentle-warmth' (old) or 'none'
   const initialSet = selectedMusic === 'none' ? 'none'
+    : selectedMusic === 'ai-generated' ? 'ai-generated'
     : selectedMusic?.startsWith('suno-set-') ? parseInt(selectedMusic.replace('suno-set-', ''))
     : null;
   const [currentSelection, setCurrentSelection] = useState(initialSet);
@@ -113,6 +116,7 @@ export const MusicSelectionScreen = () => {
 
     if (currentSelection === 'none') {
       setSelectedMusic('none');
+      setPreferredMusicEngine('suno');
       if (currentStoryId) {
         await storiesService.updateStory(currentStoryId, { music: 'none', lockedSet: null, musicAmbient: null });
       }
@@ -120,8 +124,19 @@ export const MusicSelectionScreen = () => {
       return;
     }
 
+    if (currentSelection === 'ai-generated') {
+      setSelectedMusic('ai-generated');
+      setPreferredMusicEngine('musicgen');
+      if (currentStoryId) {
+        await storiesService.updateStory(currentStoryId, { music: 'ai-generated', lockedSet: null, musicAmbient: null });
+      }
+      go('Instructions');
+      return;
+    }
+
     const chosenSet = sunoSets.find(s => s.set === currentSelection);
     setSelectedMusic(`suno-set-${currentSelection}`);
+    setPreferredMusicEngine('suno');
 
     if (currentStoryId && chosenSet) {
       const musicData = {
@@ -146,13 +161,18 @@ export const MusicSelectionScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <LinearGradient
+        colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.header}
+      >
         <TouchableOpacity style={styles.backButton} onPress={back}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+          <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <Text style={styles.title}>{t('musicSelection.title')}</Text>
         <View style={styles.placeholder} />
-      </View>
+      </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.description}>{t('musicSelection.description')}</Text>
@@ -169,6 +189,41 @@ export const MusicSelectionScreen = () => {
           {currentSelection === 'none' && (
             <Ionicons name="checkmark-circle" size={22} color={theme.colors.primary} />
           )}
+        </TouchableOpacity>
+
+        {/* AI MusicGen — premium option */}
+        <TouchableOpacity
+          style={[styles.aiOption, currentSelection === 'ai-generated' && styles.aiOptionSelected]}
+          onPress={() => handleSelect('ai-generated')}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={currentSelection === 'ai-generated'
+              ? [theme.colors.gradient.start, theme.colors.gradient.end]
+              : ['#f5f0ff', '#eef0ff']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={styles.aiOptionGradient}
+          >
+            <View style={styles.aiOptionLeft}>
+              <Text style={styles.aiOptionIcon}>✨</Text>
+              <View>
+                <View style={styles.aiOptionTitleRow}>
+                  <Text style={[styles.aiOptionTitle, currentSelection === 'ai-generated' && styles.aiOptionTitleSelected]}>
+                    {t('musicSelection.ai_title')}
+                  </Text>
+                  <View style={styles.premiumBadge}>
+                    <Text style={styles.premiumBadgeText}>PRO</Text>
+                  </View>
+                </View>
+                <Text style={[styles.aiOptionDesc, currentSelection === 'ai-generated' && styles.aiOptionDescSelected]}>
+                  {t('musicSelection.ai_desc')}
+                </Text>
+              </View>
+            </View>
+            {currentSelection === 'ai-generated' && (
+              <Ionicons name="checkmark-circle" size={24} color="white" />
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
         {/* Suno sets grid */}
@@ -253,9 +308,9 @@ export const MusicSelectionScreen = () => {
 
 const styles = StyleSheet.create({
   container:            { flex: 1, backgroundColor: theme.colors.bg },
-  header:               { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing[4], paddingTop: 50, paddingBottom: theme.spacing[3], borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  header:               { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing[4], paddingTop: 50, paddingBottom: theme.spacing[4] },
   backButton:           { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  title:                { ...theme.typography.h3, color: theme.colors.text },
+  title:                { ...theme.typography.h3, color: 'white' },
   placeholder:          { width: 40 },
   content:              { flex: 1, padding: theme.spacing[4] },
   description:          { ...theme.typography.body, color: theme.colors.subtext, textAlign: 'center', marginBottom: theme.spacing[4], lineHeight: 24 },
@@ -278,4 +333,16 @@ const styles = StyleSheet.create({
   previewButton:        { width: 28, height: 28, borderRadius: 14, backgroundColor: `${theme.colors.accent}15`, alignItems: 'center', justifyContent: 'center' },
   previewButtonActive:  { backgroundColor: theme.colors.accent },
   actions:              { paddingTop: theme.spacing[5], paddingBottom: theme.spacing[8] },
+  aiOption:             { borderRadius: theme.radii.xl, overflow: 'hidden', marginBottom: theme.spacing[4], borderWidth: 2, borderColor: 'transparent', ...theme.shadows.sm },
+  aiOptionSelected:     { borderColor: theme.colors.primary },
+  aiOptionGradient:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: theme.spacing[4] },
+  aiOptionLeft:         { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  aiOptionIcon:         { fontSize: 28 },
+  aiOptionTitleRow:     { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  aiOptionTitle:        { fontSize: 16, fontWeight: '700', color: theme.colors.primary },
+  aiOptionTitleSelected:{ color: 'white' },
+  aiOptionDesc:         { fontSize: 12, color: theme.colors.subtext, lineHeight: 16 },
+  aiOptionDescSelected: { color: 'rgba(255,255,255,0.85)' },
+  premiumBadge:         { backgroundColor: theme.colors.accent, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  premiumBadgeText:     { fontSize: 10, fontWeight: '800', color: 'white', letterSpacing: 0.5 },
 });

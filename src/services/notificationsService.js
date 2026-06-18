@@ -1,5 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from './firebase';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -34,6 +36,25 @@ const notificationsService = {
 
   addNotificationListener(handler) {
     return Notifications.addNotificationResponseReceivedListener(handler);
+  },
+
+  async getLastTapAsync() {
+    try {
+      return await Notifications.getLastNotificationResponseAsync();
+    } catch {
+      return null;
+    }
+  },
+
+  async registerCreatorToken(uid) {
+    try {
+      const token = await this.registerForPushNotifications();
+      if (!token) return;
+      await setDoc(doc(db, 'users', uid), { expoPushToken: token, updatedAt: new Date() }, { merge: true });
+      console.log('🔔 Creator push token saved');
+    } catch (e) {
+      console.warn('⚠️ registerCreatorToken failed:', e.message);
+    }
   },
 };
 

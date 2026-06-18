@@ -45,7 +45,7 @@ if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 if (!fs.existsSync(convertedDir)) fs.mkdirSync(convertedDir, { recursive: true });
 const upload = multer({ dest: tempDir, limits: { fileSize: 100 * 1024 * 1024 } });
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/ambient-track', '/api/suno-sets', '/api/test-mix'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/notify-reflection', '/api/ambient-track', '/api/suno-sets', '/api/test-mix'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -267,6 +267,9 @@ app.post('/api/upload-player-clip', upload.single('video'), async (req, res) => 
       });
     }
 
+    // Notify story creator (fire-and-forget)
+    sendCreatorNotification(storyId, playerName || null).catch(() => {});
+
     console.log(`✅ Player clip uploaded: ${storagePath}`);
     res.json({ success: true, url: downloadUrl });
   } catch (err) {
@@ -324,12 +327,23 @@ app.post('/api/player-clip-done', async (req, res) => {
       });
     }
 
+    // Notify story creator (fire-and-forget)
+    sendCreatorNotification(storyId, playerName || null).catch(() => {});
+
     console.log(`✅ Player clip done (direct upload): ${storagePath}`);
     res.json({ success: true, url: downloadUrl });
   } catch (err) {
     console.error('❌ player-clip-done failed:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// Native app calls this after uploading player clips so server notifies the creator
+app.post('/api/notify-reflection', async (req, res) => {
+  const { storyId, playerName } = req.body;
+  if (!storyId) return res.status(400).json({ error: 'storyId required' });
+  sendCreatorNotification(storyId, playerName || null).catch(() => {});
+  res.json({ ok: true });
 });
 
 app.get('/api/maintenance-status', (req, res) => {
@@ -1588,6 +1602,59 @@ app.post('/api/convert-url', async (req, res) => {
 app.use('/converted', express.static(convertedDir));
 
 const musicJobs = new Map();
+
+// Throttle: only 1 creator notification per story per 60s
+const creatorNotifyThrottle = new Map();
+
+async function sendCreatorNotification(storyId, playerName) {
+  if (!firestoreDb) return;
+  try {
+    const now = Date.now();
+    if ((creatorNotifyThrottle.get(storyId) || 0) > now - 60000) {
+      console.log(`🔕 Creator notification throttled for story ${storyId}`);
+      return;
+    }
+    creatorNotifyThrottle.set(storyId, now);
+
+    const storyDoc = await firestoreDb.collection('stories').doc(storyId).get();
+    if (!storyDoc.exists) { console.warn(`⚠️ sendCreatorNotification: story ${storyId} not found`); return; }
+    const story = storyDoc.data();
+    const { userId, name: storyName = '', clipCount = 3 } = story;
+    if (!userId) { console.warn(`⚠️ sendCreatorNotification: story ${storyId} has no userId`); return; }
+
+    const reflSnap = await firestoreDb.collection('reflections').where('storyId', '==', storyId).get();
+    const count = reflSnap.size;
+
+    const userDoc = await firestoreDb.collection('users').doc(userId).get();
+    const pushToken = userDoc.exists ? userDoc.data()?.expoPushToken : null;
+    if (!pushToken || !Expo.isExpoPushToken(pushToken)) {
+      console.warn(`⚠️ sendCreatorNotification: no valid push token for creator ${userId}`);
+      return;
+    }
+
+    const missing = Math.max(0, clipCount - count);
+    let body;
+    if (playerName && missing > 0) {
+      body = `${playerName} העלה סרטונים ל'${storyName}'. הגיעו ${count} סרטונים, חסר ${missing}`;
+    } else if (!playerName && missing > 0) {
+      body = `הגיעו ${count} סרטונים ל'${storyName}', חסר ${missing}`;
+    } else if (playerName && missing <= 0) {
+      body = `${playerName} העלה סרטונים ל'${storyName}'. כל הסרטונים הגיעו. אפשר להתחיל לערוך`;
+    } else {
+      body = `כל הסרטונים ל'${storyName}' הגיעו. אפשר להתחיל לערוך`;
+    }
+
+    await expoClient.sendPushNotificationsAsync([{
+      to: pushToken,
+      title: 'התקבלו סרטונים חדשים',
+      body,
+      data: { storyId, type: 'story_reflection_update', storyName, playerName: playerName || null },
+    }]);
+    console.log(`🔔 Creator notified for story ${storyId}: ${body}`);
+  } catch (err) {
+    console.warn(`⚠️ sendCreatorNotification failed: ${err.message}`);
+  }
+}
 
 app.post('/api/generate-music', async (req, res) => {
   const { storyId, transcriptionSegments, totalDuration, style, numClips, musicEngine, lockedSet } = req.body;

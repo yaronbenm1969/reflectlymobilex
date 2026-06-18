@@ -26,7 +26,7 @@ import theme from '../theme/theme';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ||
   Constants.expoConfig?.extra?.videoConverterUrl ||
-  'https://ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev:5000';
+  'https://reflectlymobilex.onrender.com';
 const UPLOAD_HEADERS = {
   'ngrok-skip-browser-warning': 'true',
   ...(process.env.EXPO_PUBLIC_ACCESS_CODE ? { 'x-app-access-code': process.env.EXPO_PUBLIC_ACCESS_CODE } : {}),
@@ -108,13 +108,19 @@ export const InstructionsScreen = () => {
         }
 
         // Upload audio instruction whenever dictation was recorded
+        console.log('🎙 instructionAudioUri at continue:', instructionAudioUri);
         if (instructionAudioUri) {
           console.log('📤 Uploading audio instruction...');
           const audioResult = await storageService.uploadAudio(instructionAudioUri, currentStoryId);
+          console.log('🎙 Audio upload result:', JSON.stringify(audioResult));
           if (audioResult.success) {
             instructionAudioUrl = audioResult.url;
             console.log('✅ Audio instruction uploaded:', instructionAudioUrl);
+          } else {
+            console.warn('⚠️ Audio upload failed:', audioResult.error);
           }
+        } else {
+          console.log('⚠️ No instructionAudioUri — skipping audio upload');
         }
 
         // Update story — always save instructions + audio; video only if newly uploaded
@@ -127,7 +133,9 @@ export const InstructionsScreen = () => {
         };
         if (videoUri) updateFields.videoUri = videoUri;
 
+        console.log('💾 Saving to Firestore instructionAudioUrl:', updateFields.instructionAudioUrl);
         const updateResult = await storiesService.updateStory(currentStoryId, updateFields);
+        console.log('💾 updateStory result:', JSON.stringify(updateResult));
         if (updateResult.success) {
           console.log('✅ Story updated');
         }

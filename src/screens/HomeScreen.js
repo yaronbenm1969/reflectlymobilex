@@ -23,13 +23,13 @@ import theme from '../theme/theme';
 
 const logoImage = require('../../assets/logo.png');
 
-// ≤12 clips → 30s per clip (1 track per clip)
-// >12 clips → 15s per clip (1 Suno track per 3 clips)
+// Clip count → per-clip duration:
+// 1-9 clips  → 60s | 10-20 → 30s | 21-40 → 5s | 40+ → 3s
 const PARTICIPANT_OPTIONS = [
-  { label: '1-10', clipCount: 3, maxClipDuration: 30 },
-  { label: '11-20', clipCount: 1, maxClipDuration: 15 },
-  { label: '21-40', clipCount: 1, maxClipDuration: 15 },
-  { label: '40+', clipCount: 1, maxClipDuration: 15 },
+  { label: '1-9',   clipCount: 3, maxClipDuration: 60 },
+  { label: '10-20', clipCount: 1, maxClipDuration: 30 },
+  { label: '21-40', clipCount: 1, maxClipDuration: 5  },
+  { label: '40+',   clipCount: 1, maxClipDuration: 3  },
 ];
 
 export const HomeScreen = () => {
@@ -44,7 +44,7 @@ export const HomeScreen = () => {
   const user = useAppState((state) => state.user);
   const [localStoryName, setLocalStoryName] = useState(storyName || '');
   const [isCreating, setIsCreating] = useState(false);
-  const [participantRange, setParticipantRange] = useState('1-10');
+  const [participantRange, setParticipantRange] = useState('1-9');
   
   const navigateToRecord = async () => {
     if (!localStoryName.trim()) {

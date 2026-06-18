@@ -366,6 +366,15 @@ export const PlayerRecordScreen = () => {
         }
       }
 
+      // Notify story creator about new clips
+      if (storyIdForMusic && uploadedCount > 0) {
+        const participantName = playerStoryData?.participantName || navigationParams?.participantName || null;
+        fetch(getApiUrl('/api/notify-reflection'), {
+          method: 'POST', headers: SERVER_HEADERS,
+          body: JSON.stringify({ storyId: storyIdForMusic, playerName: participantName }),
+        }).catch(() => {});
+      }
+
       // Save push token so server can notify when video is ready
       if (storyIdForMusic) {
         notificationsService.registerForPushNotifications().then(token => {

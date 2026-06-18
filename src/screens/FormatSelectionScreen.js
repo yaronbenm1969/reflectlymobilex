@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, InteractionManager, Modal } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
@@ -15,13 +16,9 @@ export const FormatSelectionScreen = ({ route }) => {
   const { t } = useTranslation();
   const { go, back } = useNav();
   const setVideoFormat = useAppState((state) => state.setVideoFormat);
-  const setBackgroundStyle = useAppState((state) => state.setBackgroundStyle);
   const videoFormat = useAppState((state) => state.videoFormat);
-  const backgroundStyle = useAppState((state) => state.backgroundStyle);
   const currentStoryId = useAppState((state) => state.currentStoryId);
-
   const [selectedFormat, setSelectedFormat] = useState(videoFormat || null);
-  const [selectedBackground, setSelectedBackground] = useState(backgroundStyle || null);
   const [isReady, setIsReady] = useState(false);
   const [previewFormat, setPreviewFormat] = useState(null);
 
@@ -43,47 +40,18 @@ export const FormatSelectionScreen = ({ route }) => {
     { id: 'carousel-3d', name: t('formatSelection.fmt_carousel3d'), description: t('formatSelection.fmt_carousel3d_desc'), icon: 'albums' },
     { id: 'film-strip', name: t('formatSelection.fmt_filmstrip'), description: t('formatSelection.fmt_filmstrip_desc'), icon: 'film-outline' },
     { id: 'flip-pages', name: t('formatSelection.fmt_flippages'), description: t('formatSelection.fmt_flippages_desc'), icon: 'book' },
-    { id: 'standard', name: t('formatSelection.fmt_standard'), description: t('formatSelection.fmt_standard_desc'), icon: 'film' },
-    { id: 'stack-cards', name: t('formatSelection.fmt_stackcards'), description: t('formatSelection.fmt_stackcards_desc'), icon: 'layers' },
-    { id: 'tinder', name: t('formatSelection.fmt_tinder'), description: t('formatSelection.fmt_tinder_desc'), icon: 'heart' },
-    { id: 'fold', name: t('formatSelection.fmt_fold'), description: t('formatSelection.fmt_fold_desc'), icon: 'document' },
-    { id: 'circular', name: t('formatSelection.fmt_circular'), description: t('formatSelection.fmt_circular_desc'), icon: 'sync' },
-    { id: 'flow', name: t('formatSelection.fmt_flow'), description: t('formatSelection.fmt_flow_desc'), icon: 'water' },
-    { id: 'parallax', name: t('formatSelection.fmt_parallax'), description: t('formatSelection.fmt_parallax_desc'), icon: 'git-branch' },
-    { id: 'blur-rotate', name: t('formatSelection.fmt_blurrotate'), description: t('formatSelection.fmt_blurrotate_desc'), icon: 'aperture' },
-    { id: 'scale-fade', name: t('formatSelection.fmt_scalefade'), description: t('formatSelection.fmt_scalefade_desc'), icon: 'expand' },
+    { id: 'cinematic', name: t('formatSelection.fmt_cinematic'), description: t('formatSelection.fmt_cinematic_desc'), icon: 'sparkles' },
+    { id: 'spotlight', name: t('formatSelection.fmt_spotlight'), description: t('formatSelection.fmt_spotlight_desc'), icon: 'people' },
   ];
 
-  const backgroundOptions = [
-    { id: 'original', name: t('formatSelection.bg_original'), description: t('formatSelection.bg_original_desc'), icon: 'image' },
-    { id: 'ai-wallpaper', name: t('formatSelection.bg_ai'), description: t('formatSelection.bg_ai_desc'), icon: 'color-palette' },
-    { id: 'split-screen', name: t('formatSelection.bg_split'), description: t('formatSelection.bg_split_desc'), icon: 'grid' },
-  ];
 
   const handleSave = async () => {
-    if (!isReady) {
-      console.log('⏸️ Save ignored - screen not ready');
-      return;
-    }
-    
-    console.log('💾 Saving format & style:', { selectedFormat, selectedBackground, storyId: currentStoryId });
-    
-    if (selectedFormat) {
-      setVideoFormat(selectedFormat);
-    }
-    if (selectedBackground) {
-      setBackgroundStyle(selectedBackground);
-    }
-
+    if (!isReady) return;
+    if (selectedFormat) setVideoFormat(selectedFormat);
     if (currentStoryId) {
-      const result = await storiesService.updateStory(currentStoryId, {
-        format: selectedFormat || 'standard',
-        backgroundStyle: selectedBackground || 'original',
-      });
-      console.log('💾 Firebase update result:', result);
+      await storiesService.updateStory(currentStoryId, { format: selectedFormat || 'cinematic' });
     }
-    
-    go('MusicSelection');
+    go('BackgroundSelection');
   };
 
   const renderFormatOption = (option, isSelected, onPress) => (
@@ -129,42 +97,21 @@ export const FormatSelectionScreen = ({ route }) => {
     </TouchableOpacity>
   );
 
-  const renderBackgroundOption = (option, isSelected, onPress) => (
-    <TouchableOpacity
-      key={option.id}
-      style={[styles.option, isSelected && styles.optionSelected]}
-      onPress={() => isReady && onPress(option.id)}
-    >
-      <View style={styles.optionContent}>
-        <View style={[styles.iconContainer, isSelected && styles.iconContainerSelected]}>
-          <Ionicons 
-            name={option.icon} 
-            size={28} 
-            color={isSelected ? 'white' : theme.colors.secondary} 
-          />
-        </View>
-        <View style={styles.optionInfo}>
-          <Text style={[styles.optionName, isSelected && styles.optionNameSelected]}>
-            {option.name}
-          </Text>
-          <Text style={styles.optionDescription}>{option.description}</Text>
-        </View>
-        {isSelected && (
-          <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
-        )}
-      </View>
-    </TouchableOpacity>
-  );
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <LinearGradient
+        colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.header}
+      >
         <TouchableOpacity style={styles.backButton} onPress={back}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+          <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <Text style={styles.title}>{t('formatSelection.title')}</Text>
         <View style={styles.placeholder} />
-      </View>
+      </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
@@ -184,23 +131,6 @@ export const FormatSelectionScreen = ({ route }) => {
           </Card>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('formatSelection.section_bg')}</Text>
-          <Text style={styles.sectionDescription}>
-            {t('formatSelection.section_bg_desc')}
-          </Text>
-          
-          <Card style={styles.optionsContainer}>
-            {backgroundOptions.map((option) =>
-              renderBackgroundOption(
-                option,
-                selectedBackground === option.id,
-                setSelectedBackground
-              )
-            )}
-          </Card>
-        </View>
-
         <View style={styles.actions}>
           <AppButton
             title={t('formatSelection.btn_save')}
@@ -208,9 +138,9 @@ export const FormatSelectionScreen = ({ route }) => {
             variant="primary"
             size="lg"
             fullWidth
-            disabled={!selectedFormat || !selectedBackground}
+            disabled={!selectedFormat}
           />
-          
+
           <Text style={styles.helpText}>
             {t('formatSelection.help_text')}
           </Text>
@@ -278,10 +208,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing[4],
     paddingTop: 50,
-    paddingBottom: theme.spacing[3],
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    backgroundColor: 'white',
+    paddingBottom: theme.spacing[4],
   },
   backButton: {
     width: 40,
@@ -291,7 +218,7 @@ const styles = StyleSheet.create({
   },
   title: {
     ...theme.typography.h3,
-    color: theme.colors.text,
+    color: 'white',
   },
   placeholder: {
     width: 40,
@@ -406,6 +333,7 @@ const styles = StyleSheet.create({
     padding: theme.spacing[4],
     paddingTop: theme.spacing[6],
     paddingBottom: theme.spacing[8],
+    gap: theme.spacing[3],
   },
   helpText: {
     ...theme.typography.small,

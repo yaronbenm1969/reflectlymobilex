@@ -39,6 +39,7 @@ import { AccessGate } from './src/components/AccessGate';
 import { useAppState } from './src/state/appState';
 import { authService } from './src/services/authService';
 import { storiesService } from './src/services/storiesService';
+import { notificationsService } from './src/services/notificationsService';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -49,9 +50,12 @@ export default function App() {
   });
   const [i18nReady, setI18nReady] = useState(false);
   const [isAuthChecked, setIsAuthChecked] = useState(false);
+  const [minDelayReady, setMinDelayReady] = useState(false);
 
   useEffect(() => {
     initI18n().finally(() => setI18nReady(true));
+    const t = setTimeout(() => setMinDelayReady(true), 1000);
+    return () => clearTimeout(t);
   }, []);
 
   console.log('🚀 Reflectly Mobile App Starting...');
@@ -151,6 +155,8 @@ export default function App() {
         console.log('🔐 User logged in:', user.email || user.uid);
         setUser(user);
         if (!useAppState.getState().currentScreen) navigateTo('Home');
+        // Register creator's push token for reflection notifications
+        notificationsService.registerCreatorToken(user.uid).catch(() => {});
       } else {
         console.log('🔐 No user session - will redirect to Auth');
         setUser(null);
@@ -173,6 +179,26 @@ export default function App() {
       unsubscribe();
       linkingSubscription?.remove();
     };
+  }, []);
+
+  // Handle notification taps → navigate to EditRoom
+  useEffect(() => {
+    const sub = notificationsService.addNotificationListener((response) => {
+      const data = response.notification.request.content.data;
+      if (data?.type === 'story_reflection_update' && data?.storyId) {
+        useAppState.getState().setCurrentStoryId(data.storyId);
+        navigateTo('EditRoom');
+      }
+    });
+    // Cold-start: app opened by tapping a notification
+    notificationsService.getLastTapAsync().then((response) => {
+      const data = response?.notification?.request?.content?.data;
+      if (data?.type === 'story_reflection_update' && data?.storyId) {
+        useAppState.getState().setCurrentStoryId(data.storyId);
+        navigateTo('EditRoom');
+      }
+    });
+    return () => sub?.remove();
   }, []);
 
   const renderScreen = () => {
@@ -238,7 +264,7 @@ export default function App() {
     }
   };
 
-  if (!fontsLoaded || !i18nReady || !isAuthChecked) {
+  if (!fontsLoaded || !i18nReady || !isAuthChecked || !minDelayReady) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#8446b0" />

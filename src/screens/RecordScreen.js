@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
@@ -34,6 +35,49 @@ try {
 
 const { width, height } = Dimensions.get('window');
 const MAX_RECORDING_TIME = 180; // 3 minutes in seconds
+
+const RecordingPreview = ({ videoUri, onRecordAgain, onContinue }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const player = useVideoPlayer(videoUri, (p) => { p.loop = false; });
+
+  const handlePlayPause = () => {
+    if (isPlaying) {
+      player.pause();
+      setIsPlaying(false);
+    } else {
+      player.play();
+      setIsPlaying(true);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <VideoView player={player} style={styles.camera} contentFit="cover" nativeControls={false} />
+      <View style={styles.reviewControls}>
+        <View style={styles.reviewRow}>
+          <TouchableOpacity style={styles.ghostButton} onPress={onRecordAgain}>
+            <Ionicons name="refresh" size={18} color="white" />
+            <Text style={styles.ghostButtonText}>הקלט מחדש</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.ghostButton} onPress={handlePlayPause}>
+            <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="white" />
+            <Text style={styles.ghostButtonText}>צפה</Text>
+          </TouchableOpacity>
+        </View>
+        <LinearGradient
+          colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          style={styles.continueButton}
+        >
+          <TouchableOpacity onPress={onContinue} style={styles.continueButtonInner}>
+            <Ionicons name="arrow-forward" size={20} color="white" />
+            <Text style={styles.continueText}>המשך</Text>
+          </TouchableOpacity>
+        </LinearGradient>
+      </View>
+    </View>
+  );
+};
 
 export const RecordScreen = () => {
   const { t } = useTranslation();
@@ -139,9 +183,6 @@ export const RecordScreen = () => {
         console.log('✅ Recording completed:', video.uri);
         setRecordedVideo(video.uri);
         setLastRecording(video.uri);
-        
-        // Navigate to review screen
-        go('Review', { videoUri: video.uri });
       }
     } catch (error) {
       console.error('❌ Recording error:', error);
@@ -165,7 +206,7 @@ export const RecordScreen = () => {
       const demoUri = 'web-demo-video';
       setRecordedVideo(demoUri);
       setLastRecording(demoUri);
-      go('Review', { videoUri: demoUri });
+      go('FormatSelection');
       return;
     }
     
@@ -220,9 +261,19 @@ export const RecordScreen = () => {
     );
   }
 
+  if (recordedVideo && !isWeb) {
+    return (
+      <RecordingPreview
+        videoUri={recordedVideo}
+        onRecordAgain={() => setRecordedVideo(null)}
+        onContinue={() => go('FormatSelection')}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <CameraView 
+      <CameraView
         style={styles.camera} 
         facing={facing}
         ref={cameraRef}
@@ -441,5 +492,49 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 8,
+  },
+  reviewControls: {
+    position: 'absolute',
+    bottom: 50,
+    left: theme.spacing[4],
+    right: theme.spacing[4],
+    gap: theme.spacing[3],
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    gap: theme.spacing[3],
+  },
+  ghostButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    height: 48,
+    borderRadius: theme.radii.lg,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  ghostButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  continueButton: {
+    borderRadius: theme.radii.lg,
+    overflow: 'hidden',
+  },
+  continueButtonInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    height: 52,
+  },
+  continueText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

@@ -4,6 +4,7 @@ import CubeWebView from '../cube3d/CubeWebView';
 import { FlipPagesWebView } from './FlipPagesWebView';
 import { CarouselWebView } from './CarouselWebView';
 import { FilmStripWebView } from './FilmStripWebView';
+import { SpotlightWebView } from './SpotlightWebView';
 
 const AnimationPlayer = ({
   format = 'cube-3d',
@@ -29,7 +30,7 @@ const AnimationPlayer = ({
   rotationSpeed = 12000,
 }) => {
   console.log('🎬 AnimationPlayer rendering format:', format);
-  
+
   switch (format) {
     case 'film-strip':
       return (
@@ -93,6 +94,24 @@ const AnimationPlayer = ({
           recordNextPlayback={recordNextPlayback}
           backgroundUrl={backgroundUrl}
           backgroundMediaType={backgroundMediaType}
+        />
+      );
+
+    case 'spotlight':
+      return (
+        <SpotlightWebView
+          faces={faces}
+          storyName={storyName}
+          onPlaybackStart={onPlaybackStart}
+          onPlaybackComplete={onPlaybackComplete}
+          onReadyToPlay={onReadyToPlay}
+          onRecordingSupport={onRecordingSupport}
+          onRecordingComplete={onRecordingComplete}
+          onRecordingProgress={onRecordingProgress}
+          isFullscreen={isFullscreen}
+          triggerAutoPlay={triggerAutoPlay}
+          recordNextPlayback={recordNextPlayback}
+          musicUrl={musicUrl}
         />
       );
 

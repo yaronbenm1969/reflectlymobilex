@@ -71,6 +71,13 @@
           "cameraPermission": "Allow RILIO to record your video stories"
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#8446b0"
+        }
+      ],
       "expo-asset",
       "expo-font"
     ]
