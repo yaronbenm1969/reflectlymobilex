@@ -32,6 +32,7 @@ import { AnimationPlayer } from '../components/animations';
 import { VideoFactoryWaiting } from '../components/VideoFactoryWaiting';
 import { useReflectionAssets } from '../hooks/useReflectionAssets';
 import { storageService } from '../services/storageService';
+import Constants from 'expo-constants';
 import { storiesService } from '../services/storiesService';
 import { backgroundsService } from '../services/backgroundsService';
 import theme from '../theme/theme';
@@ -596,34 +597,44 @@ export const FinalVideoScreen = () => {
 
   const handleShare = async () => {
     try {
-      setIsDownloading(true);
-      const videoUri = await getVideoForSharing(t('finalVideo.sharing_label'));
-      console.log('📤 getVideoForSharing returned:', videoUri?.slice(-80));
-      if (videoUri && await Sharing.isAvailableAsync()) {
-        setDownloadProgress(t('finalVideo.downloading'));
-        const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
-        const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'share');
-        console.log('📤 Sharing localUri:', localUri?.slice(-80));
-        setIsDownloading(false);
-        setDownloadProgress('');
-        await Sharing.shareAsync(localUri, {
-          mimeType: 'video/mp4',
-          dialogTitle: `שתף את הסרטון: ${storyName}`,
-        });
-      } else {
-        await Share.share({
-          message: `צפה בסרטון שלי: "${storyName}" 🎬`,
-          title: storyName,
-        });
-      }
+      // Share watch link — shows full experience (background + music + animation)
+      const domain = Constants.expoConfig?.extra?.webPlayerDomain ||
+                     'reflectly-mobile-x--yaronbenm1.replit.app';
+      const watchUrl = `https://${domain}/s/${currentStoryId}`;
+      await Share.share({
+        message: `צפה בסיפור שלי: "${storyName}" 🎬\n${watchUrl}`,
+        title: storyName,
+        url: watchUrl,
+      });
     } catch (error) {
       console.error('Error sharing:', error);
       Alert.alert(t('common.error'), t('finalVideo.error_share_video'));
-    } finally {
-      setIsDownloading(false);
-      setDownloadProgress('');
     }
   };
+
+  // VIDEO FILE SHARE (kept for easy restore — shares MP4 without background):
+  // const handleShare = async () => {
+  //   try {
+  //     setIsDownloading(true);
+  //     const videoUri = await getVideoForSharing(t('finalVideo.sharing_label'));
+  //     if (videoUri && await Sharing.isAvailableAsync()) {
+  //       setDownloadProgress(t('finalVideo.downloading'));
+  //       const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
+  //       const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'share');
+  //       setIsDownloading(false);
+  //       setDownloadProgress('');
+  //       await Sharing.shareAsync(localUri, { mimeType: 'video/mp4', dialogTitle: `שתף את הסרטון: ${storyName}` });
+  //     } else {
+  //       await Share.share({ message: `צפה בסרטון שלי: "${storyName}" 🎬`, title: storyName });
+  //     }
+  //   } catch (error) {
+  //     console.error('Error sharing:', error);
+  //     Alert.alert(t('common.error'), t('finalVideo.error_share_video'));
+  //   } finally {
+  //     setIsDownloading(false);
+  //     setDownloadProgress('');
+  //   }
+  // };
 
   const handleDownload = async () => {
     if (!finalVideoUri) {
@@ -1555,40 +1566,43 @@ export const FinalVideoScreen = () => {
   };
 
   const handleGeneralShare = async () => {
+    console.log('🔗 handleGeneralShare v2 - link share');
     try {
-      setIsDownloading(true);
-      const videoUri = await getVideoForSharing(t('finalVideo.preparing_label'));
-      console.log('📤 handleGeneralShare videoUri:', videoUri?.slice(-80));
-      if (videoUri && await Sharing.isAvailableAsync()) {
-        setDownloadProgress(t('finalVideo.downloading'));
-        const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
-        const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'share');
-        if (isLocalFile) {
-          try {
-            const info = await FileSystem.getInfoAsync(localUri);
-            console.log('📤 Share file size:', info.size, 'bytes');
-          } catch (_) {}
-        }
-        setIsDownloading(false);
-        setDownloadProgress('');
-        await Sharing.shareAsync(localUri, {
-          mimeType: 'video/mp4',
-          dialogTitle: `שתף את הסרטון: ${storyName}`,
-        });
-        return;
-      }
+      const domain = Constants.expoConfig?.extra?.webPlayerDomain ||
+                     'reflectly-mobile-x--yaronbenm1.replit.app';
+      const watchUrl = `https://${domain}/s/${currentStoryId}`;
       await Share.share({
-        message: `צפה בסרטון שלי: "${storyName}" 🎬`,
+        message: `צפה בסיפור שלי: "${storyName}" 🎬\n${watchUrl}`,
         title: storyName,
+        url: watchUrl,
       });
     } catch (error) {
       console.error('Share error:', error);
       Alert.alert(t('common.error'), t('finalVideo.error_share'));
-    } finally {
-      setIsDownloading(false);
-      setDownloadProgress('');
     }
   };
+
+  // VIDEO FILE SHARE (kept for easy restore):
+  // const handleGeneralShare = async () => {
+  //   try {
+  //     setIsDownloading(true);
+  //     const videoUri = await getVideoForSharing(t('finalVideo.preparing_label'));
+  //     if (videoUri && await Sharing.isAvailableAsync()) {
+  //       const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
+  //       const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'share');
+  //       setIsDownloading(false);
+  //       await Sharing.shareAsync(localUri, { mimeType: 'video/mp4', dialogTitle: `שתף את הסרטון: ${storyName}` });
+  //       return;
+  //     }
+  //     await Share.share({ message: `צפה בסרטון שלי: "${storyName}" 🎬`, title: storyName });
+  //   } catch (error) {
+  //     console.error('Share error:', error);
+  //     Alert.alert(t('common.error'), t('finalVideo.error_share'));
+  //   } finally {
+  //     setIsDownloading(false);
+  //     setDownloadProgress('');
+  //   }
+  // };
 
   const handleNewStory = () => {
     stopAmbientMusic();

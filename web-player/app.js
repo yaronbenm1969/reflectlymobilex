@@ -419,10 +419,21 @@ async function loadStory(code) {
         recordBtn.style.cursor = 'not-allowed';
     }
 
-    // Show watch screen right away — don't wait for video conversion
+    // If story has a final video — show it as result viewer (/s/ link = creator sharing result)
+    if (story.finalVideoUrl) {
+        console.log('🎬 finalVideoUrl found — showing result viewer');
+        const instructionsCard = document.querySelector('#watch-screen .card');
+        if (instructionsCard) instructionsCard.style.display = 'none';
+        if (watchHint) watchHint.style.display = 'none';
+        if (recordBtn) recordBtn.style.display = 'none';
+        showScreen('watch');
+        setupStoryVideo(story.finalVideoUrl, story.id, null, null);
+        return true;
+    }
+
+    // Normal player flow — show creator's intro clip + recording interface
     showScreen('watch');
 
-    // Load video asynchronously in the background
     const videoUrl = story.videoUri || story.videoUrl;
     console.log('📹 Video URL:', videoUrl);
     setupStoryVideo(videoUrl, story.id, recordBtn, watchHint);
