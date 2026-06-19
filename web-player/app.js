@@ -443,13 +443,11 @@ async function loadStory(code) {
                 bgVid.muted = true;
                 bgVid.playsInline = true;
                 bgVid.setAttribute('playsinline', '');
-                bgVid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;opacity:0.35;';
+                bgVid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;opacity:0.1;';
                 wrapper.insertBefore(bgVid, wrapper.firstChild);
-                storyVid.style.mixBlendMode = 'screen';
-                storyVid.style.background = 'transparent';
                 storyVid.style.position = 'relative';
                 storyVid.style.zIndex = '1';
-                console.log('🖼️ Background video layered with mix-blend-mode:screen');
+                console.log('🖼️ Background video layered (subtle, opacity 0.1)');
             }
         }
 
