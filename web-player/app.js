@@ -443,7 +443,7 @@ async function loadStory(code) {
                 bgVid.muted = true;
                 bgVid.playsInline = true;
                 bgVid.setAttribute('playsinline', '');
-                bgVid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;';
+                bgVid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;opacity:0.35;';
                 wrapper.insertBefore(bgVid, wrapper.firstChild);
                 storyVid.style.mixBlendMode = 'screen';
                 storyVid.style.background = 'transparent';
