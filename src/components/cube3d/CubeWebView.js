@@ -1680,20 +1680,10 @@ const CubeWebView = ({
         // Drawing a cross-origin Firebase video element into the canvas (even with try/catch)
         // silently taints the WKWebView canvas → captureStream returns black frames.
         // The custom background is visible in the live preview (CSS/DOM layer, unaffected).
+        // Pure black background — required for server-side blend=screen to show custom background.
+        // Stars/gradient removed from recording canvas (still visible in live CSS/DOM preview).
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, RW, RH);
-        var grad = ctx.createRadialGradient(RW/2, RH*0.45, 0, RW/2, RH*0.45, RW*0.85);
-        grad.addColorStop(0, '#0a0a1a');
-        grad.addColorStop(1, '#000');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, RW, RH);
-        ctx.fillStyle = '#fff';
-        for (var si = 0; si < bgStars.length; si++) {
-          var st = bgStars[si];
-          ctx.globalAlpha = st.a * (0.4 + 0.6 * Math.sin(elapsed*(0.8+si*0.05)));
-          ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, Math.PI*2); ctx.fill();
-        }
-        ctx.globalAlpha = 1;
         
         var visible = [];
         for (var f = 0; f < 6; f++) {
