@@ -453,6 +453,24 @@ async function loadStory(code) {
 
         showScreen('watch');
         setupStoryVideo(story.finalVideoUrl, story.id, null, null);
+
+        // Result viewer: try autoplay. iOS blocks audio autoplay — show tap-to-play overlay.
+        const vidEl = document.getElementById('story-video');
+        const phEl = document.getElementById('video-placeholder');
+        if (vidEl && phEl) {
+            vidEl.addEventListener('loadedmetadata', () => {
+                // Show "tap to play" instead of "loading..." once metadata is ready
+                if (vidEl.paused) {
+                    phEl.innerHTML = '<div style="font-size:60px;cursor:pointer">▶️</div><p style="margin-top:8px;color:#fff;font-size:16px">לחץ לצפייה</p>';
+                    phEl.style.background = 'rgba(0,0,0,0.5)';
+                    phEl.style.cursor = 'pointer';
+                    phEl.onclick = () => { vidEl.play(); phEl.classList.add('hidden'); };
+                }
+            }, { once: true });
+            vidEl.addEventListener('playing', () => { phEl.classList.add('hidden'); }, { once: true });
+            // Try autoplay (works on desktop / Android; iOS requires gesture)
+            vidEl.play().catch(() => {});
+        }
         return true;
     }
 
@@ -1075,6 +1093,11 @@ function setupVideoControls() {
         video.currentTime = percent * video.duration;
     });
     
+    video.addEventListener('loadedmetadata', () => {
+        if (video.duration && isFinite(video.duration)) {
+            timeDisplay.textContent = `0:00 / ${formatTime(video.duration)}`;
+        }
+    });
     video.addEventListener('timeupdate', updateProgress);
     video.addEventListener('ended', () => { playPauseBtn.textContent = '▶️'; });
     video.addEventListener('play', () => { playPauseBtn.textContent = '⏸️'; });
