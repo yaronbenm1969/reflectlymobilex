@@ -2077,7 +2077,7 @@ app.post('/api/mix-music-with-video', async (req, res) => {
           execFile('ffmpeg', [
             '-stream_loop', '-1', '-i', bgPath,
             '-i', videoPath,
-            '-filter_complex', '[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280[bg];[bg][1:v]overlay=0:0[v]',
+            '-filter_complex', '[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280[bg];[bg][1:v]blend=all_mode=screen[v]',
             '-map', '[v]',
             '-map', '1:a',
             '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
