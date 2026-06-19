@@ -426,6 +426,33 @@ async function loadStory(code) {
         if (instructionsCard) instructionsCard.style.display = 'none';
         if (watchHint) watchHint.style.display = 'none';
         if (recordBtn) recordBtn.style.display = 'none';
+
+        // Layer background video behind the cube video.
+        // The cube MP4 has black background (canvas taint workaround) — mix-blend-mode:screen
+        // makes black pixels transparent so the background shows through.
+        if (story.backgroundVideoUrl) {
+            const wrapper = document.getElementById('video-wrapper');
+            const storyVid = document.getElementById('story-video');
+            if (wrapper && storyVid) {
+                wrapper.style.position = 'relative';
+                wrapper.style.overflow = 'hidden';
+                const bgVid = document.createElement('video');
+                bgVid.src = story.backgroundVideoUrl;
+                bgVid.autoplay = true;
+                bgVid.loop = true;
+                bgVid.muted = true;
+                bgVid.playsInline = true;
+                bgVid.setAttribute('playsinline', '');
+                bgVid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;';
+                wrapper.insertBefore(bgVid, wrapper.firstChild);
+                storyVid.style.mixBlendMode = 'screen';
+                storyVid.style.background = 'transparent';
+                storyVid.style.position = 'relative';
+                storyVid.style.zIndex = '1';
+                console.log('🖼️ Background video layered with mix-blend-mode:screen');
+            }
+        }
+
         showScreen('watch');
         setupStoryVideo(story.finalVideoUrl, story.id, null, null);
         return true;
