@@ -457,9 +457,12 @@ async function loadStory(code) {
         // Result viewer: try autoplay. iOS blocks audio autoplay — show tap-to-play overlay.
         const vidEl = document.getElementById('story-video');
         const phEl = document.getElementById('video-placeholder');
+        const finalUrl = story.finalVideoUrl;
+        console.log('🎬 Result viewer URL:', finalUrl);
         if (vidEl && phEl) {
+            // On successful load: show tap-to-play
             vidEl.addEventListener('loadedmetadata', () => {
-                // Show "tap to play" instead of "loading..." once metadata is ready
+                console.log('✅ Video metadata loaded, duration:', vidEl.duration);
                 if (vidEl.paused) {
                     phEl.innerHTML = '<div style="font-size:60px;cursor:pointer">▶️</div><p style="margin-top:8px;color:#fff;font-size:16px">לחץ לצפייה</p>';
                     phEl.style.background = 'rgba(0,0,0,0.5)';
@@ -468,7 +471,21 @@ async function loadStory(code) {
                 }
             }, { once: true });
             vidEl.addEventListener('playing', () => { phEl.classList.add('hidden'); }, { once: true });
-            // Try autoplay (works on desktop / Android; iOS requires gesture)
+            // On error: show direct link so user can open in Safari
+            vidEl.addEventListener('error', () => {
+                const code = vidEl.error ? vidEl.error.code : '?';
+                console.error('❌ Video error code:', code, vidEl.error?.message);
+                phEl.innerHTML = `
+                    <div style="font-size:36px">⚠️</div>
+                    <p style="color:#fff;font-size:14px;margin:8px 0">הסרטון לא נטען (שגיאה ${code})</p>
+                    <a href="${finalUrl}" target="_blank" style="
+                        display:inline-block;margin-top:8px;padding:10px 20px;
+                        background:linear-gradient(135deg,#8446b0,#464fb0);color:#fff;
+                        border-radius:20px;font-size:14px;text-decoration:none;font-weight:700;
+                    ">פתח בסאפרי ▶️</a>`;
+                phEl.style.background = 'rgba(0,0,0,0.8)';
+            }, { once: true });
+            // Try autoplay (works on desktop/Android; iOS requires gesture)
             vidEl.play().catch(() => {});
         }
         return true;
