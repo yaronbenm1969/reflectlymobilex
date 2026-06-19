@@ -649,6 +649,33 @@ async function uploadToFirebase(filePath, storagePath) {
   return publicUrl;
 }
 
+// Proxy Firebase/GCS storage videos so the WebView recording canvas can fetch
+// them as blobs (same-origin blob URL → no iOS canvas taint).
+app.get('/api/proxy-video', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ error: 'url required' });
+
+  const decoded = decodeURIComponent(url);
+  // Security: only proxy known Firebase / GCS domains
+  const allowed =
+    decoded.startsWith('https://firebasestorage.googleapis.com/') ||
+    decoded.startsWith('https://storage.googleapis.com/');
+  if (!allowed) return res.status(403).json({ error: 'Only Firebase Storage URLs allowed' });
+
+  try {
+    const upstream = await fetch(decoded);
+    if (!upstream.ok) return res.status(upstream.status).end();
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'video/mp4');
+    const { Readable } = require('stream');
+    Readable.fromWeb(upstream.body).pipe(res);
+  } catch (err) {
+    console.error('❌ proxy-video error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/health', (req, res) => {
   const queueStatus = conversionQueue.getQueueStatus();
   res.json({ 
@@ -2014,7 +2041,7 @@ app.post('/api/test-mix', express.json(), async (req, res) => {
 });
 
 app.post('/api/mix-music-with-video', async (req, res) => {
-  const { videoUrl, musicUrl, musicVolume = 0.08, storyId, replaceAudio = false, clipUrls, backgroundVideoUrl = null } = req.body;
+  const { videoUrl, musicUrl, musicVolume = 0.08, storyId, replaceAudio = false, clipUrls } = req.body;
 
   if (!videoUrl || !musicUrl) {
     return res.status(400).json({ error: 'videoUrl and musicUrl are required' });
@@ -2064,36 +2091,9 @@ app.post('/api/mix-music-with-video', async (req, res) => {
         });
     });
 
-    // === BACKGROUND COMPOSITE (optional) ===
-    console.log(`🖼️ Background composite: ${backgroundVideoUrl ? 'yes' : 'no'}`);
-    let mixInputPath = videoPath;
-    if (backgroundVideoUrl) {
-      const bgPath = path.join(jobDir, 'bg.mp4');
-      const compositedPath = path.join(jobDir, 'composited.mp4');
-      try {
-        await downloadFile(backgroundVideoUrl, bgPath);
-        console.log(`🖼️ Background downloaded: ${fs.statSync(bgPath).size} bytes`);
-        await new Promise((resolve, reject) => {
-          execFile('ffmpeg', [
-            '-stream_loop', '-1', '-i', bgPath,
-            '-i', videoPath,
-            '-filter_complex', '[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280[bg];[bg][1:v]blend=all_mode=screen[v]',
-            '-map', '[v]',
-            '-map', '1:a',
-            '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
-            '-c:a', 'copy',
-            '-shortest',
-            '-y', compositedPath,
-          ], { timeout: 120000 }, (err) => {
-            if (err) reject(err); else resolve();
-          });
-        });
-        console.log(`🖼️ Composite succeeded (${fs.statSync(compositedPath).size} bytes)`);
-        mixInputPath = compositedPath;
-      } catch (bgErr) {
-        console.warn(`⚠️ Background composite failed, using raw cube video: ${bgErr.message}`);
-      }
-    }
+    // Background is now baked into the recording canvas (CubeWebView proxy approach).
+    // Server-side blend compositing removed — it caused triangle-seam artifacts.
+    const mixInputPath = videoPath;
 
     if (clipPaths.length > 0) {
       // Cube format: mix concatenated participant voices + music into silent cube video

@@ -29,6 +29,7 @@ const CubeWebView = ({
   recordNextPlayback = false,
   backgroundUrl = null,
   backgroundMediaType = 'video',
+  backgroundProxyUrl = null,
   musicUrl = null,
 }) => {
   const webViewRef = useRef(null);
@@ -113,9 +114,11 @@ const CubeWebView = ({
     if (recordNextPlayback && webViewRef.current) {
       console.log('📹 Enabling recording for next playback');
       const safeMusicUrl = musicUrl ? musicUrl.replace(/\\/g, '\\\\').replace(/'/g, "\\'") : '';
+      const safeBgProxy = backgroundProxyUrl ? backgroundProxyUrl.replace(/\\/g, '\\\\').replace(/'/g, "\\'") : '';
       webViewRef.current.injectJavaScript(`
         window._recEnabled = true;
         ${safeMusicUrl ? `window._musicUrl = '${safeMusicUrl}'; if (typeof window._preloadMusic === 'function') { window._preloadMusic('${safeMusicUrl}'); }` : ''}
+        ${safeBgProxy ? `if (typeof window._preloadRecBackground === 'function') { window._preloadRecBackground('${safeBgProxy}'); }` : ''}
         true;
       `);
     }
@@ -1427,7 +1430,42 @@ const CubeWebView = ({
       var chunks = [];
       var recAnimId = null;
       var recState = 'idle';
-      
+
+      // Background video for the recording canvas.
+      // Loaded via server proxy (same-origin CORS) → converted to blob URL → no iOS canvas taint.
+      var recBgVideoEl = null;
+
+      window._preloadRecBackground = function(proxyUrl) {
+        if (!proxyUrl) return;
+        console.log('[rec] Preloading background via proxy');
+        fetch(proxyUrl, { mode: 'cors' })
+          .then(function(r) {
+            if (!r.ok) throw new Error('proxy ' + r.status);
+            return r.blob();
+          })
+          .then(function(blob) {
+            var blobUrl = URL.createObjectURL(blob);
+            var vid = document.createElement('video');
+            vid.src = blobUrl;
+            vid.muted = true;
+            vid.loop = true;
+            vid.playsInline = true;
+            vid.setAttribute('playsinline', '');
+            vid.oncanplay = function() {
+              vid.play().catch(function() {});
+              recBgVideoEl = vid;
+              console.log('[rec] Background ready for recording canvas');
+            };
+            vid.onerror = function() {
+              console.warn('[rec] Background video element error — using black fallback');
+            };
+            vid.load();
+          })
+          .catch(function(e) {
+            console.warn('[rec] Background preload failed — using black fallback:', e.message);
+          });
+      };
+
       var CUBE_PX = ${CUBE_SIZE};
       var HALF_PX = CUBE_PX / 2;
       var SF = RW / (CUBE_PX + 80);
@@ -1676,14 +1714,15 @@ const CubeWebView = ({
         var ds = 0.95 + dp1 + dp2;
         var dtz = Math.sin(elapsed*0.18+2)*110 + Math.cos(elapsed*0.12)*70;
         
-        // [RILIO_REC] Skipping remote custom background during recording to avoid iOS canvas taint.
-        // Drawing a cross-origin Firebase video element into the canvas (even with try/catch)
-        // silently taints the WKWebView canvas → captureStream returns black frames.
-        // The custom background is visible in the live preview (CSS/DOM layer, unaffected).
-        // Pure black background — required for server-side blend=screen to show custom background.
-        // Stars/gradient removed from recording canvas (still visible in live CSS/DOM preview).
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, RW, RH);
+        // Draw background frame (proxied blob URL — no iOS canvas taint).
+        // Falls back to pure black if proxy hasn't loaded yet or wasn't provided.
+        // The CSS/DOM live-preview background (<video id="custom-bg">) is unaffected.
+        if (recBgVideoEl && recBgVideoEl.readyState >= 2) {
+          ctx.drawImage(recBgVideoEl, 0, 0, RW, RH);
+        } else {
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, RW, RH);
+        }
         
         var visible = [];
         for (var f = 0; f < 6; f++) {
