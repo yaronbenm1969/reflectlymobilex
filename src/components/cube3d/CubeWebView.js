@@ -1864,7 +1864,7 @@ const CubeWebView = ({
         if (recState !== 'idle') return;
         // If background proxy was set but not yet decoded, wait (up to 8s) before starting.
         // This ensures the very first frame captures the background, not black.
-        if (recBgRequired && !recBgVideoEl) {
+        if ((recBgRequired || window._recBgExpected) && !recBgVideoEl) {
           console.log('[rec] Waiting for background video to load...');
           var bgWaited = 0;
           var bgWaitInterval = setInterval(function() {
@@ -2191,9 +2191,13 @@ const CubeWebView = ({
         onLoad={() => {
           setIsLoading(false);
           webViewLoadedRef.current = true;
-          // If background already downloaded, inject it now; otherwise the download
-          // effect will inject it once it completes.
-          if (bgLocalUriRef.current) injectBgLocal(bgLocalUriRef.current);
+          if (bgLocalUriRef.current) {
+            // File already downloaded — inject immediately
+            injectBgLocal(bgLocalUriRef.current);
+          } else if (backgroundUrl && backgroundMediaType === 'video' && webViewRef.current) {
+            // Download in progress — signal WebView to wait for background before recording starts
+            webViewRef.current.injectJavaScript(`window._recBgExpected = true; true;`);
+          }
         }}
         javaScriptEnabled={true}
         domStorageEnabled={true}
