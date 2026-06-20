@@ -1434,9 +1434,11 @@ const CubeWebView = ({
       // Background video for the recording canvas.
       // Loaded via server proxy (same-origin CORS) → converted to blob URL → no iOS canvas taint.
       var recBgVideoEl = null;
+      var recBgRequired = false; // true when a proxy URL was provided — recording waits for it
 
       window._preloadRecBackground = function(proxyUrl) {
         if (!proxyUrl) return;
+        recBgRequired = true;
         console.log('[rec] Preloading background via proxy');
         fetch(proxyUrl, { mode: 'cors' })
           .then(function(r) {
@@ -1823,6 +1825,21 @@ const CubeWebView = ({
       
       function startRec(skipWait) {
         if (recState !== 'idle') return;
+        // If background proxy was set but not yet decoded, wait (up to 8s) before starting.
+        // This ensures the very first frame captures the background, not black.
+        if (recBgRequired && !recBgVideoEl) {
+          console.log('[rec] Waiting for background video to load...');
+          var bgWaited = 0;
+          var bgWaitInterval = setInterval(function() {
+            bgWaited += 100;
+            if (recBgVideoEl || bgWaited >= 8000) {
+              clearInterval(bgWaitInterval);
+              console.log('[rec] Background ' + (recBgVideoEl ? 'ready' : 'timed out') + ' after ' + bgWaited + 'ms');
+              actualStartRec();
+            }
+          }, 100);
+          return;
+        }
         // skipWait=true: start immediately (used when triggered by videoStart — video is already playing)
         if (skipWait) {
           actualStartRec();
