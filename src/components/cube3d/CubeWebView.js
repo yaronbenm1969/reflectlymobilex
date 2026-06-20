@@ -2151,7 +2151,17 @@ const CubeWebView = ({
         style={[styles.webView, isFullscreen && styles.fullscreenWebView]}
         onMessage={onMessage}
         onError={(e) => setError(e.nativeEvent.description)}
-        onLoad={() => setIsLoading(false)}
+        onLoad={() => {
+          setIsLoading(false);
+          // Start preloading background proxy as soon as WebView is ready.
+          // This gives the blob time to decode before the user taps record.
+          if (backgroundProxyUrl && webViewRef.current) {
+            const safeUrl = backgroundProxyUrl.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            webViewRef.current.injectJavaScript(
+              `if (typeof window._preloadRecBackground === 'function') { window._preloadRecBackground('${safeUrl}'); } true;`
+            );
+          }
+        }}
         javaScriptEnabled={true}
         domStorageEnabled={true}
         allowsInlineMediaPlayback={true}
