@@ -1677,9 +1677,6 @@ export const FinalVideoScreen = () => {
             musicUrl={generatedMusicUrl || null}
             backgroundUrl={backgroundVideoUrl || null}
             backgroundMediaType={backgroundMediaType || 'video'}
-            backgroundProxyUrl={backgroundVideoUrl
-              ? `${VIDEO_CONVERTER_URL}/api/proxy-video?url=${encodeURIComponent(backgroundVideoUrl)}`
-              : null}
             onFaceChange={handleFaceChange}
             onVideoStart={(faceIndex) => setCurrentPlayingFaceIndex(faceIndex)}
             onVideoEnd={handleVideoEnd}
