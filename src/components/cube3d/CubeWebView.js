@@ -44,37 +44,6 @@ const CubeWebView = ({
   const recordingMetaRef = useRef(null);
   const [logoDataUri, setLogoDataUri] = useState('');
 
-  // Local file path for recording canvas background (downloaded by RN — avoids iOS canvas taint)
-  const bgLocalUriRef = useRef(null);
-  const webViewLoadedRef = useRef(false);
-
-  // Inject local background file into WebView when both are ready
-  const injectBgLocal = useCallback((uri) => {
-    if (!webViewRef.current) return;
-    const safe = uri.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    webViewRef.current.injectJavaScript(
-      `if (typeof window._preloadRecBackground === 'function') { window._preloadRecBackground('${safe}'); } true;`
-    );
-  }, []);
-
-  // Download background video to local cache as soon as backgroundUrl is known
-  useEffect(() => {
-    if (!backgroundUrl || backgroundMediaType !== 'video') return;
-    let cancelled = false;
-    bgLocalUriRef.current = null;
-    const localPath = CUBE_HTML_DIR + 'rec_bg.mp4';
-    FileSystem.downloadAsync(backgroundUrl, localPath)
-      .then(result => {
-        if (cancelled) return;
-        if (result.status === 200) {
-          bgLocalUriRef.current = result.uri;
-          if (webViewLoadedRef.current) injectBgLocal(result.uri);
-          console.log('[bg] Background cached locally:', result.uri);
-        }
-      })
-      .catch(e => console.warn('[bg] Background download failed:', e.message));
-    return () => { cancelled = true; };
-  }, [backgroundUrl, backgroundMediaType, injectBgLocal]);
 
   useEffect(() => {
     async function loadLogo() {
@@ -150,10 +119,8 @@ const CubeWebView = ({
         ${safeMusicUrl ? `window._musicUrl = '${safeMusicUrl}'; if (typeof window._preloadMusic === 'function') { window._preloadMusic('${safeMusicUrl}'); }` : ''}
         true;
       `);
-      // Re-inject local bg file in case WebView reloaded since it was first injected
-      if (bgLocalUriRef.current) injectBgLocal(bgLocalUriRef.current);
     }
-  }, [recordNextPlayback, injectBgLocal]);
+  }, [recordNextPlayback]);
 
   // Use initial faces for HTML generation - prevents WebView reload on face updates
   const cubeHTML = useMemo(() => {
@@ -172,7 +139,7 @@ const CubeWebView = ({
     const bgHtml = safeBgUrl
       ? (backgroundMediaType === 'image'
           ? `<img id="custom-bg" src="${safeBgUrl}" style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;" />`
-          : `<video id="custom-bg" src="${safeBgUrl}" autoplay loop muted playsinline style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;"></video>`)
+          : `<video id="custom-bg" crossorigin="anonymous" src="${safeBgUrl}" autoplay loop muted playsinline style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;"></video>`)
       : `<div class="space-bg"></div>
   <div class="stars">
     <div class="stars-layer stars-layer-1"></div>
@@ -1462,48 +1429,6 @@ const CubeWebView = ({
       var recAnimId = null;
       var recState = 'idle';
 
-      // Background video for the recording canvas.
-      // Loaded via server proxy (same-origin CORS) → converted to blob URL → no iOS canvas taint.
-      var recBgVideoEl = null;
-      var recBgRequired = false; // true when a proxy URL was provided — recording waits for it
-
-      window._preloadRecBackground = function(url) {
-        if (!url) return;
-        recBgRequired = true;
-        console.log('[rec] Loading background for canvas: ' + url.substring(0, 60));
-        var vid = document.createElement('video');
-        vid.muted = true;
-        vid.loop = true;
-        vid.playsInline = true;
-        vid.setAttribute('playsinline', '');
-        vid.oncanplay = function() {
-          vid.play().catch(function() {});
-          recBgVideoEl = vid;
-          console.log('[rec] Background ready for recording canvas');
-        };
-        vid.onerror = function() {
-          console.warn('[rec] Background video error — using black fallback');
-        };
-        if (url.startsWith('file://') || url.startsWith('blob:')) {
-          // Local file — same origin, no canvas taint, load directly
-          vid.src = url;
-          vid.load();
-        } else {
-          // HTTP URL fallback — fetch as blob to avoid canvas taint
-          fetch(url, { mode: 'cors' })
-            .then(function(r) {
-              if (!r.ok) throw new Error('fetch ' + r.status);
-              return r.blob();
-            })
-            .then(function(blob) {
-              vid.src = URL.createObjectURL(blob);
-              vid.load();
-            })
-            .catch(function(e) {
-              console.warn('[rec] Background fetch failed — using black fallback:', e.message);
-            });
-        }
-      };
 
       var CUBE_PX = ${CUBE_SIZE};
       var HALF_PX = CUBE_PX / 2;
@@ -1753,11 +1678,12 @@ const CubeWebView = ({
         var ds = 0.95 + dp1 + dp2;
         var dtz = Math.sin(elapsed*0.18+2)*110 + Math.cos(elapsed*0.12)*70;
         
-        // Draw background frame (proxied blob URL — no iOS canvas taint).
-        // Falls back to pure black if proxy hasn't loaded yet or wasn't provided.
-        // The CSS/DOM live-preview background (<video id="custom-bg">) is unaffected.
-        if (recBgVideoEl && recBgVideoEl.readyState >= 2) {
-          ctx.drawImage(recBgVideoEl, 0, 0, RW, RH);
+        // Draw background frame directly from <video id="custom-bg"> (crossorigin="anonymous" —
+        // Firebase Storage returns Access-Control-Allow-Origin: * → no iOS canvas taint).
+        // Falls back to pure black if no background or video not ready yet.
+        var customBgEl = document.getElementById('custom-bg');
+        if (customBgEl && customBgEl.tagName === 'VIDEO' && customBgEl.readyState >= 2) {
+          ctx.drawImage(customBgEl, 0, 0, RW, RH);
         } else {
           ctx.fillStyle = '#000';
           ctx.fillRect(0, 0, RW, RH);
@@ -1862,21 +1788,6 @@ const CubeWebView = ({
       
       function startRec(skipWait) {
         if (recState !== 'idle') return;
-        // If background proxy was set but not yet decoded, wait (up to 8s) before starting.
-        // This ensures the very first frame captures the background, not black.
-        if ((recBgRequired || window._recBgExpected) && !recBgVideoEl) {
-          console.log('[rec] Waiting for background video to load...');
-          var bgWaited = 0;
-          var bgWaitInterval = setInterval(function() {
-            bgWaited += 100;
-            if (recBgVideoEl || bgWaited >= 8000) {
-              clearInterval(bgWaitInterval);
-              console.log('[rec] Background ' + (recBgVideoEl ? 'ready' : 'timed out') + ' after ' + bgWaited + 'ms');
-              actualStartRec();
-            }
-          }, 100);
-          return;
-        }
         // skipWait=true: start immediately (used when triggered by videoStart — video is already playing)
         if (skipWait) {
           actualStartRec();
@@ -2190,14 +2101,6 @@ const CubeWebView = ({
         onError={(e) => setError(e.nativeEvent.description)}
         onLoad={() => {
           setIsLoading(false);
-          webViewLoadedRef.current = true;
-          if (bgLocalUriRef.current) {
-            // File already downloaded — inject immediately
-            injectBgLocal(bgLocalUriRef.current);
-          } else if (backgroundUrl && backgroundMediaType === 'video' && webViewRef.current) {
-            // Download in progress — signal WebView to wait for background before recording starts
-            webViewRef.current.injectJavaScript(`window._recBgExpected = true; true;`);
-          }
         }}
         javaScriptEnabled={true}
         domStorageEnabled={true}
