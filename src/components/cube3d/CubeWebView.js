@@ -1451,16 +1451,21 @@ const CubeWebView = ({
 
       // Pre-render title face canvas (face-4/face-5): gradient background + logo + story title.
       // Used by getDrawSource() so canvas recording captures the title card.
+      // flip=true: rotate canvas 180° (used for face-5/bottom which has CSS rotate(180deg)).
       var _titleFaceCanvas = null;
-      function getTitleFaceCanvas() {
-        if (_titleFaceCanvas) return _titleFaceCanvas;
+      var _titleFaceCanvasFlipped = null;
+      function getTitleFaceCanvas(flip) {
+        if (flip && _titleFaceCanvasFlipped) return _titleFaceCanvasFlipped;
+        if (!flip && _titleFaceCanvas) return _titleFaceCanvas;
         var tc = document.createElement('canvas');
         tc.width = 720; tc.height = 720;
         var tctx = tc.getContext('2d');
-        // Background gradient matching .face-intro CSS: linear-gradient(145deg, #0d0a1e 0%, #1a0a2e 100%)
+        // Rotate canvas 180° for face-5 (bottom face has CSS rotate(180deg) — pre-flip so drawQuad renders right-side up)
+        if (flip) { tctx.translate(tc.width, tc.height); tctx.rotate(Math.PI); }
+        // Gradient: slightly lighter purple (not near-black) so tile seams are less visible against colored backgrounds
         var g = tctx.createLinearGradient(0, 0, tc.width, tc.height);
-        g.addColorStop(0, '#0d0a1e');
-        g.addColorStop(1, '#1a0a2e');
+        g.addColorStop(0, '#1e0a3c');
+        g.addColorStop(1, '#2d0f52');
         tctx.fillStyle = g;
         tctx.fillRect(0, 0, tc.width, tc.height);
         var cx = tc.width / 2;
@@ -1508,8 +1513,8 @@ const CubeWebView = ({
             tctx.fillText(lineArr[tli], cx, textY + tli * 46);
           }
         }
-        _titleFaceCanvas = tc;
-        return _titleFaceCanvas;
+        if (flip) { _titleFaceCanvasFlipped = tc; } else { _titleFaceCanvas = tc; }
+        return tc;
       }
 
       function rY(p, deg) {
@@ -1563,7 +1568,8 @@ const CubeWebView = ({
           var img = faceEl.querySelector('img:not(.face-intro-logo)');
           if (img && img.complete && img.naturalWidth > 0) return img;
         }
-        return getTitleFaceCanvas();
+        // face-5 (bottom) has CSS rotate(180deg) — pass flip=true so drawQuad renders text right-side up
+        return getTitleFaceCanvas(faceId === 5);
       }
       
       function drawTriTextured(src, sx, sy, sw, sh, p0, p1, p2) {
