@@ -1597,6 +1597,9 @@ const CubeWebView = ({
       // GRID: number of subdivisions per face axis. 4 = 4x4=16 cells, near-perfect perspective.
       // ROLLBACK: set GRID=1 to revert to simple 2-triangle mode (fast, slight corner error).
       var DRAW_GRID = 4;
+      // SEAM_PX: expand clip path outward by N pixels to fill sub-pixel gaps between tiles.
+      // ROLLBACK: set to 0 to disable (shows seam lines against non-black backgrounds).
+      var SEAM_PX = 0.7;
 
       // Bilinear interpolation across the 4 projected face corners.
       // proj[0]=TL, proj[1]=TR, proj[2]=BR, proj[3]=BL
@@ -1605,6 +1608,12 @@ const CubeWebView = ({
         var top = [proj[0][0] + (proj[1][0]-proj[0][0])*u, proj[0][1] + (proj[1][1]-proj[0][1])*u];
         var bot = [proj[3][0] + (proj[2][0]-proj[3][0])*u, proj[3][1] + (proj[2][1]-proj[3][1])*u];
         return [top[0] + (bot[0]-top[0])*v, top[1] + (bot[1]-top[1])*v];
+      }
+
+      // Expand a point outward from (cx,cy) by px pixels (used to hide tile seams).
+      function _expandPt(pt, cx, cy, px) {
+        var dx = pt[0]-cx, dy = pt[1]-cy, l = Math.sqrt(dx*dx+dy*dy) || 1;
+        return [pt[0]+dx/l*px, pt[1]+dy/l*px];
       }
 
       function drawQuad(fd) {
@@ -1626,10 +1635,19 @@ const CubeWebView = ({
               var cbl = biLerp(proj, u0, v1);
               var sx = u0*vw, sy = v0*vh;
 
-              // Triangle 1: ctl-ctr-cbl  maps (0,0)→ctl, (sw,0)→ctr, (0,sh)→cbl
+              // Expand clip corners slightly outward from cell center to hide sub-pixel seams.
+              // Image transform still uses exact (non-expanded) corners — no distortion.
+              var ccx = (ctl[0]+ctr[0]+cbr[0]+cbl[0])*0.25;
+              var ccy = (ctl[1]+ctr[1]+cbr[1]+cbl[1])*0.25;
+              var ectl = _expandPt(ctl,ccx,ccy,SEAM_PX);
+              var ectr = _expandPt(ctr,ccx,ccy,SEAM_PX);
+              var ecbr = _expandPt(cbr,ccx,ccy,SEAM_PX);
+              var ecbl = _expandPt(cbl,ccx,ccy,SEAM_PX);
+
+              // Triangle 1: clip with expanded corners, transform with exact corners
               ctx.save();
               ctx.beginPath();
-              ctx.moveTo(ctl[0],ctl[1]); ctx.lineTo(ctr[0],ctr[1]); ctx.lineTo(cbl[0],cbl[1]);
+              ctx.moveTo(ectl[0],ectl[1]); ctx.lineTo(ectr[0],ectr[1]); ctx.lineTo(ecbl[0],ecbl[1]);
               ctx.closePath(); ctx.clip();
               var a1=(ctr[0]-ctl[0])/sw, b1=(ctr[1]-ctl[1])/sw;
               var c1=(cbl[0]-ctl[0])/sh, d1=(cbl[1]-ctl[1])/sh;
@@ -1637,10 +1655,10 @@ const CubeWebView = ({
               try { ctx.drawImage(src,sx,sy,sw,sh,0,0,sw,sh); } catch(ex) {}
               ctx.setTransform(1,0,0,1,0,0); ctx.restore();
 
-              // Triangle 2: ctr-cbr-cbl  maps (sw,0)→ctr, (sw,sh)→cbr, (0,sh)→cbl
+              // Triangle 2: clip with expanded corners, transform with exact corners
               ctx.save();
               ctx.beginPath();
-              ctx.moveTo(ctr[0],ctr[1]); ctx.lineTo(cbr[0],cbr[1]); ctx.lineTo(cbl[0],cbl[1]);
+              ctx.moveTo(ectr[0],ectr[1]); ctx.lineTo(ecbr[0],ecbr[1]); ctx.lineTo(ecbl[0],ecbl[1]);
               ctx.closePath(); ctx.clip();
               var c2=(cbr[0]-ctr[0])/sh, d2=(cbr[1]-ctr[1])/sh;
               var e2=cbl[0]-c2*sh, f2=cbl[1]-d2*sh;
