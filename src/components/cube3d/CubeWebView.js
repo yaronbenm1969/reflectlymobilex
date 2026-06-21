@@ -1602,7 +1602,7 @@ const CubeWebView = ({
       
       // GRID: number of subdivisions per face axis. 4 = 4x4=16 cells, near-perfect perspective.
       // ROLLBACK: set GRID=1 to revert to simple 2-triangle mode (fast, slight corner error).
-      var DRAW_GRID = 4;
+      var DRAW_GRID = 8;
       // SEAM_PX: expand clip path outward by N pixels to fill sub-pixel anti-aliasing gaps.
       // Combined with black pre-fill: gaps → black. Expansion → fills remaining gap.
       // 0.3px = 0.6px overlap between adjacent cells → artifact too small to see. 0=disable.
