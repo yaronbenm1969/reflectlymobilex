@@ -1604,8 +1604,8 @@ const CubeWebView = ({
       // ROLLBACK: set GRID=1 to revert to simple 2-triangle mode (fast, slight corner error).
       var DRAW_GRID = 4;
       // SEAM_PX: expand clip path outward by N pixels to fill sub-pixel gaps between tiles.
-      // ROLLBACK: set to 0 to disable (shows seam lines against non-black backgrounds).
-      var SEAM_PX = 0.7;
+      // NOTE: values > 0 cause overdraw artifacts on video faces — keep at 0.
+      var SEAM_PX = 0;
 
       // Bilinear interpolation across the 4 projected face corners.
       // proj[0]=TL, proj[1]=TR, proj[2]=BR, proj[3]=BL
