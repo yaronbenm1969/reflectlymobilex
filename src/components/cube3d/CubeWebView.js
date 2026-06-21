@@ -1633,15 +1633,6 @@ const CubeWebView = ({
           var G = DRAW_GRID;
           var sw = vw / G, sh = vh / G;
 
-          // Pre-fill face outline with black so sub-pixel gaps between tiles show black
-          // (not the recording background color). No expansion needed — no overdraw artifacts.
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(proj[0][0],proj[0][1]);
-          for (var pi=1;pi<4;pi++) ctx.lineTo(proj[pi][0],proj[pi][1]);
-          ctx.closePath(); ctx.fillStyle='#000'; ctx.fill();
-          ctx.restore();
-
           for (var gy = 0; gy < G; gy++) {
             for (var gx = 0; gx < G; gx++) {
               var u0 = gx/G, u1 = (gx+1)/G, v0 = gy/G, v1 = (gy+1)/G;
@@ -1660,10 +1651,28 @@ const CubeWebView = ({
               var ecbr = _expandPt(cbr,ccx,ccy,SEAM_PX);
               var ecbl = _expandPt(cbl,ccx,ccy,SEAM_PX);
 
-              // Triangle 1: clip with expanded corners, transform with exact corners
+              // Outer quad clip (expanded) — one clip per cell covers both triangles
               ctx.save();
               ctx.beginPath();
-              ctx.moveTo(ectl[0],ectl[1]); ctx.lineTo(ectr[0],ectr[1]); ctx.lineTo(ecbl[0],ecbl[1]);
+              ctx.moveTo(ectl[0],ectl[1]); ctx.lineTo(ectr[0],ectr[1]);
+              ctx.lineTo(ecbr[0],ecbr[1]); ctx.lineTo(ecbl[0],ecbl[1]);
+              ctx.closePath(); ctx.clip();
+
+              // Pass 1: T2 fills the full quad (no inner triangle clip).
+              // Anti-aliased diagonal edge of T1 will reveal T2 texture underneath — no black gap.
+              var c2=(cbr[0]-ctr[0])/sh, d2=(cbr[1]-ctr[1])/sh;
+              var e2=cbl[0]-c2*sh, f2=cbl[1]-d2*sh;
+              var a2=(ctr[0]-e2)/sw, b2=(ctr[1]-f2)/sw;
+              ctx.save();
+              ctx.setTransform(a2,b2,c2,d2,e2,f2);
+              try { ctx.drawImage(src,sx,sy,sw,sh,0,0,sw,sh); } catch(ex) {}
+              ctx.setTransform(1,0,0,1,0,0); ctx.restore();
+
+              // Pass 2: T1 with exact (non-expanded) triangle clip drawn on top.
+              // The anti-aliased diagonal fade blends into T2's texture, not black.
+              ctx.save();
+              ctx.beginPath();
+              ctx.moveTo(ctl[0],ctl[1]); ctx.lineTo(ctr[0],ctr[1]); ctx.lineTo(cbl[0],cbl[1]);
               ctx.closePath(); ctx.clip();
               var a1=(ctr[0]-ctl[0])/sw, b1=(ctr[1]-ctl[1])/sw;
               var c1=(cbl[0]-ctl[0])/sh, d1=(cbl[1]-ctl[1])/sh;
@@ -1671,17 +1680,7 @@ const CubeWebView = ({
               try { ctx.drawImage(src,sx,sy,sw,sh,0,0,sw,sh); } catch(ex) {}
               ctx.setTransform(1,0,0,1,0,0); ctx.restore();
 
-              // Triangle 2: clip with expanded corners, transform with exact corners
-              ctx.save();
-              ctx.beginPath();
-              ctx.moveTo(ectr[0],ectr[1]); ctx.lineTo(ecbr[0],ecbr[1]); ctx.lineTo(ecbl[0],ecbl[1]);
-              ctx.closePath(); ctx.clip();
-              var c2=(cbr[0]-ctr[0])/sh, d2=(cbr[1]-ctr[1])/sh;
-              var e2=cbl[0]-c2*sh, f2=cbl[1]-d2*sh;
-              var a2=(ctr[0]-e2)/sw, b2=(ctr[1]-f2)/sw;
-              ctx.setTransform(a2,b2,c2,d2,e2,f2);
-              try { ctx.drawImage(src,sx,sy,sw,sh,0,0,sw,sh); } catch(ex) {}
-              ctx.setTransform(1,0,0,1,0,0); ctx.restore();
+              ctx.restore(); // outer quad clip
             }
           }
         } else {
