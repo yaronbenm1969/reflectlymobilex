@@ -421,7 +421,9 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
   console.log(`🎬 Video duration: ${videoDuration}s`);
   const filterComplex = [
     `[0:v]setpts=PTS-STARTPTS[vout]`,
-    `[0:a]asetpts=PTS-STARTPTS[a0]`,
+    // highpass+lowpass: remove low rumble + high hiss. alimiter: prevent clipping.
+    // No afftdn/dynaudnorm — caused artifacts/sync issues in previous versions.
+    `[0:a]asetpts=PTS-STARTPTS,highpass=f=80,lowpass=f=10000,alimiter=limit=0.95[a0]`,
     `[1:a]aresample=44100,asetpts=PTS-STARTPTS,volume=${musicVolume}[m]`,
     `[a0][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
   ].join(';');
