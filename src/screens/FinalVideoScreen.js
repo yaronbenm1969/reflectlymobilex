@@ -316,7 +316,10 @@ export const FinalVideoScreen = () => {
 
   const startAmbientMusic = async () => {
     if (!isAmbientMusic) return;
-    const trackId = selectedMusic || 'reflective-space';
+    // Suno sets (suno-set-N) are AI-generated per-story — no ambient phase files exist for them.
+    // Fall back to a known ambient library track.
+    const rawTrackId = selectedMusic || 'reflective-space';
+    const trackId = rawTrackId.startsWith('suno-set-') ? 'reflective-space' : rawTrackId;
 
     try {
       await Audio.setAudioModeAsync({
