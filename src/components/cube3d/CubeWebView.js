@@ -1632,6 +1632,15 @@ const CubeWebView = ({
           var G = DRAW_GRID;
           var sw = vw / G, sh = vh / G;
 
+          // Pre-fill face outline with black so sub-pixel gaps between tiles show black
+          // (not the recording background color). No expansion needed — no overdraw artifacts.
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(proj[0][0],proj[0][1]);
+          for (var pi=1;pi<4;pi++) ctx.lineTo(proj[pi][0],proj[pi][1]);
+          ctx.closePath(); ctx.fillStyle='#000'; ctx.fill();
+          ctx.restore();
+
           for (var gy = 0; gy < G; gy++) {
             for (var gx = 0; gx < G; gx++) {
               var u0 = gx/G, u1 = (gx+1)/G, v0 = gy/G, v1 = (gy+1)/G;
