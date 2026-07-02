@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -24,7 +25,12 @@ const notificationsService = {
         console.log('📵 Push notifications permission denied');
         return null;
       }
-      const tokenData = await Notifications.getExpoPushTokenAsync();
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId ||
+        Constants.easConfig?.projectId;
+      const tokenData = await Notifications.getExpoPushTokenAsync(
+        projectId ? { projectId } : undefined
+      );
       const token = tokenData.data;
       console.log('🔔 Push token:', token.substring(0, 30) + '...');
       return token;
