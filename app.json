@@ -18,11 +18,14 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.reflectly.app",
+      "buildNumber": "1",
       "associatedDomains": [
-        "applinks:ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev"
+        "applinks:reflectlymobilex.onrender.com"
       ],
       "infoPlist": {
-        "LSApplicationQueriesSchemes": ["whatsapp"]
+        "LSApplicationQueriesSchemes": ["whatsapp"],
+        "NSMicrophoneUsageDescription": "RILIO uses the microphone to record your video stories",
+        "NSPhotoLibraryUsageDescription": "RILIO accesses your photo library to select background images"
       }
     },
     "android": {
@@ -31,6 +34,7 @@
         "backgroundColor": "#F5F0FA"
       },
       "package": "com.reflectly.app",
+      "versionCode": 1,
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO",
@@ -44,7 +48,7 @@
           "data": [
             {
               "scheme": "https",
-              "host": "ac75ad19-6da1-4ed8-b143-f23166e3ed4a-00-3fswsn9l8v0l5.picard.replit.dev",
+              "host": "reflectlymobilex.onrender.com",
               "pathPrefix": "/s/"
             }
           ],
