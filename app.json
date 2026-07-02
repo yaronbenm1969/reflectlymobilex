@@ -23,7 +23,9 @@
         "applinks:reflectlymobilex.onrender.com"
       ],
       "infoPlist": {
-        "LSApplicationQueriesSchemes": ["whatsapp"],
+        "LSApplicationQueriesSchemes": [
+          "whatsapp"
+        ],
         "NSMicrophoneUsageDescription": "RILIO uses the microphone to record your video stories",
         "NSPhotoLibraryUsageDescription": "RILIO accesses your photo library to select background images"
       }
@@ -52,7 +54,10 @@
               "pathPrefix": "/s/"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         },
         {
           "action": "VIEW",
@@ -61,7 +66,10 @@
               "scheme": "reflectly"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -85,6 +93,13 @@
       "expo-asset",
       "expo-font",
       "expo-localization"
-    ]
+    ],
+    "extra": {
+      "videoConverterUrl": "https://reflectlymobilex.onrender.com",
+      "webPlayerDomain": "reflectlymobilex.onrender.com",
+      "eas": {
+        "projectId": "81b01613-7694-4052-980d-a89bf2741388"
+      }
+    }
   }
 }

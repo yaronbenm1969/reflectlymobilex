@@ -2627,6 +2627,32 @@ app.delete('/admin/music/:id', async (req, res) => {
   }
 });
 
+// GET /admin/analytics — aggregate usage stats from _analytics collection
+app.get('/admin/analytics', async (req, res) => {
+  try {
+    if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+
+    const snap = await firestoreDb.collection('_analytics').orderBy('ts', 'desc').limit(500).get();
+    const events = snap.docs.map(d => ({ id: d.id, ...d.data(), ts: d.data().ts?.toDate?.()?.toISOString() || null }));
+
+    // Aggregate counters
+    const counts = {};
+    events.forEach(e => { counts[e.event] = (counts[e.event] || 0) + 1; });
+
+    // Recent 20 events
+    const recent = events.slice(0, 20).map(e => ({
+      event: e.event,
+      storyId: e.storyId || null,
+      platform: e.platform || null,
+      ts: e.ts,
+    }));
+
+    res.json({ success: true, counts, recent, total: events.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Memory cleanup: every 6 hours, evict job entries older than 6 hours
 const JOB_TTL_MS = 6 * 60 * 60 * 1000;
 setInterval(() => {

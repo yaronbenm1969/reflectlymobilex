@@ -19,6 +19,7 @@ import { Card } from '../ui/Card';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { storiesService } from '../services/storiesService';
+import { analyticsService } from '../services/analyticsService';
 import theme from '../theme/theme';
 
 const logoImage = require('../../assets/logo.png');
@@ -78,6 +79,7 @@ export const HomeScreen = () => {
       setCurrentInviteCode(result.inviteCode);
       setStoryClipCount(selectedOption.clipCount);
       setStoryMaxClipDuration(selectedOption.maxClipDuration);
+      analyticsService.storyCreated(result.storyId, user.uid);
       console.log('🎬 Story created in Firebase:', result.storyId);
       console.log('📎 Invite code:', result.inviteCode);
     } else {

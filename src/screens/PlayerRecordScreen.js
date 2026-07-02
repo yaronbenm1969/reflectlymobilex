@@ -22,6 +22,7 @@ import storageService from '../services/storageService';
 import reflectionsService from '../services/reflectionsService';
 import { storiesService } from '../services/storiesService';
 import { notificationsService } from '../services/notificationsService';
+import { analyticsService } from '../services/analyticsService';
 
 import { useTranslation } from 'react-i18next';
 import { AppButton } from '../ui/AppButton';
@@ -216,6 +217,7 @@ export const PlayerRecordScreen = () => {
   const clipDurationRef = useRef(0);
 
   const startRecordingClip = async (clipIndex) => {
+    if (clipIndex === 0) analyticsService.recordingStarted(storyIdForMusic || playerStoryId, participantIdRef.current);
     if (isWeb) {
       if (musicMode === 'none') { ambient.stop(); }
       else { ambient.playPhase(1, musicMode === 'performance' ? 0.10 : 0.03, true); }
@@ -366,6 +368,7 @@ export const PlayerRecordScreen = () => {
         }
       }
 
+      if (uploadedCount > 0) analyticsService.clipSubmitted(storyIdForMusic || playerStoryId, participantIdRef.current, uploadedCount);
       // Notify story creator about new clips
       if (storyIdForMusic && uploadedCount > 0) {
         const participantName = playerStoryData?.participantName || navigationParams?.participantName || null;

@@ -40,6 +40,7 @@ import { useAppState } from './src/state/appState';
 import { authService } from './src/services/authService';
 import { storiesService } from './src/services/storiesService';
 import { notificationsService } from './src/services/notificationsService';
+import { analyticsService } from './src/services/analyticsService';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -53,6 +54,7 @@ export default function App() {
   const [minDelayReady, setMinDelayReady] = useState(false);
 
   useEffect(() => {
+    analyticsService.appOpen();
     initI18n().finally(() => setI18nReady(true));
     const t = setTimeout(() => setMinDelayReady(true), 1000);
     return () => clearTimeout(t);

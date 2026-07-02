@@ -256,6 +256,7 @@ header small { opacity: .8; font-size: 12px; }
     <div class="page-tabs">
       <button class="page-tab active" onclick="showPage('backgrounds', this)">🎬 רקעים</button>
       <button class="page-tab"        onclick="showPage('music', this)">🎵 ספריית מוזיקה</button>
+      <button class="page-tab"        onclick="showPage('analytics', this)">📊 Analytics</button>
     </div>
 
     <!-- ══════════════════════════════════════ BACKGROUNDS PAGE ══ -->
@@ -394,6 +395,27 @@ header small { opacity: .8; font-size: 12px; }
 
     </div><!-- /page-music -->
 
+    <!-- ══════════════════════════════════════ ANALYTICS PAGE ══ -->
+    <div class="page" id="page-analytics">
+
+      <div class="card" style="margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+          <h2 style="font-size:16px;font-weight:700">📊 Analytics — שימוש באפ</h2>
+          <button onclick="loadAnalytics()" style="padding:7px 16px;background:#8446b0;color:white;border:none;border-radius:20px;cursor:pointer;font-size:13px">רענן</button>
+        </div>
+
+        <!-- Funnel -->
+        <div id="analytics-funnel" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:24px">
+          <div class="loading-state" style="grid-column:1/-1">טוען נתונים...</div>
+        </div>
+
+        <!-- Recent events -->
+        <h3 style="font-size:13px;font-weight:700;color:#555;margin-bottom:10px">אירועים אחרונים</h3>
+        <div id="analytics-recent" style="font-size:12px"></div>
+      </div>
+
+    </div><!-- /page-analytics -->
+
   </div><!-- /main -->
 </div>
 
@@ -422,6 +444,61 @@ function showPage(page, el) {
   document.getElementById('page-' + page).classList.add('active');
   el.classList.add('active');
   if (page === 'music' && allTracks.length === 0) loadMusic();
+  if (page === 'analytics') loadAnalytics();
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+const ANALYTICS_LABELS = {
+  app_open:         { label: 'פתיחות אפ',     icon: '📱' },
+  story_created:    { label: 'סיפורים נוצרו',  icon: '🎬' },
+  recording_started:{ label: 'הקלטות התחילו', icon: '🎙️' },
+  clip_submitted:   { label: 'קליפים הוגשו',  icon: '📤' },
+  invite_sent:      { label: 'הזמנות נשלחו',  icon: '🔗' },
+  final_movie_ready:{ label: 'סרטים הושלמו',  icon: '🎞️' },
+  movie_watched:    { label: 'צפיות עד סוף',  icon: '👁️' },
+  share_clicked:    { label: 'לחיצות שיתוף',  icon: '📢' },
+};
+
+async function loadAnalytics() {
+  document.getElementById('analytics-funnel').innerHTML = '<div class="loading-state" style="grid-column:1/-1">טוען...</div>';
+  document.getElementById('analytics-recent').innerHTML = '';
+  try {
+    const res  = await fetch(`${SERVER}/admin/analytics`, { headers: hdrs() });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed');
+
+    // Funnel cards
+    const order = ['app_open','story_created','recording_started','clip_submitted','invite_sent','final_movie_ready','movie_watched','share_clicked'];
+    const funnelHtml = order.map(key => {
+      const meta  = ANALYTICS_LABELS[key] || { label: key, icon: '•' };
+      const count = data.counts[key] || 0;
+      return `<div style="background:#f9f5ff;border-radius:12px;padding:14px 12px;text-align:center;border:1.5px solid #e9d8fd">
+        <div style="font-size:22px;margin-bottom:4px">${meta.icon}</div>
+        <div style="font-size:24px;font-weight:800;color:#6d28d9">${count}</div>
+        <div style="font-size:11px;color:#888;margin-top:3px">${meta.label}</div>
+      </div>`;
+    }).join('');
+    document.getElementById('analytics-funnel').innerHTML = funnelHtml;
+
+    // Recent events table
+    if (!data.recent || data.recent.length === 0) {
+      document.getElementById('analytics-recent').innerHTML = '<div style="color:#aaa;font-size:13px">אין אירועים עדיין</div>';
+      return;
+    }
+    const rows = data.recent.map(e => {
+      const meta = ANALYTICS_LABELS[e.event] || { label: e.event, icon: '•' };
+      const time = e.ts ? new Date(e.ts).toLocaleString('he-IL') : '—';
+      return `<div style="display:grid;grid-template-columns:28px 130px 1fr 110px;gap:8px;padding:7px 4px;border-bottom:1px solid #f0f0f0;align-items:center">
+        <span>${meta.icon}</span>
+        <span style="font-weight:600;color:#444">${meta.label}</span>
+        <span style="color:#999">${e.storyId ? e.storyId.substring(0,12)+'…' : '—'}</span>
+        <span style="color:#bbb;font-size:11px">${time}</span>
+      </div>`;
+    }).join('');
+    document.getElementById('analytics-recent').innerHTML = rows;
+  } catch (err) {
+    document.getElementById('analytics-funnel').innerHTML = `<div style="color:#e53e3e;grid-column:1/-1">שגיאה: ${err.message}</div>`;
+  }
 }
 
 // ── Init: auto-detect server URL when loaded from the server itself ──────────

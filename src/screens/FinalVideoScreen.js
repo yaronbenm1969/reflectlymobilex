@@ -35,6 +35,7 @@ import { storageService } from '../services/storageService';
 import Constants from 'expo-constants';
 import { storiesService } from '../services/storiesService';
 import { backgroundsService } from '../services/backgroundsService';
+import { analyticsService } from '../services/analyticsService';
 import theme from '../theme/theme';
 
 const STORAGE_BUCKET = 'reflectly-playback.firebasestorage.app';
@@ -600,6 +601,8 @@ export const FinalVideoScreen = () => {
 
   const handleShare = async () => {
     try {
+      analyticsService.shareClicked(currentStoryId, user?.uid, 'link');
+      analyticsService.inviteSent(currentStoryId, user?.uid);
       // Share watch link — shows full experience (background + music + animation)
       const domain = Constants.expoConfig?.extra?.webPlayerDomain ||
                      'reflectly-mobile-x--yaronbenm1.replit.app';
@@ -1002,6 +1005,7 @@ export const FinalVideoScreen = () => {
           setConversionSucceeded(true);
           if (currentStoryId) {
             storiesService.updateStory(currentStoryId, { sourceVideoUrl: uploadResult.url, finalVideoUrl: finalMp4Url, status: 'completed' }).catch(() => {});
+            analyticsService.finalMovieReady(currentStoryId, user?.uid);
           }
           // Clear raw recording from cache BEFORE showing end screen.
           // This forces getVideoForSharing to use firebaseUrlRef (the mixed CFR mp4)
@@ -1696,6 +1700,7 @@ export const FinalVideoScreen = () => {
               console.log('✅ All videos finished - showing end screen');
               setIsCubeFullscreen(false);
               setVideoHasPlayed(true);
+              analyticsService.movieWatched(currentStoryId, user?.uid);
               stopAmbientMusic();
               stopAiMusic();
               if (clientRecordingInProgress) {
