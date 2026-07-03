@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Support — RILIO</title>
+  <meta name="description" content="Contact RILIO support." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f3ff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 40px 24px 60px;
+    }
+    .back {
+      align-self: flex-start;
+      font-size: 14px;
+      color: #8B5CF6;
+      text-decoration: none;
+      margin-bottom: 32px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .back:hover { text-decoration: underline; }
+    .logo {
+      font-size: 32px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #8B5CF6, #6D28D9);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1f2937;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: #6b7280;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    form {
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(139,92,246,0.07);
+    }
+    .field {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+    label .opt {
+      font-weight: 400;
+      color: #9ca3af;
+      margin-left: 4px;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 10px;
+      font-size: 15px;
+      font-family: inherit;
+      color: #1f2937;
+      background: #fafafa;
+      outline: none;
+      transition: border-color 0.15s;
+      resize: vertical;
+    }
+    input:focus, textarea:focus {
+      border-color: #8B5CF6;
+      background: white;
+    }
+    textarea { min-height: 120px; }
+    .send-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #8B5CF6, #6D28D9);
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: opacity 0.15s;
+    }
+    .send-btn:hover { opacity: 0.92; }
+    .send-btn:disabled { opacity: 0.6; cursor: default; }
+    .msg {
+      display: none;
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      text-align: center;
+    }
+    .msg.success { background: #ecfdf5; color: #065f46; display: block; }
+    .msg.error   { background: #fef2f2; color: #991b1b; display: block; }
+  </style>
+</head>
+<body>
+  <a class="back" href="/">&#8592; Back to RILIO</a>
+  <div class="logo">RILIO</div>
+  <h1>Contact Support</h1>
+  <p class="subtitle">We usually reply within 24 hours.</p>
+
+  <form id="supportForm" novalidate>
+    <div class="field">
+      <label for="name">Name</label>
+      <input type="text" id="name" name="name" placeholder="Your name" required autocomplete="name" />
+    </div>
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" placeholder="you@example.com" required autocomplete="email" />
+    </div>
+    <div class="field">
+      <label for="subject">Subject <span class="opt">(optional)</span></label>
+      <input type="text" id="subject" name="subject" placeholder="Rilio Support" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label for="message">Message</label>
+      <textarea id="message" name="message" placeholder="How can we help?" required></textarea>
+    </div>
+    <button class="send-btn" type="submit" id="sendBtn">Send Message</button>
+    <div class="msg" id="statusMsg"></div>
+  </form>
+
+  <script>
+    const API_URL = 'https://reflectlymobilex.onrender.com/api/support';
+
+    const form = document.getElementById('supportForm');
+    const btn  = document.getElementById('sendBtn');
+    const msg  = document.getElementById('statusMsg');
+
+    function showMsg(text, type) {
+      msg.textContent = text;
+      msg.className = 'msg ' + type;
+    }
+
+    function validateEmail(v) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.className = 'msg';
+
+      const name    = document.getElementById('name').value.trim();
+      const email   = document.getElementById('email').value.trim();
+      const subject = document.getElementById('subject').value.trim();
+      const message = document.getElementById('message').value.trim();
+
+      if (!name)              return showMsg('Please enter your name.', 'error');
+      if (!validateEmail(email)) return showMsg('Please enter a valid email address.', 'error');
+      if (!message)           return showMsg('Please enter a message.', 'error');
+
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, subject: subject || 'Rilio Support', message }),
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          showMsg('Thank you! Your message has been sent successfully.', 'success');
+          form.reset();
+        } else {
+          showMsg(data.error || 'Something went wrong. Please try again.', 'error');
+        }
+      } catch (_) {
+        showMsg('Could not reach the server. Please try again or email us at yaronbenm1@gmail.com.', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Message';
+      }
+    });
+  </script>
+</body>
+</html>

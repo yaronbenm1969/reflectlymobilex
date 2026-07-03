@@ -9,6 +9,7 @@ process.on('unhandledRejection', (reason) => {
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
+const nodemailer = require('nodemailer');
 const { Expo } = require('expo-server-sdk');
 const expoClient = new Expo();
 const ffmpeg = require('fluent-ffmpeg');
@@ -46,7 +47,7 @@ if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 if (!fs.existsSync(convertedDir)) fs.mkdirSync(convertedDir, { recursive: true });
 const upload = multer({ dest: tempDir, limits: { fileSize: 100 * 1024 * 1024 } });
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/notify-reflection', '/api/ambient-track', '/api/suno-sets', '/api/test-mix', '/api/delete-story', '/api/delete-account', '/privacy', '/terms', '/support'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/notify-reflection', '/api/ambient-track', '/api/suno-sets', '/api/test-mix', '/api/delete-story', '/api/delete-account', '/api/support', '/privacy', '/terms', '/support'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -84,6 +85,61 @@ app.get('/health', (req, res) => {
 
 app.get('/privacy', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'web', 'privacy.html'));
+});
+
+app.get('/support', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'web', 'support.html'));
+});
+
+// Simple in-memory rate limiter: max 5 support emails per IP per hour
+const _supportRateMap = new Map();
+function _supportRateOk(ip) {
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000;
+  const entry = _supportRateMap.get(ip) || { count: 0, start: now };
+  if (now - entry.start > windowMs) { _supportRateMap.set(ip, { count: 1, start: now }); return true; }
+  if (entry.count >= 5) return false;
+  entry.count++;
+  _supportRateMap.set(ip, entry);
+  return true;
+}
+
+app.post('/api/support', async (req, res) => {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  if (!_supportRateOk(ip)) {
+    return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+  }
+
+  const { name, email, subject, message } = req.body || {};
+  if (!name || typeof name !== 'string' || !name.trim()) return res.status(400).json({ error: 'Name is required.' });
+  if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return res.status(400).json({ error: 'A valid email address is required.' });
+  if (!message || typeof message !== 'string' || !message.trim()) return res.status(400).json({ error: 'Message is required.' });
+
+  const GMAIL_USER = process.env.GMAIL_USER;
+  const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
+  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
+    console.error('Support email not configured: GMAIL_USER / GMAIL_APP_PASSWORD missing');
+    return res.status(500).json({ error: 'Email service is not configured. Please contact us at yaronbenm1@gmail.com.' });
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+    });
+    await transporter.sendMail({
+      from: `"Rilio Support" <${GMAIL_USER}>`,
+      to: GMAIL_USER,
+      replyTo: `"${name.trim()}" <${email.trim()}>`,
+      subject: `[Rilio Support] ${(subject || 'Rilio Support').trim()}`,
+      text: `Name: ${name.trim()}\nEmail: ${email.trim()}\n\n${message.trim()}`,
+      html: `<p><strong>Name:</strong> ${name.trim()}</p><p><strong>Email:</strong> ${email.trim()}</p><hr/><p>${message.trim().replace(/\n/g, '<br/>')}</p>`,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Support email send failed:', err.message);
+    res.status(500).json({ error: 'Failed to send message. Please try again or email us directly at yaronbenm1@gmail.com.' });
+  }
 });
 
 // Deep-link redirect page — handles both users with the app and without
