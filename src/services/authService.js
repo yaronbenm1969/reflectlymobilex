@@ -6,6 +6,7 @@ import {
   onAuthStateChanged,
   updateProfile
 } from 'firebase/auth';
+import Constants from 'expo-constants';
 import { auth } from './firebase';
 import { usersService } from './usersService';
 
@@ -70,6 +71,39 @@ export const authService = {
       return { success: true, user: userCredential.user };
     } catch (error) {
       console.error('❌ Guest sign in error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Permanently delete the current user's account and all their data.
+   * The server deletes: all owned stories, their Storage files, associated
+   * reflections/invitations/applications, the Firestore user profile, and the
+   * Firebase Auth record. Stories created by OTHER users are never touched.
+   */
+  deleteAccount: async () => {
+    try {
+      if (!auth || !auth.currentUser) {
+        return { success: false, error: 'Not signed in' };
+      }
+      const idToken = await auth.currentUser.getIdToken();
+      const serverUrl = Constants.expoConfig?.extra?.videoConverterUrl || 'https://reflectlymobilex.onrender.com';
+      const resp = await fetch(`${serverUrl}/api/delete-account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || `Server error ${resp.status}`);
+      }
+      // Firebase Auth user is now deleted on the server.
+      // Sign out locally to clear cached credentials and trigger onAuthStateChanged(null).
+      await signOut(auth).catch(() => {});
+      console.log('✅ Account deleted successfully');
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Delete account error:', error.message);
       return { success: false, error: error.message };
     }
   },

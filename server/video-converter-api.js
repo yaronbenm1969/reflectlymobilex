@@ -19,6 +19,7 @@ const os = require('os');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getStorage } = require('firebase-admin/storage');
 const { getFirestore } = require('firebase-admin/firestore');
+const { getAuth: getAdminAuth } = require('firebase-admin/auth');
 const { ConversionQueue } = require('./conversion-queue');
 const { renderFormatVideo, cleanupRenderDir } = require('./format-renderer');
 const { buildWebRecordHtml } = require('./web-record-template');
@@ -45,7 +46,7 @@ if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 if (!fs.existsSync(convertedDir)) fs.mkdirSync(convertedDir, { recursive: true });
 const upload = multer({ dest: tempDir, limits: { fileSize: 100 * 1024 * 1024 } });
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/notify-reflection', '/api/ambient-track', '/api/suno-sets', '/api/test-mix'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/notify-reflection', '/api/ambient-track', '/api/suno-sets', '/api/test-mix', '/api/delete-story', '/api/delete-account'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -469,6 +470,14 @@ try {
   console.log('Firestore initialized for video converter');
 } catch (error) {
   console.log('Firestore initialization skipped:', error.message);
+}
+
+let adminAuth = null;
+try {
+  adminAuth = getAdminAuth();
+  console.log('Firebase Admin Auth initialized');
+} catch (error) {
+  console.log('Firebase Admin Auth initialization skipped:', error.message);
 }
 
 function needsConversion(mimeType, filename) {
@@ -2684,6 +2693,101 @@ setInterval(() => {
     } catch (e) {}
   });
 }, 30 * 60 * 1000);
+
+// ─── Story & Account Deletion ─────────────────────────────────────────────────
+
+/**
+ * Delete all Storage files and Firestore sub-documents for a single story.
+ * Shared by both /api/delete-story and /api/delete-account.
+ * All sub-operations use .catch(() => {}) so a missing file never aborts the whole delete.
+ */
+async function _deleteStoryData(storyId) {
+  // 1. Storage: root mp4 + stories/{id}/ folder + reflections/{id}/ folder
+  if (bucket) {
+    await bucket.file(`stories/${storyId}.mp4`).delete().catch(() => {});
+    const [storyFiles] = await bucket.getFiles({ prefix: `stories/${storyId}/` }).catch(() => [[]]);
+    await Promise.all(storyFiles.map(f => f.delete().catch(() => {})));
+    const [reflFiles] = await bucket.getFiles({ prefix: `reflections/${storyId}/` }).catch(() => [[]]);
+    await Promise.all(reflFiles.map(f => f.delete().catch(() => {})));
+  }
+  // 2. Firestore: reflections, invitations, applications, then the story doc itself
+  const [reflSnap, invSnap, appSnap] = await Promise.all([
+    firestoreDb.collection('reflections').where('storyId', '==', storyId).get(),
+    firestoreDb.collection('invitations').where('storyId', '==', storyId).get(),
+    firestoreDb.collection('applications').where('storyId', '==', storyId).get(),
+  ]);
+  await Promise.all([
+    ...reflSnap.docs.map(d => d.ref.delete()),
+    ...invSnap.docs.map(d => d.ref.delete()),
+    ...appSnap.docs.map(d => d.ref.delete()),
+    firestoreDb.collection('stories').doc(storyId).delete(),
+  ]);
+}
+
+// POST /api/delete-story
+// Full cascade delete for a single story: Storage files + reflections + invitations + applications + Firestore doc.
+// Body: { storyId, idToken }
+// Verified via Firebase ID token — only the story owner can delete.
+app.post('/api/delete-story', async (req, res) => {
+  const { storyId, idToken } = req.body || {};
+  if (!storyId || !idToken) return res.status(400).json({ error: 'storyId and idToken required' });
+  if (!adminAuth)   return res.status(503).json({ error: 'Auth service not available' });
+  if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+
+  try {
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    const uid = decoded.uid;
+
+    const storySnap = await firestoreDb.collection('stories').doc(storyId).get();
+    if (!storySnap.exists) return res.status(404).json({ error: 'Story not found' });
+    if (storySnap.data().userId !== uid) return res.status(403).json({ error: 'Forbidden: not the story owner' });
+
+    await _deleteStoryData(storyId);
+    console.log(`✅ Story ${storyId} fully deleted by ${uid}`);
+    res.json({ success: true });
+  } catch (err) {
+    if (err.code === 'auth/id-token-expired' || err.code === 'auth/argument-error') {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+    console.error('Delete story error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/delete-account
+// Deletes all data for a user account: every story they own (Storage + reflections + invitations + applications),
+// their Firestore user profile, and finally their Firebase Auth record.
+// Body: { idToken }
+// Does NOT touch stories created by other users.
+app.post('/api/delete-account', async (req, res) => {
+  const { idToken } = req.body || {};
+  if (!idToken)     return res.status(400).json({ error: 'idToken required' });
+  if (!adminAuth)   return res.status(503).json({ error: 'Auth service not available' });
+  if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+
+  try {
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    const uid = decoded.uid;
+
+    // Delete every story created by this user
+    const storiesSnap = await firestoreDb.collection('stories').where('userId', '==', uid).get();
+    await Promise.all(storiesSnap.docs.map(d => _deleteStoryData(d.id)));
+
+    // Delete Firestore user profile
+    await firestoreDb.collection('users').doc(uid).delete().catch(() => {});
+
+    // Delete Firebase Auth record — must be last (token becomes invalid after this)
+    await adminAuth.deleteUser(uid);
+    console.log(`✅ Account ${uid} deleted (${storiesSnap.size} stories removed)`);
+    res.json({ success: true });
+  } catch (err) {
+    if (err.code === 'auth/id-token-expired' || err.code === 'auth/argument-error') {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+    console.error('Delete account error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Video Converter API running on port ${PORT}`);

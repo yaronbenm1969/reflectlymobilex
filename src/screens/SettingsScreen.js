@@ -1,11 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, I18nManager } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, I18nManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { changeLanguage, SUPPORTED_LANGUAGES } from '../i18n';
+import { authService } from '../services/authService';
 import { Card } from '../ui/Card';
 import theme from '../theme/theme';
 
@@ -13,6 +14,30 @@ export const SettingsScreen = () => {
   const { go, back } = useNav();
   const { t, i18n } = useTranslation();
   const currentLang = i18n.language || 'he';
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'מחיקת חשבון',
+      'פעולה זו תמחק לצמיתות את חשבונך, את כל הסיפורים שיצרת ואת הסרטונים המשויכים אליהם.\n\nמשתתפים שצילמו בסיפורים שלך יאבדו גישה לאותם סיפורים.\n\nלא ניתן לבטל פעולה זו.',
+      [
+        { text: 'ביטול', style: 'cancel' },
+        {
+          text: 'מחק חשבון לצמיתות',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            const result = await authService.deleteAccount();
+            setDeleting(false);
+            if (!result.success) {
+              Alert.alert('שגיאה', result.error || 'לא ניתן למחוק את החשבון. נסה שוב.');
+            }
+            // On success: onAuthStateChanged fires with null → app navigates to login automatically
+          },
+        },
+      ]
+    );
+  };
 
   const handleLanguageChange = (lang) => {
     if (lang === currentLang) return;
@@ -128,6 +153,28 @@ export const SettingsScreen = () => {
           </View>
         </Card>
 
+        {/* Danger Zone */}
+        <Card style={[styles.section, styles.dangerCard]}>
+          <Text style={styles.dangerTitle}>מחיקת חשבון</Text>
+          <Text style={styles.dangerDesc}>
+            מחיקה תמחק את חשבונך, כל הסיפורים שיצרת וכל הקבצים המשויכים אליהם לצמיתות.
+          </Text>
+          <TouchableOpacity
+            style={[styles.deleteButton, deleting && styles.deleteButtonDisabled]}
+            onPress={handleDeleteAccount}
+            disabled={deleting}
+          >
+            {deleting ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={18} color="white" style={{ marginRight: 8 }} />
+                <Text style={styles.deleteButtonText}>מחק חשבון</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </Card>
+
       </ScrollView>
     </View>
   );
@@ -240,5 +287,38 @@ const styles = StyleSheet.create({
   aboutValue: {
     ...theme.typography.body,
     color: theme.colors.subtext,
+  },
+  dangerCard: {
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+  },
+  dangerTitle: {
+    ...theme.typography.h3,
+    color: '#dc2626',
+    marginBottom: theme.spacing[2],
+    fontSize: 18,
+  },
+  dangerDesc: {
+    ...theme.typography.caption,
+    color: theme.colors.subtext,
+    marginBottom: theme.spacing[4],
+    lineHeight: 18,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dc2626',
+    borderRadius: theme.radii.md,
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[4],
+  },
+  deleteButtonDisabled: {
+    backgroundColor: '#f87171',
+  },
+  deleteButtonText: {
+    color: 'white',
+    fontWeight: '700',
+    fontSize: 15,
   },
 });

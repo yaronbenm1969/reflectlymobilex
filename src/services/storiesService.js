@@ -14,7 +14,8 @@ import {
   serverTimestamp,
   increment
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
+import Constants from 'expo-constants';
 
 const STORIES_COLLECTION = 'stories';
 const INVITATIONS_COLLECTION = 'invitations';
@@ -140,8 +141,24 @@ export const storiesService = {
 
   deleteStory: async (storyId) => {
     try {
+      // Attempt full cascade delete via server (Storage + reflections + invitations + applications + Firestore doc).
+      const idToken = auth?.currentUser ? await auth.currentUser.getIdToken() : null;
+      if (idToken) {
+        const serverUrl = Constants.expoConfig?.extra?.videoConverterUrl || 'https://reflectlymobilex.onrender.com';
+        const resp = await fetch(`${serverUrl}/api/delete-story`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ storyId, idToken }),
+        });
+        if (resp.ok) {
+          console.log('✅ Story deleted (full cascade):', storyId);
+          return { success: true };
+        }
+        console.warn('⚠️ Server cascade delete failed, falling back to Firestore-only delete');
+      }
+      // Fallback: delete Firestore doc only (Storage files will remain, but the story disappears from the UI).
       await deleteDoc(doc(db, STORIES_COLLECTION, storyId));
-      console.log('✅ Story deleted:', storyId);
+      console.log('✅ Story deleted (Firestore only):', storyId);
       return { success: true };
     } catch (error) {
       console.error('❌ Delete story error:', error.message);
