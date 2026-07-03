@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — RILIO</title>
+  <meta name="description" content="RILIO Privacy Policy — how we collect, use, and protect your data." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://rilio.io/privacy" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --purple: #8B5CF6;
+      --purple-light: #f5f0ff;
+      --text: #1a1a2e;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --bg: #ffffff;
+      --section-bg: #fafafa;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%);
+      padding: 40px 24px 48px;
+      text-align: center;
+      color: white;
+    }
+
+    .logo-wordmark {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      margin-bottom: 24px;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .logo-text {
+      font-size: 22px;
+      font-weight: 800;
+      color: white;
+      letter-spacing: 0.5px;
+    }
+
+    header h1 {
+      font-size: clamp(24px, 5vw, 36px);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    header .subtitle {
+      font-size: 15px;
+      opacity: 0.85;
+    }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ── Table of Contents ── */
+    .toc {
+      background: var(--purple-light);
+      border-left: 3px solid var(--purple);
+      border-radius: 0 8px 8px 0;
+      padding: 20px 24px;
+      margin-bottom: 48px;
+    }
+
+    .toc h2 {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--purple);
+      margin-bottom: 12px;
+    }
+
+    .toc ol {
+      padding-left: 18px;
+    }
+
+    .toc li {
+      margin-bottom: 4px;
+    }
+
+    .toc a {
+      color: var(--purple);
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .toc a:hover { text-decoration: underline; }
+
+    /* ── Sections ── */
+    section {
+      margin-bottom: 40px;
+      scroll-margin-top: 24px;
+    }
+
+    section h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    section h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-top: 18px;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    p { margin-bottom: 12px; }
+    p:last-child { margin-bottom: 0; }
+
+    ul, ol {
+      padding-left: 22px;
+      margin-bottom: 12px;
+    }
+
+    li { margin-bottom: 6px; }
+
+    /* ── Data table ── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin: 16px 0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .data-table th {
+      background: var(--section-bg);
+      font-weight: 700;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .data-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:nth-child(even) td { background: var(--section-bg); }
+
+    /* ── Highlight box ── */
+    .highlight {
+      background: var(--purple-light);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .highlight strong { color: var(--purple); }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--section-bg);
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    footer a { color: var(--purple); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      .data-table { font-size: 13px; }
+      .data-table th, .data-table td { padding: 8px 10px; }
+      .container { padding: 32px 16px 60px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <a class="logo-wordmark" href="https://rilio.io">
+    <span class="logo-icon">🎬</span>
+    <span class="logo-text">RILIO</span>
+  </a>
+  <h1>Privacy Policy</h1>
+  <p class="subtitle">Effective date: July 3, 2026 &nbsp;·&nbsp; Version 1.0</p>
+</header>
+
+<div class="container">
+
+  <div class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#who-we-are">Who We Are</a></li>
+      <li><a href="#data-we-collect">Data We Collect</a></li>
+      <li><a href="#how-we-use">How We Use Your Data</a></li>
+      <li><a href="#third-parties">Third-Party Services</a></li>
+      <li><a href="#retention">Data Retention</a></li>
+      <li><a href="#your-rights">Your Rights</a></li>
+      <li><a href="#deletion">Account &amp; Data Deletion</a></li>
+      <li><a href="#children">Children's Privacy</a></li>
+      <li><a href="#security">Security</a></li>
+      <li><a href="#changes">Changes to This Policy</a></li>
+      <li><a href="#contact">Contact Us</a></li>
+    </ol>
+  </div>
+
+  <!-- 1 -->
+  <section id="who-we-are">
+    <h2>1. Who We Are</h2>
+    <p>RILIO ("we", "our", "us") is a mobile application that lets creators record personal video stories, invite participants to add video reflections, and receive an AI-edited final video. The app is developed by Yaron Ben Menachem.</p>
+    <p>This Privacy Policy explains what personal data we collect through the RILIO mobile app (iOS and Android) and our web services at <strong>rilio.io</strong>, how we use it, and what choices you have.</p>
+    <p>By using RILIO you agree to this policy.</p>
+  </section>
+
+  <!-- 2 -->
+  <section id="data-we-collect">
+    <h2>2. Data We Collect</h2>
+
+    <h3>2.1 Account Data (Creators)</h3>
+    <p>When you create an account as a story creator, we collect:</p>
+    <ul>
+      <li>Email address</li>
+      <li>Display name</li>
+      <li>Firebase Authentication UID (a pseudonymous identifier)</li>
+      <li>Expo push notification token (when you approve notifications)</li>
+    </ul>
+
+    <h3>2.2 Story &amp; Media Data</h3>
+    <ul>
+      <li>Video recordings you upload as the story creator</li>
+      <li>Video clips recorded by participants (players)</li>
+      <li>Audio instruction recordings you create</li>
+      <li>AI-generated music tracks and final edited videos</li>
+      <li>Story metadata: title, format, instructions, privacy settings, status</li>
+    </ul>
+
+    <h3>2.3 Invitation Data</h3>
+    <p>When you invite someone to participate in your story by phone number, we store that phone number in association with your story invitation record.</p>
+
+    <h3>2.4 Usage Analytics</h3>
+    <p>We collect anonymous usage events to understand how the app is used. Events include: app open, story created, recording started, clip submitted, invite sent, final video ready, movie watched, share clicked.</p>
+    <p>Each event is tagged with your Firebase Authentication UID (pseudonymous), app version, platform (iOS/Android), and timestamp. This data is stored in our Firestore database.</p>
+
+    <h3>2.5 Technical Data</h3>
+    <ul>
+      <li>Device platform and app version (attached to analytics events)</li>
+      <li>Temporary files created during video processing (deleted within 2 hours)</li>
+    </ul>
+
+    <div class="highlight">
+      <strong>We do not collect:</strong> precise GPS location, contacts, browsing history, financial information, or government IDs. We do not use tracking pixels or cross-app tracking.
+    </div>
+
+    <h3>Data summary table</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Data type</th>
+          <th>Who it applies to</th>
+          <th>Stored where</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Email, display name</td>
+          <td>Creators (registered users)</td>
+          <td>Firebase Auth &amp; Firestore</td>
+        </tr>
+        <tr>
+          <td>Video recordings</td>
+          <td>Creators &amp; players</td>
+          <td>Firebase Storage / Google Cloud Storage</td>
+        </tr>
+        <tr>
+          <td>Instruction audio</td>
+          <td>Creators</td>
+          <td>Firebase Storage</td>
+        </tr>
+        <tr>
+          <td>Phone numbers (invitations)</td>
+          <td>Creators</td>
+          <td>Firestore</td>
+        </tr>
+        <tr>
+          <td>Push notification token</td>
+          <td>Creators (optional)</td>
+          <td>Firestore (users collection)</td>
+        </tr>
+        <tr>
+          <td>Analytics events</td>
+          <td>All users</td>
+          <td>Firestore (_analytics collection)</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 3 -->
+  <section id="how-we-use">
+    <h2>3. How We Use Your Data</h2>
+    <ul>
+      <li><strong>To provide the service</strong> — creating and managing stories, enabling participants to record clips, processing and delivering final edited videos.</li>
+      <li><strong>To send notifications</strong> — push notifications to story creators when participants upload clips (only if you approved notifications).</li>
+      <li><strong>To improve the app</strong> — aggregate usage analytics help us understand which features are used and where the experience can be improved.</li>
+      <li><strong>To process video</strong> — your video files are sent to our processing server (hosted on Render.com) for conversion, mixing, and AI editing.</li>
+    </ul>
+    <p>We do not sell your personal data. We do not use your data for advertising.</p>
+  </section>
+
+  <!-- 4 -->
+  <section id="third-parties">
+    <h2>4. Third-Party Services</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Service</th>
+          <th>Purpose</th>
+          <th>Privacy policy</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Firebase (Google)</td>
+          <td>Authentication, database, file storage</td>
+          <td><a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">firebase.google.com/support/privacy</a></td>
+        </tr>
+        <tr>
+          <td>Google Cloud Storage</td>
+          <td>Video file storage</td>
+          <td><a href="https://cloud.google.com/terms/cloud-privacy-notice" target="_blank" rel="noopener">cloud.google.com</a></td>
+        </tr>
+        <tr>
+          <td>Render.com</td>
+          <td>Video processing server hosting</td>
+          <td><a href="https://render.com/privacy" target="_blank" rel="noopener">render.com/privacy</a></td>
+        </tr>
+        <tr>
+          <td>Expo (Expo Go / EAS)</td>
+          <td>Push notification delivery</td>
+          <td><a href="https://expo.dev/privacy" target="_blank" rel="noopener">expo.dev/privacy</a></td>
+        </tr>
+        <tr>
+          <td>OpenAI (optional)</td>
+          <td>Transcription of instruction audio (Whisper API)</td>
+          <td><a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener">openai.com</a></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Each third-party service operates under its own privacy policy. We only share data with these services to the extent necessary to provide RILIO's features.</p>
+  </section>
+
+  <!-- 5 -->
+  <section id="retention">
+    <h2>5. Data Retention</h2>
+    <ul>
+      <li><strong>Stories &amp; videos</strong> — retained until the story creator deletes the story or their account.</li>
+      <li><strong>User profile</strong> — retained until account deletion.</li>
+      <li><strong>Analytics events</strong> — retained indefinitely in aggregated form for product analysis. No personally identifiable information beyond a pseudonymous UID.</li>
+      <li><strong>Temporary processing files</strong> — automatically deleted from our server within 2 hours of creation.</li>
+      <li><strong>Push notification tokens</strong> — retained until account deletion or until the token is updated by a new login.</li>
+    </ul>
+  </section>
+
+  <!-- 6 -->
+  <section id="your-rights">
+    <h2>6. Your Rights</h2>
+    <p>Depending on your location, you may have the following rights regarding your personal data:</p>
+    <ul>
+      <li><strong>Access</strong> — request a copy of the data we hold about you.</li>
+      <li><strong>Correction</strong> — request correction of inaccurate data.</li>
+      <li><strong>Deletion</strong> — request deletion of your account and associated data (see Section 7 below).</li>
+      <li><strong>Portability</strong> — request your data in a portable format.</li>
+      <li><strong>Objection</strong> — object to certain uses of your data.</li>
+    </ul>
+    <p>To exercise any of these rights, contact us at the address in Section 11, or use the in-app account deletion feature.</p>
+  </section>
+
+  <!-- 7 -->
+  <section id="deletion">
+    <h2>7. Account &amp; Data Deletion</h2>
+    <p>You can delete your account and all associated data at any time from within the app:</p>
+    <ol>
+      <li>Open the app and go to <strong>Settings</strong>.</li>
+      <li>Scroll to the bottom and tap <strong>מחק חשבון</strong> (Delete Account).</li>
+      <li>Confirm the deletion in the dialog.</li>
+    </ol>
+    <p>Deletion permanently removes:</p>
+    <ul>
+      <li>Your Firebase Authentication account</li>
+      <li>Your Firestore user profile</li>
+      <li>All stories you created and their associated video files</li>
+      <li>All participant clips and reflections belonging to your stories</li>
+      <li>Invitations and applications linked to your stories</li>
+    </ul>
+    <div class="highlight">
+      <strong>Note:</strong> Participants who recorded clips in your stories will lose access to those stories when you delete your account. Analytics events tagged with your UID are retained in aggregated, pseudonymous form but are no longer linked to an active account.
+    </div>
+    <p>If you prefer to request deletion by email, contact us at the address in Section 11. We will complete your request within 30 days.</p>
+  </section>
+
+  <!-- 8 -->
+  <section id="children">
+    <h2>8. Children's Privacy</h2>
+    <p>RILIO is not directed at children under the age of 13. We do not knowingly collect personal data from children under 13. If you believe a child under 13 has provided us with personal data, please contact us and we will delete it promptly.</p>
+  </section>
+
+  <!-- 9 -->
+  <section id="security">
+    <h2>9. Security</h2>
+    <p>We use industry-standard security measures including:</p>
+    <ul>
+      <li>HTTPS encryption for all data in transit</li>
+      <li>Firebase Security Rules to restrict Firestore and Storage access</li>
+      <li>Firebase Authentication for user identity verification</li>
+      <li>Server-side token verification for all sensitive operations</li>
+    </ul>
+    <p>No method of electronic transmission or storage is 100% secure. We cannot guarantee absolute security, but we take reasonable steps to protect your data.</p>
+  </section>
+
+  <!-- 10 -->
+  <section id="changes">
+    <h2>10. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. When we do, we will update the effective date at the top of this page. For significant changes, we will notify you through the app or by email.</p>
+    <p>Continued use of RILIO after a change constitutes acceptance of the updated policy.</p>
+  </section>
+
+  <!-- 11 -->
+  <section id="contact">
+    <h2>11. Contact Us</h2>
+    <p>If you have questions or requests regarding this Privacy Policy or your personal data, contact us at:</p>
+    <ul>
+      <li><strong>Email:</strong> <a href="mailto:privacy@rilio.io">privacy@rilio.io</a></li>
+      <li><strong>Website:</strong> <a href="https://rilio.io">rilio.io</a></li>
+    </ul>
+    <p>We aim to respond to all privacy-related requests within 30 days.</p>
+  </section>
+
+</div><!-- /container -->
+
+<footer>
+  <p>© 2026 RILIO · <a href="https://rilio.io">rilio.io</a></p>
+  <p style="margin-top:8px;">
+    <a href="https://rilio.io/privacy">Privacy Policy</a>
+  </p>
+</footer>
+
+</body>
+</html>

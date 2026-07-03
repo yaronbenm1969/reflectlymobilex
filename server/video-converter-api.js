@@ -46,7 +46,7 @@ if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 if (!fs.existsSync(convertedDir)) fs.mkdirSync(convertedDir, { recursive: true });
 const upload = multer({ dest: tempDir, limits: { fileSize: 100 * 1024 * 1024 } });
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/notify-reflection', '/api/ambient-track', '/api/suno-sets', '/api/test-mix', '/api/delete-story', '/api/delete-account'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/notify-reflection', '/api/ambient-track', '/api/suno-sets', '/api/test-mix', '/api/delete-story', '/api/delete-account', '/privacy', '/terms', '/support'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -76,6 +76,14 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
   res.status(200).json({ ok: true });
+});
+
+// ─── Legal / Public pages ─────────────────────────────────────────────────────
+// Served at rilio.io/privacy (and reflectlymobilex.onrender.com/privacy for staging).
+// Source files live in /web/ at repo root — referenced relative to server/ with '../web/'.
+
+app.get('/privacy', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'web', 'privacy.html'));
 });
 
 // Deep-link redirect page — handles both users with the app and without
