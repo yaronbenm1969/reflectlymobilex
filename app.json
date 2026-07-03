@@ -92,7 +92,8 @@
       ],
       "expo-asset",
       "expo-font",
-      "expo-localization"
+      "expo-localization",
+      "./plugins/withPrivacyManifest"
     ],
     "extra": {
       "videoConverterUrl": "https://reflectlymobilex.onrender.com",
