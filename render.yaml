@@ -8,3 +8,14 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+
+  - type: web
+    name: rilio-website
+    runtime: static
+    rootDir: web
+    staticPublishPath: .
+    buildCommand: ""
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
