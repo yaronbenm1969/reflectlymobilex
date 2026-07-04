@@ -1698,6 +1698,9 @@ export const FinalVideoScreen = () => {
         const url = uploadResult.url;
         setBackgroundVideoUrl(url);
         setBackgroundMediaType('video');
+        // Force WebView remount so the new background appears immediately
+        setAnimationPlayerKey(k => k + 1);
+        pendingMusicStartRef.current = false; // reset so music re-triggers on next play
         if (currentStoryId) {
           storiesService.updateStory(currentStoryId, {
             backgroundVideoUrl: url,
