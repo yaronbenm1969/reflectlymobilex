@@ -1690,13 +1690,8 @@ const CubeWebView = ({
           for (var i = 1; i < 4; i++) ctx.lineTo(proj[i][0],proj[i][1]);
           ctx.closePath(); ctx.fill();
         }
-        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-        ctx.lineWidth = 3;
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(proj[0][0],proj[0][1]);
-        for (var i = 1; i < 4; i++) ctx.lineTo(proj[i][0],proj[i][1]);
-        ctx.closePath(); ctx.stroke();
+        // Face border stroke removed — was rgba(255,255,255,0.6) lineWidth=3,
+        // visible as white seam lines against colored backgrounds in recordings.
       }
       
       function renderRecFrame() {
