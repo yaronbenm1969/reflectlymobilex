@@ -84,34 +84,34 @@ const _writeEvent = async (event, params = {}) => {
 export const analyticsService = {
 
   /** App launched / foregrounded */
-  appOpen: (userId = null) =>
-    _writeEvent('app_open', { userId }),
+  appOpen: () =>
+    _writeEvent('app_open'),
 
   /** Creator created a new story */
-  storyCreated: (storyId, userId = null) =>
-    _writeEvent('story_created', { storyId, userId }),
+  storyCreated: (storyId) =>
+    _writeEvent('story_created', { storyId }),
 
   /** Player pressed record for the first clip */
-  recordingStarted: (storyId, playerId = null) =>
-    _writeEvent('recording_started', { storyId, playerId }),
+  recordingStarted: (storyId) =>
+    _writeEvent('recording_started', { storyId }),
 
   /** Player successfully submitted all clips */
-  clipSubmitted: (storyId, playerId = null, clipCount = null) =>
-    _writeEvent('clip_submitted', { storyId, playerId, clipCount }),
+  clipSubmitted: (storyId, clipCount = null) =>
+    _writeEvent('clip_submitted', { storyId, clipCount }),
 
   /** Creator shared the story invite link */
-  inviteSent: (storyId, userId = null) =>
-    _writeEvent('invite_sent', { storyId, userId }),
+  inviteSent: (storyId) =>
+    _writeEvent('invite_sent', { storyId }),
 
   /** Final mixed video is ready (status → completed) */
-  finalMovieReady: (storyId, userId = null) =>
-    _writeEvent('final_movie_ready', { storyId, userId }),
+  finalMovieReady: (storyId) =>
+    _writeEvent('final_movie_ready', { storyId }),
 
   /** Watch-through completed (onPlaybackComplete fired, not recording mode) */
-  movieWatched: (storyId, userId = null) =>
-    _writeEvent('movie_watched', { storyId, userId }),
+  movieWatched: (storyId) =>
+    _writeEvent('movie_watched', { storyId }),
 
   /** Creator tapped share */
-  shareClicked: (storyId, userId = null, method = 'link') =>
-    _writeEvent('share_clicked', { storyId, userId, method }),
+  shareClicked: (storyId, method = 'link') =>
+    _writeEvent('share_clicked', { storyId, method }),
 };

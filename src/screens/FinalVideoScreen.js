@@ -601,8 +601,8 @@ export const FinalVideoScreen = () => {
 
   const handleShare = async () => {
     try {
-      analyticsService.shareClicked(currentStoryId, user?.uid, 'link');
-      analyticsService.inviteSent(currentStoryId, user?.uid);
+      analyticsService.shareClicked(currentStoryId, 'link');
+      analyticsService.inviteSent(currentStoryId);
       // Share watch link — shows full experience (background + music + animation)
       const domain = Constants.expoConfig?.extra?.webPlayerDomain ||
                      'reflectly-mobile-x--yaronbenm1.replit.app';
@@ -1005,7 +1005,7 @@ export const FinalVideoScreen = () => {
           setConversionSucceeded(true);
           if (currentStoryId) {
             storiesService.updateStory(currentStoryId, { sourceVideoUrl: uploadResult.url, finalVideoUrl: finalMp4Url, status: 'completed' }).catch(() => {});
-            analyticsService.finalMovieReady(currentStoryId, user?.uid);
+            analyticsService.finalMovieReady(currentStoryId);
           }
           // Clear raw recording from cache BEFORE showing end screen.
           // This forces getVideoForSharing to use firebaseUrlRef (the mixed CFR mp4)
@@ -1700,7 +1700,7 @@ export const FinalVideoScreen = () => {
               console.log('✅ All videos finished - showing end screen');
               setIsCubeFullscreen(false);
               setVideoHasPlayed(true);
-              analyticsService.movieWatched(currentStoryId, user?.uid);
+              analyticsService.movieWatched(currentStoryId);
               stopAmbientMusic();
               stopAiMusic();
               if (clientRecordingInProgress) {

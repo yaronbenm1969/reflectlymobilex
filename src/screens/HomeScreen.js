@@ -79,7 +79,7 @@ export const HomeScreen = () => {
       setCurrentInviteCode(result.inviteCode);
       setStoryClipCount(selectedOption.clipCount);
       setStoryMaxClipDuration(selectedOption.maxClipDuration);
-      analyticsService.storyCreated(result.storyId, user.uid);
+      analyticsService.storyCreated(result.storyId);
       console.log('🎬 Story created in Firebase:', result.storyId);
       console.log('📎 Invite code:', result.inviteCode);
     } else {
