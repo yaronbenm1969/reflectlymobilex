@@ -92,6 +92,8 @@ export const FinalVideoScreen = () => {
   const [recordNextPlayback, setRecordNextPlayback] = useState(false);
   const [showBgPicker, setShowBgPicker] = useState(false);
   const [bgPickerList, setBgPickerList] = useState([]);
+  const [bgVideoUploading, setBgVideoUploading] = useState(false);
+  const [bgVideoUploadProgress, setBgVideoUploadProgress] = useState(0);
   const [clientRecordingInProgress, setClientRecordingInProgress] = useState(false);
   const [cachedRecordingUri, setCachedRecordingUri] = useState(null);
   const [recordingFirebaseUrl, setRecordingFirebaseUrl] = useState(null);
@@ -116,10 +118,13 @@ export const FinalVideoScreen = () => {
   const ambientPhaseIndexRef = useRef(0);
   const aiMusicSoundRef = useRef(null);
   const generatedMusicUrlRef = useRef(generatedMusicUrl);
+  // Set to true once onPlaybackStart fires — safe signal that cube is actually playing.
+  // Avoids stale-closure issue with cubeStarted state inside the effect below.
+  const pendingMusicStartRef = useRef(false);
   useEffect(() => {
     generatedMusicUrlRef.current = generatedMusicUrl;
-    // URL arrived while cube was already playing — start music immediately
-    if (generatedMusicUrl && cubeStarted && !videoHasPlayed && !aiMusicSoundRef.current) {
+    // URL arrived after cube already started playing — start music immediately.
+    if (generatedMusicUrl && pendingMusicStartRef.current && !aiMusicSoundRef.current) {
       startAiMusic();
     }
   }, [generatedMusicUrl]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1666,6 +1671,50 @@ export const FinalVideoScreen = () => {
     }
   };
 
+  const pickBgVideoFromGallery = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(t('common.permission_required'), t('finalVideo.permission_gallery'));
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['videos'],
+      videoQuality: 0.5,
+      videoMaxDuration: 30,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const uri = result.assets[0].uri;
+    setShowBgPicker(false);
+    setBgVideoUploading(true);
+    setBgVideoUploadProgress(0);
+    try {
+      const uploadResult = await storageService.uploadVideo(
+        uri,
+        currentStoryId || 'bg',
+        'background',
+        (progress) => setBgVideoUploadProgress(Math.round(progress))
+      );
+      if (uploadResult.success) {
+        const url = uploadResult.url;
+        setBackgroundVideoUrl(url);
+        setBackgroundMediaType('video');
+        if (currentStoryId) {
+          storiesService.updateStory(currentStoryId, {
+            backgroundVideoUrl: url,
+            backgroundMediaType: 'video',
+          }).catch(() => {});
+        }
+      } else {
+        Alert.alert('שגיאה', 'לא ניתן היה להעלות את הסרטון');
+      }
+    } catch (e) {
+      Alert.alert('שגיאה', 'לא ניתן היה להעלות את הסרטון');
+    } finally {
+      setBgVideoUploading(false);
+      setBgVideoUploadProgress(0);
+    }
+  };
+
   const videos3D = is3DFormat ? prepareVideosFor3D() : [];
 
   return (
@@ -1697,6 +1746,7 @@ export const FinalVideoScreen = () => {
               console.log('🚀 Animation fullscreen mode ON');
               setIsCubeFullscreen(true);
               setCubeStarted(true);
+              pendingMusicStartRef.current = true;
               startAiMusic();
               if (recordNextPlayback) {
                 setClientRecordingInProgress(true);
@@ -2280,6 +2330,13 @@ export const FinalVideoScreen = () => {
           <TouchableOpacity style={styles.bgGalleryBtn} onPress={pickBgFromGallery}>
             <Ionicons name="images-outline" size={22} color="white" />
             <Text style={styles.bgGalleryBtnText}>{t('finalVideo.bg_gallery')}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.bgGalleryBtn, { marginTop: 8 }]} onPress={pickBgVideoFromGallery} disabled={bgVideoUploading}>
+            <Ionicons name="videocam-outline" size={22} color="white" />
+            <Text style={styles.bgGalleryBtnText}>
+              {bgVideoUploading ? `מעלה... ${bgVideoUploadProgress}%` : 'וידיאו מהגלריה (עד 30 שניות)'}
+            </Text>
           </TouchableOpacity>
         </View>
       </Modal>
