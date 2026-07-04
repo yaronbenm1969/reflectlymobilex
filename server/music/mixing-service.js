@@ -423,8 +423,8 @@ async function mixRecordingAudioWithMusic(videoPath, musicPath, outputPath, musi
     `[0:v]setpts=PTS-STARTPTS[vout]`,
     // highpass+lowpass: remove low rumble + high hiss. alimiter: prevent clipping.
     // No afftdn/dynaudnorm — caused artifacts/sync issues in previous versions.
-    `[0:a]asetpts=PTS-STARTPTS,highpass=f=80,lowpass=f=10000,alimiter=limit=0.95[a0]`,
-    `[1:a]aresample=44100,asetpts=PTS-STARTPTS,volume=${musicVolume}[m]`,
+    `[0:a]asetpts=PTS-STARTPTS,highpass=f=80,lowpass=f=10000,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,alimiter=limit=0.95[a0]`,
+    `[1:a]aresample=44100,asetpts=PTS-STARTPTS,volume=${musicVolume},equalizer=f=2000:t=q:w=1.5:g=-3[m]`,
     `[a0][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
   ].join(';');
   const args = [
@@ -490,7 +490,7 @@ async function mixCubeWithVoicesAndMusic(videoPath, clipPaths, musicPath, output
     // alimiter instead of loudnorm: loudnorm adds ~1.7s lookahead latency per pass → voices lag video.
     // alimiter is near-zero latency and prevents clipping.
     `[voices]highpass=f=80,afftdn=nf=-25,acompressor=threshold=-25dB:ratio=3:attack=5:release=50,alimiter=limit=0.95[v]`,
-    `[${musicIdx}:a]volume=${musicVolume}[m]`,
+    `[${musicIdx}:a]volume=${musicVolume},equalizer=f=2000:t=q:w=1.5:g=-3[m]`,
     `[v][m]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
   ].join(';');
 
