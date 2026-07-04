@@ -118,8 +118,9 @@ export const FinalVideoScreen = () => {
   const generatedMusicUrlRef = useRef(generatedMusicUrl);
   useEffect(() => {
     generatedMusicUrlRef.current = generatedMusicUrl;
-    // URL arrived while cube was already playing — start music immediately
-    if (generatedMusicUrl && cubeStarted && !videoHasPlayed && !aiMusicSoundRef.current) {
+    // URL arrived while cube was already playing — start music immediately.
+    // Use cubeStartedRef (not cubeStarted state) to avoid stale closure.
+    if (generatedMusicUrl && cubeStartedRef.current && !videoHasPlayed && !aiMusicSoundRef.current) {
       startAiMusic();
     }
   }, [generatedMusicUrl]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -547,6 +548,7 @@ export const FinalVideoScreen = () => {
   const [currentPlayingFaceIndex, setCurrentPlayingFaceIndex] = useState(-1);
   const [currentVideoDuration, setCurrentVideoDuration] = useState(5000);
   const [cubeStarted, setCubeStarted] = useState(false);
+  const cubeStartedRef = useRef(false);
 
   const [videoUrls, setVideoUrls] = useState([]);
   const [convertedUrls, setConvertedUrls] = useState([]);
@@ -567,6 +569,7 @@ export const FinalVideoScreen = () => {
       return;
     }
     console.log(`▶️ Starting cube rotation with ${cubeFaces.filter(f => f).length} pre-loaded videos`);
+    cubeStartedRef.current = true;
     setCubeStarted(true);
     setPlaybackComplete(false);
   };
@@ -1696,6 +1699,7 @@ export const FinalVideoScreen = () => {
             onPlaybackStart={() => {
               console.log('🚀 Animation fullscreen mode ON');
               setIsCubeFullscreen(true);
+              cubeStartedRef.current = true;
               setCubeStarted(true);
               startAiMusic();
               if (recordNextPlayback) {
