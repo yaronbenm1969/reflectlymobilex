@@ -116,7 +116,13 @@ export const FinalVideoScreen = () => {
   const ambientPhaseIndexRef = useRef(0);
   const aiMusicSoundRef = useRef(null);
   const generatedMusicUrlRef = useRef(generatedMusicUrl);
-  useEffect(() => { generatedMusicUrlRef.current = generatedMusicUrl; }, [generatedMusicUrl]);
+  useEffect(() => {
+    generatedMusicUrlRef.current = generatedMusicUrl;
+    // URL arrived while cube was already playing — start music immediately
+    if (generatedMusicUrl && cubeStarted && !videoHasPlayed && !aiMusicSoundRef.current) {
+      startAiMusic();
+    }
+  }, [generatedMusicUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const musicTimedOutRef = useRef(false);
   useEffect(() => { musicTimedOutRef.current = musicTimedOut; }, [musicTimedOut]);
   const firestoreVideoUrlRef = useRef(null); // videoUrl/finalVideoUrl loaded from Firestore
