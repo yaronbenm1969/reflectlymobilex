@@ -667,6 +667,9 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     var RW = 720, RH = 1280;
     var cvs = document.createElement('canvas');
     cvs.width = RW; cvs.height = RH;
+    // Must be in DOM for captureStream to work on iOS WKWebView
+    cvs.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+    document.body.appendChild(cvs);
     var ctx = cvs.getContext('2d');
 
     var recorder = null;
