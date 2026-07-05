@@ -18,6 +18,7 @@ export const FormatSelectionScreen = ({ route }) => {
   const setVideoFormat = useAppState((state) => state.setVideoFormat);
   const videoFormat = useAppState((state) => state.videoFormat);
   const currentStoryId = useAppState((state) => state.currentStoryId);
+  const navigationParams = useAppState((state) => state.navigationParams);
   const [selectedFormat, setSelectedFormat] = useState(videoFormat || null);
   const [isReady, setIsReady] = useState(false);
   const [previewFormat, setPreviewFormat] = useState(null);
@@ -51,7 +52,7 @@ export const FormatSelectionScreen = ({ route }) => {
     if (currentStoryId) {
       await storiesService.updateStory(currentStoryId, { format: selectedFormat || 'cinematic' });
     }
-    go('BackgroundSelection');
+    go(navigationParams?.returnTo || 'BackgroundSelection');
   };
 
   const renderFormatOption = (option, isSelected, onPress) => (

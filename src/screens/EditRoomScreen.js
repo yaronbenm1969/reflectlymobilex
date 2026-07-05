@@ -479,7 +479,7 @@ export const EditRoomScreen = () => {
             </View>
             <View style={styles.settingRight}>
               <Text style={styles.settingValue}>{selectedMusic || t('editRoom.setting_none')}</Text>
-              <TouchableOpacity style={styles.inlineChangeButton} onPress={() => go('MusicSelection')}>
+              <TouchableOpacity style={styles.inlineChangeButton} onPress={() => go('MusicSelection', { returnTo: 'EditRoom' })}>
                 <Text style={styles.inlineChangeText}>{t('editRoom.setting_change')}</Text>
               </TouchableOpacity>
             </View>
@@ -492,7 +492,7 @@ export const EditRoomScreen = () => {
             </View>
             <View style={styles.settingRight}>
               <Text style={styles.settingValue}>{videoFormat || t('editRoom.setting_standard')}</Text>
-              <TouchableOpacity style={styles.inlineChangeButton} onPress={() => go('FormatSelection')}>
+              <TouchableOpacity style={styles.inlineChangeButton} onPress={() => go('FormatSelection', { returnTo: 'EditRoom' })}>
                 <Text style={styles.inlineChangeText}>{t('editRoom.setting_change')}</Text>
               </TouchableOpacity>
             </View>

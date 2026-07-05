@@ -19,6 +19,7 @@ export const MusicSelectionScreen = () => {
   const selectedMusic            = useAppState((state) => state.selectedMusic);
   const currentStoryId           = useAppState((state) => state.currentStoryId);
   const setPreferredMusicEngine  = useAppState((state) => state.setPreferredMusicEngine);
+  const navigationParams         = useAppState((state) => state.navigationParams);
 
   // Hardcoded fallback — same data as server's SET_META, shown immediately
   const FALLBACK_SETS = [
@@ -120,7 +121,7 @@ export const MusicSelectionScreen = () => {
       if (currentStoryId) {
         await storiesService.updateStory(currentStoryId, { music: 'none', lockedSet: null, musicAmbient: null });
       }
-      go('Instructions');
+      go(navigationParams?.returnTo || 'Instructions');
       return;
     }
 
@@ -130,7 +131,7 @@ export const MusicSelectionScreen = () => {
       if (currentStoryId) {
         await storiesService.updateStory(currentStoryId, { music: 'ai-generated', lockedSet: null, musicAmbient: null });
       }
-      go('Instructions');
+      go(navigationParams?.returnTo || 'Instructions');
       return;
     }
 
