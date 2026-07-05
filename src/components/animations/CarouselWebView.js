@@ -98,7 +98,7 @@ const CarouselWebView = ({
   const bgHtml = safeBgUrl
     ? (backgroundMediaType === 'image'
         ? `<img id="custom-bg" src="${safeBgUrl}" style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;" />`
-        : `<video id="custom-bg" src="${safeBgUrl}" autoplay loop muted playsinline style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;"></video>`)
+        : `<video id="custom-bg" crossorigin="anonymous" src="${safeBgUrl}" autoplay loop muted playsinline style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;"></video>`)
     : '';
 
   // Generate HTML
@@ -696,9 +696,15 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     function renderRecFrame() {
       if (recState !== 'recording') return;
 
-      // Dark background
-      ctx.fillStyle = '#0a0a1a';
-      ctx.fillRect(0, 0, RW, RH);
+      // Background: draw custom-bg if available, else dark fill
+      var bgEl = document.getElementById('custom-bg');
+      if (bgEl && bgEl.readyState >= 2) {
+        try { ctx.drawImage(bgEl, 0, 0, RW, RH); } catch(e) {
+          ctx.fillStyle = '#0a0a1a'; ctx.fillRect(0, 0, RW, RH);
+        }
+      } else {
+        ctx.fillStyle = '#0a0a1a'; ctx.fillRect(0, 0, RW, RH);
+      }
 
       // Draw active video panel
       if (activeVideo && activeVideo.readyState >= 2) {
@@ -754,6 +760,27 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
       chunks = [];
 
       var stream = cvs.captureStream(30);
+
+      // Capture audio from panel videos (same approach as CubeWebView)
+      try {
+        var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        var dest = audioCtx.createMediaStreamDestination();
+        var audioSources = new Set();
+        Object.values(panelElements).forEach(function(entry) {
+          if (entry && entry.video && !audioSources.has(entry.video)) {
+            try {
+              var src = audioCtx.createMediaElementSource(entry.video);
+              src.connect(dest);
+              src.connect(audioCtx.destination);
+              audioSources.add(entry.video);
+            } catch(e) {}
+          }
+        });
+        dest.stream.getAudioTracks().forEach(function(t) { stream.addTrack(t); });
+        console.log('🔊 [Carousel] Audio capture: ' + audioSources.size + ' sources');
+      } catch(e) {
+        console.warn('🔊 [Carousel] Audio capture failed:', e.message);
+      }
 
       var mimeType = '';
       ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm'].some(function(m) {
