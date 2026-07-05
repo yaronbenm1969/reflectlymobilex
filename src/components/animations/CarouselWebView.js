@@ -842,13 +842,21 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
         if (!entry) return;
         var video = entry.video;
         var isActive = (currentIndex % N === p.panelIdx);
-        var panelAlpha = isActive ? 1.0 : 0.65;
+        // Always draw at full opacity — partial opacity causes visible grid seams
+        ctx.globalAlpha = 1.0;
         if (video && video.readyState >= 2) {
-          ctx.globalAlpha = panelAlpha;
           drawPanel3D(video, p.tl, p.tr, p.bl, p.br);
         } else {
-          ctx.globalAlpha = panelAlpha;
           ctx.fillStyle = '#222';
+          ctx.beginPath();
+          ctx.moveTo(p.tl.x, p.tl.y); ctx.lineTo(p.tr.x, p.tr.y);
+          ctx.lineTo(p.br.x, p.br.y); ctx.lineTo(p.bl.x, p.bl.y);
+          ctx.closePath(); ctx.fill();
+        }
+        // Dim non-active panels with a dark overlay (no seam artifacts)
+        if (!isActive) {
+          ctx.globalAlpha = 0.60;
+          ctx.fillStyle = '#000';
           ctx.beginPath();
           ctx.moveTo(p.tl.x, p.tl.y); ctx.lineTo(p.tr.x, p.tr.y);
           ctx.lineTo(p.br.x, p.br.y); ctx.lineTo(p.bl.x, p.bl.y);
