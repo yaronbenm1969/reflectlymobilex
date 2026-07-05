@@ -58,6 +58,7 @@ const AnimationPlayer = ({
       return (
         <CarouselWebView
           faces={faces}
+          storyName={storyName}
           onFaceChange={onFaceChange}
           onVideoStart={onVideoStart}
           onVideoEnd={onVideoEnd}
