@@ -557,7 +557,7 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
 
   // ─── PRELOAD NEXT ─────────────────────────────────────
   function preloadNext(fromIdx) {
-    for (var ahead = 1; ahead <= 2; ahead++) {
+    for (var ahead = 1; ahead <= 3; ahead++) {
       var nextIdx  = fromIdx + ahead;
       if (nextIdx >= fullVideoQueue.length) break;
       var panelIdx = nextIdx % N;
@@ -742,6 +742,11 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     function renderRecFrame() {
       if (recState !== 'recording') return;
 
+      // Solid fill first — ensures no transparent frames
+      ctx.globalAlpha = 1.0;
+      ctx.fillStyle = '#0a0a1a';
+      ctx.fillRect(0, 0, RW, RH);
+
       // Background
       var bgEl = document.getElementById('custom-bg');
       if (bgEl && bgEl.readyState >= 2) {
@@ -777,7 +782,7 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
         if (!entry) return;
         var video = entry.video;
         var isActive = (currentIndex % N === p.panelIdx);
-        var panelAlpha = isActive ? 1.0 : 0.20;
+        var panelAlpha = isActive ? 1.0 : 0.40;
         if (video && video.readyState >= 2) {
           ctx.globalAlpha = panelAlpha;
           drawPanel3D(video, p.tl, p.tr, p.bl, p.br);
@@ -815,6 +820,19 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
       if (recState !== 'idle') return;
       recState = 'recording';
       chunks = [];
+
+      // Wait up to 5s for active panel video to be ready before recording
+      var _recDeadline = Date.now() + 5000;
+      function _waitAndRecord() {
+        var _entry = panelElements[currentIndex % N];
+        var _vid   = _entry && _entry.video;
+        if (_vid && _vid.readyState < 2 && Date.now() < _recDeadline) {
+          setTimeout(_waitAndRecord, 80);
+          return;
+        }
+        _doStartRec();
+      }
+      function _doStartRec() {
 
       var stream = cvs.captureStream(30);
 
@@ -892,6 +910,8 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
       recAnimId = requestAnimationFrame(renderRecFrame);
       postMessage('recordingStarted', {});
       console.log('📹 [Carousel] Recording started: ' + mimeType);
+      } // end _doStartRec
+      _waitAndRecord();
     }
 
     function stopRec() {
