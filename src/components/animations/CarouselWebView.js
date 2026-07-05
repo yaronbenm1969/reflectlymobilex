@@ -257,6 +257,7 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
   const RADIUS      = ${RADIUS};
   const PW          = ${Math.round(PANEL_WIDTH)};
   const PH          = ${Math.round(PANEL_HEIGHT)};
+  const SW          = ${Math.round(SCREEN_WIDTH)};  // screen width for canvas scale
   const MAX_VIDEO_DURATION = 30; // seconds — last-resort fallback (ontimeupdate handles normal end)
 
   // ─── STATE ────────────────────────────────────────────
@@ -687,10 +688,11 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     var DRAW_GRID = 6; // 6×6 cells per panel — good perspective accuracy
     var REC_FOCAL = 1200; // exact match to CSS perspective:1200px
 
-    // Scale so front panel fills ~65% of canvas width
-    // (matches CSS: panel=72% of screen, scene fills 90% of scene div → ~65% overall)
-    var _front_proj_w = PW * REC_FOCAL / (RADIUS + REC_FOCAL);
-    var _csScale = (RW * 0.65) / _front_proj_w;
+    // CSS: front panel at translateZ(+RADIUS) appears LARGER (closer to viewer)
+    // Scale = REC_FOCAL / (REC_FOCAL - RADIUS)  — matches CSS perspective formula
+    // _csScale maps canvas pixels to CSS pixels: RW/SW
+    var _front_proj_w = PW * REC_FOCAL / (REC_FOCAL - RADIUS);
+    var _csScale = RW / SW;
 
     // Bilinear interpolation between 4 projected screen-space corners
     function biLerp3D(tl, tr, bl, br, u, v) {
@@ -701,8 +703,10 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     }
 
     // Project a CSS-space 3D point onto the recording canvas
+    // Matches CSS perspective: translateZ(+z) = closer to viewer = appears LARGER
+    // Formula: scale = REC_FOCAL / (REC_FOCAL - z)
     function projPt(x, y, z) {
-      var dz = z + REC_FOCAL;
+      var dz = REC_FOCAL - z;
       if (dz < 1) return null;
       var s = (REC_FOCAL * _csScale) / dz;
       return { x: RW/2 + x*s, y: RH/2 + y*s };
@@ -782,7 +786,7 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
         if (!entry) return;
         var video = entry.video;
         var isActive = (currentIndex % N === p.panelIdx);
-        var panelAlpha = isActive ? 1.0 : 0.40;
+        var panelAlpha = isActive ? 1.0 : 0.65;
         if (video && video.readyState >= 2) {
           ctx.globalAlpha = panelAlpha;
           drawPanel3D(video, p.tl, p.tr, p.bl, p.br);
@@ -820,19 +824,6 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
       if (recState !== 'idle') return;
       recState = 'recording';
       chunks = [];
-
-      // Wait up to 5s for active panel video to be ready before recording
-      var _recDeadline = Date.now() + 5000;
-      function _waitAndRecord() {
-        var _entry = panelElements[currentIndex % N];
-        var _vid   = _entry && _entry.video;
-        if (_vid && _vid.readyState < 2 && Date.now() < _recDeadline) {
-          setTimeout(_waitAndRecord, 80);
-          return;
-        }
-        _doStartRec();
-      }
-      function _doStartRec() {
 
       var stream = cvs.captureStream(30);
 
@@ -910,8 +901,6 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
       recAnimId = requestAnimationFrame(renderRecFrame);
       postMessage('recordingStarted', {});
       console.log('📹 [Carousel] Recording started: ' + mimeType);
-      } // end _doStartRec
-      _waitAndRecord();
     }
 
     function stopRec() {
