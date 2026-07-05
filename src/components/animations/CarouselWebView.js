@@ -685,12 +685,12 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
 
     // ─── 3D RECORDING PROJECTION ─────────────────────────
     var DRAW_GRID = 6; // 6×6 cells per panel — good perspective accuracy
-    var REC_FOCAL = 1200; // matches CSS perspective: 1200px
+    var REC_FOCAL = 1200; // exact match to CSS perspective:1200px
 
-    // Scale: CSS-pixel 3D coords → recording canvas pixels.
-    // Target: front panel (at z=RADIUS) fills ~75% of canvas width.
+    // Scale so front panel fills ~65% of canvas width
+    // (matches CSS: panel=72% of screen, scene fills 90% of scene div → ~65% overall)
     var _front_proj_w = PW * REC_FOCAL / (RADIUS + REC_FOCAL);
-    var _csScale = (RW * 0.75) / _front_proj_w;
+    var _csScale = (RW * 0.65) / _front_proj_w;
 
     // Bilinear interpolation between 4 projected screen-space corners
     function biLerp3D(tl, tr, bl, br, u, v) {
@@ -777,25 +777,19 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
         if (!entry) return;
         var video = entry.video;
         var isActive = (currentIndex % N === p.panelIdx);
+        var panelAlpha = isActive ? 1.0 : 0.20;
         if (video && video.readyState >= 2) {
-          ctx.globalAlpha = isActive ? 1.0 : 0.55;
+          ctx.globalAlpha = panelAlpha;
           drawPanel3D(video, p.tl, p.tr, p.bl, p.br);
         } else {
-          ctx.globalAlpha = 0.55;
+          ctx.globalAlpha = panelAlpha;
           ctx.fillStyle = '#222';
           ctx.beginPath();
           ctx.moveTo(p.tl.x, p.tl.y); ctx.lineTo(p.tr.x, p.tr.y);
           ctx.lineTo(p.br.x, p.br.y); ctx.lineTo(p.bl.x, p.bl.y);
           ctx.closePath(); ctx.fill();
         }
-        // Panel border at full opacity
         ctx.globalAlpha = 1.0;
-        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(p.tl.x, p.tl.y); ctx.lineTo(p.tr.x, p.tr.y);
-        ctx.lineTo(p.br.x, p.br.y); ctx.lineTo(p.bl.x, p.bl.y);
-        ctx.closePath(); ctx.stroke();
       });
 
       // Player name label
