@@ -25,6 +25,7 @@ const CarouselWebView = ({
   recordNextPlayback = false,
   backgroundUrl = null,
   backgroundMediaType = 'video',
+  storyName = '',
 }) => {
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -258,6 +259,7 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
   const PW          = ${Math.round(PANEL_WIDTH)};
   const PH          = ${Math.round(PANEL_HEIGHT)};
   const SW          = ${Math.round(SCREEN_WIDTH)};  // screen width for canvas scale
+  const STORY_NAME  = ${JSON.stringify(storyName)};
   const MAX_VIDEO_DURATION = 30; // seconds — last-resort fallback (ontimeupdate handles normal end)
 
   // ─── STATE ────────────────────────────────────────────
@@ -571,16 +573,20 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
 
   // ─── FADE OUT ─────────────────────────────────────────
   function fadeOutAndComplete() {
+    // Signal recording to show title card (it stops itself after ~2.5s)
+    if (_recModule.isRec()) _recModule.showTitleCard();
     var fade = document.createElement('div');
-    fade.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;z-index:9999;transition:opacity 1.5s ease;pointer-events:none;';
+    fade.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;z-index:9999;transition:opacity 2s ease;pointer-events:none;';
     document.body.appendChild(fade);
-    requestAnimationFrame(function() { requestAnimationFrame(function() {
-      fade.style.opacity = '1';
-      setTimeout(function() {
-        if (_recModule.isRec()) _recModule.stop();
-        postMessage('playbackComplete', {});
-      }, 1500);
-    }); });
+    // Delay CSS fade to let title card show first
+    setTimeout(function() {
+      requestAnimationFrame(function() { requestAnimationFrame(function() {
+        fade.style.opacity = '1';
+        setTimeout(function() {
+          postMessage('playbackComplete', {});
+        }, 2000);
+      }); });
+    }, 1000);
   }
 
   // ─── ADVANCE ──────────────────────────────────────────
@@ -683,9 +689,13 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     var chunks = [];
     var recAnimId = null;
     var recState = 'idle';
+    var _titlePhase = false;
+    var _titleFrames = 0;
+    var TITLE_FRAMES = 75; // ~2.5s at 30fps
 
     // ─── 3D RECORDING PROJECTION ─────────────────────────
-    var DRAW_GRID = 6; // 6×6 cells per panel — good perspective accuracy
+    var DRAW_GRID = 10; // 10×10 cells per panel — smoother affine approximation
+    var SEAM_PX   = 1.0; // expand each cell clip by 1px to hide seam gaps
     var REC_FOCAL = 1200; // exact match to CSS perspective:1200px
 
     // CSS: front panel at translateZ(+RADIUS) appears LARGER (closer to viewer)
@@ -712,11 +722,24 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
       return { x: RW/2 + x*s, y: RH/2 + y*s };
     }
 
+    // Expand a screen-space point outward from cell center by SEAM_PX
+    function seamExpand(p, ccx, ccy) {
+      var dx = p.x - ccx, dy = p.y - ccy;
+      var d = Math.sqrt(dx*dx + dy*dy) || 1;
+      return { x: p.x + dx/d * SEAM_PX, y: p.y + dy/d * SEAM_PX };
+    }
+
     // Draw a video into a projected 3D quad using bilinear-subdivided affine mapping
     function drawPanel3D(video, tl, tr, bl, br) {
       if (!tl || !tr || !bl || !br) return;
       var vw = video.videoWidth  || 720;
       var vh = video.videoHeight || 1280;
+      // Clip to full panel boundary once — prevents bleed beyond panel edges
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+      ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+      ctx.closePath(); ctx.clip();
       for (var gy = 0; gy < DRAW_GRID; gy++) {
         for (var gx = 0; gx < DRAW_GRID; gx++) {
           var u0 = gx/DRAW_GRID,     u1 = (gx+1)/DRAW_GRID;
@@ -729,10 +752,15 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
           var sx0 = u0*vw,      sy0 = v0*vh;
           var fax = (p10.x-p00.x)/sw, fay = (p10.y-p00.y)/sw;
           var fcx = (p01.x-p00.x)/sh, fcy = (p01.y-p00.y)/sh;
+          // Expand clip by SEAM_PX from cell center to hide inter-cell gaps
+          var ccx = (p00.x+p10.x+p11.x+p01.x)/4;
+          var ccy = (p00.y+p10.y+p11.y+p01.y)/4;
+          var e00 = seamExpand(p00,ccx,ccy), e10 = seamExpand(p10,ccx,ccy);
+          var e11 = seamExpand(p11,ccx,ccy), e01 = seamExpand(p01,ccx,ccy);
           ctx.save();
           ctx.beginPath();
-          ctx.moveTo(p00.x, p00.y); ctx.lineTo(p10.x, p10.y);
-          ctx.lineTo(p11.x, p11.y); ctx.lineTo(p01.x, p01.y);
+          ctx.moveTo(e00.x, e00.y); ctx.lineTo(e10.x, e10.y);
+          ctx.lineTo(e11.x, e11.y); ctx.lineTo(e01.x, e01.y);
           ctx.closePath(); ctx.clip();
           ctx.setTransform(fax, fay, fcx, fcy,
             p00.x - fax*sx0 - fcx*sy0,
@@ -741,10 +769,38 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
           ctx.restore();
         }
       }
+      ctx.restore(); // restore panel boundary clip
     }
 
     function renderRecFrame() {
       if (recState !== 'recording') return;
+
+      // ── Title card phase (after all panels done) ──────
+      if (_titlePhase) {
+        _titleFrames++;
+        ctx.globalAlpha = 1.0;
+        // Dark overlay on background
+        var bgElT = document.getElementById('custom-bg');
+        if (bgElT && bgElT.readyState >= 2) {
+          try { ctx.drawImage(bgElT, 0, 0, RW, RH); } catch(e) { ctx.fillStyle='#0a0a1a'; ctx.fillRect(0,0,RW,RH); }
+        } else { ctx.fillStyle='#0a0a1a'; ctx.fillRect(0,0,RW,RH); }
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(0, 0, RW, RH);
+        // Story name
+        if (STORY_NAME) {
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 56px -apple-system, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.shadowColor = 'rgba(0,0,0,0.8)';
+          ctx.shadowBlur = 12;
+          ctx.fillText(STORY_NAME, RW/2, RH/2);
+          ctx.shadowBlur = 0;
+        }
+        if (_titleFrames >= TITLE_FRAMES) { stopRec(); return; }
+        recAnimId = requestAnimationFrame(renderRecFrame);
+        return;
+      }
 
       // Solid fill first — ensures no transparent frames
       ctx.globalAlpha = 1.0;
@@ -914,7 +970,8 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
       supported: true,
       start: startRec,
       stop: stopRec,
-      isRec: function() { return recState === 'recording'; }
+      isRec: function() { return recState === 'recording'; },
+      showTitleCard: function() { _titlePhase = true; _titleFrames = 0; }
     };
   })();
 
