@@ -86,6 +86,14 @@ const CarouselWebView = ({
     webViewRef.current.injectJavaScript(`window.startPlayback && window.startPlayback(); true;`);
   }, [triggerAutoPlay]);
 
+  // Inject storyName dynamically (useMemo may run before storyName is ready)
+  useEffect(() => {
+    if (!webViewRef.current || !hasInitializedRef.current || !storyName) return;
+    webViewRef.current.injectJavaScript(
+      `window._recStoryName = ${JSON.stringify(storyName)}; true;`
+    );
+  }, [storyName, htmlFilePath]);
+
   // Enable recording before next playback
   useEffect(() => {
     if (recordNextPlayback && webViewRef.current) {
@@ -786,15 +794,15 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
         } else { ctx.fillStyle='#0a0a1a'; ctx.fillRect(0,0,RW,RH); }
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillRect(0, 0, RW, RH);
-        // Story name — always draw if available
-        var titleText = STORY_NAME || '';
+        // Story name — prefer injected value (more reliable than useMemo)
+        var titleText = (window._recStoryName || STORY_NAME || '');
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 58px -apple-system, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.shadowColor = 'rgba(0,0,0,0.9)';
         ctx.shadowBlur = 16;
-        if (titleText) ctx.fillText(titleText, RW/2, RH/2);
+        ctx.fillText(titleText, RW/2, RH/2);
         ctx.shadowBlur = 0;
         if (_titleFrames >= TITLE_FRAMES) { stopRec(); return; }
         recAnimId = requestAnimationFrame(renderRecFrame);
