@@ -324,6 +324,8 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
       video.playsInline = true;
       video.setAttribute('playsinline', '');
       video.setAttribute('webkit-playsinline', '');
+      video.crossOrigin = 'anonymous';
+      video.setAttribute('crossorigin', 'anonymous');
       video.style.opacity = '0';
       video.style.cssText += 'width:100%;height:100%;object-fit:cover;opacity:0;';
       panel.appendChild(video);
