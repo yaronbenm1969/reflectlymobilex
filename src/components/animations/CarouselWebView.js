@@ -255,6 +255,8 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
   const N           = ${N};
   const ANGLE_STEP  = ${ANGLE_STEP};
   const RADIUS      = ${RADIUS};
+  const PW          = ${Math.round(PANEL_WIDTH)};
+  const PH          = ${Math.round(PANEL_HEIGHT)};
   const MAX_VIDEO_DURATION = 30; // seconds — last-resort fallback (ontimeupdate handles normal end)
 
   // ─── STATE ────────────────────────────────────────────
@@ -273,6 +275,7 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
   let activeVideo     = null;    // video element driving rotation
   let animFrameId     = null;    // rAF handle
   let animStartTime   = 0;       // timestamp when loop started (for float)
+  var _floatY         = 0;       // shared float offset (recording reads this)
 
   // ─── STARS ────────────────────────────────────────────
   (function createStars() {
@@ -371,6 +374,7 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
 
     // Float: gentle up-down bob
     var floatY = Math.sin(elapsed * 0.6) * 8;
+    _floatY = floatY; // share with recording canvas
 
     // Rotation: interpolate based on video progress
     if (activeVideo) {
@@ -679,24 +683,66 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
     var recAnimId = null;
     var recState = 'idle';
 
-    function roundedRectPath(x, y, w, h, r) {
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + w - r, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-      ctx.lineTo(x + w, y + h - r);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-      ctx.lineTo(x + r, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-      ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y, x + r, y);
-      ctx.closePath();
+    // ─── 3D RECORDING PROJECTION ─────────────────────────
+    var DRAW_GRID = 6; // 6×6 cells per panel — good perspective accuracy
+    var REC_FOCAL = 1200; // matches CSS perspective: 1200px
+
+    // Scale: CSS-pixel 3D coords → recording canvas pixels.
+    // Target: front panel (at z=RADIUS) fills ~75% of canvas width.
+    var _front_proj_w = PW * REC_FOCAL / (RADIUS + REC_FOCAL);
+    var _csScale = (RW * 0.75) / _front_proj_w;
+
+    // Bilinear interpolation between 4 projected screen-space corners
+    function biLerp3D(tl, tr, bl, br, u, v) {
+      return {
+        x: (1-v)*((1-u)*tl.x + u*tr.x) + v*((1-u)*bl.x + u*br.x),
+        y: (1-v)*((1-u)*tl.y + u*tr.y) + v*((1-u)*bl.y + u*br.y)
+      };
+    }
+
+    // Project a CSS-space 3D point onto the recording canvas
+    function projPt(x, y, z) {
+      var dz = z + REC_FOCAL;
+      if (dz < 1) return null;
+      var s = (REC_FOCAL * _csScale) / dz;
+      return { x: RW/2 + x*s, y: RH/2 + y*s };
+    }
+
+    // Draw a video into a projected 3D quad using bilinear-subdivided affine mapping
+    function drawPanel3D(video, tl, tr, bl, br) {
+      if (!tl || !tr || !bl || !br) return;
+      var vw = video.videoWidth  || 720;
+      var vh = video.videoHeight || 1280;
+      for (var gy = 0; gy < DRAW_GRID; gy++) {
+        for (var gx = 0; gx < DRAW_GRID; gx++) {
+          var u0 = gx/DRAW_GRID,     u1 = (gx+1)/DRAW_GRID;
+          var v0 = gy/DRAW_GRID,     v1 = (gy+1)/DRAW_GRID;
+          var p00 = biLerp3D(tl, tr, bl, br, u0, v0);
+          var p10 = biLerp3D(tl, tr, bl, br, u1, v0);
+          var p11 = biLerp3D(tl, tr, bl, br, u1, v1);
+          var p01 = biLerp3D(tl, tr, bl, br, u0, v1);
+          var sw  = (u1-u0)*vw, sh = (v1-v0)*vh;
+          var sx0 = u0*vw,      sy0 = v0*vh;
+          var fax = (p10.x-p00.x)/sw, fay = (p10.y-p00.y)/sw;
+          var fcx = (p01.x-p00.x)/sh, fcy = (p01.y-p00.y)/sh;
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(p00.x, p00.y); ctx.lineTo(p10.x, p10.y);
+          ctx.lineTo(p11.x, p11.y); ctx.lineTo(p01.x, p01.y);
+          ctx.closePath(); ctx.clip();
+          ctx.setTransform(fax, fay, fcx, fcy,
+            p00.x - fax*sx0 - fcx*sy0,
+            p00.y - fay*sx0 - fcy*sy0);
+          try { ctx.drawImage(video, 0, 0, vw, vh); } catch(e){}
+          ctx.restore();
+        }
+      }
     }
 
     function renderRecFrame() {
       if (recState !== 'recording') return;
 
-      // Background: draw custom-bg if available, else dark fill
+      // Background
       var bgEl = document.getElementById('custom-bg');
       if (bgEl && bgEl.readyState >= 2) {
         try { ctx.drawImage(bgEl, 0, 0, RW, RH); } catch(e) {
@@ -706,49 +752,66 @@ ${bgHtml || '<div class="stars" id="stars"></div>'}
         ctx.fillStyle = '#0a0a1a'; ctx.fillRect(0, 0, RW, RH);
       }
 
-      // Draw active video panel
-      if (activeVideo && activeVideo.readyState >= 2) {
-        var vw = activeVideo.videoWidth || 720;
-        var vh = activeVideo.videoHeight || 1280;
-        var pad = 32;
-        var panW = RW - pad * 2;
-        var panH = RH - pad * 2;
-        var scale = Math.max(panW / vw, panH / vh);
-        var dw = vw * scale;
-        var dh = vh * scale;
-        var dx = pad + (panW - dw) / 2;
-        var dy = pad + (panH - dh) / 2;
-
-        ctx.save();
-        roundedRectPath(pad, pad, panW, panH, 20);
-        ctx.clip();
-        try { ctx.drawImage(activeVideo, dx, dy, dw, dh); } catch(e) {}
-        ctx.restore();
-
-        // Panel border
-        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-        ctx.lineWidth = 3;
-        ctx.save();
-        roundedRectPath(pad, pad, panW, panH, 20);
-        ctx.stroke();
-        ctx.restore();
+      // Compute visible panels (front hemisphere only), sort back-to-front
+      var visiblePanels = [];
+      for (var pi = 0; pi < N; pi++) {
+        var alpha = (ANGLE_STEP * pi + currentAngleY) * Math.PI / 180;
+        var cz3 = RADIUS * Math.cos(alpha);
+        if (cz3 <= 0) continue; // backface cull
+        var cx3 = RADIUS * Math.sin(alpha);
+        var cy3 = _floatY;
+        var hw = PW / 2, hh = PH / 2;
+        var pax = Math.cos(alpha), paz = -Math.sin(alpha); // panel X-axis in world
+        var c_tl = projPt(cx3 - hw*pax, cy3 - hh, cz3 - hw*paz);
+        var c_tr = projPt(cx3 + hw*pax, cy3 - hh, cz3 + hw*paz);
+        var c_bl = projPt(cx3 - hw*pax, cy3 + hh, cz3 - hw*paz);
+        var c_br = projPt(cx3 + hw*pax, cy3 + hh, cz3 + hw*paz);
+        if (!c_tl || !c_tr || !c_bl || !c_br) continue;
+        visiblePanels.push({ z: cz3, tl: c_tl, tr: c_tr, bl: c_bl, br: c_br,
+                             entry: panelElements[pi], panelIdx: pi });
       }
+      visiblePanels.sort(function(a, b) { return a.z - b.z; }); // back-to-front
+
+      visiblePanels.forEach(function(p) {
+        var entry = p.entry;
+        if (!entry) return;
+        var video = entry.video;
+        var isActive = (currentIndex % N === p.panelIdx);
+        if (video && video.readyState >= 2) {
+          ctx.globalAlpha = isActive ? 1.0 : 0.55;
+          drawPanel3D(video, p.tl, p.tr, p.bl, p.br);
+        } else {
+          ctx.globalAlpha = 0.55;
+          ctx.fillStyle = '#222';
+          ctx.beginPath();
+          ctx.moveTo(p.tl.x, p.tl.y); ctx.lineTo(p.tr.x, p.tr.y);
+          ctx.lineTo(p.br.x, p.br.y); ctx.lineTo(p.bl.x, p.bl.y);
+          ctx.closePath(); ctx.fill();
+        }
+        // Panel border at full opacity
+        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(p.tl.x, p.tl.y); ctx.lineTo(p.tr.x, p.tr.y);
+        ctx.lineTo(p.br.x, p.br.y); ctx.lineTo(p.bl.x, p.bl.y);
+        ctx.closePath(); ctx.stroke();
+      });
 
       // Player name label
       var face = fullVideoQueue[currentIndex];
       if (face && face.playerName) {
-        var labelH = 120;
-        var grad = ctx.createLinearGradient(0, RH - 32 - labelH, 0, RH - 32);
+        var labelH = 110;
+        var grad = ctx.createLinearGradient(0, RH - labelH, 0, RH);
         grad.addColorStop(0, 'rgba(0,0,0,0)');
         grad.addColorStop(1, 'rgba(0,0,0,0.8)');
         ctx.fillStyle = grad;
-        ctx.fillRect(32, RH - 32 - labelH, RW - 64, labelH);
-
+        ctx.fillRect(0, RH - labelH, RW, labelH);
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 40px -apple-system, sans-serif';
+        ctx.font = 'bold 36px -apple-system, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(face.playerName, RW / 2, RH - 32 - labelH / 2.8);
+        ctx.fillText(face.playerName, RW/2, RH - labelH/2);
       }
 
       recAnimId = requestAnimationFrame(renderRecFrame);
