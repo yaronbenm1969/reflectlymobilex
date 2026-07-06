@@ -52,10 +52,14 @@ export const useAmbientPlayback = (trackId, directUrl = null) => {
     if (!url) return;
 
     const loadUrl = async (uri) => {
+      // Create paused so iOS doesn't briefly play at wrong volume before setVolumeAsync
       const { sound } = await Audio.Sound.createAsync(
         { uri },
-        { shouldPlay: true, isLooping: true, volume }
+        { shouldPlay: false, isLooping: true, volume }
       );
+      // Explicitly set volume before playback — more reliable than initialStatus on iOS
+      try { await sound.setVolumeAsync(volume); } catch (e) {}
+      await sound.playAsync();
       return sound;
     };
 

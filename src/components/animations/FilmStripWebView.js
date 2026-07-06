@@ -754,6 +754,18 @@ ${bgHtml}
     recordingCtx = recordingCanvas.getContext('2d');
   }
 
+  function drawSprocketRail(ctx, railY, railH, canvasW) {
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, railY, canvasW, railH);
+    // Sprocket holes: dark-gray rectangles repeating every 70px
+    var holeW = 22, holeH = Math.round(railH * 0.65);
+    var holeTop = railY + Math.round((railH - holeH) / 2);
+    ctx.fillStyle = '#2a2a2a';
+    for (var hx = 14; hx < canvasW; hx += 70) {
+      ctx.fillRect(hx, holeTop, holeW, holeH);
+    }
+  }
+
   function drawRecordingFrame() {
     if (!recordingCtx || !isRecording) return;
     var ctx = recordingCtx;
@@ -765,6 +777,7 @@ ${bgHtml}
     var FW = (STEP - FGAP) * scl;       // STEP = FRAME_W + FRAME_GAP
     var FH = FW * 1.3;
     var FT = (REC_H - FH) / 2;         // vertical center
+    var RAIL_H = Math.round(FT * 0.55); // sprocket rail: 55% of top margin
 
     ctx.fillStyle = '#0d0d0d';
     ctx.fillRect(0, 0, REC_W, REC_H);
@@ -787,6 +800,12 @@ ${bgHtml}
       try { ctx.drawImage(vid, leftCanvas, FT, FW, FH); } catch(e) {}
       ctx.restore();
     }
+
+    // Sprocket rails drawn on top so they overlay the video frames
+    var railTopY = Math.round((FT - RAIL_H) / 2);
+    drawSprocketRail(ctx, railTopY, RAIL_H, REC_W);
+    drawSprocketRail(ctx, REC_H - railTopY - RAIL_H, RAIL_H, REC_W);
+
     recordingAnimFrame = requestAnimationFrame(drawRecordingFrame);
   }
 
