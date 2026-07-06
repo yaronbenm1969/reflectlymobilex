@@ -979,9 +979,36 @@ const FlipPagesWebView = ({
     let recCoverProgress = -1;
     let recCoverStart = 0;
     var recCoverDuration = 1800;
-    
+    var _titlePhase = false;
+    var _titleFrames = 0;
+    var TITLE_FRAMES = 75; // ~2.5s at 30fps
+
     function drawRecordingFrame() {
       if (!recordingCtx || !isRecording) return;
+
+      // Title card phase — shown after all videos complete
+      if (_titlePhase) {
+        var ctx = recordingCtx;
+        var tGrad = ctx.createLinearGradient(0, 0, 0, REC_H);
+        tGrad.addColorStop(0, '#1a1a2e');
+        tGrad.addColorStop(1, '#2d1b4e');
+        ctx.fillStyle = tGrad;
+        ctx.fillRect(0, 0, REC_W, REC_H);
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.font = '80px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('\uD83D\uDCD6', REC_W / 2, REC_H / 2 - 80);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 52px -apple-system, sans-serif';
+        ctx.fillText('${safeStoryName}', REC_W / 2, REC_H / 2 + 20);
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = '28px -apple-system, sans-serif';
+        ctx.fillText('Reflectly', REC_W / 2, REC_H / 2 + 90);
+        _titleFrames++;
+        if (_titleFrames >= TITLE_FRAMES) { stopRecording(); return; }
+        recordingAnimFrame = requestAnimationFrame(drawRecordingFrame);
+        return;
+      }
       var ctx = recordingCtx;
       var now = performance.now();
       
@@ -1441,7 +1468,8 @@ const FlipPagesWebView = ({
         recCoverStart = performance.now();
       }
       if (type === 'allVideosComplete' && isRecording) {
-        setTimeout(stopRecording, 500);
+        _titlePhase = true;
+        _titleFrames = 0;
       }
     };
     // ===== END RECORDING MODULE =====
