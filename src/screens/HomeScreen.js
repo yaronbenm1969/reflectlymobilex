@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
   Image,
 } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +25,8 @@ import theme from '../theme/theme';
 
 const logoImage = require('../../assets/logo.png');
 
+const HOME_BG_VIDEO = 'https://storage.googleapis.com/reflectly-playback.firebasestorage.app/assets/home-background.mp4';
+
 // Clip count → per-clip duration:
 // 1-9 clips  → 60s | 10-20 → 30s | 21-40 → 5s | 40+ → 3s
 const PARTICIPANT_OPTIONS = [
@@ -36,6 +39,7 @@ const PARTICIPANT_OPTIONS = [
 export const HomeScreen = () => {
   const { t, i18n } = useTranslation();
   const { go } = useNav();
+  const bgVideoRef = useRef(null);
   const storyName = useAppState((state) => state.storyName);
   const setStoryName = useAppState((state) => state.setStoryName);
   const setCurrentStoryId = useAppState((state) => state.setCurrentStoryId);
@@ -94,10 +98,23 @@ export const HomeScreen = () => {
 
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      {/* Full-screen looping background video at half speed */}
+      <Video
+        ref={bgVideoRef}
+        source={{ uri: HOME_BG_VIDEO }}
+        style={styles.bgVideo}
+        resizeMode={ResizeMode.COVER}
+        shouldPlay
+        isLooping
+        isMuted
+        rate={0.5}
+      />
+      <View style={styles.bgOverlay} />
+
       <LinearGradient
         colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
         start={{ x: 0, y: 0 }}
@@ -218,11 +235,19 @@ export const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.bg,
+    backgroundColor: '#000',
+  },
+  bgVideo: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  bgOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
   header: {
     paddingBottom: theme.spacing[6],
     paddingTop: 50,
+    opacity: 0.88,
   },
   safeArea: {
     backgroundColor: 'transparent',
