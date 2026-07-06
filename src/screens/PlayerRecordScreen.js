@@ -249,7 +249,12 @@ export const PlayerRecordScreen = () => {
       }, 1000);
 
       if (musicMode === 'none') { ambient.stop(); }
-      else { ambient.setVolume(0.0025); } // instant, no session change that might reset volume
+      else {
+        // Create sound at 0.0025 and AWAIT it — so the Sound object exists at this volume
+        // before recordAsync changes the iOS audio session. setVolumeAsync on an existing
+        // sound gets reset by the session change; creating a new sound at 0.0025 is stable.
+        await ambient.playPhase(1, 0.0025, true);
+      }
 
       const video = await cameraRef.current.recordAsync({
         maxDuration: clipTimes[clipIndex],
