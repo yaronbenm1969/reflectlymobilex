@@ -249,16 +249,7 @@ export const PlayerRecordScreen = () => {
       }, 1000);
 
       if (musicMode === 'none') { ambient.stop(); }
-      else {
-        // setVolume is instant (no network reload). setAudioModeAsync before camera record.
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-        }).catch(() => {});
-        ambient.setVolume(0.0025);
-      }
+      else { ambient.setVolume(0.0025); } // instant, no session change that might reset volume
 
       const video = await cameraRef.current.recordAsync({
         maxDuration: clipTimes[clipIndex],
