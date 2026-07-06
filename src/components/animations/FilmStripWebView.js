@@ -754,15 +754,17 @@ ${bgHtml}
     recordingCtx = recordingCanvas.getContext('2d');
   }
 
-  function drawSprocketRail(ctx, railY, railH, canvasW) {
+  function drawSprocketRail(ctx, railY, railH, canvasW, offsetX) {
     ctx.fillStyle = '#111';
     ctx.fillRect(0, railY, canvasW, railH);
-    // Sprocket holes: dark-gray rectangles repeating every 70px
+    // Sprocket holes scroll with the strip (offsetX = currentX * scl % spacing)
     var holeW = 22, holeH = Math.round(railH * 0.65);
     var holeTop = railY + Math.round((railH - holeH) / 2);
+    var spacing = 70;
     ctx.fillStyle = '#2a2a2a';
-    for (var hx = 14; hx < canvasW; hx += 70) {
-      ctx.fillRect(hx, holeTop, holeW, holeH);
+    var startX = 14 - (offsetX % spacing);
+    for (var hx = startX; hx < canvasW; hx += spacing) {
+      if (hx + holeW > 0) ctx.fillRect(hx, holeTop, holeW, holeH);
     }
   }
 
@@ -801,10 +803,11 @@ ${bgHtml}
       ctx.restore();
     }
 
-    // Sprocket rails drawn on top so they overlay the video frames
+    // Sprocket rails drawn on top — holes scroll with currentX like the CSS strip does
     var railTopY = Math.round((FT - RAIL_H) / 2);
-    drawSprocketRail(ctx, railTopY, RAIL_H, REC_W);
-    drawSprocketRail(ctx, REC_H - railTopY - RAIL_H, RAIL_H, REC_W);
+    var holeOffset = (currentX * scl) % 70;
+    drawSprocketRail(ctx, railTopY, RAIL_H, REC_W, holeOffset);
+    drawSprocketRail(ctx, REC_H - railTopY - RAIL_H, RAIL_H, REC_W, holeOffset);
 
     recordingAnimFrame = requestAnimationFrame(drawRecordingFrame);
   }

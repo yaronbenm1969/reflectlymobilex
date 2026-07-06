@@ -248,12 +248,12 @@ export const PlayerRecordScreen = () => {
         setRecordingTimer(clipDurationRef.current);
       }, 1000);
 
+      let volInterval = null;
       if (musicMode === 'none') { ambient.stop(); }
       else {
-        // Create sound at 0.0025 and AWAIT it — so the Sound object exists at this volume
-        // before recordAsync changes the iOS audio session. setVolumeAsync on an existing
-        // sound gets reset by the session change; creating a new sound at 0.0025 is stable.
         await ambient.playPhase(1, 0.0025, true);
+        // iOS resets audio volume when camera session starts — re-apply every 500ms during recording
+        volInterval = setInterval(() => { ambient.setVolume(0.0025); }, 500);
       }
 
       const video = await cameraRef.current.recordAsync({
@@ -261,6 +261,7 @@ export const PlayerRecordScreen = () => {
         codec: 'avc1',
       });
 
+      if (volInterval) { clearInterval(volInterval); volInterval = null; }
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
         recordingTimerRef.current = null;
