@@ -220,7 +220,7 @@ export const PlayerRecordScreen = () => {
     if (clipIndex === 0) analyticsService.recordingStarted(storyIdForMusic || playerStoryId);
     if (isWeb) {
       if (musicMode === 'none') { ambient.stop(); }
-      else { ambient.playPhase(1, 0.005, true); }
+      else { ambient.playPhase(1, 0.0025, true); }
       setActiveClip(clipIndex);
       setIsRecording(true);
       setRecordingTimer(0);
@@ -249,7 +249,7 @@ export const PlayerRecordScreen = () => {
       }, 1000);
 
       if (musicMode === 'none') { ambient.stop(); }
-      else { ambient.playPhase(1, 0.005, true); }
+      else { ambient.playPhase(1, 0.0025, true); }
 
       const video = await cameraRef.current.recordAsync({
         maxDuration: clipTimes[clipIndex],
