@@ -161,10 +161,17 @@ export const useAmbientPlayback = (trackId, directUrl = null) => {
     }
   }, []);
 
+  const setVolume = useCallback(async (volume) => {
+    if (soundRef.current) {
+      try { await soundRef.current.setVolumeAsync(volume); } catch (e) {}
+    }
+  }, []);
+
   return {
     playPhase,
     stop,
     fadeOut,
+    setVolume,
     isPlaying,
     isLoaded,
     currentPhase,

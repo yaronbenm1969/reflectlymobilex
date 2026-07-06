@@ -220,7 +220,7 @@ export const PlayerRecordScreen = () => {
     if (clipIndex === 0) analyticsService.recordingStarted(storyIdForMusic || playerStoryId);
     if (isWeb) {
       if (musicMode === 'none') { ambient.stop(); }
-      else { ambient.playPhase(1, 0.0025, true); }
+      else { ambient.setVolume(0.0025); } // instant — no reload
       setActiveClip(clipIndex);
       setIsRecording(true);
       setRecordingTimer(0);
@@ -249,7 +249,16 @@ export const PlayerRecordScreen = () => {
       }, 1000);
 
       if (musicMode === 'none') { ambient.stop(); }
-      else { ambient.playPhase(1, 0.0025, true); }
+      else {
+        // setVolume is instant (no network reload). setAudioModeAsync before camera record.
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+        }).catch(() => {});
+        ambient.setVolume(0.0025);
+      }
 
       const video = await cameraRef.current.recordAsync({
         maxDuration: clipTimes[clipIndex],
