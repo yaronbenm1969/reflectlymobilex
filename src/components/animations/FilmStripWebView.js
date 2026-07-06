@@ -796,6 +796,30 @@ ${bgHtml}
     isRecording = true;
     recordedChunks = [];
     var stream = recordingCanvas.captureStream(30);
+
+    // Capture audio from frame videos (same approach as CubeWebView / CarouselWebView).
+    // Videos are muted by default; the active video gets video.muted=false before play —
+    // so only it contributes audio through the AudioContext.
+    try {
+      var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var audioDest = audioCtx.createMediaStreamDestination();
+      var audioSources = new Set();
+      Object.values(frameElements).forEach(function(entry) {
+        if (entry && entry.video && !audioSources.has(entry.video)) {
+          try {
+            var src = audioCtx.createMediaElementSource(entry.video);
+            src.connect(audioDest);
+            src.connect(audioCtx.destination);
+            audioSources.add(entry.video);
+          } catch(e) {}
+        }
+      });
+      audioDest.stream.getAudioTracks().forEach(function(t) { stream.addTrack(t); });
+      console.log('🔊 [FilmStrip] Audio: ' + audioSources.size + ' sources connected');
+    } catch(audioErr) {
+      console.warn('🔊 [FilmStrip] Audio capture failed:', audioErr.message);
+    }
+
     var mimeType = '';
     // Try mp4 first — iOS WKWebView supports video/mp4 natively; mp4 can be saved to gallery without server conversion.
     // Fallback to webm on Android/Chrome which doesn't support mp4 in MediaRecorder.

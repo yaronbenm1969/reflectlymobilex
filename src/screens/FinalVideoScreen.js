@@ -2087,7 +2087,7 @@ export const FinalVideoScreen = () => {
           ) : isAnimatedFormat && assetsReady ? (
             /* Cube is rendered at top level - show empty placeholder here */
             null
-          ) : is3DFormat && videos3D.length > 0 ? (
+          ) : is3DFormat && !isCinematic && videos3D.length > 0 ? (
             <Video3DPlayer
               videos={videos3D}
               format={videoFormat}
