@@ -114,9 +114,18 @@ export const ProcessingScreen = () => {
           ...(transcriptionSegments && { transcriptionSegments }),
         }),
       });
+      if (!genRes.ok) {
+        console.warn('Music generation request failed:', genRes.status);
+        setStatus(t('processing.status_collecting'));
+        return null;
+      }
       const genJson = await genRes.json();
       const jobId = genJson.jobId;
-      if (!jobId) { console.warn('No music jobId returned'); return null; }
+      if (!jobId) {
+        console.warn('No music jobId returned:', JSON.stringify(genJson));
+        setStatus(t('processing.status_collecting'));
+        return null;
+      }
 
       // Step 3: Poll until done (max 5 min)
       for (let attempts = 0; attempts < 100; attempts++) {

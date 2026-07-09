@@ -15,14 +15,16 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
-    // Reflections — top-level collection, anyone can read/write (players are unauthenticated)
+    // Reflections — writes open for unauthenticated web players; reads restricted to authenticated users
     match /reflections/{reflectionId} {
-      allow read, write: if true;
+      allow write: if true;
+      allow read: if request.auth != null;
     }
 
     // Reflections as subcollection (fallback)
     match /stories/{storyId}/reflections/{reflectionId} {
-      allow read, write: if true;
+      allow write: if true;
+      allow read: if request.auth != null;
     }
 
     // Music library — read only

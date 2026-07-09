@@ -2326,23 +2326,33 @@ app.post('/api/remix-music', express.json(), async (req, res) => {
   }
 });
 
-async function downloadFile(url, outputPath) {
+async function downloadFile(url, outputPath, timeoutMs = 60000) {
   const protocol = url.startsWith('https') ? require('https') : require('http');
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(outputPath);
-    protocol.get(url, (response) => {
-      if (response.statusCode === 301 || response.statusCode === 302) {
-        file.close();
-        fs.unlinkSync(outputPath);
-        return downloadFile(response.headers.location, outputPath).then(resolve).catch(reject);
-      }
-      response.pipe(file);
-      file.on('finish', () => { file.close(); resolve(outputPath); });
-    }).on('error', (err) => {
+    const cleanup = (err) => {
       file.close();
       if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
       reject(err);
+    };
+    const req = protocol.get(url, { timeout: timeoutMs }, (response) => {
+      if (response.statusCode === 301 || response.statusCode === 302) {
+        file.close();
+        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        return downloadFile(response.headers.location, outputPath, timeoutMs).then(resolve).catch(reject);
+      }
+      if (response.statusCode && response.statusCode >= 400) {
+        cleanup(new Error(`HTTP ${response.statusCode} downloading ${url}`));
+        return;
+      }
+      response.pipe(file);
+      file.on('finish', () => { file.close(); resolve(outputPath); });
     });
+    req.on('timeout', () => {
+      req.destroy();
+      cleanup(new Error(`Download timed out after ${timeoutMs / 1000}s: ${url}`));
+    });
+    req.on('error', cleanup);
   });
 }
 
