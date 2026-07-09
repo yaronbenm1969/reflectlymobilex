@@ -104,6 +104,9 @@ export const EditRoomScreen = () => {
   const [confirmingDeleteClipId, setConfirmingDeleteClipId] = useState(null);
   const [orderedClips, setOrderedClips] = useState([]);
   const orderedClipsRef = useRef([]);
+  const [pendingApplications, setPendingApplications] = useState([]);
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const [processingAppId, setProcessingAppId] = useState(null);
 
   const updateOrderedClips = useCallback((clips) => {
     orderedClipsRef.current = clips;
@@ -163,7 +166,16 @@ export const EditRoomScreen = () => {
     };
     
     loadStoryDetails();
-    
+
+    const loadApplications = async () => {
+      if (!currentStoryId) return;
+      setApplicationsLoading(true);
+      const result = await storiesService.getPendingApplications(currentStoryId);
+      setPendingApplications(result.applications || []);
+      setApplicationsLoading(false);
+    };
+    loadApplications();
+
     if (currentStoryId) {
       setReflectionsLoading(true);
       
@@ -268,6 +280,30 @@ export const EditRoomScreen = () => {
   const handleDeleteClip = async (reflectionId) => {
     await reflectionsService.deleteReflection(reflectionId);
     setConfirmingDeleteClipId(null);
+  };
+
+  const handleApproveApplication = async (app) => {
+    if (processingAppId) return;
+    setProcessingAppId(app.id);
+    const result = await storiesService.approveApplication(app.id, currentStoryId);
+    if (result.success) {
+      setPendingApplications(prev => prev.filter(a => a.id !== app.id));
+    } else {
+      Alert.alert(t('common.error'), 'שגיאה באישור הבקשה');
+    }
+    setProcessingAppId(null);
+  };
+
+  const handleRejectApplication = async (app) => {
+    if (processingAppId) return;
+    setProcessingAppId(app.id);
+    const result = await storiesService.rejectApplication(app.id);
+    if (result.success) {
+      setPendingApplications(prev => prev.filter(a => a.id !== app.id));
+    } else {
+      Alert.alert(t('common.error'), 'שגיאה בדחיית הבקשה');
+    }
+    setProcessingAppId(null);
   };
 
   const handleEditNow = () => {
@@ -468,6 +504,50 @@ export const EditRoomScreen = () => {
             </View>
           )}
         </Card>
+
+        {(applicationsLoading || pendingApplications.length > 0) && (
+          <Card style={styles.applicationsCard}>
+            <Text style={styles.sectionTitle}>בקשות הצטרפות ממתינות</Text>
+            {applicationsLoading ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginVertical: 12 }} />
+            ) : (
+              pendingApplications.map(app => (
+                <View key={app.id} style={styles.appRow}>
+                  <View style={styles.appInfo}>
+                    <Text style={styles.appName}>{app.displayName || 'משתמש'}</Text>
+                    {app.createdAt?.toDate && (
+                      <Text style={styles.appDate}>
+                        {app.createdAt.toDate().toLocaleDateString('he-IL')}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.appActions}>
+                    {processingAppId === app.id ? (
+                      <ActivityIndicator size="small" color={theme.colors.primary} />
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={styles.appApproveBtn}
+                          onPress={() => handleApproveApplication(app)}
+                        >
+                          <Ionicons name="checkmark" size={18} color="#fff" />
+                          <Text style={styles.appApproveTxt}>אשר</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.appRejectBtn}
+                          onPress={() => handleRejectApplication(app)}
+                        >
+                          <Ionicons name="close" size={18} color="#fff" />
+                          <Text style={styles.appRejectTxt}>דחה</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                </View>
+              ))
+            )}
+          </Card>
+        )}
 
         <Card style={styles.settingsCard}>
           <Text style={styles.sectionTitle}>{t('editRoom.section_settings')}</Text>
@@ -1073,5 +1153,65 @@ const styles = StyleSheet.create({
   rejectionDismissText: {
     color: theme.colors.subtext,
     fontSize: 14,
+  },
+  applicationsCard: {
+    padding: theme.spacing[4],
+    marginBottom: theme.spacing[3],
+  },
+  appRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: theme.spacing[3],
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border || '#eee',
+  },
+  appInfo: {
+    flex: 1,
+  },
+  appName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.text,
+    textAlign: 'right',
+  },
+  appDate: {
+    fontSize: 12,
+    color: theme.colors.subtext,
+    marginTop: 2,
+    textAlign: 'right',
+  },
+  appActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginLeft: 12,
+  },
+  appApproveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#27ae60',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 4,
+  },
+  appApproveTxt: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  appRejectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e74c3c',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 4,
+  },
+  appRejectTxt: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

@@ -223,6 +223,50 @@ export const storiesService = {
     }
   },
 
+  getPendingApplications: async (storyId) => {
+    try {
+      const appsQuery = query(
+        collection(db, 'applications'),
+        where('storyId', '==', storyId),
+        where('status', '==', 'pending'),
+        orderBy('createdAt', 'asc')
+      );
+      const snapshot = await getDocs(appsQuery);
+      const applications = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      return { success: true, applications };
+    } catch (error) {
+      console.error('❌ Get pending applications error:', error.message);
+      return { success: false, applications: [] };
+    }
+  },
+
+  approveApplication: async (applicationId, storyId) => {
+    try {
+      const appRef = doc(db, 'applications', applicationId);
+      await updateDoc(appRef, { status: 'approved', reviewedAt: serverTimestamp() });
+      await updateDoc(doc(db, STORIES_COLLECTION, storyId), {
+        currentPlayers: increment(1),
+      });
+      console.log('✅ Application approved:', applicationId);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Approve application error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
+  rejectApplication: async (applicationId) => {
+    try {
+      const appRef = doc(db, 'applications', applicationId);
+      await updateDoc(appRef, { status: 'rejected', reviewedAt: serverTimestamp() });
+      console.log('✅ Application rejected:', applicationId);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Reject application error:', error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
   getStoryReflections: async (storyId, maxCount = 4) => {
     try {
       const q = query(
