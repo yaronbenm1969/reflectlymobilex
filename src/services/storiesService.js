@@ -12,7 +12,8 @@ import {
   orderBy,
   limit,
   serverTimestamp,
-  increment
+  increment,
+  runTransaction
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import Constants from 'expo-constants';
@@ -243,13 +244,22 @@ export const storiesService = {
   approveApplication: async (applicationId, storyId) => {
     try {
       const appRef = doc(db, 'applications', applicationId);
-      await updateDoc(appRef, { status: 'approved', reviewedAt: serverTimestamp() });
-      await updateDoc(doc(db, STORIES_COLLECTION, storyId), {
-        currentPlayers: increment(1),
+      const storyRef = doc(db, STORIES_COLLECTION, storyId);
+      await runTransaction(db, async (transaction) => {
+        const appSnap = await transaction.get(appRef);
+        if (!appSnap.exists() || appSnap.data().status !== 'pending') {
+          throw new Error('already_processed');
+        }
+        transaction.update(appRef, { status: 'approved', reviewedAt: serverTimestamp() });
+        transaction.update(storyRef, { currentPlayers: increment(1) });
       });
       console.log('✅ Application approved:', applicationId);
       return { success: true };
     } catch (error) {
+      if (error.message === 'already_processed') {
+        console.warn('⚠️ Application already processed:', applicationId);
+        return { success: false, error: 'already_processed' };
+      }
       console.error('❌ Approve application error:', error.message);
       return { success: false, error: error.message };
     }
