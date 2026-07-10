@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Modal,
   Image,
+  Switch,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NestableScrollContainer, NestableDraggableFlatList, ScaleDecorator } from 'react-native-draggable-flatlist';
@@ -107,6 +108,8 @@ export const EditRoomScreen = () => {
   const [pendingApplications, setPendingApplications] = useState([]);
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [processingAppId, setProcessingAppId] = useState(null);
+  const [communityMode, setCommunityMode] = useState(false);
+  const [communityLoading, setCommunityLoading] = useState(false);
 
   const updateOrderedClips = useCallback((clips) => {
     orderedClipsRef.current = clips;
@@ -147,6 +150,9 @@ export const EditRoomScreen = () => {
               console.log('🖼️ Loaded backgroundStyle from Firebase:', storyData.backgroundStyle);
             }
             
+            if (storyData.communitySettings?.communityMode) {
+              setCommunityMode(true);
+            }
             if (storyData.hasRejections && storyData.participantApprovals) {
               const rejections = Object.entries(storyData.participantApprovals)
                 .filter(([_, status]) => status === 'rejected');
@@ -164,7 +170,7 @@ export const EditRoomScreen = () => {
         }
       }
     };
-    
+
     loadStoryDetails();
 
     const loadApplications = async () => {
@@ -304,6 +310,25 @@ export const EditRoomScreen = () => {
       Alert.alert(t('common.error'), 'שגיאה בדחיית הבקשה');
     }
     setProcessingAppId(null);
+  };
+
+  const handleToggleCommunity = async (value) => {
+    setCommunityLoading(true);
+    const update = value
+      ? {
+          'communitySettings.communityMode': true,
+          'communitySettings.approvalMode': 'manual',
+          'communitySettings.maxPlayers': 9,
+          status: 'active',
+        }
+      : { 'communitySettings.communityMode': false };
+    const result = await storiesService.updateStory(currentStoryId, update);
+    if (result.success) {
+      setCommunityMode(value);
+    } else {
+      Alert.alert(t('common.error'), 'שגיאה בעדכון הגדרות קהילה');
+    }
+    setCommunityLoading(false);
   };
 
   const handleEditNow = () => {
@@ -587,6 +612,29 @@ export const EditRoomScreen = () => {
               {privacySettings.allowSocialMedia ? t('editRoom.setting_public') : t('editRoom.setting_private')}
             </Text>
           </View>
+
+          <View style={styles.settingRow}>
+            <View style={styles.settingInfo}>
+              <Ionicons name="people" size={20} color={theme.colors.primary} />
+              <View>
+                <Text style={styles.settingLabel}>{t('editRoom.community_title')}</Text>
+                <Text style={styles.settingSubLabel}>
+                  {communityMode ? t('editRoom.community_on_desc') : t('editRoom.community_off_desc')}
+                </Text>
+              </View>
+            </View>
+            {communityLoading
+              ? <ActivityIndicator size="small" color={theme.colors.primary} />
+              : (
+                <Switch
+                  value={communityMode}
+                  onValueChange={handleToggleCommunity}
+                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
+                  thumbColor="#fff"
+                />
+              )
+            }
+          </View>
         </Card>
 
         <View style={styles.exportActions}>
@@ -845,6 +893,12 @@ const styles = StyleSheet.create({
   settingLabel: {
     ...theme.typography.body,
     color: theme.colors.text,
+  },
+  settingSubLabel: {
+    ...theme.typography.caption,
+    color: theme.colors.subtext,
+    marginTop: 2,
+    maxWidth: 180,
   },
   settingRight: {
     flexDirection: 'row',

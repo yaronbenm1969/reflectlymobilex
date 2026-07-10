@@ -245,14 +245,30 @@ export const storiesService = {
     try {
       const appRef = doc(db, 'applications', applicationId);
       const storyRef = doc(db, STORIES_COLLECTION, storyId);
+      let playerUid = null;
       await runTransaction(db, async (transaction) => {
         const appSnap = await transaction.get(appRef);
         if (!appSnap.exists() || appSnap.data().status !== 'pending') {
           throw new Error('already_processed');
         }
+        playerUid = appSnap.data().uid;
         transaction.update(appRef, { status: 'approved', reviewedAt: serverTimestamp() });
         transaction.update(storyRef, { currentPlayers: increment(1) });
       });
+      // Fire-and-forget: push notification to the approved player
+      if (playerUid) {
+        try {
+          const idToken = auth?.currentUser ? await auth.currentUser.getIdToken() : null;
+          if (idToken) {
+            const serverUrl = Constants.expoConfig?.extra?.videoConverterUrl || 'https://reflectlymobilex.onrender.com';
+            fetch(`${serverUrl}/api/notify-player-approved`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ storyId, playerUid, idToken }),
+            }).catch(() => {});
+          }
+        } catch (_) {}
+      }
       console.log('✅ Application approved:', applicationId);
       return { success: true };
     } catch (error) {

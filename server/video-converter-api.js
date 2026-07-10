@@ -1756,6 +1756,46 @@ async function sendCreatorNotification(storyId, playerName) {
   }
 }
 
+async function sendPlayerApprovedNotification(storyId, playerUid) {
+  if (!firestoreDb) return;
+  try {
+    const [storyDoc, userDoc] = await Promise.all([
+      firestoreDb.collection('stories').doc(storyId).get(),
+      firestoreDb.collection('users').doc(playerUid).get(),
+    ]);
+    if (!storyDoc.exists) return;
+    const storyName = storyDoc.data()?.name || '';
+    const pushToken = userDoc.exists ? userDoc.data()?.expoPushToken : null;
+    if (!pushToken || !Expo.isExpoPushToken(pushToken)) {
+      console.warn(`⚠️ sendPlayerApprovedNotification: no push token for player ${playerUid}`);
+      return;
+    }
+    await expoClient.sendPushNotificationsAsync([{
+      to: pushToken,
+      title: 'התקבלת לסיפור! 🎬',
+      body: `אושרת להצטרף ל'${storyName}'. לחץ כדי להתחיל לצלם`,
+      data: { type: 'player_approved', storyId, storyName },
+    }]);
+    console.log(`🔔 Player ${playerUid} notified: approved for story ${storyId}`);
+  } catch (err) {
+    console.warn(`⚠️ sendPlayerApprovedNotification failed: ${err.message}`);
+  }
+}
+
+app.post('/api/notify-player-approved', async (req, res) => {
+  const { storyId, playerUid, idToken } = req.body;
+  if (!storyId || !playerUid || !idToken) {
+    return res.status(400).json({ error: 'storyId, playerUid and idToken required' });
+  }
+  try {
+    await adminAuth.verifyIdToken(idToken);
+  } catch (e) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  sendPlayerApprovedNotification(storyId, playerUid).catch(() => {});
+  res.json({ success: true });
+});
+
 app.post('/api/generate-music', async (req, res) => {
   const { storyId, transcriptionSegments, totalDuration, style, numClips, musicEngine, lockedSet } = req.body;
   
