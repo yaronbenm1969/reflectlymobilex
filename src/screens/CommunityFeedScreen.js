@@ -101,7 +101,7 @@ export const CommunityFeedScreen = () => {
     }
 
     const cs = story.communitySettings || {};
-    const approvalMode = cs.approvalMode || 'open';
+    const approvalMode = cs.approvalMode || 'manual';
 
     setApplyingId(story.id);
     try {
