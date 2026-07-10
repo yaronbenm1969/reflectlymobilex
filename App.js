@@ -183,22 +183,25 @@ export default function App() {
     };
   }, []);
 
-  // Handle notification taps → navigate to EditRoom
+  // Handle notification taps
+  const handleNotificationTap = (data) => {
+    if (!data?.type || !data?.storyId) return;
+    if (data.type === 'story_reflection_update') {
+      useAppState.getState().setCurrentStoryId(data.storyId);
+      navigateTo('EditRoom');
+    } else if (data.type === 'video_ready') {
+      useAppState.getState().setCurrentStoryId(data.storyId);
+      navigateTo('FinalVideo');
+    }
+  };
+
   useEffect(() => {
     const sub = notificationsService.addNotificationListener((response) => {
-      const data = response.notification.request.content.data;
-      if (data?.type === 'story_reflection_update' && data?.storyId) {
-        useAppState.getState().setCurrentStoryId(data.storyId);
-        navigateTo('EditRoom');
-      }
+      handleNotificationTap(response.notification.request.content.data);
     });
     // Cold-start: app opened by tapping a notification
     notificationsService.getLastTapAsync().then((response) => {
-      const data = response?.notification?.request?.content?.data;
-      if (data?.type === 'story_reflection_update' && data?.storyId) {
-        useAppState.getState().setCurrentStoryId(data.storyId);
-        navigateTo('EditRoom');
-      }
+      handleNotificationTap(response?.notification?.request?.content?.data);
     });
     return () => sub?.remove();
   }, []);

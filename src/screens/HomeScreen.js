@@ -1,29 +1,23 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   TextInput,
   KeyboardAvoidingView,
   Platform,
   Alert,
-  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { AppButton } from '../ui/AppButton';
-import { Card } from '../ui/Card';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { storiesService } from '../services/storiesService';
 import { analyticsService } from '../services/analyticsService';
 import theme from '../theme/theme';
-
-const logoImage = require('../../assets/logo.png');
 
 const HOME_BG_VIDEO = 'https://storage.googleapis.com/reflectly-playback.firebasestorage.app/assets/home-background.mp4';
 
@@ -50,18 +44,58 @@ export const HomeScreen = () => {
   const [localStoryName, setLocalStoryName] = useState(storyName || '');
   const [isCreating, setIsCreating] = useState(false);
   const [participantRange, setParticipantRange] = useState('1-9');
-  
+  const [pendingCreatorApps, setPendingCreatorApps] = useState([]); // biz: apps awaiting creator approval
+  const [myPlayerApps, setMyPlayerApps] = useState([]);             // player: my pending/approved apps
+  const [storiesWithNewVideos, setStoriesWithNewVideos] = useState([]); // creator: stories with new reflections
+  const enterPlayerMode = useAppState((state) => state.enterPlayerMode);
+  const currentScreen = useAppState((state) => state.currentScreen);
+
+  const refreshBanners = (uid) => {
+    if (!uid) return;
+    storiesService.getPendingApplicationsForCreator(uid).then(res => {
+      if (res.success) setPendingCreatorApps(res.applications);
+    });
+    storiesService.getMyApplications(uid).then(res => {
+      if (res.success) setMyPlayerApps(res.applications);
+    });
+    storiesService.getUserStories(uid).then(res => {
+      if (res.success) {
+        const withNew = res.stories.filter(s => (s.pendingReflectionsCount || 0) > 0);
+        setStoriesWithNewVideos(withNew);
+      }
+    });
+  };
+
+  useEffect(() => {
+    refreshBanners(user?.uid);
+  }, [user?.uid]);
+
+  // Refresh banners every time we return to HomeScreen
+  useEffect(() => {
+    if (currentScreen === 'Home') refreshBanners(user?.uid);
+  }, [currentScreen]);
+
+  const handleJoinApproved = async (app) => {
+    try {
+      const storyRes = await storiesService.getStory(app.storyId);
+      if (storyRes.success) {
+        enterPlayerMode(app.storyId, storyRes.story);
+      }
+    } catch (e) {}
+  };
+
+  // ── All functional logic unchanged ──────────────────────────────────────
   const navigateToRecord = async () => {
     if (!localStoryName.trim()) {
       return;
     }
-    
+
     if (!user) {
       Alert.alert(t('home.auth_required_title'), t('home.auth_required_message'));
       go('Auth');
       return;
     }
-    
+
     setIsCreating(true);
     setStoryName(localStoryName.trim());
 
@@ -91,11 +125,11 @@ export const HomeScreen = () => {
       setIsCreating(false);
       return;
     }
-    
+
     setIsCreating(false);
     go('Record');
   };
-
+  // ────────────────────────────────────────────────────────────────────────
 
   return (
     <KeyboardAvoidingView
@@ -111,123 +145,116 @@ export const HomeScreen = () => {
         shouldPlay
         isLooping
         isMuted
-        rate={0.5}
+        rate={1.0}
+        pointerEvents="none"
       />
-      <View style={styles.bgOverlay} />
+      <View style={styles.bgOverlay} pointerEvents="none" />
 
-      <LinearGradient
-        colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.header}
-      >
-        <View style={styles.safeArea}>
-          <View style={styles.headerContent}>
-            <TouchableOpacity 
-              style={styles.menuButton}
-              onPress={() => useAppState.getState().setSideMenuOpen(true)}
-              accessibilityLabel="Open navigation menu"
-            >
-              <Ionicons name="menu" size={24} color="white" />
-            </TouchableOpacity>
-            <View style={styles.logoTitleContainer}>
-              <Image 
-                source={logoImage} 
-                style={styles.headerLogo}
-                resizeMode="contain"
-              />
-              <Text style={styles.title}>RILIO</Text>
-            </View>
-            <TouchableOpacity 
-              style={styles.menuButton}
-              onPress={() => useAppState.getState().navigateTo('Settings')}
-              accessibilityLabel="Open settings"
-            >
-              <Ionicons name="settings" size={20} color="white" />
-            </TouchableOpacity>
-          </View>
-          
-          <Text style={styles.subtitle}>
-            {t('home.header_subtitle')}
+      {/* Top bar — floating over video */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          style={styles.topBarBtn}
+          onPress={() => useAppState.getState().setSideMenuOpen(true)}
+          accessibilityLabel="Open navigation menu"
+        >
+          <Ionicons name="menu" size={24} color="rgba(255,255,255,0.85)" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.topBarBtn}
+          onPress={() => useAppState.getState().navigateTo('Settings')}
+          accessibilityLabel="Open settings"
+        >
+          <Ionicons name="settings-outline" size={22} color="rgba(255,255,255,0.85)" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Hero title */}
+      <View style={styles.heroSection}>
+        <Text style={styles.heroTitle}>Rilio</Text>
+        <Text style={styles.heroTagline}>Every story creates ripples</Text>
+      </View>
+
+      {/* Creator banner — pending applications to review */}
+      {pendingCreatorApps.length > 0 && (
+        <TouchableOpacity
+          style={styles.pendingBanner}
+          onPress={() => {
+            useAppState.getState().setCurrentStoryId(pendingCreatorApps[0].storyId);
+            go('EditRoom');
+          }}
+        >
+          <Ionicons name="people" size={16} color="#fff" />
+          <Text style={styles.pendingBannerText}>
+            {pendingCreatorApps.length === 1
+              ? `בקשת הצטרפות ממתינה לאישורך`
+              : `${pendingCreatorApps.length} בקשות הצטרפות ממתינות לאישורך`}
           </Text>
+          <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.7)" />
+        </TouchableOpacity>
+      )}
+
+      {/* Creator — new videos arrived banners */}
+      {storiesWithNewVideos.map(story => (
+        <TouchableOpacity
+          key={story.id}
+          style={[styles.pendingBanner, styles.newVideosBanner]}
+          onPress={() => {
+            useAppState.getState().setCurrentStoryId(story.id);
+            go('EditRoom');
+          }}
+        >
+          <Ionicons name="videocam" size={16} color="#fff" />
+          <Text style={styles.pendingBannerText}>
+            {`התקבלו ${story.pendingReflectionsCount} סרטונים לפרויקט '${story.name || story.storyName || ''}'`}
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.7)" />
+        </TouchableOpacity>
+      ))}
+
+      {/* Player approved banners only — tap to go record */}
+      {myPlayerApps.filter(a => a.status === 'approved').map(app => (
+        <TouchableOpacity
+          key={app.id}
+          style={[styles.pendingBanner, styles.approvedBanner]}
+          onPress={() => handleJoinApproved(app)}
+        >
+          <Ionicons name="checkmark-circle" size={16} color="#fff" />
+          <Text style={styles.pendingBannerText}>
+            {`אושרת! לחץ להתחיל לצלם ב'${app.storyName || 'סיפור'}'`}
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.7)" />
+        </TouchableOpacity>
+      ))}
+
+      {/* Input area */}
+      <View style={styles.inputSection}>
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.storyInput}
+            placeholder={t('home.story_input_placeholder')}
+            placeholderTextColor="rgba(255,255,255,0.5)"
+            value={localStoryName}
+            onChangeText={setLocalStoryName}
+            onSubmitEditing={navigateToRecord}
+            returnKeyType="go"
+            textAlign="right"
+          />
+          <TouchableOpacity
+            style={[styles.arrowButton, (!localStoryName.trim() || isCreating) && styles.arrowButtonDisabled]}
+            onPress={navigateToRecord}
+            disabled={!localStoryName.trim() || isCreating}
+          >
+            {isCreating
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Ionicons name="arrow-forward" size={22} color="#fff" />
+            }
+          </TouchableOpacity>
         </View>
-      </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.buttonContainer}>
-          <Card style={styles.actionCard}>
-            <Text style={styles.cardTitle}>{t('home.card_title')}</Text>
-            
-            <TextInput
-              style={styles.storyNameInput}
-              placeholder={t('home.story_input_placeholder')}
-              placeholderTextColor={theme.colors.subtext}
-              value={localStoryName}
-              onChangeText={setLocalStoryName}
-              textAlign="right"
-            />
-            
-            <Text style={styles.participantLabel}>{t('home.participants_label')}</Text>
-            <View style={styles.participantSelector}>
-              {PARTICIPANT_OPTIONS.map((opt) => (
-                <TouchableOpacity
-                  key={opt.label}
-                  style={[
-                    styles.participantOption,
-                    participantRange === opt.label && styles.participantOptionActive,
-                  ]}
-                  onPress={() => setParticipantRange(opt.label)}
-                >
-                  <Text style={[
-                    styles.participantOptionText,
-                    participantRange === opt.label && styles.participantOptionTextActive,
-                  ]}>
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.cardDescription}>
-              {t('home.card_description')}
-            </Text>
-            
-            <AppButton
-              title={isCreating ? t('home.button_creating') : t('home.button_create_new')}
-              onPress={navigateToRecord}
-              variant="primary"
-              size="lg"
-              fullWidth
-              style={styles.primaryButton}
-              disabled={!localStoryName.trim() || isCreating}
-            />
-            
-            <AppButton
-              title={t('home.button_my_stories')}
-              onPress={() => go('MyStories')}
-              variant="secondary"
-              size="lg"
-              fullWidth
-              style={styles.secondaryButton}
-            />
-          </Card>
-
-
-          <Card style={styles.infoCard}>
-            <View style={styles.infoHeader}>
-              <Ionicons name="information-circle" size={24} color={theme.colors.secondary} />
-              <Text style={styles.infoTitle}>{t('home.info_title')}</Text>
-            </View>
-            <Text style={styles.infoText}>
-              {'1. '}{t('home.info_step_1')}{'\n'}
-              {'2. '}{t('home.info_step_2')}{'\n'}
-              {'3. '}{t('home.info_step_3')}{'\n'}
-              {'4. '}{t('home.info_step_4')}{'\n'}
-              {'5. '}{t('home.info_step_5')}
-            </Text>
-          </Card>
-        </View>
-      </ScrollView>
+        <TouchableOpacity style={styles.myStoriesBtn} onPress={() => go('MyStories')}>
+          <Text style={styles.myStoriesText}>{t('home.button_my_stories')}</Text>
+        </TouchableOpacity>
+      </View>
     </KeyboardAvoidingView>
   );
 };
@@ -242,147 +269,131 @@ const styles = StyleSheet.create({
   },
   bgOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.40)',
   },
-  header: {
-    paddingBottom: theme.spacing[6],
-    paddingTop: 50,
-    opacity: 0.88,
-  },
-  safeArea: {
-    backgroundColor: 'transparent',
-  },
-  headerContent: {
+
+  // Top bar
+  topBar: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 54 : 32,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing[4],
-    paddingVertical: theme.spacing[3],
+    paddingHorizontal: 20,
+    zIndex: 10,
   },
-  logoTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerLogo: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-  },
-  title: {
-    ...theme.typography.h1,
-    color: theme.colors.white,
-    textAlign: 'center',
-  },
-  subtitle: {
-    ...theme.typography.body,
-    color: theme.colors.white,
-    textAlign: 'center',
-    opacity: 0.9,
-    marginTop: theme.spacing[2],
-    paddingHorizontal: theme.spacing[4],
-  },
-  menuButton: {
+  topBarBtn: {
     width: 40,
     height: 40,
-    borderRadius: theme.radii.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  content: {
+
+  // Hero
+  heroSection: {
     flex: 1,
-    paddingHorizontal: theme.spacing[4],
-  },
-  buttonContainer: {
-    paddingTop: theme.spacing[6],
-    gap: theme.spacing[4],
-  },
-  actionCard: {
-    padding: theme.spacing[6],
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60,
   },
-  cardTitle: {
-    ...theme.typography.h2,
-    color: theme.colors.text,
-    textAlign: 'center',
-    marginBottom: theme.spacing[4],
+  heroTitle: {
+    fontSize: 64,
+    fontWeight: '200',
+    color: '#fff',
+    letterSpacing: 4,
   },
-  storyNameInput: {
-    width: '100%',
-    backgroundColor: theme.colors.white,
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-    borderRadius: theme.radii.lg,
-    padding: theme.spacing[4],
-    fontSize: 18,
-    color: theme.colors.text,
-    marginBottom: theme.spacing[4],
+  heroTagline: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.75)',
+    letterSpacing: 1,
+    marginTop: 8,
   },
-  participantLabel: {
-    ...theme.typography.h4,
-    color: theme.colors.text,
-    textAlign: 'right',
-    alignSelf: 'flex-end',
-    marginBottom: theme.spacing[2],
-  },
-  participantSelector: {
+
+  pendingBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginBottom: theme.spacing[4],
-    gap: 8,
-  },
-  participantOption: {
-    flex: 1,
-    paddingVertical: theme.spacing[2],
-    borderRadius: theme.radii.md,
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
     alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 24,
+    marginBottom: 8,
+    backgroundColor: 'rgba(132, 70, 176, 0.85)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  participantOptionActive: {
-    backgroundColor: theme.colors.primary,
+  waitingBanner: {
+    backgroundColor: 'rgba(180, 120, 0, 0.85)',
   },
-  participantOptionText: {
+  approvedBanner: {
+    backgroundColor: 'rgba(39, 174, 96, 0.9)',
+  },
+  newVideosBanner: {
+    backgroundColor: 'rgba(52, 120, 210, 0.9)',
+  },
+  pendingBannerText: {
+    flex: 1,
+    color: '#fff',
     fontSize: 13,
     fontWeight: '600',
-    color: theme.colors.primary,
+    textAlign: 'right',
   },
-  participantOptionTextActive: {
-    color: theme.colors.white,
+  bannerActionBtn: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  cardDescription: {
-    ...theme.typography.body,
-    color: theme.colors.subtext,
-    textAlign: 'center',
-    marginBottom: theme.spacing[5],
-    lineHeight: 24,
+  bannerActionText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
-  primaryButton: {
-    marginBottom: theme.spacing[3],
+  bannerDismissBtn: {
+    padding: 4,
   },
-  secondaryButton: {
-    marginTop: theme.spacing[2],
+
+  // Input section
+  inputSection: {
+    paddingHorizontal: 24,
+    paddingBottom: Platform.OS === 'ios' ? 48 : 32,
+    gap: 16,
   },
-  infoCard: {
-    padding: theme.spacing[5],
-    borderLeftWidth: 4,
-    borderLeftColor: theme.colors.secondary,
-  },
-  infoHeader: {
+  inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing[3],
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    overflow: 'hidden',
   },
-  infoTitle: {
-    ...theme.typography.h3,
-    color: theme.colors.text,
-    marginLeft: theme.spacing[2],
+  storyInput: {
+    flex: 1,
+    height: 56,
+    paddingHorizontal: 18,
+    fontSize: 17,
+    color: '#fff',
   },
-  infoText: {
-    ...theme.typography.body,
-    color: theme.colors.subtext,
-    lineHeight: 24,
-    textAlign: 'right',
+  arrowButton: {
+    width: 56,
+    height: 56,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  arrowButtonDisabled: {
+    opacity: 0.4,
+  },
+
+  // My Stories
+  myStoriesBtn: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  myStoriesText: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 14,
+    letterSpacing: 0.5,
   },
 });

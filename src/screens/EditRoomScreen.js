@@ -24,7 +24,7 @@ import theme from '../theme/theme';
 import { reflectionsService } from '../services/reflectionsService';
 import { storiesService } from '../services/storiesService';
 import { db } from '../services/firebase';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 function shuffleAvoidConsecutive(clips) {
   if (clips.length <= 1) return clips;
@@ -108,6 +108,7 @@ export const EditRoomScreen = () => {
   const [pendingApplications, setPendingApplications] = useState([]);
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [processingAppId, setProcessingAppId] = useState(null);
+  const [expandedAppId, setExpandedAppId] = useState(null);
   const [communityMode, setCommunityMode] = useState(false);
   const [communityLoading, setCommunityLoading] = useState(false);
 
@@ -172,6 +173,11 @@ export const EditRoomScreen = () => {
     };
 
     loadStoryDetails();
+
+    // Clear the pending counter so HomeScreen banner disappears
+    if (currentStoryId) {
+      updateDoc(doc(db, 'stories', currentStoryId), { pendingReflectionsCount: 0 }).catch(() => {});
+    }
 
     const loadApplications = async () => {
       if (!currentStoryId) return;
@@ -314,18 +320,25 @@ export const EditRoomScreen = () => {
 
   const handleToggleCommunity = async (value) => {
     setCommunityLoading(true);
-    const update = value
-      ? {
+    try {
+      const storyRef = doc(db, 'stories', currentStoryId);
+      if (value) {
+        await updateDoc(storyRef, {
           'communitySettings.communityMode': true,
           'communitySettings.approvalMode': 'manual',
           'communitySettings.maxPlayers': 9,
           status: 'active',
-        }
-      : { 'communitySettings.communityMode': false };
-    const result = await storiesService.updateStory(currentStoryId, update);
-    if (result.success) {
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        await updateDoc(storyRef, {
+          'communitySettings.communityMode': false,
+          updatedAt: serverTimestamp(),
+        });
+      }
       setCommunityMode(value);
-    } else {
+    } catch (e) {
+      console.error('Toggle community error:', e.message);
       Alert.alert(t('common.error'), 'שגיאה בעדכון הגדרות קהילה');
     }
     setCommunityLoading(false);
@@ -536,40 +549,96 @@ export const EditRoomScreen = () => {
             {applicationsLoading ? (
               <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginVertical: 12 }} />
             ) : (
-              pendingApplications.map(app => (
-                <View key={app.id} style={styles.appRow}>
-                  <View style={styles.appInfo}>
-                    <Text style={styles.appName}>{app.displayName || 'משתמש'}</Text>
-                    {app.createdAt?.toDate && (
-                      <Text style={styles.appDate}>
-                        {app.createdAt.toDate().toLocaleDateString('he-IL')}
-                      </Text>
+              pendingApplications.map(app => {
+                const isExpanded = expandedAppId === app.id;
+                const p = app.profileSnapshot || {};
+                return (
+                  <View key={app.id} style={styles.appCard}>
+                    {/* Header row — tap to expand */}
+                    <TouchableOpacity
+                      style={styles.appRow}
+                      onPress={() => setExpandedAppId(isExpanded ? null : app.id)}
+                      activeOpacity={0.7}
+                    >
+                      {p.photoUrl ? (
+                        <Image source={{ uri: p.photoUrl }} style={styles.appAvatar} />
+                      ) : (
+                        <View style={[styles.appAvatar, styles.appAvatarPlaceholder]}>
+                          <Ionicons name="person" size={18} color="#bbb" />
+                        </View>
+                      )}
+                      <View style={styles.appInfo}>
+                        <Text style={styles.appName}>{app.displayName || 'משתמש'}</Text>
+                        {app.createdAt?.toDate && (
+                          <Text style={styles.appDate}>
+                            {app.createdAt.toDate().toLocaleDateString('he-IL')}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={styles.appViewProfile}>
+                        <Text style={styles.appViewProfileText}>
+                          {isExpanded ? 'סגור' : 'צפה בפרופיל'}
+                        </Text>
+                        <Ionicons
+                          name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                          size={14}
+                          color={theme.colors.accent}
+                        />
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Expanded profile card */}
+                    {isExpanded && (
+                      <View style={styles.appProfile}>
+                        {!!p.bio && (
+                          <View style={styles.appProfileRow}>
+                            <Text style={styles.appProfileLabel}>אודות</Text>
+                            <Text style={styles.appProfileValue}>{p.bio}</Text>
+                          </View>
+                        )}
+                        {!!p.actingExperience && (
+                          <View style={styles.appProfileRow}>
+                            <Text style={styles.appProfileLabel}>ניסיון</Text>
+                            <Text style={styles.appProfileValue}>{p.actingExperience}</Text>
+                          </View>
+                        )}
+                        {!!p.demoReelUrl && (
+                          <View style={styles.appProfileRow}>
+                            <Text style={styles.appProfileLabel}>דמו רייל</Text>
+                            <Text style={[styles.appProfileValue, { color: theme.colors.accent }]} numberOfLines={1}>
+                              {p.demoReelUrl}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     )}
+
+                    {/* Action buttons */}
+                    <View style={styles.appActions}>
+                      {processingAppId === app.id ? (
+                        <ActivityIndicator size="small" color={theme.colors.primary} />
+                      ) : (
+                        <>
+                          <TouchableOpacity
+                            style={styles.appApproveBtn}
+                            onPress={() => handleApproveApplication(app)}
+                          >
+                            <Ionicons name="checkmark" size={18} color="#fff" />
+                            <Text style={styles.appApproveTxt}>אשר</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.appRejectBtn}
+                            onPress={() => handleRejectApplication(app)}
+                          >
+                            <Ionicons name="close" size={18} color="#fff" />
+                            <Text style={styles.appRejectTxt}>דחה</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
+                    </View>
                   </View>
-                  <View style={styles.appActions}>
-                    {processingAppId === app.id ? (
-                      <ActivityIndicator size="small" color={theme.colors.primary} />
-                    ) : (
-                      <>
-                        <TouchableOpacity
-                          style={styles.appApproveBtn}
-                          onPress={() => handleApproveApplication(app)}
-                        >
-                          <Ionicons name="checkmark" size={18} color="#fff" />
-                          <Text style={styles.appApproveTxt}>אשר</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.appRejectBtn}
-                          onPress={() => handleRejectApplication(app)}
-                        >
-                          <Ionicons name="close" size={18} color="#fff" />
-                          <Text style={styles.appRejectTxt}>דחה</Text>
-                        </TouchableOpacity>
-                      </>
-                    )}
-                  </View>
-                </View>
-              ))
+                );
+              })
             )}
           </Card>
         )}
@@ -1212,16 +1281,64 @@ const styles = StyleSheet.create({
     padding: theme.spacing[4],
     marginBottom: theme.spacing[3],
   },
+  appCard: {
+    borderWidth: 1,
+    borderColor: '#eee',
+    borderRadius: 10,
+    marginBottom: theme.spacing[2],
+    overflow: 'hidden',
+  },
   appRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: theme.spacing[3],
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border || '#eee',
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    gap: 10,
+    backgroundColor: '#fafafa',
+  },
+  appAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  appAvatarPlaceholder: {
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   appInfo: {
     flex: 1,
+  },
+  appViewProfile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  appViewProfileText: {
+    fontSize: 12,
+    color: theme.colors.accent,
+    fontWeight: '500',
+  },
+  appProfile: {
+    padding: theme.spacing[3],
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    backgroundColor: '#fff',
+  },
+  appProfileRow: {
+    gap: 2,
+  },
+  appProfileLabel: {
+    fontSize: 11,
+    color: theme.colors.subtext,
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  appProfileValue: {
+    fontSize: 13,
+    color: theme.colors.text,
+    textAlign: 'right',
   },
   appName: {
     fontSize: 15,
@@ -1238,7 +1355,11 @@ const styles = StyleSheet.create({
   appActions: {
     flexDirection: 'row',
     gap: 8,
-    marginLeft: 12,
+    justifyContent: 'flex-end',
+    padding: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
   },
   appApproveBtn: {
     flexDirection: 'row',

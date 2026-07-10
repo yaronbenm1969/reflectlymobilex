@@ -5,6 +5,8 @@ import {
   getDocs,
   addDoc,
   deleteDoc,
+  updateDoc,
+  increment,
   query,
   where,
   orderBy,
@@ -12,6 +14,8 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
+
+const STORIES_COLLECTION = 'stories';
 
 const REFLECTIONS_COLLECTION = 'reflections';
 
@@ -30,6 +34,12 @@ export const reflectionsService = {
         status: 'pending'
       });
       console.log(`✅ Reflection saved to Firestore: ${docRef.id}`);
+      // Bump pending counter on story so creator sees a HomeScreen banner
+      if (storyId) {
+        updateDoc(doc(db, STORIES_COLLECTION, storyId), {
+          pendingReflectionsCount: increment(1),
+        }).catch(() => {});
+      }
       return { success: true, docId: docRef.id };
     } catch (error) {
       console.error('❌ Save reflection error:', error.message);

@@ -69,6 +69,7 @@ export const PlayerRecordScreen = () => {
   const playerStoryId = useAppState((state) => state.playerStoryId);
   const currentStoryId = useAppState((state) => state.currentStoryId);
   const storyIdForMusic = playerStoryId || currentStoryId;
+  const user = useAppState((state) => state.user);
 
   const selectedMusic = useAppState((state) => state.selectedMusic);
   const preferredMusicEngine = useAppState((state) => state.preferredMusicEngine);
@@ -320,6 +321,7 @@ export const PlayerRecordScreen = () => {
   };
 
   const handleSubmit = async () => {
+    console.log('📤 handleSubmit — playerStoryId:', playerStoryId, '| currentStoryId:', currentStoryId, '| storyIdForMusic:', storyIdForMusic);
     ambient.stop();
     const recorded = clipRecordings.filter(r => r !== null);
 
@@ -339,50 +341,58 @@ export const PlayerRecordScreen = () => {
 
     setIsUploading(true);
     const participantId = participantIdRef.current;
+    const participantName = playerStoryData?.participantName || navigationParams?.participantName || null;
     let uploadedCount = 0;
-    const uploadedUrls = [];
+
+    // Upload via server — server responds as soon as it receives the file,
+    // then uploads to Firebase in background. Player can close app after this.
+    const uploadClipToServer = (clipUri, clipIndex) => new Promise((resolve) => {
+      const formData = new FormData();
+      const uriLower = clipUri.toLowerCase();
+      const ext = uriLower.includes('.mov') ? 'mov' : uriLower.includes('.webm') ? 'webm' : 'mp4';
+      formData.append('video', { uri: clipUri, type: ext === 'mov' ? 'video/quicktime' : ext === 'webm' ? 'video/webm' : 'video/mp4', name: `clip${clipIndex}.${ext}` });
+      formData.append('storyId', storyIdForMusic);
+      formData.append('clipNumber', String(clipIndex));
+      formData.append('playerName', participantName || '');
+      formData.append('participantId', participantId);
+
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress(t('playerRecord.uploading_clip_pct', { n: clipIndex, pct }));
+        }
+      };
+      xhr.onload = () => {
+        try { resolve(JSON.parse(xhr.responseText)); } catch { resolve({ success: false }); }
+      };
+      xhr.onerror = () => resolve({ success: false });
+      xhr.open('POST', getApiUrl('/api/upload-player-clip'));
+      if (process.env.EXPO_PUBLIC_ACCESS_CODE) xhr.setRequestHeader('x-app-access-code', process.env.EXPO_PUBLIC_ACCESS_CODE);
+      xhr.setRequestHeader('ngrok-skip-browser-warning', 'true');
+      xhr.send(formData);
+    });
 
     try {
       for (let i = 0; i < clipRecordings.length; i++) {
         const clip = clipRecordings[i];
         if (!clip || clip.uri === 'web-demo') continue;
-
         setUploadProgress(t('playerRecord.uploading_clip', { n: i + 1 }));
-        const result = await storageService.uploadPlayerVideo(
-          clip.uri,
-          storyIdForMusic,
-          participantId,
-          i + 1,
-          (progress) => {
-            setUploadProgress(t('playerRecord.uploading_clip_pct', { n: i + 1, pct: Math.round(progress) }));
-          }
-        );
-
-        if (result.success) {
-          const participantName = playerStoryData?.participantName || navigationParams?.participantName || null;
-          await reflectionsService.saveReflection(
-            playerStoryId,
-            i + 1,
-            result.url,
-            participantId,
-            participantName
-          );
-          uploadedUrls.push(result.url);
+        const result = await uploadClipToServer(clip.uri, i + 1);
+        if (result.success || result.pending) {
           uploadedCount++;
         } else {
-          console.error(`Upload failed for clip ${i + 1}:`, result.error);
+          console.error(`Upload failed for clip ${i + 1}`);
         }
       }
 
       if (uploadedCount > 0) analyticsService.clipSubmitted(storyIdForMusic || playerStoryId, uploadedCount);
-      // Notify story creator about new clips
-      if (storyIdForMusic && uploadedCount > 0) {
-        const participantName = playerStoryData?.participantName || navigationParams?.participantName || null;
-        fetch(getApiUrl('/api/notify-reflection'), {
-          method: 'POST', headers: SERVER_HEADERS,
-          body: JSON.stringify({ storyId: storyIdForMusic, playerName: participantName }),
-        }).catch(() => {});
+      // Mark community application as joined so approved banner disappears
+      if (uploadedCount > 0 && storyIdForMusic && user?.uid) {
+        console.log('🏁 markApplicationJoined:', storyIdForMusic, user.uid);
+        await storiesService.markApplicationJoined(storyIdForMusic, user.uid);
       }
+      // Creator notification already sent by server endpoint — skip separate call
 
       // Save push token so server can notify when video is ready
       if (storyIdForMusic) {
@@ -392,26 +402,14 @@ export const PlayerRecordScreen = () => {
       }
 
       // Fire-and-forget: generate AI music in background from uploaded clips
-      if (uploadedUrls.length > 0 && storyIdForMusic) {
+      if (uploadedCount > 0 && storyIdForMusic) {
         (async () => {
           try {
-            console.log(`🎵 Starting background music generation (${uploadedUrls.length} clips)...`);
-            let transcriptionSegments = null;
-            let totalDuration = 60;
-            try {
-              const transcribeRes = await fetch(getApiUrl('/api/transcribe-from-urls'), {
-                method: 'POST', headers: SERVER_HEADERS,
-                body: JSON.stringify({ clipUrls: uploadedUrls }),
-              });
-              const transcribeJson = await transcribeRes.json();
-              if (transcribeJson.success && transcribeJson.segments?.length > 0) {
-                transcriptionSegments = transcribeJson.segments;
-                totalDuration = transcribeJson.totalDuration || totalDuration;
-              }
-            } catch (e) { console.warn('Transcription failed:', e.message); }
+            console.log(`🎵 Starting background music generation (${uploadedCount} clips)...`);
+            const totalDuration = 60;
             const genRes = await fetch(getApiUrl('/api/generate-music'), {
               method: 'POST', headers: SERVER_HEADERS,
-              body: JSON.stringify({ storyId: storyIdForMusic, totalDuration, numClips: uploadedUrls.length, style: selectedMusic || undefined, musicEngine: preferredMusicEngine || 'suno', ...(transcriptionSegments && { transcriptionSegments }), ...(playerStoryData?.lockedSet != null && { lockedSet: playerStoryData.lockedSet }) }),
+              body: JSON.stringify({ storyId: storyIdForMusic, totalDuration, numClips: uploadedCount, style: selectedMusic || undefined, musicEngine: preferredMusicEngine || 'suno', ...(playerStoryData?.lockedSet != null && { lockedSet: playerStoryData.lockedSet }) }),
             });
             const genJson = await genRes.json();
             const musicJobId = genJson.jobId;
@@ -551,6 +549,7 @@ export const PlayerRecordScreen = () => {
         storyName={playerStoryData?.name || navigationParams?.storyName}
         title={t('playerRecord.uploading_title')}
         message={uploadProgress}
+        disableMusic
       />
     );
   }

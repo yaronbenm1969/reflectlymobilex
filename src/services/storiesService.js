@@ -183,7 +183,7 @@ export const storiesService = {
     }
   },
 
-  applyToStory: async (storyId, uid, displayName, incrementPlayers = false) => {
+  applyToStory: async (storyId, uid, displayName, incrementPlayers = false, creatorUid = null, profileSnapshot = null, storyName = null) => {
     try {
       const applicationId = `${storyId}_${uid}`;
       const appRef = doc(db, 'applications', applicationId);
@@ -193,6 +193,9 @@ export const storiesService = {
         displayName: displayName || '',
         status: 'pending',
         createdAt: serverTimestamp(),
+        ...(creatorUid && { creatorUid }),
+        ...(profileSnapshot && { profileSnapshot }),
+        ...(storyName && { storyName }),
       });
       if (incrementPlayers) {
         await updateDoc(doc(db, STORIES_COLLECTION, storyId), {
@@ -200,6 +203,22 @@ export const storiesService = {
         });
       }
       console.log('✅ Application submitted:', applicationId);
+
+      // Notify creator (fire-and-forget)
+      if (!incrementPlayers && creatorUid) {
+        try {
+          const idToken = auth?.currentUser ? await auth.currentUser.getIdToken() : null;
+          if (idToken) {
+            const serverUrl = Constants.expoConfig?.extra?.videoConverterUrl || 'https://reflectlymobilex.onrender.com';
+            fetch(`${serverUrl}/api/notify-new-application`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ storyId, applicantName: displayName || '', creatorUid, idToken }),
+            }).catch(() => {});
+          }
+        } catch (_) {}
+      }
+
       return { success: true, applicationId };
     } catch (error) {
       console.error('❌ Apply to story error:', error.message);
@@ -224,16 +243,66 @@ export const storiesService = {
     }
   },
 
+  getApprovedApplicationsForPlayer: async (uid) => {
+    try {
+      const appsQuery = query(
+        collection(db, 'applications'),
+        where('uid', '==', uid),
+        where('status', '==', 'approved')
+      );
+      const snapshot = await getDocs(appsQuery);
+      const applications = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      return { success: true, applications };
+    } catch (error) {
+      console.error('❌ Get approved applications error:', error.message);
+      return { success: false, applications: [] };
+    }
+  },
+
+  // pending + approved apps submitted by this player (for HomeScreen banners)
+  getMyApplications: async (uid) => {
+    try {
+      const snapshot = await getDocs(query(
+        collection(db, 'applications'),
+        where('uid', '==', uid)
+      ));
+      const applications = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(a => a.status === 'pending' || a.status === 'approved');
+      return { success: true, applications };
+    } catch (error) {
+      console.error('❌ Get my applications error:', error.message);
+      return { success: false, applications: [] };
+    }
+  },
+
+  getPendingApplicationsForCreator: async (creatorUid) => {
+    try {
+      const appsQuery = query(
+        collection(db, 'applications'),
+        where('creatorUid', '==', creatorUid),
+        where('status', '==', 'pending')
+      );
+      const snapshot = await getDocs(appsQuery);
+      const applications = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      return { success: true, applications };
+    } catch (error) {
+      console.error('❌ Get creator applications error:', error.message);
+      return { success: false, applications: [] };
+    }
+  },
+
   getPendingApplications: async (storyId) => {
     try {
       const appsQuery = query(
         collection(db, 'applications'),
         where('storyId', '==', storyId),
-        where('status', '==', 'pending'),
-        orderBy('createdAt', 'asc')
+        where('status', '==', 'pending')
       );
       const snapshot = await getDocs(appsQuery);
-      const applications = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const applications = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
       return { success: true, applications };
     } catch (error) {
       console.error('❌ Get pending applications error:', error.message);
@@ -290,6 +359,18 @@ export const storiesService = {
     } catch (error) {
       console.error('❌ Reject application error:', error.message);
       return { success: false, error: error.message };
+    }
+  },
+
+  markApplicationJoined: async (storyId, uid) => {
+    try {
+      const applicationId = `${storyId}_${uid}`;
+      await updateDoc(doc(db, 'applications', applicationId), { status: 'joined', joinedAt: serverTimestamp() });
+      console.log('✅ Application marked joined:', applicationId);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Mark joined error:', error.message);
+      return { success: false };
     }
   },
 

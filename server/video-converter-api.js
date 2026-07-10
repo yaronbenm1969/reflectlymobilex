@@ -19,7 +19,7 @@ const fs = require('fs');
 const os = require('os');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getStorage } = require('firebase-admin/storage');
-const { getFirestore } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth: getAdminAuth } = require('firebase-admin/auth');
 const { ConversionQueue } = require('./conversion-queue');
 const { renderFormatVideo, cleanupRenderDir } = require('./format-renderer');
@@ -297,51 +297,55 @@ app.get('/record/:storyId', async (req, res) => {
 // Upload a player clip via server (bypasses Firebase Storage rules for unauthenticated browsers)
 app.post('/api/upload-player-clip', upload.single('video'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No video file' });
-  const { storyId, playerName, clipNumber = '1', webUid } = req.body;
+  const { storyId, playerName, clipNumber = '1', webUid, participantId } = req.body;
   if (!storyId) { fs.unlinkSync(req.file.path); return res.status(400).json({ error: 'storyId required' }); }
+  if (!bucket) { fs.unlinkSync(req.file.path); return res.status(503).json({ error: 'Storage not configured' }); }
 
-  try {
-    const ext = req.file.originalname?.endsWith('.mp4') ? 'mp4' : 'webm';
-    const storagePath = `stories/${storyId}/players/${webUid || ('web_' + Date.now())}/video${clipNumber}_${Date.now()}.${ext}`;
+  const tempPath = req.file.path;
+  const origName = req.file.originalname || '';
+  const ext = origName.endsWith('.mp4') ? 'mp4' : origName.endsWith('.mov') ? 'mov' : 'webm';
+  const pid = participantId || webUid || ('native_' + Date.now());
+  const storagePath = `stories/${storyId}/players/${pid}/video${clipNumber}_${Date.now()}.${ext}`;
 
-    let downloadUrl;
-    if (bucket) {
-      await bucket.upload(req.file.path, {
-        destination: storagePath,
-        metadata: { contentType: ext === 'mp4' ? 'video/mp4' : 'video/webm' },
-      });
+  // Respond immediately — player can close the app now
+  res.json({ success: true, pending: true });
+
+  // Process upload + Firestore in background (non-blocking)
+  setImmediate(async () => {
+    try {
+      const contentType = ext === 'mp4' ? 'video/mp4' : ext === 'mov' ? 'video/quicktime' : 'video/webm';
+      await bucket.upload(tempPath, { destination: storagePath, metadata: { contentType } });
       await bucket.file(storagePath).makePublic();
-      downloadUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
-    } else {
-      return res.status(503).json({ error: 'Storage not configured' });
+      const downloadUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+
+      if (firestoreDb) {
+        await firestoreDb.collection('reflections').add({
+          storyId,
+          videoUrl:        downloadUrl,
+          convertedUrl:    null,
+          conversionStatus:'pending',
+          playerName:      playerName || 'משתתף',
+          participantName: playerName || 'משתתף',
+          participantId:   pid,
+          uid:             webUid || pid,
+          clipNumber:      parseInt(clipNumber, 10),
+          source:          'native',
+          status:          'pending',
+          createdAt:       new Date(),
+        });
+        firestoreDb.collection('stories').doc(storyId).update({
+          pendingReflectionsCount: FieldValue.increment(1),
+        }).catch(() => {});
+      }
+
+      sendCreatorNotification(storyId, playerName || null).catch(() => {});
+      console.log(`✅ Player clip uploaded (bg): ${storagePath}`);
+    } catch (err) {
+      console.error('❌ upload-player-clip bg failed:', err.message);
+      try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch (e) {}
     }
-
-    fs.unlinkSync(req.file.path);
-
-    // Save reflection document to Firestore
-    if (firestoreDb && playerName) {
-      await firestoreDb.collection('reflections').add({
-        storyId,
-        videoUrl:        downloadUrl,
-        playerName:      playerName,
-        participantName: playerName,
-        uid:             webUid || 'web_anonymous',
-        clipNumber:      parseInt(clipNumber, 10),
-        source:          'web',
-        createdAt:       new Date(),
-      });
-    }
-
-    // Notify story creator (fire-and-forget)
-    sendCreatorNotification(storyId, playerName || null).catch(() => {});
-
-    console.log(`✅ Player clip uploaded: ${storagePath}`);
-    res.json({ success: true, url: downloadUrl });
-  } catch (err) {
-    console.error('❌ upload-player-clip failed:', err.message);
-    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    res.status(500).json({ error: err.message });
-  }
+  });
 });
 
 // Generate a signed URL so the browser can PUT directly to GCS (no double-hop through Render)
@@ -1483,7 +1487,13 @@ app.post('/api/stories/:storyId/render', async (req, res) => {
         finalUrl,
         completedAt: new Date().toISOString()
       });
-      
+
+      // Save finalVideoUrl to Firestore so client can load it after notification tap
+      if (firestoreDb && storyId && finalUrl) {
+        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl }).catch(() => {});
+      }
+      sendVideoReadyNotification(storyId, finalUrl).catch(() => {});
+
       console.log(`Rendering completed: ${finalUrl}`);
       
     } catch (error) {
@@ -1577,7 +1587,13 @@ app.post('/api/stories/:storyId/render-format', async (req, res) => {
         finalUrl,
         completedAt: new Date().toISOString()
       });
-      
+
+      // Save finalVideoUrl to Firestore so client can load it after notification tap
+      if (firestoreDb && storyId && finalUrl) {
+        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl }).catch(() => {});
+      }
+      sendVideoReadyNotification(storyId, finalUrl).catch(() => {});
+
       console.log(`✅ Format render completed: ${finalUrl}`);
     } catch (error) {
       console.error('Format render error:', error);
@@ -1756,6 +1772,31 @@ async function sendCreatorNotification(storyId, playerName) {
   }
 }
 
+async function sendVideoReadyNotification(storyId, finalUrl) {
+  if (!firestoreDb) return;
+  try {
+    const storyDoc = await firestoreDb.collection('stories').doc(storyId).get();
+    if (!storyDoc.exists) return;
+    const { userId, name: storyName = '' } = storyDoc.data();
+    if (!userId) return;
+    const userDoc = await firestoreDb.collection('users').doc(userId).get();
+    const pushToken = userDoc.exists ? userDoc.data()?.expoPushToken : null;
+    if (!pushToken || !Expo.isExpoPushToken(pushToken)) {
+      console.warn(`⚠️ sendVideoReadyNotification: no push token for creator ${userId}`);
+      return;
+    }
+    await expoClient.sendPushNotificationsAsync([{
+      to: pushToken,
+      title: '🎬 הסרט מוכן לצפייה!',
+      body: `'${storyName}' עובד וממתין לך`,
+      data: { type: 'video_ready', storyId, storyName },
+    }]);
+    console.log(`🔔 Video-ready notification sent for story ${storyId}`);
+  } catch (err) {
+    console.warn(`⚠️ sendVideoReadyNotification failed: ${err.message}`);
+  }
+}
+
 async function sendPlayerApprovedNotification(storyId, playerUid) {
   if (!firestoreDb) return;
   try {
@@ -1781,6 +1822,46 @@ async function sendPlayerApprovedNotification(storyId, playerUid) {
     console.warn(`⚠️ sendPlayerApprovedNotification failed: ${err.message}`);
   }
 }
+
+async function sendNewApplicationNotification(storyId, applicantName, creatorUid) {
+  if (!firestoreDb) return;
+  try {
+    const [storyDoc, userDoc] = await Promise.all([
+      firestoreDb.collection('stories').doc(storyId).get(),
+      firestoreDb.collection('users').doc(creatorUid).get(),
+    ]);
+    if (!storyDoc.exists) return;
+    const storyName = storyDoc.data()?.name || '';
+    const pushToken = userDoc.exists ? userDoc.data()?.expoPushToken : null;
+    if (!pushToken || !Expo.isExpoPushToken(pushToken)) {
+      console.warn(`⚠️ sendNewApplicationNotification: no push token for creator ${creatorUid}`);
+      return;
+    }
+    await expoClient.sendPushNotificationsAsync([{
+      to: pushToken,
+      title: 'בקשת הצטרפות חדשה 🎬',
+      body: `${applicantName || 'מישהו'} רוצה להצטרף ל'${storyName}'`,
+      data: { type: 'new_application', storyId, storyName },
+    }]);
+    console.log(`🔔 Creator ${creatorUid} notified: new application for story ${storyId}`);
+  } catch (err) {
+    console.warn(`⚠️ sendNewApplicationNotification failed: ${err.message}`);
+  }
+}
+
+app.post('/api/notify-new-application', async (req, res) => {
+  const { storyId, applicantName, creatorUid, idToken } = req.body;
+  if (!storyId || !creatorUid || !idToken) {
+    return res.status(400).json({ error: 'storyId, creatorUid and idToken required' });
+  }
+  try {
+    await adminAuth.verifyIdToken(idToken);
+  } catch (e) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  sendNewApplicationNotification(storyId, applicantName, creatorUid).catch(() => {});
+  res.json({ success: true });
+});
 
 app.post('/api/notify-player-approved', async (req, res) => {
   const { storyId, playerUid, idToken } = req.body;
