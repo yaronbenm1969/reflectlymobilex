@@ -28,6 +28,7 @@ export function useWaitingMusic() {
   const usedRef = useRef([]);
   const activeRef = useRef(false);
   const playNextRef = useRef(null); // stored so timer can call without stale closure
+  const soundIdRef = useRef(0); // generation counter — prevents stale loads from playing
 
   const getNextTrackId = () => {
     if (usedRef.current.length >= TRACK_IDS.length) {
@@ -57,6 +58,9 @@ export function useWaitingMusic() {
     if (!activeRef.current) return;
     await stopCurrent();
 
+    soundIdRef.current += 1;
+    const myId = soundIdRef.current;
+
     const trackId = getNextTrackId();
     const url = `https://storage.googleapis.com/${STORAGE_BUCKET}/music/library/${trackId}/phase1.mp3`;
 
@@ -73,7 +77,7 @@ export function useWaitingMusic() {
         { shouldPlay: true, volume: 0.22, isLooping: true }
       );
 
-      if (!activeRef.current) {
+      if (!activeRef.current || soundIdRef.current !== myId) {
         await sound.unloadAsync();
         return;
       }
