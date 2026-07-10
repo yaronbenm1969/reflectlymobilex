@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 
 const USERS_COLLECTION = 'users';
@@ -45,7 +45,7 @@ export const usersService = {
   updateUserProfile: async (uid, updates) => {
     try {
       const docRef = doc(db, USERS_COLLECTION, uid);
-      await updateDoc(docRef, { ...updates, updatedAt: serverTimestamp() });
+      await setDoc(docRef, { ...updates, updatedAt: serverTimestamp() }, { merge: true });
       console.log('✅ User profile updated:', uid);
       return { success: true };
     } catch (error) {
