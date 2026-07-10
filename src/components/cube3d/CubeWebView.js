@@ -1633,20 +1633,6 @@ const CubeWebView = ({
           var G = DRAW_GRID;
           var sw = vw / G, sh = vh / G;
 
-          // Pre-fill: draw full face as single affine quad before the grid loop.
-          // Any sub-pixel gap between grid cells shows this base layer (same texture,
-          // slight perspective error) instead of the background — seams invisible.
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(proj[0][0],proj[0][1]); ctx.lineTo(proj[1][0],proj[1][1]);
-          ctx.lineTo(proj[2][0],proj[2][1]); ctx.lineTo(proj[3][0],proj[3][1]);
-          ctx.closePath(); ctx.clip();
-          var pa=(proj[1][0]-proj[0][0])/vw, pb=(proj[1][1]-proj[0][1])/vw;
-          var pc=(proj[3][0]-proj[0][0])/vh, pd=(proj[3][1]-proj[0][1])/vh;
-          ctx.setTransform(pa,pb,pc,pd,proj[0][0],proj[0][1]);
-          try { ctx.drawImage(src,0,0,vw,vh,0,0,vw,vh); } catch(ex) {}
-          ctx.setTransform(1,0,0,1,0,0); ctx.restore();
-
           for (var gy = 0; gy < G; gy++) {
             for (var gx = 0; gx < G; gx++) {
               var u0 = gx/G, u1 = (gx+1)/G, v0 = gy/G, v1 = (gy+1)/G;
