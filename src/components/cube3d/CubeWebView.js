@@ -1602,11 +1602,10 @@ const CubeWebView = ({
       
       // GRID: number of subdivisions per face axis. 4 = 4x4=16 cells, near-perfect perspective.
       // ROLLBACK: set GRID=1 to revert to simple 2-triangle mode (fast, slight corner error).
-      var DRAW_GRID = 8;
+      var DRAW_GRID = 16;
       // SEAM_PX: expand clip path outward by N pixels to fill sub-pixel anti-aliasing gaps.
-      // Combined with black pre-fill: gaps → black. Expansion → fills remaining gap.
-      // 1.5px = 3px overlap between adjacent cells → covers colored-background seams. 0=disable.
-      var SEAM_PX = 3;
+      // At DRAW_GRID=16 cells are ~45px → affine error ~0.25px → SEAM_PX=1.5 covers it with margin.
+      var SEAM_PX = 1.5;
 
       // Bilinear interpolation across the 4 projected face corners.
       // proj[0]=TL, proj[1]=TR, proj[2]=BR, proj[3]=BL
