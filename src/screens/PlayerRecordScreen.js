@@ -382,6 +382,8 @@ export const PlayerRecordScreen = () => {
       }
 
       if (uploadedCount > 0) analyticsService.clipSubmitted(storyIdForMusic || playerStoryId, uploadedCount);
+      // Bump pending counter so creator sees HomeScreen banner (client-side until Render deploy confirms server-side)
+      if (uploadedCount > 0) reflectionsService.bumpPendingCount(storyIdForMusic || playerStoryId, uploadedCount);
       // Mark community application as joined so approved banner disappears
       if (uploadedCount > 0 && storyIdForMusic && user?.uid) {
         console.log('🏁 markApplicationJoined:', storyIdForMusic, user.uid);

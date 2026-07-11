@@ -47,6 +47,15 @@ export const reflectionsService = {
     }
   },
 
+  // Client-side pending count bump — keeps HomeScreen banner working without Render deploy.
+  // When server-side increment (upload-player-clip setImmediate) is confirmed deployed, remove this.
+  bumpPendingCount: async (storyId, n = 1) => {
+    if (!storyId || n <= 0) return;
+    updateDoc(doc(db, STORIES_COLLECTION, storyId), {
+      pendingReflectionsCount: increment(n),
+    }).catch(() => {});
+  },
+
   getReflectionsForStory: async (storyId) => {
     try {
       console.log('📥 Fetching reflections for story:', storyId);
