@@ -161,11 +161,6 @@ export const PlayerRecordScreen = () => {
   const participantIdRef = useRef(`participant_${Date.now()}`);
 
   useEffect(() => {
-    // Clear any AI music URL from a previous session (Zustand + Firestore)
-    setGeneratedMusicUrl(null);
-    if (storyIdForMusic) {
-      storiesService.updateStory(storyIdForMusic, { generatedMusicUrl: null }).catch(() => {});
-    }
     if (!permission) {
       requestPermission();
     }
