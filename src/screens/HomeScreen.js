@@ -171,7 +171,7 @@ export const HomeScreen = () => {
       {/* Hero title */}
       <View style={styles.heroSection}>
         <Text style={styles.heroTitle}>Rilio</Text>
-        <Text style={styles.heroTagline}>Every story creates ripples</Text>
+        <Text style={styles.heroTagline}>Your story creates ripples</Text>
       </View>
 
       {/* Creator banner — pending applications to review */}
