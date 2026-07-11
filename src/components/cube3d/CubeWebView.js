@@ -1469,8 +1469,8 @@ const CubeWebView = ({
         tctx.fillStyle = g;
         tctx.fillRect(0, 0, tc.width, tc.height);
         var cx = tc.width / 2;
-        var logoSize = 80;
-        var logoY = tc.height / 2 - 70;
+        var logoSize = 140;
+        var logoY = tc.height / 2 - 130;
         // Draw logo by reusing the img element already in the DOM (already loaded, data URI — no CORS issue)
         try {
           var logoImgEl = document.querySelector('#face-5 .face-intro-logo, #face-4 .face-intro-logo');
@@ -1496,7 +1496,7 @@ const CubeWebView = ({
         // Draw story title text
         if (storyTitle) {
           tctx.fillStyle = '#ffffff';
-          tctx.font = 'bold 36px sans-serif';
+          tctx.font = 'bold 56px sans-serif';
           tctx.textAlign = 'center';
           tctx.textBaseline = 'top';
           var textY = logoY + logoSize + 20;
@@ -1510,7 +1510,7 @@ const CubeWebView = ({
           }
           if (lineStr) lineArr.push(lineStr);
           for (var tli = 0; tli < lineArr.length; tli++) {
-            tctx.fillText(lineArr[tli], cx, textY + tli * 46);
+            tctx.fillText(lineArr[tli], cx, textY + tli * 68);
           }
         }
         if (flip) { _titleFaceCanvasFlipped = tc; } else { _titleFaceCanvas = tc; }
@@ -1606,7 +1606,7 @@ const CubeWebView = ({
       // SEAM_PX: expand clip path outward by N pixels to fill sub-pixel anti-aliasing gaps.
       // Combined with black pre-fill: gaps → black. Expansion → fills remaining gap.
       // 1.5px = 3px overlap between adjacent cells → covers colored-background seams. 0=disable.
-      var SEAM_PX = 1.5;
+      var SEAM_PX = 3;
 
       // Bilinear interpolation across the 4 projected face corners.
       // proj[0]=TL, proj[1]=TR, proj[2]=BR, proj[3]=BL
@@ -1626,6 +1626,17 @@ const CubeWebView = ({
       function drawQuad(fd) {
         var proj = fd.proj;
         var src = getDrawSource(fd.id);
+
+        // Black pre-fill: fill face polygon with black before grid draw.
+        // Intra-cell gaps show black (not bright background). No drawImage → no canvas taint.
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(proj[0][0], proj[0][1]);
+        for (var pi = 1; pi < 4; pi++) ctx.lineTo(proj[pi][0], proj[pi][1]);
+        ctx.closePath();
+        ctx.fillStyle = '#000';
+        ctx.fill();
+        ctx.restore();
 
         if (src) {
           var vw = src.videoWidth || src.naturalWidth || src.width || 720;
