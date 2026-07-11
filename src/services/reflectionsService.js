@@ -51,9 +51,9 @@ export const reflectionsService = {
   // When server-side increment (upload-player-clip setImmediate) is confirmed deployed, remove this.
   bumpPendingCount: async (storyId, n = 1) => {
     if (!storyId || n <= 0) return;
-    updateDoc(doc(db, STORIES_COLLECTION, storyId), {
+    await updateDoc(doc(db, STORIES_COLLECTION, storyId), {
       pendingReflectionsCount: increment(n),
-    }).catch(() => {});
+    }).catch(e => console.warn('bumpPendingCount failed:', e?.message));
   },
 
   getReflectionsForStory: async (storyId) => {
