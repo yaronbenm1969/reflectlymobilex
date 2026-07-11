@@ -1706,12 +1706,16 @@ const CubeWebView = ({
         var ds = 0.95 + dp1 + dp2;
         var dtz = Math.sin(elapsed*0.18+2)*110 + Math.cos(elapsed*0.12)*70;
         
-        // Recording canvas background: always black to avoid iOS WKWebView canvas taint.
-        // Drawing cross-origin video elements (even with crossorigin=anonymous) taints the canvas
-        // on iOS → captureStream() returns corrupt frames → 1-second WhatsApp clip.
-        // The live view background (CSS/DOM layer) is unaffected.
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, RW, RH);
+        // Draw background frame directly from <video id="custom-bg"> (crossorigin="anonymous" —
+        // Firebase Storage returns Access-Control-Allow-Origin: * → no iOS canvas taint).
+        // Falls back to pure black if no background or video not ready yet.
+        var customBgEl = document.getElementById('custom-bg');
+        if (customBgEl && customBgEl.tagName === 'VIDEO' && customBgEl.readyState >= 2) {
+          ctx.drawImage(customBgEl, 0, 0, RW, RH);
+        } else {
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, RW, RH);
+        }
         
         var visible = [];
         for (var f = 0; f < 6; f++) {
