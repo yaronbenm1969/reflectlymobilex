@@ -35,6 +35,7 @@ import {
   MemberOnboardingScreen,
 } from './src/screens';
 import { SideMenu } from './src/components/SideMenu';
+import { BottomTabBar } from './src/components/BottomTabBar';
 import { AccessGate } from './src/components/AccessGate';
 import { useAppState } from './src/state/appState';
 import { authService } from './src/services/authService';
@@ -284,7 +285,7 @@ export default function App() {
           <View style={styles.container}>
             <StatusBar style="auto" backgroundColor="#F5F0FA" />
             {renderScreen()}
-            
+            <BottomTabBar />
             <SideMenu
               isOpen={isSideMenuOpen}
               onClose={() => setSideMenuOpen(false)}

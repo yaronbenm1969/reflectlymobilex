@@ -17,6 +17,8 @@ import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { storiesService } from '../services/storiesService';
 import { analyticsService } from '../services/analyticsService';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import theme from '../theme/theme';
 
 const HOME_BG_VIDEO = 'https://storage.googleapis.com/reflectly-playback.firebasestorage.app/assets/home-background.mp4';
@@ -58,19 +60,30 @@ export const HomeScreen = () => {
     storiesService.getMyApplications(uid).then(res => {
       if (res.success) setMyPlayerApps(res.applications);
     });
-    storiesService.getUserStories(uid).then(res => {
-      if (res.success) {
-        const withNew = res.stories.filter(s => (s.pendingReflectionsCount || 0) > 0);
-        setStoriesWithNewVideos(withNew);
-      }
-    });
   };
+
+  // Real-time listener: update "new videos" banner the moment Firestore changes
+  useEffect(() => {
+    if (!user?.uid) { setStoriesWithNewVideos([]); return; }
+    const q = query(
+      collection(db, 'stories'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const withNew = all.filter(s => (s.pendingReflectionsCount || 0) > 0);
+      console.log(`🏠 HomeSnapshot: ${all.length} stories, withNew=${withNew.length}, counts=${all.map(s=>s.pendingReflectionsCount||0).join(',')}`);
+      setStoriesWithNewVideos(withNew);
+    }, (err) => console.warn('HomeScreen stories snapshot error:', err.message));
+    return unsubscribe;
+  }, [user?.uid]);
 
   useEffect(() => {
     refreshBanners(user?.uid);
   }, [user?.uid]);
 
-  // Refresh banners every time we return to HomeScreen
+  // Refresh application banners every time we return to HomeScreen
   useEffect(() => {
     if (currentScreen === 'Home') refreshBanners(user?.uid);
   }, [currentScreen]);
@@ -251,9 +264,6 @@ export const HomeScreen = () => {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.myStoriesBtn} onPress={() => go('MyStories')}>
-          <Text style={styles.myStoriesText}>{t('home.button_my_stories')}</Text>
-        </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
@@ -292,10 +302,9 @@ const styles = StyleSheet.create({
 
   // Hero
   heroSection: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 148 : 128,
+    paddingBottom: 48,
   },
   heroTitle: {
     fontSize: 64,
@@ -352,10 +361,10 @@ const styles = StyleSheet.create({
     padding: 4,
   },
 
-  // Input section
+  // Input section — extra bottom padding to clear the BottomTabBar
   inputSection: {
     paddingHorizontal: 24,
-    paddingBottom: Platform.OS === 'ios' ? 48 : 32,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 90,
     gap: 16,
   },
   inputRow: {
@@ -385,15 +394,4 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
 
-  // My Stories
-  myStoriesBtn: {
-    alignSelf: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  myStoriesText: {
-    color: 'rgba(255,255,255,0.65)',
-    fontSize: 14,
-    letterSpacing: 0.5,
-  },
 });

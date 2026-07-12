@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,21 +8,23 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  Platform,
 } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Video, ResizeMode } from 'expo-av';
 import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { storiesService } from '../services/storiesService';
-import { Card } from '../ui/Card';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import theme from '../theme/theme';
 
-// Full-screen player modal with download / share / edit actions
+// Full-screen player modal — unchanged
 const VideoPlayerModal = ({ url, storyName, onClose, onEdit }) => {
   const { t } = useTranslation();
   const player = useVideoPlayer(url, (p) => { p.play(); });
@@ -146,32 +148,30 @@ export const MyStoriesScreen = () => {
   const setStoryName = useAppState((state) => state.setStoryName);
   const setCurrentStoryId = useAppState((state) => state.setCurrentStoryId);
 
+  const bgVideoRef = useRef(null);
   const [stories, setStories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
-  // watchData = { url, name, storyId } or null
   const [watchData, setWatchData] = useState(null);
 
+  // Real-time listener — updates immediately when pendingReflectionsCount or any field changes
   useEffect(() => {
-    loadStories();
-  }, [user]);
-
-  const loadStories = async () => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
+    if (!user?.uid) { setStories([]); setLoading(false); return; }
     setLoading(true);
-    const result = await storiesService.getUserStories(user.uid);
-
-    if (result.success) {
-      setStories(result.stories);
-    } else {
-      console.error('Failed to load stories:', result.error);
-    }
-    setLoading(false);
-  };
+    const q = query(
+      collection(db, 'stories'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setStories(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    }, (err) => {
+      console.error('MyStories snapshot error:', err.message);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, [user?.uid]);
 
   const openStory = (story) => {
     setStoryName(story.name);
@@ -179,8 +179,6 @@ export const MyStoriesScreen = () => {
     go('EditRoom');
   };
 
-  // For completed stories (have a final video): tap card → open player modal
-  // For incomplete stories: tap card → EditRoom
   const handleStoryPress = (story) => {
     const videoUrl = story.finalVideoUrl || story.videoUrl || null;
     if (videoUrl) {
@@ -224,45 +222,61 @@ export const MyStoriesScreen = () => {
     }
   };
 
+  const getStatusDescription = (status) => {
+    switch (status) {
+      case 'draft': return 'Waiting for participants';
+      case 'shared': return 'Collecting participant videos';
+      case 'processing': return 'Creating final movie...';
+      case 'completed': return 'Movie ready';
+      default: return '';
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <LinearGradient colors={[theme.colors.gradient.start, theme.colors.gradient.end]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={back}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('myStories.title')}</Text>
-        <TouchableOpacity style={styles.refreshButton} onPress={loadStories}>
-          <Ionicons name="refresh" size={24} color="white" />
-        </TouchableOpacity>
-      </LinearGradient>
+      <Video
+        ref={bgVideoRef}
+        source={{ uri: 'https://storage.googleapis.com/reflectly-playback.firebasestorage.app/assets/home-background.mp4' }}
+        style={StyleSheet.absoluteFill}
+        resizeMode={ResizeMode.COVER}
+        shouldPlay
+        isLooping
+        isMuted
+        pointerEvents="none"
+      />
+      <View style={styles.bgOverlay} pointerEvents="none" />
 
-      <ScrollView style={styles.content}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={back}>
+          <Ionicons name="arrow-back" size={24} color="rgba(255,255,255,0.75)" />
+        </TouchableOpacity>
+        <Text style={styles.title}>Projects</Text>
+        <TouchableOpacity style={styles.refreshButton} onPress={() => {}}>
+          <Ionicons name="refresh" size={22} color="rgba(255,255,255,0.5)" />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {loading ? (
           <View style={styles.loadingState}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <ActivityIndicator size="large" color="rgba(255,255,255,0.6)" />
             <Text style={styles.loadingText}>{t('myStories.loading')}</Text>
           </View>
         ) : !user ? (
           <View style={styles.emptyState}>
-            <Ionicons name="person-outline" size={60} color={theme.colors.subtext} />
+            <Ionicons name="person-outline" size={60} color="rgba(255,255,255,0.25)" />
             <Text style={styles.emptyTitle}>{t('myStories.login_required_title')}</Text>
-            <Text style={styles.emptySubtitle}>
-              {t('myStories.login_required_subtitle')}
-            </Text>
-            <TouchableOpacity
-              style={styles.loginButton}
-              onPress={() => go('Auth')}
-            >
+            <Text style={styles.emptySubtitle}>{t('myStories.login_required_subtitle')}</Text>
+            <TouchableOpacity style={styles.loginButton} onPress={() => go('Auth')}>
               <Text style={styles.loginButtonText}>{t('myStories.login_button')}</Text>
             </TouchableOpacity>
           </View>
         ) : stories.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="library-outline" size={60} color={theme.colors.subtext} />
+            <Ionicons name="library-outline" size={60} color="rgba(255,255,255,0.25)" />
             <Text style={styles.emptyTitle}>{t('myStories.empty_title')}</Text>
-            <Text style={styles.emptySubtitle}>
-              {t('myStories.empty_subtitle')}
-            </Text>
+            <Text style={styles.emptySubtitle}>{t('myStories.empty_subtitle')}</Text>
           </View>
         ) : (
           <View style={styles.storiesGrid}>
@@ -270,21 +284,41 @@ export const MyStoriesScreen = () => {
               const videoUrl = story.finalVideoUrl || story.videoUrl || null;
               const isCompleted = !!videoUrl;
               return (
-                <Card key={story.id} style={styles.storyCard}>
+                <View key={story.id} style={styles.storyCard}>
+                  {/* New videos banner — tappable, navigates to EditRoom */}
+                  {(story.pendingReflectionsCount || 0) > 0 && (
+                    <TouchableOpacity
+                      style={styles.newVideosBanner}
+                      onPress={() => openStory(story)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="videocam" size={14} color="#fff" />
+                      <Text style={styles.newVideosBannerText}>
+                        {`התקבלו ${story.pendingReflectionsCount} סרטונים חדשים`}
+                      </Text>
+                      <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.7)" />
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity style={styles.storyMain} onPress={() => handleStoryPress(story)}>
                     <View style={[styles.storyThumbnail, isCompleted && styles.storyThumbnailDone]}>
                       <Ionicons
                         name={isCompleted ? 'play-circle' : 'videocam'}
-                        size={32}
-                        color={isCompleted ? theme.colors.accent : theme.colors.secondary}
+                        size={28}
+                        color={isCompleted ? 'rgba(255,255,255,0.85)' : 'rgba(132,70,176,0.85)'}
                       />
                     </View>
                     <View style={styles.storyInfo}>
                       <Text style={styles.storyTitle}>{story.name}</Text>
-                      <Text style={styles.storyMeta}>
-                        {formatDate(story.createdAt)}
+                      <Text style={styles.storyStatusDesc}>
+                        {getStatusDescription(story.status)}
                       </Text>
-                      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(story.status) + '20' }]}>
+                      {story.communitySettings?.communityMode && story.currentPlayers > 0 && (
+                        <Text style={styles.storyParticipants}>
+                          {story.currentPlayers} participants joined
+                        </Text>
+                      )}
+                      <Text style={styles.storyMeta}>{formatDate(story.createdAt)}</Text>
+                      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(story.status) + '28' }]}>
                         <Text style={[styles.statusText, { color: getStatusColor(story.status) }]}>
                           {getStatusText(story.status)}
                         </Text>
@@ -293,28 +327,27 @@ export const MyStoriesScreen = () => {
                     <View style={styles.playButton}>
                       <Ionicons
                         name={isCompleted ? 'play' : 'chevron-forward'}
-                        size={isCompleted ? 16 : 20}
-                        color={theme.colors.accent}
+                        size={isCompleted ? 14 : 18}
+                        color="rgba(255,255,255,0.6)"
                       />
                     </View>
                   </TouchableOpacity>
 
-                  {/* Action row for completed stories */}
                   {isCompleted && (
                     <View style={styles.completedActions}>
                       <TouchableOpacity
                         style={styles.completedAction}
                         onPress={() => setWatchData({ url: videoUrl, name: story.name, story })}
                       >
-                        <Ionicons name="play-circle-outline" size={16} color={theme.colors.accent} />
-                        <Text style={styles.completedActionText}>{t('myStories.watch_final')}</Text>
+                        <Ionicons name="play-circle-outline" size={15} color="rgba(255,255,255,0.75)" />
+                        <Text style={styles.completedActionText}>Watch</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.completedAction}
                         onPress={() => openStory(story)}
                       >
-                        <Ionicons name="create-outline" size={16} color={theme.colors.subtext} />
-                        <Text style={[styles.completedActionText, { color: theme.colors.subtext }]}>
+                        <Ionicons name="create-outline" size={15} color="rgba(255,255,255,0.4)" />
+                        <Text style={[styles.completedActionText, styles.completedActionTextDim]}>
                           {t('finalVideo.btn_edit')}
                         </Text>
                       </TouchableOpacity>
@@ -333,10 +366,10 @@ export const MyStoriesScreen = () => {
                     </View>
                   ) : (
                     <TouchableOpacity style={styles.deleteButton} onPress={() => setConfirmingDeleteId(story.id)}>
-                      <Ionicons name="trash-outline" size={20} color="#e74c3c" />
+                      <Ionicons name="trash-outline" size={17} color="rgba(231,76,60,0.20)" />
                     </TouchableOpacity>
                   )}
-                </Card>
+                </View>
               );
             })}
           </View>
@@ -358,15 +391,23 @@ export const MyStoriesScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.bg,
+    backgroundColor: '#000',
   },
+  bgOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.70)',
+  },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing[4],
-    paddingTop: 50,
-    paddingBottom: theme.spacing[4],
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 18,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   backButton: {
     width: 40,
@@ -381,88 +422,135 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    ...theme.typography.h3,
-    color: 'white',
+    fontSize: 26,
+    fontWeight: '200',
+    color: '#fff',
+    letterSpacing: 3,
   },
+
+  // Scroll
   content: {
     flex: 1,
-    padding: theme.spacing[4],
   },
+  contentContainer: {
+    padding: 20,
+    paddingBottom: 90,
+  },
+
+  // States
   loadingState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: theme.spacing[8],
+    paddingVertical: 60,
   },
   loadingText: {
-    ...theme.typography.body,
-    color: theme.colors.subtext,
-    marginTop: theme.spacing[3],
+    color: 'rgba(255,255,255,0.4)',
+    marginTop: 12,
+    fontSize: 14,
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: theme.spacing[8],
+    paddingVertical: 80,
   },
   emptyTitle: {
-    ...theme.typography.h3,
-    color: theme.colors.text,
-    marginTop: theme.spacing[3],
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '300',
+    marginTop: 16,
+    textAlign: 'center',
   },
   emptySubtitle: {
-    ...theme.typography.body,
-    color: theme.colors.subtext,
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 14,
     textAlign: 'center',
-    marginTop: theme.spacing[2],
+    marginTop: 8,
+    lineHeight: 20,
   },
   loginButton: {
-    marginTop: theme.spacing[4],
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing[6],
-    paddingVertical: theme.spacing[3],
-    borderRadius: theme.radii.lg,
+    marginTop: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    paddingHorizontal: 28,
+    paddingVertical: 11,
+    borderRadius: 24,
   },
   loginButtonText: {
     color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
+    fontWeight: '500',
+    fontSize: 15,
   },
+
+  // Cards
   storiesGrid: {
-    gap: theme.spacing[3],
+    gap: 12,
   },
   storyCard: {
-    padding: 0,
+    backgroundColor: 'rgba(255,255,255,0.11)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 18,
     overflow: 'hidden',
+  },
+  newVideosBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(52,120,210,0.85)',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  newVideosBannerText: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'right',
   },
   storyMain: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: theme.spacing[4],
+    padding: 16,
   },
   storyThumbnail: {
-    width: 60,
-    height: 60,
-    borderRadius: theme.radii.md,
-    backgroundColor: `${theme.colors.secondary}15`,
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: 'rgba(132,70,176,0.20)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: theme.spacing[3],
+    marginRight: 14,
   },
   storyThumbnailDone: {
-    backgroundColor: `${theme.colors.accent}15`,
+    backgroundColor: 'rgba(255,255,255,0.10)',
   },
   storyInfo: {
     flex: 1,
   },
   storyTitle: {
-    ...theme.typography.h3,
-    color: theme.colors.text,
-    fontSize: 16,
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '300',
+    textAlign: 'right',
+    letterSpacing: 0.3,
+  },
+  storyStatusDesc: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
+    fontWeight: '300',
+    marginTop: 4,
+    textAlign: 'right',
+  },
+  storyParticipants: {
+    color: 'rgba(255,255,255,0.40)',
+    fontSize: 12,
+    marginTop: 2,
     textAlign: 'right',
   },
   storyMeta: {
-    ...theme.typography.caption,
-    color: theme.colors.subtext,
-    marginTop: theme.spacing[1],
+    color: 'rgba(255,255,255,0.18)',
+    fontSize: 11,
+    marginTop: 5,
     textAlign: 'right',
   },
   statusBadge: {
@@ -470,65 +558,71 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
-    marginTop: 4,
+    marginTop: 6,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
   },
   playButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: `${theme.colors.accent}15`,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 10,
   },
+
+  // Completed actions
   completedActions: {
     flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    paddingHorizontal: theme.spacing[4],
-    paddingVertical: theme.spacing[2],
-    gap: theme.spacing[4],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 20,
   },
   completedAction: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
   completedActionText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: theme.colors.accent,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.75)',
   },
+  completedActionTextDim: {
+    color: 'rgba(255,255,255,0.4)',
+  },
+
+  // Delete
   deleteButton: {
     alignSelf: 'stretch',
-    paddingHorizontal: theme.spacing[4],
-    paddingBottom: theme.spacing[3],
+    paddingHorizontal: 16,
+    paddingBottom: 12,
     alignItems: 'flex-end',
-    justifyContent: 'center',
   },
   deleteConfirm: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    paddingHorizontal: theme.spacing[4],
-    paddingBottom: theme.spacing[3],
-    gap: theme.spacing[2],
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 8,
   },
   deleteConfirmText: {
     fontSize: 13,
     color: '#e74c3c',
     fontWeight: '500',
-    marginRight: theme.spacing[1],
   },
   confirmYes: {
-    backgroundColor: '#e74c3c',
-    paddingHorizontal: theme.spacing[3],
+    backgroundColor: 'rgba(231,76,60,0.75)',
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: theme.radii.sm,
+    borderRadius: 8,
   },
   confirmYesText: {
     color: '#fff',
@@ -536,13 +630,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   confirmNo: {
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: theme.spacing[3],
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: theme.radii.sm,
+    borderRadius: 8,
   },
   confirmNoText: {
-    color: theme.colors.text,
+    color: 'rgba(255,255,255,0.75)',
     fontSize: 13,
     fontWeight: '500',
   },

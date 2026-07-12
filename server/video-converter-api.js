@@ -383,17 +383,20 @@ app.post('/api/player-clip-done', async (req, res) => {
     }
     const downloadUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
 
-    if (firestoreDb && playerName) {
+    if (firestoreDb) {
       await firestoreDb.collection('reflections').add({
         storyId,
         videoUrl:        downloadUrl,
-        playerName:      playerName,
-        participantName: playerName,
+        playerName:      playerName || 'משתתף',
+        participantName: playerName || 'משתתף',
         uid:             webUid || 'web_anonymous',
         clipNumber:      parseInt(clipNumber, 10) || 1,
         source:          'web',
         createdAt:       new Date(),
       });
+      firestoreDb.collection('stories').doc(storyId).update({
+        pendingReflectionsCount: FieldValue.increment(1),
+      }).catch(() => {});
     }
 
     // Notify story creator (fire-and-forget)

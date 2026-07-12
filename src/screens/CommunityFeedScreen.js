@@ -102,16 +102,24 @@ export const CommunityFeedScreen = () => {
 
     const cs = story.communitySettings || {};
     const approvalMode = cs.approvalMode || 'manual';
+    console.log('🏘️ community join:', story.id, 'approvalMode=', cs.approvalMode, '→', approvalMode);
 
     setApplyingId(story.id);
     try {
+      const profileSnapshot = profile ? {
+        bio: profile.bio || '',
+        actingExperience: profile.actingExperience || '',
+        demoReelUrl: profile.demoReelUrl || '',
+        photoUrl: profile.photoUrl || null,
+      } : null;
+
       if (approvalMode === 'open') {
         // Join immediately — navigate to PlayerRecord, increment player count
-        await storiesService.applyToStory(story.id, user.uid, user.displayName, true);
+        await storiesService.applyToStory(story.id, user.uid, user.displayName, true, story.userId, profileSnapshot, story.name);
         enterPlayerMode(story.id, story);
       } else {
         // Manual approval — submit application and show message
-        const result = await storiesService.applyToStory(story.id, user.uid, user.displayName);
+        const result = await storiesService.applyToStory(story.id, user.uid, user.displayName, false, story.userId, profileSnapshot, story.name);
         if (result.success) {
           Alert.alert(
             t('community.application_sent_title'),
@@ -224,7 +232,7 @@ export const CommunityFeedScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {loading ? (
           <View style={styles.centerState}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -318,6 +326,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: theme.spacing[4],
+  },
+  contentContainer: {
+    paddingBottom: 90,
   },
   centerState: {
     alignItems: 'center',
