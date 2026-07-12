@@ -396,6 +396,7 @@ app.post('/api/player-clip-done', async (req, res) => {
       });
       firestoreDb.collection('stories').doc(storyId).update({
         pendingReflectionsCount: FieldValue.increment(1),
+        lastPlayerName: playerName || 'משתתף',
       }).catch(() => {});
     }
 

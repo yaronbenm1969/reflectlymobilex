@@ -176,7 +176,7 @@ export const EditRoomScreen = () => {
 
     // Clear the pending counter so HomeScreen banner disappears
     if (currentStoryId) {
-      updateDoc(doc(db, 'stories', currentStoryId), { pendingReflectionsCount: 0 }).catch(() => {});
+      updateDoc(doc(db, 'stories', currentStoryId), { pendingReflectionsCount: 0, lastPlayerName: null }).catch(() => {});
     }
 
     const loadApplications = async () => {

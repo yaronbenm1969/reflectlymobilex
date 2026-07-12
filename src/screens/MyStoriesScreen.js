@@ -294,7 +294,9 @@ export const MyStoriesScreen = () => {
                     >
                       <Ionicons name="videocam" size={14} color="#fff" />
                       <Text style={styles.newVideosBannerText}>
-                        {`התקבלו ${story.pendingReflectionsCount} סרטונים חדשים`}
+                        {story.lastPlayerName
+                          ? `${story.lastPlayerName} שלח${story.pendingReflectionsCount > 1 ? ` ועוד ${story.pendingReflectionsCount - 1}` : ''} סרטון`
+                          : `התקבלו ${story.pendingReflectionsCount} סרטונים חדשים`}
                       </Text>
                       <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.7)" />
                     </TouchableOpacity>
