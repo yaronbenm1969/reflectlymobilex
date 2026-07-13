@@ -27,10 +27,9 @@ const notificationsService = {
       }
       const projectId =
         Constants.expoConfig?.extra?.eas?.projectId ||
-        Constants.easConfig?.projectId;
-      const tokenData = await Notifications.getExpoPushTokenAsync(
-        projectId ? { projectId } : undefined
-      );
+        Constants.easConfig?.projectId ||
+        '81b01613-7694-4052-980d-a89bf2741388';
+      const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
       const token = tokenData.data;
       console.log('🔔 Push token:', token.substring(0, 30) + '...');
       return token;
