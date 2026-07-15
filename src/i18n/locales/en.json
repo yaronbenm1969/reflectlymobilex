@@ -29,6 +29,11 @@
     "button_creating": "Creating story...",
     "button_create_new": "Start New Story",
     "button_my_stories": "My Stories",
+    "mode_private": "Private",
+    "mode_community": "Community",
+    "tagline": "Your story creates ripples",
+    "community_tagline": "Create Together",
+    "community_subtitle": "Share your story with the community",
     "info_title": "How it works",
     "info_step_1": "Record your story",
     "info_step_2": "Choose format and music",
@@ -77,7 +82,9 @@
     "option_privacy_sub": "Access and data settings",
     "about_link": "About",
     "help_link": "Help",
-    "terms_link": "Terms of Use"
+    "terms_link": "Terms of Use",
+    "language_fr": "French",
+    "language_es": "Spanish"
   },
   "sideMenu": {
     "title": "RILIO",
@@ -93,7 +100,7 @@
     "section_support": "Support"
   },
   "myStories": {
-    "title": "My Stories",
+    "title": "Projects",
     "loading": "Loading stories...",
     "login_required_title": "Log in to see stories",
     "login_required_subtitle": "Your stories are saved in the cloud when you're logged in",
@@ -104,10 +111,26 @@
     "status_shared": "Shared",
     "status_processing": "Processing",
     "status_completed": "Completed",
+    "status_desc_draft": "Waiting for participants",
+    "status_desc_shared": "Collecting participant videos",
+    "status_desc_processing": "Creating final movie...",
+    "status_desc_completed": "Movie ready",
+    "participants_joined": "{{count}} participants joined",
+    "watch": "Watch",
+    "invite_btn": "Invite",
+    "invite_message": "You've been invited to join the story \"{{name}}\" 🎬\n{{url}}",
+    "new_videos_one": "{{playerName}} sent a video",
+    "new_videos_one_more": "{{playerName}} and {{count}} more sent videos",
+    "new_videos_count": "{{count}} new videos received",
+    "declined_banner": "{{playerName}} declined publishing — invite another participant",
     "watch_final": "Watch final video",
     "delete_confirm": "Delete?",
     "delete_confirm_yes": "Delete",
     "delete_confirm_no": "Cancel"
+  },
+  "bottomTab": {
+    "community": "Community",
+    "projects": "Projects"
   },
   "thankYou": {
     "title": "Thank you!",
@@ -230,6 +253,7 @@
     "empty_text": "Check back later",
     "auth_required_title": "Login Required",
     "auth_required_text": "You must log in to join a story",
+    "auth_required_register": "Register / Login",
     "profile_required_title": "Complete your profile",
     "profile_required_text": "To apply, you must fill out a brief profile card",
     "profile_required_fill": "Fill Now",
@@ -238,6 +262,7 @@
     "approval_manual": "Manual Approval",
     "approval_open": "Open",
     "progress_label": "{{current}}/{{max}} recorded",
+    "call_to_action": "Watch \"{{name}}\"'s story and respond with your own empowering creation",
     "btn_join": "Join Now",
     "btn_apply": "Request to Join",
     "applying": "Sending...",
@@ -404,8 +429,12 @@
     "consent_level_friends_desc": "Can be shared with friends and family",
     "consent_level_public": "🌐 Public + community",
     "consent_level_public_desc": "Publicly visible and in the community library",
+    "consent_commit": "I commit not to publish the final video without all participants's consent",
     "consent_approve": "Confirm & Continue to Recording",
     "consent_decline": "Go back",
+    "consent_data_notice": "Your video will be uploaded to Rilio's servers and processed to create a shared video. It will not be used for any other purpose.",
+    "consent_age_gate": "I confirm I am 13 years old or older",
+    "consent_privacy_link": "Privacy Policy",
     "header_title": "Record Reflections",
     "intro_title": "Now it's your turn ✨",
     "intro_body": "Record {{count}} short reflections — your personal response to the video you just watched.\nSpeak, sing, move, dance — each clip can have a completely different approach.",
@@ -452,7 +481,10 @@
     "error_recording": "Recording failed, try again",
     "error_no_clips": "You need to record at least one reflection",
     "error_upload": "Some videos were not uploaded. Try again.",
-    "permission_gallery": "Allow gallery access in settings"
+    "permission_gallery": "Allow gallery access in settings",
+    "consent_requires_public": "This story is intended for public publishing. You can only participate if you agree to public sharing.",
+    "consent_blocked": "You cannot participate in this story without consenting to public publishing.",
+    "consent_cant_participate": "I cannot participate — go back"
   },
   "finalVideo": {
     "header_title": "Video Ready! 🎉",

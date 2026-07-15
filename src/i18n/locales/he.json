@@ -29,6 +29,11 @@
     "button_creating": "יוצר סיפור...",
     "button_create_new": "התחל סיפור חדש",
     "button_my_stories": "הסיפורים שלי",
+    "mode_private": "פרטי",
+    "mode_community": "קהילה",
+    "tagline": "הסיפור שלך יוצר גלים",
+    "community_tagline": "יוצרים יחד",
+    "community_subtitle": "ספר את הסיפור שלך לקהילה",
     "info_title": "איך זה עובד",
     "info_step_1": "הקלט את הסיפור שלך",
     "info_step_2": "בחר פורמט ומוזיקה",
@@ -77,7 +82,9 @@
     "option_privacy_sub": "הגדרות גישה ונתונים",
     "about_link": "אודות",
     "help_link": "עזרה",
-    "terms_link": "תנאי שימוש"
+    "terms_link": "תנאי שימוש",
+    "language_fr": "צרפתית",
+    "language_es": "ספרדית"
   },
   "sideMenu": {
     "title": "RILIO",
@@ -93,7 +100,7 @@
     "section_support": "תמיכה"
   },
   "myStories": {
-    "title": "הסיפורים שלי",
+    "title": "פרויקטים",
     "loading": "טוען סיפורים...",
     "login_required_title": "התחבר כדי לראות סיפורים",
     "login_required_subtitle": "הסיפורים שלך נשמרים בענן כשאתה מחובר",
@@ -104,10 +111,26 @@
     "status_shared": "נשלח לחברים",
     "status_processing": "בעריכה",
     "status_completed": "הושלם",
+    "status_desc_draft": "ממתין למשתתפים",
+    "status_desc_shared": "אוסף סרטוני משתתפים",
+    "status_desc_processing": "יוצר סרטון סופי...",
+    "status_desc_completed": "הסרטון מוכן",
+    "participants_joined": "{{count}} משתתפים הצטרפו",
+    "watch": "צפה",
+    "invite_btn": "הזמן שחקן",
+    "invite_message": "הוזמנת להצטרף לסיפור \"{{name}}\" 🎬\n{{url}}",
+    "new_videos_one": "{{playerName}} שלח סרטון",
+    "new_videos_one_more": "{{playerName}} ועוד {{count}} שלח סרטון",
+    "new_videos_count": "התקבלו {{count}} סרטונים חדשים",
+    "declined_banner": "{{playerName}} לא הסכים לפרסום — הזמן שחקן אחר",
     "watch_final": "צפה בסרטון הסופי",
     "delete_confirm": "למחוק?",
     "delete_confirm_yes": "מחק",
     "delete_confirm_no": "ביטול"
+  },
+  "bottomTab": {
+    "community": "קהילה",
+    "projects": "פרויקטים"
   },
   "thankYou": {
     "title": "תודה רבה!",
@@ -230,6 +253,7 @@
     "empty_text": "בדוק שוב מאוחר יותר",
     "auth_required_title": "נדרשת התחברות",
     "auth_required_text": "יש להתחבר כדי להצטרף לסיפור",
+    "auth_required_register": "הירשם / התחבר",
     "profile_required_title": "השלם את הפרופיל שלך",
     "profile_required_text": "כדי להגיש מועמדות יש למלא כרטיס אישי קצר",
     "profile_required_fill": "מלא עכשיו",
@@ -238,6 +262,7 @@
     "approval_manual": "אישור ידני",
     "approval_open": "פתוח",
     "progress_label": "{{current}}/{{max}} צולמו",
+    "call_to_action": "צפו בסיפור \"{{name}}\" והשיבו ביצירה מעצימה משלכם",
     "btn_join": "הצטרף עכשיו",
     "btn_apply": "בקש להצטרף",
     "applying": "שולח...",
@@ -404,8 +429,12 @@
     "consent_level_friends_desc": "ניתן לשתף עם חברים ומשפחה",
     "consent_level_public": "🌐 ציבורי + קהילה",
     "consent_level_public_desc": "הסרטון יהיה גלוי לציבור ובספריית הקהילה",
+    "consent_commit": "אני מתחייב/ת שלא לפרסם את הסרטון הסופי ללא הסכמת כל המשתתפים",
     "consent_approve": "אישור והמשך להקלטה",
     "consent_decline": "חזור",
+    "consent_data_notice": "הסרטון שלך יועלה לשרתי Rilio ויעובד ליצירת סרטון משותף. לא נשתמש בו לשום מטרה אחרת.",
+    "consent_age_gate": "אני מאשר/ת שאני בן/בת 13 ומעלה",
+    "consent_privacy_link": "מדיניות פרטיות",
     "header_title": "הקלט שיקופים",
     "intro_title": "עכשיו תורך ✨",
     "intro_body": "צלם {{count}} שיקופים קצרים — תגובתך האישית לסרטון שזה עתה צפית בו.\nדבר, שיר, נוע, רקוד — בכל קליפ אפשר לאמץ גישה שונה לחלוטין.",
@@ -452,7 +481,10 @@
     "error_recording": "ההקלטה נכשלה, נסה שוב",
     "error_no_clips": "צריך להקליט לפחות שיקוף אחד",
     "error_upload": "חלק מהסרטונים לא הועלו. נסה שוב.",
-    "permission_gallery": "אפשר גישה לגלריה בהגדרות"
+    "permission_gallery": "אפשר גישה לגלריה בהגדרות",
+    "consent_requires_public": "הסיפור הזה מיועד לפרסום ציבורי. ניתן להשתתף רק עם הסכמה לפרסום.",
+    "consent_blocked": "לא ניתן להשתתף בסיפור זה ללא הסכמה לפרסום ציבורי.",
+    "consent_cant_participate": "לא אוכל להשתתף — חזור"
   },
   "finalVideo": {
     "header_title": "הסרטון מוכן! 🎉",

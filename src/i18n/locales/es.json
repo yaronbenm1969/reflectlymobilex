@@ -29,6 +29,11 @@
     "button_creating": "Creando historia...",
     "button_create_new": "Nueva historia",
     "button_my_stories": "Mis historias",
+    "mode_private": "Privado",
+    "mode_community": "Comunidad",
+    "tagline": "Tu historia crea ondas",
+    "community_tagline": "Crear Juntos",
+    "community_subtitle": "Comparte tu historia con la comunidad",
     "info_title": "Cómo funciona",
     "info_step_1": "Graba tu historia",
     "info_step_2": "Elige formato y música",
@@ -95,7 +100,7 @@
     "section_support": "Soporte"
   },
   "myStories": {
-    "title": "Mis historias",
+    "title": "Proyectos",
     "loading": "Cargando historias...",
     "login_required_title": "Inicia sesión para ver historias",
     "login_required_subtitle": "Tus historias se guardan en la nube cuando estás conectado",
@@ -106,10 +111,26 @@
     "status_shared": "Compartido",
     "status_processing": "Procesando",
     "status_completed": "Completado",
+    "status_desc_draft": "Esperando participantes",
+    "status_desc_shared": "Recopilando videos de participantes",
+    "status_desc_processing": "Creando película final...",
+    "status_desc_completed": "Película lista",
+    "participants_joined": "{{count}} participantes se unieron",
+    "watch": "Ver",
+    "invite_btn": "Invitar",
+    "invite_message": "Estás invitado a unirte a la historia \"{{name}}\" 🎬\n{{url}}",
+    "new_videos_one": "{{playerName}} envió un video",
+    "new_videos_one_more": "{{playerName}} y {{count}} más enviaron videos",
+    "new_videos_count": "{{count}} nuevos videos recibidos",
+    "declined_banner": "{{playerName}} rechazó la publicación — invita a otro participante",
     "watch_final": "Ver video final",
     "delete_confirm": "¿Eliminar?",
     "delete_confirm_yes": "Eliminar",
     "delete_confirm_no": "Cancelar"
+  },
+  "bottomTab": {
+    "community": "Comunidad",
+    "projects": "Proyectos"
   },
   "thankYou": {
     "title": "¡Gracias!",
@@ -220,7 +241,10 @@
     "no_video": "Video no disponible",
     "instructions_label": "Tus instrucciones:",
     "btn_record": "¡Vi! Quiero grabar",
-    "hint": "Toca el video para ver"
+    "hint": "Toca el video para ver",
+    "watch_first": "Ve el video antes de grabar",
+    "play_audio": "Reproducir mensaje de voz",
+    "stop_audio": "Detener"
   },
   "community": {
     "title": "Historias de la comunidad",
@@ -229,6 +253,7 @@
     "empty_text": "Vuelve más tarde",
     "auth_required_title": "Inicio de sesión requerido",
     "auth_required_text": "Debes iniciar sesión para unirte a una historia",
+    "auth_required_register": "Registrarse / Iniciar sesión",
     "profile_required_title": "Completa tu perfil",
     "profile_required_text": "Para postularte, debes completar una breve tarjeta de perfil",
     "profile_required_fill": "Completar ahora",
@@ -237,6 +262,7 @@
     "approval_manual": "Aprobación manual",
     "approval_open": "Abierto",
     "progress_label": "{{current}}/{{max}} grabados",
+    "call_to_action": "Mira la historia de \"{{name}}\" y responde con tu propia creación inspiradora",
     "btn_join": "Unirse ahora",
     "btn_apply": "Solicitar unirse",
     "applying": "Enviando...",
@@ -403,8 +429,12 @@
     "consent_level_friends_desc": "Se puede compartir con amigos y familia",
     "consent_level_public": "🌐 Público + comunidad",
     "consent_level_public_desc": "Visible públicamente y en la biblioteca comunitaria",
+    "consent_commit": "Me comprometo a no publicar el video final sin el consentimiento de todos los participantes",
     "consent_approve": "Confirmar y continuar a grabación",
     "consent_decline": "Volver",
+    "consent_data_notice": "Tu video se subirá a los servidores de Rilio y se procesará para crear un video compartido. No se utilizará para ningún otro propósito.",
+    "consent_age_gate": "Confirmo que tengo 13 años o más",
+    "consent_privacy_link": "Política de privacidad",
     "header_title": "Grabar reflexiones",
     "intro_title": "Ahora es tu turno ✨",
     "intro_body": "Graba {{count}} cortas reflexiones — tu respuesta personal al video que acabas de ver.\nHabla, canta, muévete, baila — cada clip puede tener un enfoque completamente diferente.",
@@ -451,7 +481,10 @@
     "error_recording": "Grabación fallida, intenta de nuevo",
     "error_no_clips": "Debes grabar al menos una reflexión",
     "error_upload": "Algunos videos no fueron subidos. Intenta de nuevo.",
-    "permission_gallery": "Permite acceso a la galería en configuración"
+    "permission_gallery": "Permite acceso a la galería en configuración",
+    "consent_requires_public": "Esta historia es para publicación pública. Solo puede participar si acepta el uso público.",
+    "consent_blocked": "No puede participar sin consentir la publicación pública.",
+    "consent_cant_participate": "No puedo participar — volver"
   },
   "finalVideo": {
     "header_title": "¡Video listo! 🎉",
@@ -536,6 +569,8 @@
     "sharing_label": "Preparando video para compartir",
     "saving_label": "Guardando video",
     "instagram_label": "Preparando para Instagram",
-    "preparing_label": "Preparando para compartir"
+    "preparing_label": "Preparando para compartir",
+    "uploading_video": "Subiendo video",
+    "waiting_for_music": "Esperando música..."
   }
 }

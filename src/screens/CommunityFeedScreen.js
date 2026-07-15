@@ -8,9 +8,11 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as VideoThumbnails from 'expo-video-thumbnails';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
@@ -20,18 +22,39 @@ import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
 import theme from '../theme/theme';
 
+const CreatorVideoModal = ({ uri, onClose }) => {
+  const player = useVideoPlayer(uri, (p) => { p.play(); });
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={modalStyles.overlay}>
+        <TouchableOpacity style={modalStyles.closeBtn} onPress={onClose}>
+          <Ionicons name="close-circle" size={36} color="#fff" />
+        </TouchableOpacity>
+        <VideoView
+          player={player}
+          style={modalStyles.video}
+          contentFit="contain"
+          nativeControls
+        />
+      </View>
+    </Modal>
+  );
+};
+
 export const CommunityFeedScreen = () => {
   const { t, i18n } = useTranslation();
   const myLang = i18n.language || 'he';
   const { go, back } = useNav();
   const user = useAppState((state) => state.user);
   const enterPlayerMode = useAppState((state) => state.enterPlayerMode);
+  const setPendingAfterAuth = useAppState((state) => state.setPendingAfterAuth);
 
   const [stories, setStories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [applyingId, setApplyingId] = useState(null);
-  // storyId → [thumbnailUri, ...]
   const [thumbnailMap, setThumbnailMap] = useState({});
+  const [creatorThumbMap, setCreatorThumbMap] = useState({});
+  const [videoModalUri, setVideoModalUri] = useState(null);
 
   useEffect(() => {
     loadCommunityStories();
@@ -66,23 +89,45 @@ export const CommunityFeedScreen = () => {
             uris.push(uri);
           } catch (e) {}
         }
-        return { storyId: story.id, uris };
+        let creatorThumb = null;
+        if (story.videoUri) {
+          try {
+            const { uri } = await VideoThumbnails.getThumbnailAsync(story.videoUri, { time: 0 });
+            creatorThumb = uri;
+          } catch (e) {}
+        }
+        return { storyId: story.id, uris, creatorThumb };
       })
     );
     const map = {};
-    results.forEach(({ storyId, uris }) => { map[storyId] = uris; });
+    const creatorMap = {};
+    results.forEach(({ storyId, uris, creatorThumb }) => {
+      map[storyId] = uris;
+      if (creatorThumb) creatorMap[storyId] = creatorThumb;
+    });
     setThumbnailMap(map);
+    setCreatorThumbMap(creatorMap);
   };
 
   const handleApply = async (story) => {
     if (!user) {
-      Alert.alert(t('community.auth_required_title'), t('community.auth_required_text'), [
-        { text: t('common.cancel'), style: 'cancel' },
-      ]);
+      Alert.alert(
+        t('community.auth_required_title'),
+        t('community.auth_required_text'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('community.auth_required_register'),
+            onPress: () => {
+              setPendingAfterAuth({ action: 'communityApply' });
+              go('Auth');
+            },
+          },
+        ]
+      );
       return;
     }
 
-    // Check if profile is complete — need bio at minimum
     const profileRes = await usersService.getUserProfile(user.uid);
     const profile = profileRes.success ? profileRes.profile : null;
     if (!profile?.bio?.trim()) {
@@ -114,11 +159,9 @@ export const CommunityFeedScreen = () => {
       } : null;
 
       if (approvalMode === 'open') {
-        // Join immediately — navigate to PlayerRecord, increment player count
         await storiesService.applyToStory(story.id, user.uid, user.displayName, true, story.userId, profileSnapshot, story.name);
         enterPlayerMode(story.id, story);
       } else {
-        // Manual approval — submit application and show message
         const result = await storiesService.applyToStory(story.id, user.uid, user.displayName, false, story.userId, profileSnapshot, story.name);
         if (result.success) {
           Alert.alert(
@@ -151,12 +194,37 @@ export const CommunityFeedScreen = () => {
     const current = story.currentPlayers || 0;
     const max = cs.maxPlayers || 9;
     const progressPct = Math.min(current / max, 1);
+    const creatorThumb = creatorThumbMap[story.id];
+    const hasVideo = !!story.videoUri;
+
     return (
       <Card key={story.id} style={styles.storyCard}>
         <View style={styles.cardTop}>
-          <View style={styles.iconWrap}>
-            <Ionicons name="videocam" size={28} color={theme.colors.secondary} />
-          </View>
+          <TouchableOpacity
+            style={styles.iconWrap}
+            onPress={() => hasVideo && setVideoModalUri(story.videoUri)}
+            activeOpacity={hasVideo ? 0.75 : 1}
+          >
+            {creatorThumb ? (
+              <>
+                <Image source={{ uri: creatorThumb }} style={styles.iconThumb} />
+                <View style={styles.playOverlay}>
+                  <Ionicons name="play" size={16} color="#fff" />
+                </View>
+              </>
+            ) : hasVideo ? (
+              <>
+                <View style={styles.iconPlaceholder}>
+                  <Ionicons name="film-outline" size={24} color={theme.colors.secondary} />
+                </View>
+                <View style={styles.playOverlay}>
+                  <Ionicons name="play" size={16} color="#fff" />
+                </View>
+              </>
+            ) : (
+              <Ionicons name="videocam" size={28} color={theme.colors.secondary} />
+            )}
+          </TouchableOpacity>
           <View style={styles.cardInfo}>
             <Text style={styles.storyName}>{story.name}</Text>
             {story.creatorName ? (
@@ -202,11 +270,9 @@ export const CommunityFeedScreen = () => {
             )}
           </View>
         )}
-        {story.instructions ? (
-          <Text style={styles.instructions} numberOfLines={2}>
-            {story.instructions}
-          </Text>
-        ) : null}
+        <Text style={styles.callToAction}>
+          {t('community.call_to_action', { name: story.name })}
+        </Text>
         <AppButton
           title={isApplying ? t('community.applying') : isManual ? t('community.btn_apply') : t('community.btn_join')}
           onPress={() => handleApply(story)}
@@ -247,7 +313,6 @@ export const CommunityFeedScreen = () => {
         ) : (() => {
             const myStories = stories.filter(s => (s.language || 'he') === myLang);
             const otherStories = stories.filter(s => (s.language || 'he') !== myLang);
-            // Group other stories by language
             const otherByLang = {};
             otherStories.forEach(s => {
               const lang = s.language || 'he';
@@ -288,6 +353,10 @@ export const CommunityFeedScreen = () => {
           })()
         }
       </ScrollView>
+
+      {videoModalUri && (
+        <CreatorVideoModal uri={videoModalUri} onClose={() => setVideoModalUri(null)} />
+      )}
     </View>
   );
 };
@@ -358,13 +427,35 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[3],
   },
   iconWrap: {
-    width: 52,
-    height: 52,
+    width: 56,
+    height: 56,
     borderRadius: theme.radii.md,
     backgroundColor: `${theme.colors.secondary}15`,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: theme.spacing[3],
+    overflow: 'hidden',
+  },
+  iconThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: theme.radii.md,
+  },
+  iconPlaceholder: {
+    width: 56,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: `${theme.colors.secondary}15`,
+  },
+  playOverlay: {
+    position: 'absolute',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardInfo: {
     flex: 1,
@@ -478,8 +569,44 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[3],
     fontSize: 14,
   },
+  callToAction: {
+    fontSize: 14,
+    color: theme.colors.text,
+    textAlign: 'right',
+    fontStyle: 'italic',
+    marginBottom: theme.spacing[3],
+    lineHeight: 20,
+  },
   joinButton: {
     marginTop: theme.spacing[1],
+  },
+  sectionHeader: {
+    paddingVertical: theme.spacing[2],
+  },
+  sectionHeaderText: {
+    ...theme.typography.caption,
+    color: theme.colors.subtext,
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+});
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 55,
+    right: 20,
+    zIndex: 10,
+  },
+  video: {
+    width: '100%',
+    height: 400,
   },
 });
 

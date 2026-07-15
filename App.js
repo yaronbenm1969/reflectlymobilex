@@ -33,6 +33,7 @@ import {
   ThankYouScreen,
   CommunityFeedScreen,
   MemberOnboardingScreen,
+  InvitationLandingScreen,
 } from './src/screens';
 import { SideMenu } from './src/components/SideMenu';
 import { BottomTabBar } from './src/components/BottomTabBar';
@@ -40,6 +41,7 @@ import { AccessGate } from './src/components/AccessGate';
 import { useAppState } from './src/state/appState';
 import { authService } from './src/services/authService';
 import { storiesService } from './src/services/storiesService';
+import { invitationsService } from './src/services/invitationsService';
 import { notificationsService } from './src/services/notificationsService';
 import { analyticsService } from './src/services/analyticsService';
 
@@ -71,6 +73,7 @@ export default function App() {
   const setUser = useAppState((state) => state.setUser);
   const navigateTo = useAppState((state) => state.navigateTo);
   const enterPlayerMode = useAppState((state) => state.enterPlayerMode);
+  const setPendingAfterAuth = useAppState((state) => state.setPendingAfterAuth);
 
   // Handle deep links for player mode
   const handleDeepLink = (url) => {
@@ -86,9 +89,18 @@ export default function App() {
     // - https://reflectly.app/story/STORY_ID
     // - exp://...--s/STORY_ID
     try {
+      // ── NEW: /invite/:token — personal invitation link ──────────────────
+      const inviteMatch = url.match(/\/invite\/([^/?#]+)/);
+      if (inviteMatch) {
+        const inviteToken = decodeURIComponent(inviteMatch[1]);
+        console.log('📩 Invitation token received:', inviteToken);
+        useAppState.getState().navigateTo('InvitationLanding', { inviteToken });
+        return;
+      }
+
       // Extract storyId from various URL formats
       let storyId = null;
-      
+
       // Check for /s/STORY_ID pattern (primary format from WhatsApp)
       const sMatch = url.match(/\/s\/([^/?#]+)/);
       if (sMatch) {
@@ -157,9 +169,16 @@ export default function App() {
       if (user) {
         console.log('🔐 User logged in:', user.email || user.uid);
         setUser(user);
-        if (!useAppState.getState().currentScreen) navigateTo('Home');
         // Register creator's push token for reflection notifications
         notificationsService.registerCreatorToken(user.uid).catch(() => {});
+        // Handle pending action that required auth (e.g. community apply)
+        const pending = useAppState.getState().pendingAfterAuth;
+        if (pending?.action === 'communityApply') {
+          setPendingAfterAuth(null);
+          navigateTo('MemberOnboarding', { afterSave: 'CommunityFeed' });
+        } else if (!useAppState.getState().currentScreen) {
+          navigateTo('Home');
+        }
       } else {
         console.log('🔐 No user session - will redirect to Auth');
         setUser(null);
@@ -265,6 +284,8 @@ export default function App() {
         return <CommunityFeedScreen />;
       case 'MemberOnboarding':
         return <MemberOnboardingScreen />;
+      case 'InvitationLanding':
+        return <InvitationLandingScreen />;
       default:
         return <HomeScreen />;
     }

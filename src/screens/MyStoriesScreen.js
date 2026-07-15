@@ -9,7 +9,9 @@ import {
   Modal,
   Alert,
   Platform,
+  Share,
 } from 'react-native';
+import Constants from 'expo-constants';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
@@ -64,7 +66,7 @@ const VideoPlayerModal = ({ url, storyName, onClose, onEdit }) => {
       if (result.status !== 200) throw new Error('Download failed');
       await Sharing.shareAsync(localPath, { mimeType: 'video/mp4', dialogTitle: storyName });
     } catch (err) {
-      Alert.alert('שגיאה', err.message);
+      Alert.alert(t('common.error'), err.message);
     } finally {
       setIsSaving(false);
     }
@@ -173,6 +175,17 @@ export const MyStoriesScreen = () => {
     return unsubscribe;
   }, [user?.uid]);
 
+  const handleInvite = async (story) => {
+    const serverUrl = Constants.expoConfig?.extra?.videoConverterUrl || 'https://reflectlymobilex.onrender.com';
+    const joinUrl = `${serverUrl}/join/${story.id}`;
+    try {
+      await Share.share({
+        message: t('myStories.invite_message', { name: story.name, url: joinUrl }),
+        title: story.name,
+      });
+    } catch (e) {}
+  };
+
   const openStory = (story) => {
     setStoryName(story.name);
     setCurrentStoryId(story.id);
@@ -224,10 +237,10 @@ export const MyStoriesScreen = () => {
 
   const getStatusDescription = (status) => {
     switch (status) {
-      case 'draft': return 'Waiting for participants';
-      case 'shared': return 'Collecting participant videos';
-      case 'processing': return 'Creating final movie...';
-      case 'completed': return 'Movie ready';
+      case 'draft': return t('myStories.status_desc_draft');
+      case 'shared': return t('myStories.status_desc_shared');
+      case 'processing': return t('myStories.status_desc_processing');
+      case 'completed': return t('myStories.status_desc_completed');
       default: return '';
     }
   };
@@ -251,7 +264,7 @@ export const MyStoriesScreen = () => {
         <TouchableOpacity style={styles.backButton} onPress={back}>
           <Ionicons name="arrow-back" size={24} color="rgba(255,255,255,0.75)" />
         </TouchableOpacity>
-        <Text style={styles.title}>Projects</Text>
+        <Text style={styles.title}>{t('myStories.title')}</Text>
         <TouchableOpacity style={styles.refreshButton} onPress={() => {}}>
           <Ionicons name="refresh" size={22} color="rgba(255,255,255,0.5)" />
         </TouchableOpacity>
@@ -295,10 +308,26 @@ export const MyStoriesScreen = () => {
                       <Ionicons name="videocam" size={14} color="#fff" />
                       <Text style={styles.newVideosBannerText}>
                         {story.lastPlayerName
-                          ? `${story.lastPlayerName} שלח${story.pendingReflectionsCount > 1 ? ` ועוד ${story.pendingReflectionsCount - 1}` : ''} סרטון`
-                          : `התקבלו ${story.pendingReflectionsCount} סרטונים חדשים`}
+                          ? (story.pendingReflectionsCount > 1
+                            ? t('myStories.new_videos_one_more', { playerName: story.lastPlayerName, count: story.pendingReflectionsCount - 1 })
+                            : t('myStories.new_videos_one', { playerName: story.lastPlayerName }))
+                          : t('myStories.new_videos_count', { count: story.pendingReflectionsCount })}
                       </Text>
                       <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.7)" />
+                    </TouchableOpacity>
+                  )}
+                  {/* Declined consent banner — tappable, opens invite sheet */}
+                  {!!story.declinedConsentName && (
+                    <TouchableOpacity
+                      style={styles.declinedBanner}
+                      onPress={() => handleInvite(story)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="close-circle-outline" size={14} color="#fff" />
+                      <Text style={styles.declinedBannerText}>
+                        {t('myStories.declined_banner', { playerName: story.declinedConsentName })}
+                      </Text>
+                      <Ionicons name="person-add-outline" size={14} color="rgba(255,255,255,0.7)" />
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity style={styles.storyMain} onPress={() => handleStoryPress(story)}>
@@ -316,7 +345,7 @@ export const MyStoriesScreen = () => {
                       </Text>
                       {story.communitySettings?.communityMode && story.currentPlayers > 0 && (
                         <Text style={styles.storyParticipants}>
-                          {story.currentPlayers} participants joined
+                          {t('myStories.participants_joined', { count: story.currentPlayers })}
                         </Text>
                       )}
                       <Text style={styles.storyMeta}>{formatDate(story.createdAt)}</Text>
@@ -342,7 +371,7 @@ export const MyStoriesScreen = () => {
                         onPress={() => setWatchData({ url: videoUrl, name: story.name, story })}
                       >
                         <Ionicons name="play-circle-outline" size={15} color="rgba(255,255,255,0.75)" />
-                        <Text style={styles.completedActionText}>Watch</Text>
+                        <Text style={styles.completedActionText}>{t('myStories.watch')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.completedAction}
@@ -354,6 +383,13 @@ export const MyStoriesScreen = () => {
                         </Text>
                       </TouchableOpacity>
                     </View>
+                  )}
+
+                  {!isCompleted && (
+                    <TouchableOpacity style={styles.inviteButton} onPress={() => handleInvite(story)}>
+                      <Ionicons name="person-add-outline" size={14} color="rgba(255,255,255,0.6)" />
+                      <Text style={styles.inviteButtonText}>{t('myStories.invite_btn')}</Text>
+                    </TouchableOpacity>
                   )}
 
                   {confirmingDeleteId === story.id ? (
@@ -509,6 +545,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'right',
   },
+  declinedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(192,57,43,0.82)',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  declinedBannerText: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'right',
+  },
   storyMain: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -598,6 +649,21 @@ const styles = StyleSheet.create({
   },
   completedActionTextDim: {
     color: 'rgba(255,255,255,0.4)',
+  },
+
+  // Invite
+  inviteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.07)',
+  },
+  inviteButtonText: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
   },
 
   // Delete

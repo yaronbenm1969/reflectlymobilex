@@ -29,6 +29,11 @@
     "button_creating": "Création de l'histoire...",
     "button_create_new": "Nouvelle histoire",
     "button_my_stories": "Mes histoires",
+    "mode_private": "Privé",
+    "mode_community": "Communauté",
+    "tagline": "Votre histoire crée des ondulations",
+    "community_tagline": "Créer Ensemble",
+    "community_subtitle": "Partagez votre histoire avec la communauté",
     "info_title": "Comment ça marche",
     "info_step_1": "Enregistrez votre histoire",
     "info_step_2": "Choisissez le format et la musique",
@@ -95,7 +100,7 @@
     "section_support": "Support"
   },
   "myStories": {
-    "title": "Mes histoires",
+    "title": "Projets",
     "loading": "Chargement des histoires...",
     "login_required_title": "Connectez-vous pour voir vos histoires",
     "login_required_subtitle": "Vos histoires sont sauvegardées dans le cloud quand vous êtes connecté",
@@ -106,10 +111,26 @@
     "status_shared": "Partagé",
     "status_processing": "Traitement",
     "status_completed": "Terminé",
+    "status_desc_draft": "En attente de participants",
+    "status_desc_shared": "Collecte des vidéos des participants",
+    "status_desc_processing": "Création du film final...",
+    "status_desc_completed": "Film prêt",
+    "participants_joined": "{{count}} participants ont rejoint",
+    "watch": "Regarder",
+    "invite_btn": "Inviter",
+    "invite_message": "Vous êtes invité à rejoindre l'histoire \"{{name}}\" 🎬\n{{url}}",
+    "new_videos_one": "{{playerName}} a envoyé une vidéo",
+    "new_videos_one_more": "{{playerName}} et {{count}} autres ont envoyé des vidéos",
+    "new_videos_count": "{{count}} nouvelles vidéos reçues",
+    "declined_banner": "{{playerName}} a refusé la publication — invitez un autre participant",
     "watch_final": "Voir la vidéo finale",
     "delete_confirm": "Supprimer ?",
     "delete_confirm_yes": "Supprimer",
     "delete_confirm_no": "Annuler"
+  },
+  "bottomTab": {
+    "community": "Communauté",
+    "projects": "Projets"
   },
   "thankYou": {
     "title": "Merci !",
@@ -220,7 +241,10 @@
     "no_video": "Vidéo non disponible",
     "instructions_label": "Vos instructions :",
     "btn_record": "J'ai regardé ! Je veux enregistrer",
-    "hint": "Appuyez sur la vidéo pour regarder"
+    "hint": "Appuyez sur la vidéo pour regarder",
+    "watch_first": "Regardez la vidéo avant d'enregistrer",
+    "play_audio": "Lire le message vocal",
+    "stop_audio": "Arrêter"
   },
   "community": {
     "title": "Histoires de la communauté",
@@ -229,6 +253,7 @@
     "empty_text": "Revenez plus tard",
     "auth_required_title": "Connexion requise",
     "auth_required_text": "Vous devez vous connecter pour rejoindre une histoire",
+    "auth_required_register": "S'inscrire / Se connecter",
     "profile_required_title": "Complétez votre profil",
     "profile_required_text": "Pour postuler, vous devez remplir une brève carte de profil",
     "profile_required_fill": "Remplir maintenant",
@@ -237,6 +262,7 @@
     "approval_manual": "Approbation manuelle",
     "approval_open": "Ouvert",
     "progress_label": "{{current}}/{{max}} enregistrés",
+    "call_to_action": "Regardez l'histoire de \"{{name}}\" et répondez avec votre propre création inspirante",
     "btn_join": "Rejoindre maintenant",
     "btn_apply": "Demander à rejoindre",
     "applying": "Envoi...",
@@ -403,8 +429,12 @@
     "consent_level_friends_desc": "Peut être partagé avec les amis et la famille",
     "consent_level_public": "🌐 Public + communauté",
     "consent_level_public_desc": "Visible publiquement et dans la bibliothèque communautaire",
+    "consent_commit": "Je m'engage à ne pas publier la vidéo finale sans le consentement de tous les participants",
     "consent_approve": "Confirmer & Continuer vers l'enregistrement",
     "consent_decline": "Retour",
+    "consent_data_notice": "Votre vidéo sera téléchargée sur les serveurs de Rilio et traitée pour créer une vidéo partagée. Elle ne sera utilisée à aucune autre fin.",
+    "consent_age_gate": "Je confirme avoir 13 ans ou plus",
+    "consent_privacy_link": "Politique de confidentialité",
     "header_title": "Enregistrer des réflexions",
     "intro_title": "C'est votre tour ✨",
     "intro_body": "Enregistrez {{count}} courtes réflexions — votre réponse personnelle à la vidéo que vous venez de regarder.\nParlez, chantez, bougez, dansez — chaque clip peut avoir une approche complètement différente.",
@@ -451,7 +481,10 @@
     "error_recording": "Enregistrement échoué, réessayez",
     "error_no_clips": "Vous devez enregistrer au moins une réflexion",
     "error_upload": "Certaines vidéos n'ont pas été téléchargées. Réessayez.",
-    "permission_gallery": "Autorisez l'accès à la galerie dans les paramètres"
+    "permission_gallery": "Autorisez l'accès à la galerie dans les paramètres",
+    "consent_requires_public": "Cette histoire est destinée à une publication publique. Vous ne pouvez participer qu'en acceptant le partage public.",
+    "consent_blocked": "Vous ne pouvez pas participer sans consentir à la publication publique.",
+    "consent_cant_participate": "Je ne peux pas participer — retour"
   },
   "finalVideo": {
     "header_title": "Vidéo prête ! 🎉",
@@ -536,6 +569,8 @@
     "sharing_label": "Préparation de la vidéo à partager",
     "saving_label": "Sauvegarde de la vidéo",
     "instagram_label": "Préparation pour Instagram",
-    "preparing_label": "Préparation du partage"
+    "preparing_label": "Préparation du partage",
+    "uploading_video": "Chargement de la vidéo",
+    "waiting_for_music": "En attente de musique..."
   }
 }

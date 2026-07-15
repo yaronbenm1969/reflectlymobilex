@@ -51,6 +51,8 @@ export const HomeScreen = () => {
   const [storiesWithNewVideos, setStoriesWithNewVideos] = useState([]); // creator: stories with new reflections
   const enterPlayerMode = useAppState((state) => state.enterPlayerMode);
   const currentScreen = useAppState((state) => state.currentScreen);
+  const storyCreationMode = useAppState((state) => state.storyCreationMode);
+  const isCommunity = storyCreationMode === 'community';
 
   const refreshBanners = (uid) => {
     if (!uid) return;
@@ -116,10 +118,14 @@ export const HomeScreen = () => {
 
     const result = await storiesService.createStory(user.uid, {
       name: localStoryName.trim(),
+      storyType: isCommunity ? 'community' : 'private',
       maxParticipants: participantRange,
       clipCount: selectedOption.clipCount,
       maxClipDuration: selectedOption.maxClipDuration,
       language: i18n.language || 'he',
+      ...(isCommunity && {
+        communitySettings: { communityMode: true, maxPlayers: 5, approvalMode: 'open' },
+      }),
     }, {
       displayName: user.displayName || '',
       email: user.email || '',
@@ -130,6 +136,9 @@ export const HomeScreen = () => {
       setCurrentInviteCode(result.inviteCode);
       setStoryClipCount(selectedOption.clipCount);
       setStoryMaxClipDuration(selectedOption.maxClipDuration);
+      if (isCommunity) {
+        useAppState.getState().setCommunitySettings({ communityMode: true, maxPlayers: 5, approvalMode: 'open' });
+      }
       analyticsService.storyCreated(result.storyId);
       console.log('🎬 Story created in Firebase:', result.storyId);
       console.log('📎 Invite code:', result.inviteCode);
@@ -184,7 +193,14 @@ export const HomeScreen = () => {
       {/* Hero title */}
       <View style={styles.heroSection}>
         <Text style={styles.heroTitle}>Rilio</Text>
-        <Text style={styles.heroTagline}>Your story creates ripples</Text>
+        {isCommunity ? (
+          <>
+            <Text style={styles.heroTaglineCommunity}>{t('home.community_tagline')}</Text>
+            <Text style={styles.communitySubtitle}>{t('home.community_subtitle')}</Text>
+          </>
+        ) : (
+          <Text style={styles.heroTagline}>{t('home.tagline')}</Text>
+        )}
       </View>
 
       {/* Creator banner — pending applications to review */}
@@ -317,6 +333,20 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.75)',
     letterSpacing: 1,
     marginTop: 8,
+  },
+  heroTaglineCommunity: {
+    fontSize: 22,
+    fontWeight: '300',
+    color: '#fff',
+    letterSpacing: 2,
+    marginTop: 12,
+  },
+  communitySubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.65)',
+    letterSpacing: 0.5,
+    marginTop: 8,
+    textAlign: 'center',
   },
 
   pendingBanner: {

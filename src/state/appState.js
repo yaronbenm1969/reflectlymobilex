@@ -55,6 +55,9 @@ export const useAppState = create((set, get) => ({
     maxPlayers: 5,
     approvalMode: 'open', // 'open' | 'manual'
   },
+
+  // Story creation mode — drives HomeScreen UI and storyType
+  storyCreationMode: 'private', // 'private' | 'community'
   
   // Participants (friends who received invitation)
   participants: [],
@@ -75,7 +78,15 @@ export const useAppState = create((set, get) => ({
   isPlayerMode: false,
   playerStoryId: null,
   playerStoryData: null,
+
+  // Invitation (token-based flow)
+  invitationId: null,
+  invitationParticipantName: null,
   
+  // Pending action to execute after auth (login/register)
+  // e.g. { action: 'communityApply' }
+  pendingAfterAuth: null,
+
   // UI state
   isSideMenuOpen: false,
   
@@ -140,6 +151,7 @@ export const useAppState = create((set, get) => ({
   setCommunitySettings: (settings) => set({
     communitySettings: { ...get().communitySettings, ...settings }
   }),
+  setStoryCreationMode: (mode) => set({ storyCreationMode: mode }),
   
   // Participants actions
   addParticipant: (participant) => set({ 
@@ -193,11 +205,15 @@ export const useAppState = create((set, get) => ({
   exitPlayerMode: () => set({
     isPlayerMode: false,
     playerStoryId: null,
-    playerStoryData: null
+    playerStoryData: null,
+    invitationId: null,
+    invitationParticipantName: null,
   }),
+  setInvitation: (invitationId, participantName) => set({ invitationId, invitationParticipantName: participantName }),
   
   // UI actions
   setSideMenuOpen: (open) => set({ isSideMenuOpen: open }),
+  setPendingAfterAuth: (action) => set({ pendingAfterAuth: action }),
   
   // Reset story (start fresh)
   resetStory: () => set({

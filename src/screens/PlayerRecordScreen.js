@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Modal,
+  Linking,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Audio } from 'expo-av';
@@ -21,8 +22,10 @@ import { useAmbientPlayback } from '../hooks/useAmbientPlayback';
 import storageService from '../services/storageService';
 import reflectionsService from '../services/reflectionsService';
 import { storiesService } from '../services/storiesService';
+import { usersService } from '../services/usersService';
 import { notificationsService } from '../services/notificationsService';
 import { analyticsService } from '../services/analyticsService';
+import { invitationsService } from '../services/invitationsService';
 
 import { useTranslation } from 'react-i18next';
 import { AppButton } from '../ui/AppButton';
@@ -68,6 +71,7 @@ export const PlayerRecordScreen = () => {
   const playerStoryData = useAppState((state) => state.playerStoryData);
   const playerStoryId = useAppState((state) => state.playerStoryId);
   const currentStoryId = useAppState((state) => state.currentStoryId);
+  const invitationId = useAppState((state) => state.invitationId);
   const storyIdForMusic = playerStoryId || currentStoryId;
   const user = useAppState((state) => state.user);
 
@@ -158,6 +162,8 @@ export const PlayerRecordScreen = () => {
   // Consent flow — only for player mode (deep link)
   const [consentState, setConsentState] = useState(null); // null=loading | 'needed' | 'done'
   const [consentLevel, setConsentLevel] = useState(null); // null | 'private' | 'friends' | 'public'
+  const [consentCommitted, setConsentCommitted] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const participantIdRef = useRef(`participant_${Date.now()}`);
 
   useEffect(() => {
@@ -200,8 +206,31 @@ export const PlayerRecordScreen = () => {
   useEffect(() => {
     if (!playerStoryId) return;
     if (!playerStoryData) return; // still loading
-    const needsConsent = playerStoryData?.privacySettings?.publishingEnabled;
-    setConsentState(needsConsent ? 'needed' : 'done');
+    // If user already agreed globally — skip consent screen
+    if (user?.uid) {
+      usersService.getUserProfile(user.uid).then((res) => {
+        if (res.success && res.profile?.hasAgreedToTerms) {
+          // Auto-save consent for this story and proceed
+          setConsentLevel('private');
+          setConsentCommitted(true);
+          storiesService.updateStory(playerStoryId, {
+            [`playerConsents.${participantIdRef.current}`]: {
+              consented: true,
+              consentLevel: 'private',
+              committedNoShare: true,
+              timestamp: Date.now(),
+              participantName: playerStoryData?.participantName || null,
+              autoConsent: true,
+            },
+          }).catch(() => {});
+          setConsentState('done');
+        } else {
+          setConsentState('needed');
+        }
+      }).catch(() => setConsentState('needed'));
+    } else {
+      setConsentState('needed');
+    }
   }, [playerStoryData]);
 
   const formatTime = (seconds) => {
@@ -444,17 +473,31 @@ export const PlayerRecordScreen = () => {
   const recordedCount = clipRecordings.filter(r => r !== null).length;
 
   const handleConsentGiven = () => {
-    if (!consentLevel) return;
+    if (!consentLevel || !consentCommitted || !ageConfirmed) return;
     setConsentState('done');
     if (playerStoryId) {
       storiesService.updateStory(playerStoryId, {
         [`playerConsents.${participantIdRef.current}`]: {
           consented: true,
           consentLevel,
+          committedNoShare: true,
           timestamp: Date.now(),
           participantName: playerStoryData?.participantName || null,
         },
       }).catch(() => {});
+    }
+    // Save consent to invitation document if player arrived via personal invite
+    if (invitationId) {
+      invitationsService.saveConsent(invitationId, {
+        platformConsent: true,
+        projectConsent: true,
+        publicPublishingConsent: consentLevel === 'public',
+        communityConsent: null,
+      }).catch(() => {});
+    }
+    // Save globally so future stories skip the consent screen
+    if (user?.uid) {
+      usersService.updateUserProfile(user.uid, { hasAgreedToTerms: true }).catch(() => {});
     }
   };
 
@@ -471,6 +514,30 @@ export const PlayerRecordScreen = () => {
   // Player must consent before recording
   if (consentState === 'needed') {
     const creatorName = playerStoryData?.creatorName || t('playerRecord.creator_fallback');
+    const requiresPublic = playerStoryData?.privacySettings?.allowSocialMedia === true;
+    const levelBlocked = requiresPublic && consentLevel && consentLevel !== 'public';
+
+    const handleDeclinePublishing = () => {
+      // Save decline so creator can see it in Firestore
+      if (playerStoryId) {
+        const participantName = playerStoryData?.participantName || null;
+        storiesService.updateStory(playerStoryId, {
+          [`playerConsents.${participantIdRef.current}`]: {
+            declined: true,
+            reason: 'publishing_conflict',
+            timestamp: Date.now(),
+            participantName,
+          },
+          declinedConsentName: participantName,
+        }).catch(() => {});
+      }
+      // Decline invitation document if player arrived via personal invite
+      if (invitationId) {
+        invitationsService.declineInvitation(invitationId, 'publishing_conflict').catch(() => {});
+      }
+      back();
+    };
+
     return (
       <View style={styles.consentContainer}>
         <View style={styles.consentHeader}>
@@ -482,31 +549,106 @@ export const PlayerRecordScreen = () => {
           {t('playerRecord.consent_body', { creatorName })}
         </Text>
 
-        {['private', 'friends', 'public'].map((level) => (
-          <TouchableOpacity
-            key={level}
-            style={[styles.consentOption, consentLevel === level && styles.consentOptionSelected]}
-            onPress={() => setConsentLevel(level)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.consentRadio, consentLevel === level && styles.consentRadioSelected]}>
-              {consentLevel === level && <View style={styles.consentRadioDot} />}
-            </View>
-            <View style={styles.consentOptionText}>
-              <Text style={styles.consentOptionTitle}>{t(`playerRecord.consent_level_${level}`)}</Text>
-              <Text style={styles.consentOptionDesc}>{t(`playerRecord.consent_level_${level}_desc`)}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+        <View style={styles.dataNotice}>
+          <Ionicons name="camera-outline" size={14} color={theme.colors.subtext} />
+          <Text style={styles.dataNoticeText}>{t('playerRecord.consent_data_notice')}</Text>
+        </View>
 
-        <AppButton
-          title={t('playerRecord.consent_approve')}
-          onPress={handleConsentGiven}
-          variant="primary"
-          size="lg"
-          fullWidth
-          disabled={!consentLevel}
-        />
+        {requiresPublic && (
+          <View style={styles.publishingNotice}>
+            <Ionicons name="globe-outline" size={18} color="#e67e22" />
+            <Text style={styles.publishingNoticeText}>{t('playerRecord.consent_requires_public')}</Text>
+          </View>
+        )}
+
+        {['private', 'friends', 'public'].map((level) => {
+          const isDisabled = requiresPublic && level !== 'public';
+          return (
+            <TouchableOpacity
+              key={level}
+              style={[
+                styles.consentOption,
+                consentLevel === level && styles.consentOptionSelected,
+                isDisabled && styles.consentOptionDisabled,
+              ]}
+              onPress={() => !isDisabled && setConsentLevel(level)}
+              activeOpacity={isDisabled ? 1 : 0.7}
+            >
+              <View style={[styles.consentRadio, consentLevel === level && styles.consentRadioSelected]}>
+                {consentLevel === level && <View style={styles.consentRadioDot} />}
+              </View>
+              <View style={styles.consentOptionText}>
+                <Text style={[styles.consentOptionTitle, isDisabled && styles.consentOptionTitleDisabled]}>
+                  {t(`playerRecord.consent_level_${level}`)}
+                </Text>
+                <Text style={[styles.consentOptionDesc, isDisabled && styles.consentOptionTitleDisabled]}>
+                  {t(`playerRecord.consent_level_${level}_desc`)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+
+        {levelBlocked && (
+          <View style={styles.blockNotice}>
+            <Ionicons name="warning-outline" size={16} color="#e74c3c" />
+            <Text style={styles.blockNoticeText}>{t('playerRecord.consent_blocked')}</Text>
+          </View>
+        )}
+
+        {!levelBlocked && (
+          <>
+            <TouchableOpacity
+              style={styles.commitRow}
+              onPress={() => setConsentCommitted(v => !v)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.commitCheckbox, consentCommitted && styles.commitCheckboxChecked]}>
+                {consentCommitted && <Ionicons name="checkmark" size={14} color="#fff" />}
+              </View>
+              <Text style={styles.commitText}>{t('playerRecord.consent_commit')}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.commitRow}
+              onPress={() => setAgeConfirmed(v => !v)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.commitCheckbox, ageConfirmed && styles.commitCheckboxChecked]}>
+                {ageConfirmed && <Ionicons name="checkmark" size={14} color="#fff" />}
+              </View>
+              <Text style={styles.commitText}>{t('playerRecord.consent_age_gate')}</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {levelBlocked ? (
+          <AppButton
+            title={t('playerRecord.consent_cant_participate')}
+            onPress={handleDeclinePublishing}
+            variant="secondary"
+            size="lg"
+            fullWidth
+          />
+        ) : (
+          <AppButton
+            title={t('playerRecord.consent_approve')}
+            onPress={handleConsentGiven}
+            variant="primary"
+            size="lg"
+            fullWidth
+            disabled={!consentLevel || !consentCommitted || !ageConfirmed}
+          />
+        )}
+
+        <TouchableOpacity
+          style={styles.privacyLinkRow}
+          onPress={() => Linking.openURL('https://rilio.io/privacy')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="document-text-outline" size={13} color={theme.colors.primary} />
+          <Text style={styles.privacyLinkText}>{t('playerRecord.consent_privacy_link')}</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.consentDeclineBtn} onPress={() => back()}>
           <Text style={styles.consentDeclineText}>{t('playerRecord.consent_decline')}</Text>
@@ -904,6 +1046,98 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.textSecondary || '#888',
     marginTop: 2,
+  },
+  publishingNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#e67e2218',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e67e2240',
+  },
+  publishingNoticeText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#e67e22',
+    lineHeight: 18,
+  },
+  blockNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#e74c3c18',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e74c3c40',
+  },
+  blockNoticeText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#e74c3c',
+    lineHeight: 18,
+  },
+  consentOptionDisabled: {
+    opacity: 0.35,
+  },
+  consentOptionTitleDisabled: {
+    color: theme.colors.textSecondary || '#aaa',
+  },
+  commitRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing[3],
+  },
+  commitCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: theme.colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  commitCheckboxChecked: {
+    backgroundColor: theme.colors.accent,
+  },
+  commitText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.textSecondary || '#555',
+    lineHeight: 19,
+  },
+  dataNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: theme.spacing[3],
+  },
+  dataNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    color: theme.colors.subtext || '#888',
+    lineHeight: 18,
+  },
+  privacyLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    marginBottom: 2,
+  },
+  privacyLinkText: {
+    fontSize: 13,
+    color: theme.colors.primary,
+    textDecorationLine: 'underline',
   },
   consentDeclineBtn: {
     alignItems: 'center',
