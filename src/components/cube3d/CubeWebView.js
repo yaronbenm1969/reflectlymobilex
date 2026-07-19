@@ -1121,7 +1121,8 @@ const CubeWebView = ({
       var duration = 1500;
       var startTime = null;
       currentRotX = -90;
-      currentRotY = 0;
+      // Do NOT reset currentRotY — caller pre-sets it to the first face's target Y so
+      // the cube ends reveal at the correct angle without a snap in the callback.
       function animate(timestamp) {
         if (!startTime) startTime = timestamp;
         var elapsed = timestamp - startTime;
@@ -1263,7 +1264,7 @@ const CubeWebView = ({
         isPlaying = true;
         const initial = getTargetRotation(0);
         currentRotX = initial.rotX;
-        currentRotY = initial.rotY + HALF_ANGLE;
+        // currentRotY already = initial.rotY + HALF_ANGLE (set before revealFromTopFace)
         floatStartTime = 0;
         floatAnimId = requestAnimationFrame(floatLoop);
         // Ensure face-0 is at t=0 (it was paused+reset after unlock, but reset again for safety)
@@ -1610,8 +1611,9 @@ const CubeWebView = ({
       // ROLLBACK: set GRID=1 to revert to simple 2-triangle mode (fast, slight corner error).
       var DRAW_GRID = 16;
       // SEAM_PX: expand clip path outward by N pixels to fill sub-pixel anti-aliasing gaps.
-      // At DRAW_GRID=16 cells are ~45px → affine error ~0.25px → SEAM_PX=1.5 covers it with margin.
-      var SEAM_PX = 1.5;
+      // At DRAW_GRID=16 cells are ~45px. Recording canvas (720px wide) renders at higher scale
+      // than the display preview — increase to 3.0 to cover wider anti-alias bands in recording.
+      var SEAM_PX = 3.0;
 
       // Bilinear interpolation across the 4 projected face corners.
       // proj[0]=TL, proj[1]=TR, proj[2]=BR, proj[3]=BL

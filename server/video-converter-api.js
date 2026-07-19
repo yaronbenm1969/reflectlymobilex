@@ -2293,19 +2293,22 @@ app.post('/api/mix-music-with-video', async (req, res) => {
         });
     });
 
-    // If a background video URL was provided, composite it behind the cube using
-    // FFmpeg blend=all_mode=screen (black pixels in the cube recording become transparent).
-    // Seam-line artifacts from screen blend are now sub-pixel with DRAW_GRID=16.
+    // If a background video URL was provided, composite it behind the cube.
+    // colorkey makes pure-black pixels in the cube recording transparent, then overlays
+    // the result over the background. Unlike blend=screen, this does NOT alter the colors
+    // of the cube face videos — only the black areas (outside the cube) become transparent.
     let mixInputPath = videoPath;
     if (backgroundVideoUrl && fs.existsSync(bgPath) && fs.statSync(bgPath).size > 1000) {
       const compositedPath = path.join(jobDir, 'composited.mp4');
-      console.log('🎨 Compositing background behind cube with blend=screen...');
-      await new Promise((resolve, reject) => {
+      console.log('🎨 Compositing background behind cube with colorkey...');
+      await new Promise((resolve) => {
         execFile('ffmpeg', [
           '-i', bgPath,
           '-i', videoPath,
           '-filter_complex',
-          '[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280[bg];[bg][1:v]blend=all_mode=screen[v]',
+          '[1:v]colorkey=color=000000:similarity=0.15:blend=0.05[ck];' +
+          '[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280[bg];' +
+          '[bg][ck]overlay=format=auto[v]',
           '-map', '[v]',
           '-map', '1:a?',
           '-c:v', 'libx264', '-preset', 'fast', '-crf', '22',
@@ -2313,10 +2316,11 @@ app.post('/api/mix-music-with-video', async (req, res) => {
           '-y', compositedPath,
         ], { timeout: 120000 }, (err, stdout, stderr) => {
           if (err) {
-            console.warn('⚠️ Background blend failed, using original video:', err.message);
+            console.warn('⚠️ Background colorkey failed, using original video:', err.message);
+            if (stderr) console.warn('FFmpeg stderr:', stderr.slice(-500));
             resolve(); // fall through with original videoPath
           } else {
-            console.log('✅ Background blend composited');
+            console.log('✅ Background colorkey composited');
             mixInputPath = compositedPath;
             resolve();
           }
