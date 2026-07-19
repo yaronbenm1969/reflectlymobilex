@@ -157,7 +157,7 @@ export const MusicSelectionScreen = () => {
       console.log(`🎵 Locked Set ${currentSelection} (${chosenSet.tone})`);
     }
 
-    go('Instructions');
+    go(navigationParams?.returnTo || 'Instructions');
   };
 
   return (

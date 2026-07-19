@@ -174,9 +174,9 @@ export const EditRoomScreen = () => {
 
     loadStoryDetails();
 
-    // Clear the pending counter so HomeScreen banner disappears
+    // Clear the pending counter and declined consent banner so MyStoriesScreen banners disappear
     if (currentStoryId) {
-      updateDoc(doc(db, 'stories', currentStoryId), { pendingReflectionsCount: 0, lastPlayerName: null }).catch(() => {});
+      updateDoc(doc(db, 'stories', currentStoryId), { pendingReflectionsCount: 0, lastPlayerName: null, declinedConsentName: null }).catch(() => {});
     }
 
     const loadApplications = async () => {
@@ -682,28 +682,6 @@ export const EditRoomScreen = () => {
             </Text>
           </View>
 
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="people" size={20} color={theme.colors.primary} />
-              <View>
-                <Text style={styles.settingLabel}>{t('editRoom.community_title')}</Text>
-                <Text style={styles.settingSubLabel}>
-                  {communityMode ? t('editRoom.community_on_desc') : t('editRoom.community_off_desc')}
-                </Text>
-              </View>
-            </View>
-            {communityLoading
-              ? <ActivityIndicator size="small" color={theme.colors.primary} />
-              : (
-                <Switch
-                  value={communityMode}
-                  onValueChange={handleToggleCommunity}
-                  trackColor={{ false: '#ccc', true: theme.colors.primary }}
-                  thumbColor="#fff"
-                />
-              )
-            }
-          </View>
         </Card>
 
         <View style={styles.exportActions}>

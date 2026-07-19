@@ -22,3 +22,4 @@ export { TermsScreen } from './TermsScreen';
 export { ThankYouScreen } from './ThankYouScreen';
 export { CommunityFeedScreen } from './CommunityFeedScreen';
 export { MemberOnboardingScreen } from './MemberOnboardingScreen';
+export { InvitationLandingScreen } from './InvitationLandingScreen';

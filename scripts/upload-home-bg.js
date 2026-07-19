@@ -12,8 +12,10 @@ const { initializeApp, cert } = require('firebase-admin/app');
 const { getStorage } = require('firebase-admin/storage');
 
 const videoPath = process.argv[2];
-if (!videoPath) {
-  console.error('Usage: node scripts/upload-home-bg.js <path-to-video>');
+const destName = process.argv[3]; // e.g. home-background or director-background
+if (!videoPath || !destName) {
+  console.error('Usage: node scripts/upload-home-bg.js <path-to-video> <dest-name>');
+  console.error('Example: node scripts/upload-home-bg.js video.mp4 home-background');
   process.exit(1);
 }
 
@@ -41,7 +43,7 @@ initializeApp({
 const storage = getStorage();
 const bucket = storage.bucket();
 
-const destPath = 'assets/home-background.mp4';
+const destPath = `assets/${destName}.mp4`;
 
 console.log(`Uploading ${videoPath} → gs://${bucket.name}/${destPath}`);
 

@@ -151,7 +151,7 @@ export const reflectionsService = {
         } else {
           anonymousCounter++;
           participantId = `anon_${anonymousCounter}_${createdTime}`;
-          participantName = `משתתף ${anonymousCounter}`;
+          participantName = reflection.participantName || reflection.recipientName || `משתתף ${anonymousCounter}`;
           timeGroups[participantId] = { lastTime: createdTime, clipNumbers: [clipNum] };
         }
       }

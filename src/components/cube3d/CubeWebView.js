@@ -1249,6 +1249,12 @@ const CubeWebView = ({
 
       postMessage('animationStarted', { videoCount: fullVideoQueue.length });
 
+      // Pre-set Y to target so revealFromTopFace starts at the correct Y position.
+      // Without this, revealFromTopFace sets currentRotY=0 then callback snaps it to
+      // initial.rotY+HALF_ANGLE (=45°) — a visible jump at the end of the reveal.
+      const _initialForReveal = getTargetRotation(0);
+      currentRotY = _initialForReveal.rotY + HALF_ANGLE;
+
       // Animate cube from title face (top) to first video position, then start
       revealFromTopFace(function() {
         // Hide top face intro after reveal — restores its semi-transparent glass appearance

@@ -29,6 +29,7 @@ export const WhatsAppShareScreen = () => {
   const currentInviteCode = useAppState((state) => state.currentInviteCode);
   const user = useAppState((state) => state.user);
   const videoFormat = useAppState((state) => state.videoFormat);
+  const storyCreationMode = useAppState((state) => state.storyCreationMode);
   
   const inviteCode = currentInviteCode || '';
   
@@ -87,6 +88,10 @@ export const WhatsAppShareScreen = () => {
   };
 
   const handleContinue = () => {
+    if (storyCreationMode === 'community') {
+      go('EditRoom');
+      return;
+    }
     const is3DFormat = videoFormat && videoFormat !== 'standard';
     if (is3DFormat) {
       go('FinalVideo');

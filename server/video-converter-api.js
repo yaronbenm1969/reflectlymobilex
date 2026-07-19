@@ -47,7 +47,7 @@ if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 if (!fs.existsSync(convertedDir)) fs.mkdirSync(convertedDir, { recursive: true });
 const upload = multer({ dest: tempDir, limits: { fileSize: 100 * 1024 * 1024 } });
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/notify-reflection', '/api/ambient-track', '/api/suno-sets', '/api/test-mix', '/api/delete-story', '/api/delete-account', '/api/support', '/privacy', '/terms', '/support'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/record-invite', '/invite', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/notify-reflection', '/api/ambient-track', '/api/suno-sets', '/api/test-mix', '/api/delete-story', '/api/delete-account', '/api/support', '/api/invitations', '/privacy', '/terms', '/support'];
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -2239,7 +2239,7 @@ app.post('/api/test-mix', express.json(), async (req, res) => {
 });
 
 app.post('/api/mix-music-with-video', async (req, res) => {
-  const { videoUrl, musicUrl, musicVolume = 0.15, storyId, replaceAudio = false, clipUrls } = req.body;
+  const { videoUrl, musicUrl, musicVolume = 0.15, storyId, replaceAudio = false, clipUrls, backgroundVideoUrl } = req.body;
 
   if (!videoUrl || !musicUrl) {
     return res.status(400).json({ error: 'videoUrl and musicUrl are required' });
@@ -2254,6 +2254,7 @@ app.post('/api/mix-music-with-video', async (req, res) => {
     const videoPath = path.join(jobDir, 'video.mp4');
     const musicPath = path.join(jobDir, 'music.m4a');
     const outputPath = path.join(jobDir, 'final_with_music.mp4');
+    const bgPath = path.join(jobDir, 'background.mp4');
 
     // Download cube video + music; also download participant clips if provided
     const clipPaths = [];
@@ -2261,6 +2262,9 @@ app.post('/api/mix-music-with-video', async (req, res) => {
       downloadFile(videoUrl, videoPath),
       downloadFile(musicUrl, musicPath),
     ];
+    if (backgroundVideoUrl) {
+      downloads.push(downloadFile(backgroundVideoUrl, bgPath));
+    }
     if (clipUrls && Array.isArray(clipUrls) && clipUrls.length > 0) {
       clipUrls.forEach((url, i) => {
         const p = path.join(jobDir, `clip_${i}.mp4`);
@@ -2289,9 +2293,36 @@ app.post('/api/mix-music-with-video', async (req, res) => {
         });
     });
 
-    // Background is now baked into the recording canvas (CubeWebView proxy approach).
-    // Server-side blend compositing removed — it caused triangle-seam artifacts.
-    const mixInputPath = videoPath;
+    // If a background video URL was provided, composite it behind the cube using
+    // FFmpeg blend=all_mode=screen (black pixels in the cube recording become transparent).
+    // Seam-line artifacts from screen blend are now sub-pixel with DRAW_GRID=16.
+    let mixInputPath = videoPath;
+    if (backgroundVideoUrl && fs.existsSync(bgPath) && fs.statSync(bgPath).size > 1000) {
+      const compositedPath = path.join(jobDir, 'composited.mp4');
+      console.log('🎨 Compositing background behind cube with blend=screen...');
+      await new Promise((resolve, reject) => {
+        execFile('ffmpeg', [
+          '-i', bgPath,
+          '-i', videoPath,
+          '-filter_complex',
+          '[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280[bg];[bg][1:v]blend=all_mode=screen[v]',
+          '-map', '[v]',
+          '-map', '1:a?',
+          '-c:v', 'libx264', '-preset', 'fast', '-crf', '22',
+          '-c:a', 'aac', '-shortest',
+          '-y', compositedPath,
+        ], { timeout: 120000 }, (err, stdout, stderr) => {
+          if (err) {
+            console.warn('⚠️ Background blend failed, using original video:', err.message);
+            resolve(); // fall through with original videoPath
+          } else {
+            console.log('✅ Background blend composited');
+            mixInputPath = compositedPath;
+            resolve();
+          }
+        });
+      });
+    }
 
     if (clipPaths.length > 0) {
       // Cube format: mix concatenated participant voices + music into silent cube video
@@ -2987,6 +3018,264 @@ app.post('/api/delete-account', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ─── INVITATION SYSTEM ────────────────────────────────────────────────────────
+
+const crypto = require('crypto');
+
+async function sendConsentDeclinedNotification(storyId, participantName, reason) {
+  if (!firestoreDb) return;
+  try {
+    const storyDoc = await firestoreDb.collection('stories').doc(storyId).get();
+    if (!storyDoc.exists) return;
+    const { userId, name: storyName = '' } = storyDoc.data();
+    if (!userId) return;
+    const userDoc = await firestoreDb.collection('users').doc(userId).get();
+    const pushToken = userDoc.exists ? userDoc.data()?.expoPushToken : null;
+    if (!pushToken || !Expo.isExpoPushToken(pushToken)) return;
+    await expoClient.sendPushNotificationsAsync([{
+      to: pushToken,
+      title: 'שחקן לא הסכים לתנאים',
+      body: `${participantName} לא הסכים לתנאי הפרסום של '${storyName}'`,
+      data: { storyId, type: 'consent_declined', storyName, participantName, reason },
+    }]);
+    console.log(`🔔 Consent declined notification sent for story ${storyId}, player ${participantName}`);
+  } catch (err) {
+    console.warn(`⚠️ sendConsentDeclinedNotification failed: ${err.message}`);
+  }
+}
+
+// POST /api/invitations/create — creator creates personal invitation link
+app.post('/api/invitations/create', async (req, res) => {
+  if (!firestoreDb) return res.status(503).json({ error: 'DB not ready' });
+  const { storyId, participantName, participantPhone } = req.body || {};
+  if (!storyId || !participantName) {
+    return res.status(400).json({ error: 'storyId and participantName are required' });
+  }
+  try {
+    const token = crypto.randomUUID();
+    const domain = process.env.SERVER_DOMAIN || 'reflectlymobilex.onrender.com';
+    const inviteUrl = `https://${domain}/invite/${token}`;
+
+    const docRef = await firestoreDb.collection('invitations').add({
+      storyId,
+      participantName: participantName.trim(),
+      participantPhone: participantPhone || null,
+      token,
+      status: 'pending',
+      platformConsent: null,
+      platformConsentAt: null,
+      projectConsent: null,
+      projectConsentAt: null,
+      publicPublishingConsent: null,
+      publicPublishingConsentAt: null,
+      communityConsent: null,
+      communityConsentAt: null,
+      consentVersion: '1.0',
+      declineReason: null,
+      createdAt: firestoreDb.constructor.Timestamp
+        ? firestoreDb.constructor.Timestamp.now()
+        : new Date(),
+      openedAt: null,
+      recordingStartedAt: null,
+      recordingCompletedAt: null,
+    });
+
+    console.log(`✅ Invitation created: ${docRef.id} for "${participantName}" story ${storyId}`);
+    res.json({ success: true, invitationId: docRef.id, token, inviteUrl });
+  } catch (err) {
+    console.error('Create invitation error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/invitations/resolve/:token — player opens link, token resolves to story + participant info
+app.get('/api/invitations/resolve/:token', async (req, res) => {
+  if (!firestoreDb) return res.status(503).json({ error: 'DB not ready' });
+  const { token } = req.params;
+  if (!token) return res.status(400).json({ error: 'token required' });
+  try {
+    const snap = await firestoreDb.collection('invitations').where('token', '==', token).limit(1).get();
+    if (snap.empty) return res.status(404).json({ error: 'invitation_not_found' });
+
+    const invDoc = snap.docs[0];
+    const inv = invDoc.data();
+
+    if (inv.status === 'expired') return res.status(410).json({ error: 'invitation_expired' });
+
+    // Mark as opened
+    await invDoc.ref.update({ status: 'opened', openedAt: new Date() });
+
+    // Load story data
+    const storyDoc = await firestoreDb.collection('stories').doc(inv.storyId).get();
+    const storyData = storyDoc.exists ? storyDoc.data() : null;
+
+    res.json({
+      success: true,
+      invitationId: invDoc.id,
+      storyId: inv.storyId,
+      participantName: inv.participantName,
+      storyData: storyData ? {
+        name: storyData.name,
+        creatorName: storyData.creatorName,
+        instructions: storyData.instructions,
+        instructionAudioUrl: storyData.instructionAudioUrl,
+        videoUri: storyData.videoUri,
+        language: storyData.language,
+        privacySettings: storyData.privacySettings,
+        storyType: storyData.storyType,
+        communitySettings: storyData.communitySettings,
+      } : null,
+    });
+  } catch (err) {
+    console.error('Resolve invitation token error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/invitations/:id/consent — player saves consent
+app.post('/api/invitations/:id/consent', async (req, res) => {
+  if (!firestoreDb) return res.status(503).json({ error: 'DB not ready' });
+  const { id } = req.params;
+  const { platformConsent, projectConsent, publicPublishingConsent, communityConsent, consentVersion } = req.body || {};
+  if (!id) return res.status(400).json({ error: 'invitationId required' });
+  try {
+    const now = new Date();
+    await firestoreDb.collection('invitations').doc(id).update({
+      status: 'recording_started',
+      platformConsent: !!platformConsent,
+      platformConsentAt: platformConsent ? now : null,
+      platformConsentVersion: consentVersion || '1.0',
+      projectConsent: !!projectConsent,
+      projectConsentAt: projectConsent ? now : null,
+      publicPublishingConsent: publicPublishingConsent ?? null,
+      publicPublishingConsentAt: publicPublishingConsent != null ? now : null,
+      communityConsent: communityConsent ?? null,
+      communityConsentAt: communityConsent != null ? now : null,
+      consentVersion: consentVersion || '1.0',
+      recordingStartedAt: now,
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Save consent error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/invitations/:id/decline — player declines, notify creator
+app.post('/api/invitations/:id/decline', async (req, res) => {
+  if (!firestoreDb) return res.status(503).json({ error: 'DB not ready' });
+  const { id } = req.params;
+  const { reason = 'publishing_conflict' } = req.body || {};
+  try {
+    const invDoc = await firestoreDb.collection('invitations').doc(id).get();
+    if (!invDoc.exists) return res.status(404).json({ error: 'invitation_not_found' });
+    const inv = invDoc.data();
+
+    await invDoc.ref.update({
+      status: 'declined',
+      declineReason: reason,
+    });
+
+    // Update story with declined name for MyStoriesScreen banner
+    await firestoreDb.collection('stories').doc(inv.storyId).update({
+      declinedConsentName: inv.participantName,
+      declinedConsentReason: reason,
+    });
+
+    // Push notification to creator (fire and forget)
+    sendConsentDeclinedNotification(inv.storyId, inv.participantName, reason).catch(() => {});
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Decline invitation error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /invite/:token — web landing page that deep-links to app or shows web consent
+app.get('/invite/:token', async (req, res) => {
+  const { token } = req.params;
+  const domain = process.env.SERVER_DOMAIN || 'reflectlymobilex.onrender.com';
+  // Redirect to app via universal link; if not installed → web recording page
+  res.redirect(`https://${domain}/record-invite?token=${token}`);
+});
+
+// GET /record-invite?token=TOKEN — resolve invitation token and render web recording page with consent
+app.get('/record-invite', async (req, res) => {
+  const { token } = req.query;
+  if (!token || !firestoreDb) return res.status(400).send('Invalid invitation link');
+
+  let invitation = null;
+  try {
+    const snap = await firestoreDb.collection('invitations')
+      .where('token', '==', token).limit(1).get();
+    if (!snap.empty) invitation = { id: snap.docs[0].id, ...snap.docs[0].data() };
+  } catch (e) {
+    console.warn('record-invite: could not resolve token:', e.message);
+  }
+  if (!invitation || invitation.status === 'declined') {
+    return res.status(404).send('Invitation not found or already declined');
+  }
+
+  const { storyId, participantName } = invitation;
+  let story = null;
+  try {
+    const sSnap = await firestoreDb.collection('stories').doc(storyId).get();
+    if (sSnap.exists) story = { id: sSnap.id, ...sSnap.data() };
+  } catch (e) {
+    console.warn('record-invite: could not load story:', e.message);
+  }
+  if (!story) return res.status(404).send('Story not found');
+
+  // Mark invitation as opened
+  firestoreDb.collection('invitations').doc(invitation.id)
+    .update({ status: 'opened', openedAt: new Date() }).catch(() => {});
+
+  const musicTrackId = story.musicAmbient?.id || (
+    story.music && story.music !== 'none' && story.music !== 'ai-generated' ? story.music : null
+  );
+  let musicUrl = story.musicAmbient?.url || null;
+
+  const storyData = {
+    id:              story.id,
+    name:            story.name            || '',
+    creatorName:     story.creatorName     || '',
+    clipCount:       story.clipCount       || 3,
+    maxClipDuration: story.maxClipDuration || 60,
+    instructions:    story.instructions   || '',
+    videoUri:        story.videoUri || story.videoUrl || story.keyStoryUrl || null,
+    instructionAudioUrl: story.instructionAudioUrl || null,
+    musicUrl,
+    musicTrackId,
+    hasMusic:        !!(musicUrl || musicTrackId),
+    musicName:       story.musicAmbient?.nameHe || story.musicAmbient?.name || null,
+    lockedSet:       story.lockedSet || null,
+    language:        story.language || 'he',
+    allowSocialMedia: !!(story.privacySettings?.allowSocialMedia),
+  };
+
+  const invitationContext = {
+    invitationId: invitation.id,
+    participantName,
+    requiresPublicConsent: !!(story.privacySettings?.allowSocialMedia),
+  };
+
+  const firebaseConfig = {
+    apiKey:            process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+    authDomain:        process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId:         process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket:     process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId:             process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  };
+
+  res.set('Content-Type', 'text/html');
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.send(buildWebRecordHtml(storyData, firebaseConfig, invitationContext));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Video Converter API running on port ${PORT}`);

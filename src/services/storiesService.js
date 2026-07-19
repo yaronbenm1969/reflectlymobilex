@@ -61,6 +61,7 @@ export const storiesService = {
         clipCount: storyData.clipCount || 3,
         maxClipDuration: storyData.maxClipDuration || 60,
         language: storyData.language || 'he',
+        storyType: storyData.storyType || 'private',
         privacySettings: storyData.privacySettings || { allowSocialMedia: false },
         status: 'draft',
         createdAt: serverTimestamp(),

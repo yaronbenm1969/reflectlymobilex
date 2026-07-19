@@ -116,10 +116,13 @@ export const FinalVideoScreen = () => {
   const ambientPhaseIndexRef = useRef(0);
   const aiMusicSoundRef = useRef(null);
   const generatedMusicUrlRef = useRef(generatedMusicUrl);
+  // Ref (not state) so it's never stale inside the generatedMusicUrl effect closure.
+  const pendingMusicStartRef = useRef(false);
   useEffect(() => {
     generatedMusicUrlRef.current = generatedMusicUrl;
-    // URL arrived while cube was already playing — start music immediately
-    if (generatedMusicUrl && cubeStarted && !videoHasPlayed && !aiMusicSoundRef.current) {
+    // URL arrived while cube was already playing — start music immediately.
+    // Use pendingMusicStartRef (ref) not cubeStarted (state) to avoid stale closure.
+    if (generatedMusicUrl && pendingMusicStartRef.current && !aiMusicSoundRef.current) {
       startAiMusic();
     }
   }, [generatedMusicUrl]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1696,6 +1699,7 @@ export const FinalVideoScreen = () => {
             onPlaybackStart={() => {
               console.log('🚀 Animation fullscreen mode ON');
               setIsCubeFullscreen(true);
+              pendingMusicStartRef.current = true;
               setCubeStarted(true);
               startAiMusic();
               if (recordNextPlayback) {
