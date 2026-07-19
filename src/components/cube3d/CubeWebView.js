@@ -1676,14 +1676,18 @@ const CubeWebView = ({
               ctx.lineTo(ecbr[0],ecbr[1]); ctx.lineTo(ecbl[0],ecbl[1]);
               ctx.closePath(); ctx.clip();
 
-              // Pass 1: T2 fills the full quad (no inner triangle clip).
-              // Anti-aliased diagonal edge of T1 will reveal T2 texture underneath — no black gap.
-              var c2=(cbr[0]-ctr[0])/sh, d2=(cbr[1]-ctr[1])/sh;
-              var e2=cbl[0]-c2*sh, f2=cbl[1]-d2*sh;
-              var a2=(ctr[0]-e2)/sw, b2=(ctr[1]-f2)/sw;
+              // Pass 1: T2 with EXPANDED corners fills the seam zone too.
+              // Using ectr/ecbr/ecbl (expanded by SEAM_PX from center) instead of exact
+              // corners puts actual pixel content in the gap zone — the clip alone was not
+              // enough because drawImage only drew up to the exact cell boundary.
+              var eps = SEAM_PX;
+              var swe = sw + 2*eps, she = sh + 2*eps;
+              var c2=(ecbr[0]-ectr[0])/she, d2=(ecbr[1]-ectr[1])/she;
+              var e2=ecbl[0]-c2*she, f2=ecbl[1]-d2*she;
+              var a2=(ectr[0]-e2)/swe, b2=(ectr[1]-f2)/swe;
               ctx.save();
               ctx.setTransform(a2,b2,c2,d2,e2,f2);
-              try { ctx.drawImage(src,sx,sy,sw,sh,0,0,sw,sh); } catch(ex) {}
+              try { ctx.drawImage(src,sx-eps,sy-eps,swe,she,0,0,swe,she); } catch(ex) {}
               ctx.setTransform(1,0,0,1,0,0); ctx.restore();
 
               // Pass 2: T1 with exact (non-expanded) triangle clip drawn on top.

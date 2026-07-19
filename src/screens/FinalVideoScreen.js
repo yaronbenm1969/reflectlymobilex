@@ -1146,6 +1146,7 @@ export const FinalVideoScreen = () => {
             // Mix AI music using the recording's own audio ([0:a]) — NOT clip files.
             // clipUrls/replaceAudio would discard the in-sync recording audio → lip-sync drift.
             const musicUrl = generatedMusicUrlRef.current;
+            console.log('🎬 mix-music: backgroundVideoUrl=', backgroundVideoUrl ? backgroundVideoUrl.substring(0, 60) : 'null');
             if (musicUrl) {
               console.log('🎵 Mixing AI music into cube recording (using recording audio for sync)...');
               setDownloadProgress(t('finalVideo.factory_mixing'));
