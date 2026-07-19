@@ -404,7 +404,7 @@ export const MyStoriesScreen = () => {
                     </View>
                   ) : (
                     <TouchableOpacity style={styles.deleteButton} onPress={() => setConfirmingDeleteId(story.id)}>
-                      <Ionicons name="trash-outline" size={17} color="rgba(231,76,60,0.20)" />
+                      <Ionicons name="trash-outline" size={17} color="rgba(231,76,60,0.55)" />
                     </TouchableOpacity>
                   )}
                 </View>
