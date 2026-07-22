@@ -40,15 +40,21 @@ const ALLOWED_ORIGINS = [
   'http://localhost:19006',
   'http://localhost:8081',
 ];
-app.use(cors({
+const _corsMiddleware = cors({
   origin: (origin, cb) => {
-    // Allow same-origin, mobile apps (no Origin header), and known domains
     if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    cb(new Error('CORS: origin not allowed'));
+    cb(null, false); // reject without throwing — handled below
   },
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'x-app-access-code'],
-}));
+});
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+  _corsMiddleware(req, res, next);
+});
 app.use(express.json());
 
 const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
