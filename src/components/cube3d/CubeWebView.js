@@ -596,7 +596,15 @@ const CubeWebView = ({
         const div = document.createElement('div');
         div.className = 'face-intro';
         div.style.transform = 'rotate(180deg)';
-        div.innerHTML = logoEl + (storyTitle ? '<span class="face-intro-text">' + storyTitle + '</span>' : '');
+        if (storyTitle) {
+          div.insertAdjacentHTML('beforeend', logoEl);
+          const titleSpan = document.createElement('span');
+          titleSpan.className = 'face-intro-text';
+          titleSpan.textContent = storyTitle;
+          div.appendChild(titleSpan);
+        } else {
+          div.insertAdjacentHTML('beforeend', logoEl);
+        }
         bottomFace.appendChild(div);
         console.log('🎬 Title card added to BOTTOM face');
       }
@@ -605,7 +613,15 @@ const CubeWebView = ({
       if (topFace && !topFace.querySelector('.face-intro')) {
         const div = document.createElement('div');
         div.className = 'face-intro';
-        div.innerHTML = logoEl + (storyTitle ? '<span class="face-intro-text">' + storyTitle + '</span>' : '');
+        if (storyTitle) {
+          div.insertAdjacentHTML('beforeend', logoEl);
+          const titleSpan = document.createElement('span');
+          titleSpan.className = 'face-intro-text';
+          titleSpan.textContent = storyTitle;
+          div.appendChild(titleSpan);
+        } else {
+          div.insertAdjacentHTML('beforeend', logoEl);
+        }
         topFace.appendChild(div);
         console.log('🎬 Title card added to TOP face');
       }

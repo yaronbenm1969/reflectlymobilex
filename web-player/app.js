@@ -4,6 +4,14 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstati
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
 import { firebaseConfig } from './config.js';
 
+// Sanitize URLs before injecting into href / onclick to prevent javascript: XSS
+function safeHref(url) {
+    try {
+        const u = new URL(String(url || ''));
+        return (u.protocol === 'https:' || u.protocol === 'http:') ? url : '#';
+    } catch (e) { return '#'; }
+}
+
 function isInAppBrowser() {
     // Skip in-app detection for Replit preview/development
     if (window.location.hostname.includes('replit.dev') || 
@@ -455,7 +463,7 @@ async function loadStory(code) {
                 phEl.innerHTML = `
                     <div style="font-size:36px">⚠️</div>
                     <p style="color:#fff;font-size:14px;margin:8px 0">הסרטון לא נטען (שגיאה ${code})</p>
-                    <a href="${finalUrl}" target="_blank" style="
+                    <a href="${safeHref(finalUrl)}" target="_blank" style="
                         display:inline-block;margin-top:8px;padding:10px 20px;
                         background:linear-gradient(135deg,#8446b0,#464fb0);color:#fff;
                         border-radius:20px;font-size:14px;text-decoration:none;font-weight:700;
@@ -599,7 +607,7 @@ async function setupStoryVideo(videoUrl, storyId, recordBtn, watchHint) {
         placeholder.innerHTML = `
             <div class="placeholder-icon">🎬</div>
             <p>לחץ להפעלת הסרטון</p>
-            <button onclick="window.open('${finalVideoUrl}', '_blank')" style="
+            <button onclick="window.open('${safeHref(finalVideoUrl)}', '_blank')" style="
                 display: inline-block; margin-top: 15px; padding: 12px 24px;
                 background: linear-gradient(135deg, #8446b0, #464fb0); color: white;
                 border: none; border-radius: 25px; font-size: 16px; cursor: pointer;

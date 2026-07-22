@@ -31,10 +31,23 @@ const MAX_CONCURRENT_CONVERSIONS = parseInt(process.env.MAX_CONCURRENT_CONVERSIO
 const conversionQueue = new ConversionQueue({ maxConcurrent: MAX_CONCURRENT_CONVERSIONS });
 const PORT = process.env.PORT || 3001;
 
+const ALLOWED_ORIGINS = [
+  'https://reflectlymobilex.onrender.com',
+  'https://rilio.io',
+  'https://www.rilio.io',
+  // local development
+  'http://localhost:3001',
+  'http://localhost:19006',
+  'http://localhost:8081',
+];
 app.use(cors({
-  origin: '*',
+  origin: (origin, cb) => {
+    // Allow same-origin, mobile apps (no Origin header), and known domains
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    cb(new Error('CORS: origin not allowed'));
+  },
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'x-app-access-code']
+  allowedHeaders: ['Content-Type', 'x-app-access-code'],
 }));
 app.use(express.json());
 
@@ -48,6 +61,45 @@ if (!fs.existsSync(convertedDir)) fs.mkdirSync(convertedDir, { recursive: true }
 const upload = multer({ dest: tempDir, limits: { fileSize: 100 * 1024 * 1024 } });
 
 const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/record-invite', '/invite', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/notify-reflection', '/api/ambient-track', '/api/suno-sets', '/api/test-mix', '/api/delete-story', '/api/delete-account', '/api/support', '/api/invitations', '/privacy', '/terms', '/support'];
+
+// ---------------------------------------------------------------------------
+// Simple in-memory rate limiter for upload endpoints (no extra dependency)
+// ---------------------------------------------------------------------------
+const _uploadRateBuckets = new Map(); // ip -> { count, resetAt }
+const UPLOAD_RATE_LIMIT   = 10;
+const UPLOAD_RATE_WINDOW  = 60 * 60 * 1000; // 1 hour
+
+function checkUploadRateLimit(ip) {
+  const now   = Date.now();
+  const entry = _uploadRateBuckets.get(ip);
+  if (!entry || now > entry.resetAt) {
+    _uploadRateBuckets.set(ip, { count: 1, resetAt: now + UPLOAD_RATE_WINDOW });
+    return true;
+  }
+  if (entry.count >= UPLOAD_RATE_LIMIT) return false;
+  entry.count++;
+  return true;
+}
+
+// Purge stale entries every hour so the Map doesn't grow forever
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of _uploadRateBuckets) {
+    if (now > entry.resetAt) _uploadRateBuckets.delete(ip);
+  }
+}, UPLOAD_RATE_WINDOW);
+
+const ALLOWED_VIDEO_MIMES = new Set([
+  'video/mp4', 'video/quicktime', 'video/webm',
+  'video/x-msvideo', 'video/3gpp', 'video/mpeg',
+  'application/octet-stream', // iOS sometimes sends this for .mov
+]);
+
+function isValidStoragePath(p) {
+  return typeof p === 'string'
+    && /^stories\/[a-zA-Z0-9_-]{1,128}\/.+/.test(p)
+    && !p.includes('..');
+}
 
 const accessControlMiddleware = (req, res, next) => {
   if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route))) {
@@ -296,7 +348,22 @@ app.get('/record/:storyId', async (req, res) => {
 
 // Upload a player clip via server (bypasses Firebase Storage rules for unauthenticated browsers)
 app.post('/api/upload-player-clip', upload.single('video'), async (req, res) => {
+  // Rate limit: 10 uploads/IP/hour
+  const uploaderIp = req.ip || req.socket?.remoteAddress || 'unknown';
+  if (!checkUploadRateLimit(uploaderIp)) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch (e) {}
+    return res.status(429).json({ error: 'Too many uploads — please try again later' });
+  }
+
   if (!req.file) return res.status(400).json({ error: 'No video file' });
+
+  // MIME type validation
+  const fileMime = req.file.mimetype || '';
+  if (!ALLOWED_VIDEO_MIMES.has(fileMime)) {
+    try { fs.unlinkSync(req.file.path); } catch (e) {}
+    return res.status(415).json({ error: 'Only video files are accepted' });
+  }
+
   const { storyId, playerName, clipNumber = '1', webUid, participantId } = req.body;
   if (!storyId) { fs.unlinkSync(req.file.path); return res.status(400).json({ error: 'storyId required' }); }
   if (!bucket) { fs.unlinkSync(req.file.path); return res.status(503).json({ error: 'Storage not configured' }); }
@@ -376,6 +443,17 @@ app.get('/api/player-upload-url', async (req, res) => {
 app.post('/api/player-clip-done', async (req, res) => {
   const { storyId, storagePath, playerName, clipNumber, webUid } = req.body;
   if (!storyId || !storagePath) return res.status(400).json({ error: 'storyId and storagePath required' });
+
+  // Validate storagePath to prevent making arbitrary GCS objects public
+  if (!isValidStoragePath(storagePath)) {
+    return res.status(400).json({ error: 'Invalid storage path' });
+  }
+
+  // Rate limit
+  const callerIp = req.ip || req.socket?.remoteAddress || 'unknown';
+  if (!checkUploadRateLimit(callerIp)) {
+    return res.status(429).json({ error: 'Too many requests — please try again later' });
+  }
 
   try {
     if (bucket) {
