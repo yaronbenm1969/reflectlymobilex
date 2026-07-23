@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { authService } from '../services/authService';
 import { useAppState } from '../state/appState';
 
-const logoImage = require('../../assets/logo.png');
+const logoImage = require('../../assets/rilio-logo-primary.png.png');
 
 export default function AuthScreen() {
   const { t } = useTranslation();

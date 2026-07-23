@@ -48,7 +48,7 @@ const CubeWebView = ({
   useEffect(() => {
     async function loadLogo() {
       try {
-        const asset = await Asset.fromModule(require('../../../assets/logo.png')).downloadAsync();
+        const asset = await Asset.fromModule(require('../../../assets/rilio-logo-primary.png.png')).downloadAsync();
         if (asset.localUri) {
           const b64 = await FileSystem.readAsStringAsync(asset.localUri, { encoding: FileSystem.EncodingType.Base64 });
           setLogoDataUri(`data:image/png;base64,${b64}`);
