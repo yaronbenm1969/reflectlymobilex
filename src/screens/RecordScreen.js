@@ -85,7 +85,7 @@ const RecordingPreview = ({ videoUri, onRecordAgain, onContinue }) => {
           </TouchableOpacity>
         </View>
         <LinearGradient
-          colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
+          colors={['#c0622a', '#a04e1e']}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
           style={styles.continueButton}
         >
