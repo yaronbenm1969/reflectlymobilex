@@ -14,6 +14,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { storageService } from '../services/storageService';
@@ -56,8 +57,9 @@ try {
 const { width, height } = Dimensions.get('window');
 const MAX_RECORDING_TIME = 180; // 3 minutes in seconds
 
-const RecordingPreview = ({ videoUri, onRecordAgain, onContinue }) => {
+const RecordingPreview = ({ videoUri, onRecordAgain, onContinue, onBack }) => {
   const [isPlaying, setIsPlaying] = useState(false);
+  const insets = useSafeAreaInsets();
   const player = useVideoPlayer(videoUri, (p) => { p.loop = false; });
 
   const handlePlayPause = () => {
@@ -73,6 +75,13 @@ const RecordingPreview = ({ videoUri, onRecordAgain, onContinue }) => {
   return (
     <View style={styles.container}>
       <VideoView player={player} style={styles.camera} contentFit="cover" nativeControls={false} />
+      {/* Back button — safe area aware */}
+      <TouchableOpacity
+        style={[styles.previewBackBtn, { top: insets.top + 8 }]}
+        onPress={onBack}
+      >
+        <Ionicons name="arrow-back" size={22} color="white" />
+      </TouchableOpacity>
       <View style={styles.reviewControls}>
         <View style={styles.reviewRow}>
           <TouchableOpacity style={styles.ghostButton} onPress={onRecordAgain}>
@@ -102,6 +111,7 @@ const RecordingPreview = ({ videoUri, onRecordAgain, onContinue }) => {
 export const RecordScreen = () => {
   const { t } = useTranslation();
   const { go, back } = useNav();
+  const insets = useSafeAreaInsets();
   const setLastRecording = useAppState((state) => state.setLastRecording);
   const isCountdownEnabled = useAppState((state) => state.isCountdownEnabled);
   const currentStoryId = useAppState((state) => state.currentStoryId);
@@ -290,6 +300,7 @@ export const RecordScreen = () => {
         videoUri={recordedVideo}
         onRecordAgain={() => setRecordedVideo(null)}
         onContinue={() => go('EditStudio')}
+        onBack={back}
       />
     );
   }
@@ -303,7 +314,7 @@ export const RecordScreen = () => {
         mode="video"
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity 
             style={styles.headerButton}
             onPress={back}
@@ -411,7 +422,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing[4],
-    paddingTop: theme.spacing[2],
+    paddingTop: theme.spacing[2], // overridden inline with insets
+  },
+  previewBackBtn: {
+    position: 'absolute',
+    left: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   headerButton: {
     width: 44,
