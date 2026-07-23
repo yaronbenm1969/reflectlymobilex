@@ -66,7 +66,7 @@ if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 if (!fs.existsSync(convertedDir)) fs.mkdirSync(convertedDir, { recursive: true });
 const upload = multer({ dest: tempDir, limits: { fileSize: 100 * 1024 * 1024 } });
 
-const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/record-invite', '/invite', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/notify-reflection', '/api/ambient-track', '/api/suno-sets', '/api/test-mix', '/api/delete-story', '/api/delete-account', '/api/support', '/api/invitations', '/privacy', '/terms', '/support'];
+const PUBLIC_ROUTES = ['/health', '/api/maintenance-status', '/api/verify-access', '/api/convert-from-url', '/api/convert-url', '/api/queue', '/converted', '/api/stories', '/api/render-status', '/api/generate-music', '/api/music-status', '/join', '/record', '/record-invite', '/invite', '/api/upload-player-clip', '/api/player-upload-url', '/api/player-clip-done', '/api/notify-reflection', '/api/ambient-track', '/api/suno-sets', '/api/test-mix', '/api/delete-story', '/api/delete-account', '/api/support', '/api/invitations', '/privacy', '/terms', '/support', '/assets'];
 
 // ---------------------------------------------------------------------------
 // Simple in-memory rate limiter for upload endpoints (no extra dependency)
@@ -105,6 +105,15 @@ function isValidStoragePath(p) {
   return typeof p === 'string'
     && /^stories\/[a-zA-Z0-9_-]{1,128}\/.+/.test(p)
     && !p.includes('..');
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 const accessControlMiddleware = (req, res, next) => {
@@ -148,6 +157,9 @@ app.get('/privacy', (req, res) => {
 app.get('/support', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'web', 'support.html'));
 });
+
+// Static assets (logo, background images) served from project root /assets/
+app.use('/assets', express.static(path.join(__dirname, '..', 'assets')));
 
 // Simple in-memory rate limiter: max 5 support emails per IP per hour
 const _supportRateMap = new Map();
@@ -200,78 +212,160 @@ app.post('/api/support', async (req, res) => {
   }
 });
 
-// Deep-link redirect page — handles both users with the app and without
-// WhatsApp makes HTTPS links clickable; custom scheme (reflectly://) links appear as plain text
-app.get('/join/:storyId', (req, res) => {
+// Invitation landing page — loads story from Firestore, dark cinematic design, OG tags for WhatsApp
+app.get('/join/:storyId', async (req, res) => {
   const { storyId } = req.params;
-  const appLink = `reflectly://s/${storyId}`;
-  // TODO: replace with real store URLs once published
-  const APP_STORE_URL = 'https://apps.apple.com/app/reflectly/id0000000000';
-  const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.reflectly.app';
+  const BASE_URL = 'https://reflectlymobilex.onrender.com';
+
+  let creatorName = 'מישהו';
+  let storyTitle = 'סיפור';
+
+  if (firestoreDb) {
+    try {
+      const snap = await firestoreDb.collection('stories').doc(storyId).get();
+      if (snap.exists) {
+        const data = snap.data();
+        creatorName = data.creatorName || data.userName || creatorName;
+        storyTitle  = data.storyTitle  || data.title    || storyTitle;
+      }
+    } catch (e) {
+      console.warn('Could not load story for /join/:', e.message);
+    }
+  }
+
+  const ogImage = `${BASE_URL}/assets/home-bg-poster.jpg`;
+  const ogTitle = `${creatorName} מזמין אותך לסיפור: ${storyTitle}`;
+  const ogDesc  = 'הקלט את התגובה שלך ב-60 שניות — כי המילים שלך חשובות.';
+  const recordUrl = `${BASE_URL}/record/${storyId}`;
 
   res.set('Content-Type', 'text/html');
   res.send(`<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>הצטרף לסיפור ב-Reflectly</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>${ogTitle}</title>
+
+  <!-- Open Graph / WhatsApp -->
+  <meta property="og:type"        content="website">
+  <meta property="og:url"         content="${BASE_URL}/join/${storyId}">
+  <meta property="og:title"       content="${ogTitle}">
+  <meta property="og:description" content="${ogDesc}">
+  <meta property="og:image"       content="${ogImage}">
+  <meta property="og:image:width"  content="1200">
+  <meta property="og:image:height" content="630">
+
   <style>
-    * { box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #F5F0FA; color: #333; text-align: center; padding: 24px; }
-    .logo { font-size: 48px; margin-bottom: 8px; }
-    h1 { color: #FF6B9D; font-size: 26px; margin: 0 0 8px; }
-    .sub { color: #888; font-size: 14px; margin-bottom: 32px; }
-    .card { background: white; border-radius: 16px; padding: 24px; width: 100%; max-width: 360px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 16px; }
-    .card h2 { font-size: 18px; margin: 0 0 8px; }
-    .card p { font-size: 14px; color: #666; margin: 0 0 16px; line-height: 1.5; }
-    a.btn { display: block; padding: 14px 20px; border-radius: 10px; text-decoration: none; font-size: 16px; font-weight: bold; margin-bottom: 10px; }
-    .btn-primary { background: #FF6B9D; color: white; }
-    .btn-ios { background: #000; color: white; }
-    .btn-android { background: #3DDC84; color: #000; }
-    .btn-secondary { background: #f0e6ff; color: #8B5CF6; }
-    .btn-web { background: #ecfdf5; color: #065f46; border: 2px solid #6ee7b7; }
-    .divider { font-size: 13px; color: #aaa; margin: 4px 0 10px; }
-    #phase-open { display: block; }
-    #phase-install { display: none; }
-    .spinner { width: 36px; height: 36px; border: 3px solid #eee; border-top-color: #FF6B9D; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 12px auto; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #040c18;
+      color: #fff;
+      overflow-x: hidden;
+    }
+
+    /* Fullscreen background */
+    .bg {
+      position: fixed; inset: 0;
+      background: url('/assets/home-bg-poster.jpg') center/cover no-repeat;
+      z-index: 0;
+    }
+    .bg::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(4, 12, 24, 0.55) 0%,
+        rgba(4, 12, 24, 0.70) 50%,
+        rgba(4, 12, 24, 0.92) 100%
+      );
+    }
+
+    /* Content layer */
+    .page {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 40px 24px 60px;
+      text-align: center;
+    }
+
+    /* Logo */
+    .logo-wrap { margin-bottom: 32px; }
+    .logo-wrap img { height: 36px; opacity: 0.92; }
+
+    /* Invitation text */
+    .invite-label {
+      font-size: 13px; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; color: rgba(255,255,255,0.45);
+      margin-bottom: 10px;
+    }
+    .creator-name {
+      font-size: 28px; font-weight: 700; line-height: 1.2;
+      color: #fff; margin-bottom: 6px;
+    }
+    .story-title {
+      font-size: 16px; font-weight: 300; color: rgba(255,255,255,0.70);
+      margin-bottom: 12px; max-width: 300px;
+    }
+    .record-hint {
+      font-size: 13px; color: rgba(255,255,255,0.38);
+      margin-bottom: 36px; max-width: 260px; line-height: 1.5;
+    }
+
+    /* Primary CTA */
+    .cta-btn {
+      display: block;
+      width: 100%; max-width: 320px;
+      padding: 18px 24px;
+      border-radius: 14px;
+      font-size: 17px; font-weight: 700;
+      text-decoration: none; color: #040c18;
+      background: linear-gradient(135deg, #7ecfe0 0%, #5ab4cc 100%);
+      box-shadow: 0 6px 32px rgba(94,190,218,0.40);
+      margin-bottom: 14px;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .cta-btn:active { transform: scale(0.97); box-shadow: 0 3px 16px rgba(94,190,218,0.30); }
+
+    /* Secondary (app deep link) */
+    .secondary-link {
+      display: block;
+      font-size: 13px; color: rgba(255,255,255,0.45);
+      text-decoration: none; margin-top: 6px;
+      padding: 8px 0;
+    }
+    .secondary-link:hover { color: rgba(255,255,255,0.70); }
+
+    /* Tagline at bottom */
+    .tagline {
+      position: fixed; bottom: 24px;
+      font-size: 11px; color: rgba(255,255,255,0.22);
+      letter-spacing: 0.08em;
+    }
   </style>
 </head>
 <body>
-  <div class="logo">🎬</div>
-  <h1>Reflectly</h1>
-  <p class="sub">הוזמנת לצלם שיקוף!</p>
+  <div class="bg"></div>
 
-  <!-- Phase 1: choose how to record -->
-  <div id="phase-open" class="card">
-    <h2>איך תרצה לצלם?</h2>
-    <p>בחר את האפשרות המתאימה לך:</p>
-    <a class="btn btn-web" href="/record/${storyId}">🌐 צלם ישירות בדפדפן</a>
-    <div class="divider">— או אם יש לך את האפליקציה —</div>
-    <a class="btn btn-primary" href="${appLink}" id="open-btn">פתח את Reflectly</a>
-    <div class="divider">— אין לך עדיין? —</div>
-    <a class="btn btn-secondary" href="#" onclick="showInstall(); return false;">הורד את האפליקציה</a>
+  <div class="page">
+    <div class="logo-wrap">
+      <img src="/assets/rilio-logo-primary.png.png" alt="RILIO">
+    </div>
+
+    <p class="invite-label">הוזמנת</p>
+    <h1 class="creator-name">${escapeHtml(creatorName)}</h1>
+    <p class="story-title">מזמין אותך לסיפור: <strong>${escapeHtml(storyTitle)}</strong></p>
+    <p class="record-hint">תצלם קליפ קצר שיהפוך לחלק מהסרט הסופי</p>
+
+    <a class="cta-btn" href="${recordUrl}">הצטרף לסיפור</a>
+    <a class="secondary-link" href="reflectly://s/${storyId}">יש לי את האפליקציה ←</a>
   </div>
 
-  <!-- Phase 2: install instructions -->
-  <div id="phase-install" class="card">
-    <h2>הורד את Reflectly</h2>
-    <p>לאחר ההתקנה, חזור להודעה בווטסאפ ולחץ שוב על הלינק:</p>
-    <a class="btn btn-ios" href="${APP_STORE_URL}" target="_blank">📱 iPhone — App Store</a>
-    <a class="btn btn-android" href="${PLAY_STORE_URL}" target="_blank">🤖 אנדרואיד — Google Play</a>
-    <div class="divider">— כבר התקנת? —</div>
-    <a class="btn btn-primary" href="${appLink}">פתח את האפליקציה</a>
-    <div class="divider">— או בלי אפליקציה —</div>
-    <a class="btn btn-web" href="/record/${storyId}">🌐 צלם ישירות בדפדפן</a>
-  </div>
-
-  <script>
-    function showInstall() {
-      document.getElementById('phase-open').style.display = 'none';
-      document.getElementById('phase-install').style.display = 'block';
-    }
-  </script>
+  <span class="tagline">RILIO &nbsp;·&nbsp; rilio.io</span>
 </body>
 </html>`);
 });

@@ -49,8 +49,8 @@ export const BottomTabBar = () => {
       >
         <Ionicons
           name={activeTab === 'community' ? 'people' : 'people-outline'}
-          size={24}
-          color={activeTab === 'community' ? '#8446b0' : '#aaa'}
+          size={36}
+          color={activeTab === 'community' ? '#ff6600' : 'rgba(255,102,0,0.6)'}
         />
         <Text style={[styles.label, activeTab === 'community' && styles.labelActive]}>
           {t('bottomTab.community')}
@@ -64,8 +64,8 @@ export const BottomTabBar = () => {
       >
         <Ionicons
           name={activeTab === 'projects' ? 'folder' : 'folder-outline'}
-          size={24}
-          color={activeTab === 'projects' ? '#8446b0' : '#aaa'}
+          size={36}
+          color={activeTab === 'projects' ? '#ff6600' : 'rgba(255,102,0,0.6)'}
         />
         <Text style={[styles.label, activeTab === 'projects' && styles.labelActive]}>
           {t('bottomTab.projects')}
@@ -82,13 +82,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.97)',
+    backgroundColor: 'rgba(10,10,10,0.95)',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#ddd',
+    borderTopColor: 'rgba(255,255,255,0.08)',
     paddingTop: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 12,
   },
@@ -99,12 +99,12 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   label: {
-    fontSize: 11,
-    color: '#aaa',
+    fontSize: 16,
+    color: 'rgba(255,102,0,0.6)',
     fontWeight: '500',
   },
   labelActive: {
-    color: '#8446b0',
+    color: '#ff6600',
     fontWeight: '600',
   },
 });

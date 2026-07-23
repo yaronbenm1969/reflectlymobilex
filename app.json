@@ -4,13 +4,13 @@
     "slug": "reflectly",
     "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/rilio-logo-primary.png.png",
     "userInterfaceStyle": "light",
     "scheme": "reflectly",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/rilio-logo-primary.png.png",
       "resizeMode": "contain",
-      "backgroundColor": "#8446b0"
+      "backgroundColor": "#0a0f1e"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -32,8 +32,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F5F0FA"
+        "foregroundImage": "./assets/rilio-logo-primary.png.png",
+        "backgroundColor": "#0a0f1e"
       },
       "package": "com.reflectly.app",
       "versionCode": 1,
@@ -86,8 +86,8 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
-          "color": "#8446b0"
+          "icon": "./assets/rilio-logo-primary.png.png",
+          "color": "#0a0f1e"
         }
       ],
       "expo-asset",

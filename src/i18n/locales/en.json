@@ -217,8 +217,8 @@
     "test_desc": "Enter as a player to test the flow (including music during recording)",
     "btn_test": "Test as Player",
     "error_no_story": "No active story",
-    "message_with_link": "Hi! 🎬\n\nYou're invited to share a reflection in the story \"{{storyName}}\" 🎥\n\nTap the link and follow the instructions:\n{{participantLink}}\n\nThank you! ❤️",
-    "message_no_link": "Hi! 🎬\n\nYou're invited to share a reflection in the story \"{{storyName}}\"\n\nInstall the RILIO app and open the link.\n\nThank you! ❤️",
+    "message_with_link": "Hey 🎬 {{storyName}}\n\nThere's something only you can share.\nTap here to record:\n{{participantLink}}",
+    "message_no_link": "Hey 🎬 {{storyName}}\n\nThere's something only you can share.\nDownload RILIO and open the link.",
     "story_not_found": "Story not found",
     "native_share_title": "My Story: {{storyName}}"
   },

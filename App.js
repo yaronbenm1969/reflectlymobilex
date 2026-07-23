@@ -14,6 +14,7 @@ import {
   HomeScreen,
   RecordScreen, 
   ReviewScreen, 
+  EditStudioScreen,
   MusicSelectionScreen,
   FormatSelectionScreen,
   BackgroundSelectionScreen,
@@ -35,6 +36,7 @@ import {
   MemberOnboardingScreen,
   InvitationLandingScreen,
 } from './src/screens';
+import { CastingScreen } from './src/screens/CastingScreen';
 import { SideMenu } from './src/components/SideMenu';
 import { BottomTabBar } from './src/components/BottomTabBar';
 import { AccessGate } from './src/components/AccessGate';
@@ -238,10 +240,14 @@ export default function App() {
             route={{ params: navigationParams || {} }} 
           />
         );
+      case 'EditStudio':
+        return <EditStudioScreen />;
+      case 'Casting':
+        return <CastingScreen />;
       case 'MusicSelection':
         return (
-          <MusicSelectionScreen 
-            route={{ params: navigationParams || {} }} 
+          <MusicSelectionScreen
+            route={{ params: navigationParams || {} }}
           />
         );
       case 'FormatSelection':

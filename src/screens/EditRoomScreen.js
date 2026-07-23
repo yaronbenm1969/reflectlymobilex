@@ -664,10 +664,14 @@ export const EditRoomScreen = () => {
               <Ionicons name="cube" size={20} color={theme.colors.secondary} />
               <Text style={styles.settingLabel}>{t('editRoom.setting_format')}</Text>
             </View>
-            <View style={styles.settingRight}>
-              <Text style={styles.settingValue}>{videoFormat || t('editRoom.setting_standard')}</Text>
-              <TouchableOpacity style={styles.inlineChangeButton} onPress={() => go('FormatSelection', { returnTo: 'EditRoom' })}>
-                <Text style={styles.inlineChangeText}>{t('editRoom.setting_change')}</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity style={styles.inlineChangeButton} onPress={() => go('EditStudio', { returnTo: 'EditRoom' })}>
+                <Ionicons name="color-palette-outline" size={13} color={theme.colors.secondary} />
+                <Text style={styles.inlineChangeText}>{t('editRoom.setting_format')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.inlineChangeButton, { backgroundColor: 'rgba(192,98,42,0.12)', borderColor: 'rgba(192,98,42,0.3)' }]} onPress={() => go('Casting', { returnTo: 'EditRoom' })}>
+                <Ionicons name="people-outline" size={13} color="#c0622a" />
+                <Text style={[styles.inlineChangeText, { color: '#c0622a' }]}>{'\u05DC\u05D9\u05D4\u05D5\u05E7'}</Text>
               </TouchableOpacity>
             </View>
           </View>

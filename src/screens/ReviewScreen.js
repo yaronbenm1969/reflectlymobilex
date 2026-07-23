@@ -51,7 +51,7 @@ export const ReviewScreen = ({ route }) => {
       return;
     }
     console.log('🎵 Add Music pressed');
-    go('FormatSelection', { videoUri });
+    go('EditStudio', { videoUri });
   };
 
   return (

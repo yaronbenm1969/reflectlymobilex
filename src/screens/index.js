@@ -3,6 +3,7 @@ export { default as AuthScreen } from './AuthScreen';
 export { HomeScreen } from './HomeScreen';
 export { RecordScreen } from './RecordScreen';
 export { ReviewScreen } from './ReviewScreen';
+export { EditStudioScreen } from './EditStudioScreen';
 export { MusicSelectionScreen } from './MusicSelectionScreen';
 export { FormatSelectionScreen } from './FormatSelectionScreen';
 export { BackgroundSelectionScreen } from './BackgroundSelectionScreen';

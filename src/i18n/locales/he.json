@@ -217,8 +217,8 @@
     "test_desc": "היכנס כשחקן לסיפור הזה כדי לבדוק את הפלואו (כולל מוזיקה בהקלטה)",
     "btn_test": "בדוק כשחקן",
     "error_no_story": "אין סיפור פעיל",
-    "message_with_link": "היי! 🎬\n\nהוזמנת לשתף שיקוף בסיפור \"{{storyName}}\" 🎥\n\nלחץ על הלינק ועקוב אחר ההנחיות:\n{{participantLink}}\n\nתודה! ❤️",
-    "message_no_link": "היי! 🎬\n\nהוזמנת לשתף שיקוף בסיפור \"{{storyName}}\"\n\nהתקן את אפליקציית RILIO ופתח את הלינק.\n\nתודה! ❤️",
+    "message_with_link": "הי 🎬 {{storyName}}\n\nיש משהו שרק אתה יכול לשתף.\nלחץ כאן להקלטה:\n{{participantLink}}",
+    "message_no_link": "הי 🎬 {{storyName}}\n\nיש משהו שרק אתה יכול לשתף.\nהורד את RILIO ופתח את הלינק.",
     "story_not_found": "לא נמצא סיפור",
     "native_share_title": "הסיפור שלי: {{storyName}}"
   },

@@ -7,6 +7,7 @@ import {
   Alert,
   SafeAreaView,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -15,8 +16,27 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
+import { storageService } from '../services/storageService';
+import { storiesService } from '../services/storiesService';
 import theme from '../theme/theme';
-import { Platform } from 'react-native';
+
+// Background draft upload — fire & forget, never blocks navigation
+async function uploadDraftInBackground(uri, storyId) {
+  if (!uri || !storyId) return;
+  try {
+    await storiesService.updateStory(storyId, { draftVideoStatus: 'uploading', draftVideoUrl: null });
+    const result = await storageService.uploadVideo(uri, storyId, 'draft');
+    if (result.success) {
+      await storiesService.updateStory(storyId, { draftVideoStatus: 'ready', draftVideoUrl: result.url });
+      console.log('✅ Draft video backup ready:', result.url);
+    } else {
+      await storiesService.updateStory(storyId, { draftVideoStatus: 'failed' });
+    }
+  } catch (e) {
+    console.error('Draft video backup failed:', e);
+    try { await storiesService.updateStory(storyId, { draftVideoStatus: 'failed' }); } catch {}
+  }
+}
 
 const isWeb = Platform.OS === 'web';
 
@@ -84,6 +104,7 @@ export const RecordScreen = () => {
   const { go, back } = useNav();
   const setLastRecording = useAppState((state) => state.setLastRecording);
   const isCountdownEnabled = useAppState((state) => state.isCountdownEnabled);
+  const currentStoryId = useAppState((state) => state.currentStoryId);
   
   const [permission, requestPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
@@ -183,6 +204,8 @@ export const RecordScreen = () => {
         console.log('✅ Recording completed:', video.uri);
         setRecordedVideo(video.uri);
         setLastRecording(video.uri);
+        // Background draft backup — non-blocking
+        uploadDraftInBackground(video.uri, currentStoryId);
       }
     } catch (error) {
       console.error('❌ Recording error:', error);
@@ -206,10 +229,10 @@ export const RecordScreen = () => {
       const demoUri = 'web-demo-video';
       setRecordedVideo(demoUri);
       setLastRecording(demoUri);
-      go('FormatSelection');
+      go('EditStudio');
       return;
     }
-    
+
     if (!cameraRef.current) return;
 
     try {
@@ -266,7 +289,7 @@ export const RecordScreen = () => {
       <RecordingPreview
         videoUri={recordedVideo}
         onRecordAgain={() => setRecordedVideo(null)}
-        onContinue={() => go('FormatSelection')}
+        onContinue={() => go('EditStudio')}
       />
     );
   }

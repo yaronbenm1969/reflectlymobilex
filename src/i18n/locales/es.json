@@ -217,8 +217,8 @@
     "test_desc": "Entra como jugador para probar el flujo",
     "btn_test": "Probar como jugador",
     "error_no_story": "Sin historia activa",
-    "message_with_link": "¡Hola! 🎬\n\nEstás invitado a compartir una reflexión en la historia \"{{storyName}}\" 🎥\n\nToca el enlace y sigue las instrucciones:\n{{participantLink}}\n\n¡Gracias! ❤️",
-    "message_no_link": "¡Hola! 🎬\n\nEstás invitado a compartir una reflexión en la historia \"{{storyName}}\"\n\nInstala la app RILIO y abre el enlace.\n\n¡Gracias! ❤️",
+    "message_with_link": "Hola 🎬 {{storyName}}\n\nHay algo que solo tú puedes compartir.\nToca aquí para grabar:\n{{participantLink}}",
+    "message_no_link": "Hola 🎬 {{storyName}}\n\nHay algo que solo tú puedes compartir.\nDescarga RILIO y abre el enlace.",
     "story_not_found": "Historia no encontrada",
     "native_share_title": "Mi historia: {{storyName}}"
   },

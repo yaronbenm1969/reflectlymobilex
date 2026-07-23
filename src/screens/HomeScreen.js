@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
@@ -21,12 +22,13 @@ import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestor
 import { db } from '../services/firebase';
 import theme from '../theme/theme';
 
-const HOME_BG_VIDEO = 'https://storage.googleapis.com/reflectly-playback.firebasestorage.app/assets/home-background.mp4';
+const HOME_BG_VIDEO_URL = 'https://storage.googleapis.com/reflectly-playback.firebasestorage.app/assets/home-background.mp4';
+const HOME_BG_VIDEO_CACHE = `${FileSystem.cacheDirectory}home-background.mp4`;
 
 // Clip count → per-clip duration:
 // 1-9 clips  → 60s | 10-20 → 30s | 21-40 → 5s | 40+ → 3s
 const PARTICIPANT_OPTIONS = [
-  { label: '1-9',   clipCount: 3, maxClipDuration: 60 },
+  { label: '1-9',   clipCount: 3, maxClipDuration: 45 },
   { label: '10-20', clipCount: 1, maxClipDuration: 30 },
   { label: '21-40', clipCount: 1, maxClipDuration: 5  },
   { label: '40+',   clipCount: 1, maxClipDuration: 3  },
@@ -45,6 +47,24 @@ export const HomeScreen = () => {
   const user = useAppState((state) => state.user);
   const [localStoryName, setLocalStoryName] = useState(storyName || '');
   const [isCreating, setIsCreating] = useState(false);
+  const [bgVideoUri, setBgVideoUri] = useState(HOME_BG_VIDEO_URL);
+
+  // Cache background video locally after first download
+  useEffect(() => {
+    (async () => {
+      try {
+        const info = await FileSystem.getInfoAsync(HOME_BG_VIDEO_CACHE);
+        if (info.exists) {
+          setBgVideoUri(HOME_BG_VIDEO_CACHE);
+        } else {
+          await FileSystem.downloadAsync(HOME_BG_VIDEO_URL, HOME_BG_VIDEO_CACHE);
+          setBgVideoUri(HOME_BG_VIDEO_CACHE);
+        }
+      } catch (e) {
+        // fallback to remote URL — already set as default
+      }
+    })();
+  }, []);
   const [participantRange, setParticipantRange] = useState('1-9');
   const [pendingCreatorApps, setPendingCreatorApps] = useState([]); // biz: apps awaiting creator approval
   const [myPlayerApps, setMyPlayerApps] = useState([]);             // player: my pending/approved apps
@@ -161,7 +181,7 @@ export const HomeScreen = () => {
       {/* Full-screen looping background video at half speed */}
       <Video
         ref={bgVideoRef}
-        source={{ uri: HOME_BG_VIDEO }}
+        source={{ uri: bgVideoUri }}
         style={styles.bgVideo}
         resizeMode={ResizeMode.COVER}
         shouldPlay
@@ -169,6 +189,8 @@ export const HomeScreen = () => {
         isMuted
         rate={1.0}
         pointerEvents="none"
+        posterSource={require('../../assets/home-bg-poster.jpg')}
+        usePoster
       />
       <View style={styles.bgOverlay} pointerEvents="none" />
 

@@ -436,6 +436,66 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
     .consent-required-badge { display: inline-block; background: #fff3e0; color: #e65100; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 700; margin-bottom: 8px; }
     .consent-declined-card { text-align: center; padding: 32px 20px; }
     .consent-declined-card .emoji-big { margin-bottom: 12px; }
+
+    /* ── Dark water screens (upload + done) ─────────────────── */
+    .dark-step.active {
+      position: fixed; inset: 0; z-index: 200;
+      overflow-y: auto;
+    }
+    .dark-bg {
+      position: fixed; inset: 0;
+      background: url('/assets/home-bg-poster.jpg') center/cover no-repeat;
+      z-index: 0;
+    }
+    .dark-bg::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(to bottom, rgba(4,12,24,0.60) 0%, rgba(4,12,24,0.88) 60%, rgba(4,12,24,0.97) 100%);
+    }
+    .dark-content {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 100vh;
+      padding: 48px 28px 60px; text-align: center; color: #fff;
+    }
+
+    /* Ripple animation */
+    .ripple-container { position: relative; width: 96px; height: 96px; margin: 0 auto 36px; flex-shrink: 0; }
+    .ripple-ring {
+      position: absolute; inset: 0; border-radius: 50%;
+      border: 2px solid rgba(126,207,224,0.55);
+      animation: ripple-out 2.1s ease-out infinite;
+    }
+    .ripple-ring:nth-child(2) { animation-delay: 0.70s; }
+    .ripple-ring:nth-child(3) { animation-delay: 1.40s; }
+    .ripple-core {
+      position: absolute; inset: 30%;
+      background: rgba(126,207,224,0.85); border-radius: 50%;
+    }
+    @keyframes ripple-out {
+      0%   { transform: scale(0.35); opacity: 0.85; }
+      100% { transform: scale(2.60); opacity: 0; }
+    }
+
+    /* Upload text */
+    .upload-title { font-size: 20px; font-weight: 700; margin-bottom: 10px; color: #fff; }
+    .upload-sub   { font-size: 14px; color: rgba(255,255,255,0.55); margin-bottom: 20px; }
+    .dark-progress-wrap { width: 240px; background: rgba(255,255,255,0.12); border-radius: 99px; height: 4px; overflow: hidden; margin: 0 auto 8px; }
+    .dark-progress-fill { height: 100%; background: linear-gradient(90deg, #7ecfe0, #5ab4cc); border-radius: 99px; transition: width 0.3s; width: 0%; }
+    .dark-pct { font-size: 12px; color: rgba(255,255,255,0.35); }
+
+    /* Done screen */
+    .done-logo { height: 28px; opacity: 0.70; margin-bottom: 48px; }
+    .done-check { font-size: 52px; margin-bottom: 20px; }
+    .done-title { font-size: 26px; font-weight: 700; margin-bottom: 10px; color: #fff; }
+    .done-desc  { font-size: 15px; color: rgba(255,255,255,0.65); line-height: 1.7; margin-bottom: 44px; max-width: 280px; }
+    .done-cta-label { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.35); margin-bottom: 14px; }
+    .done-btn {
+      display: block; width: 100%; max-width: 280px; padding: 14px 20px;
+      border-radius: 12px; font-size: 15px; font-weight: 700; text-decoration: none;
+      text-align: center; margin: 0 auto 10px;
+    }
+    .done-btn-ios { background: #fff; color: #000; }
+    .done-btn-android { background: #3ddc84; color: #000; }
   </style>
 </head>
 <body>
@@ -553,29 +613,35 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
     <button class="btn-outline" onclick="reRecord()"></button>
   </div>
 
-  <!-- Step 5: Uploading -->
-  <div id="step-upload" class="step">
-    <div class="card" style="text-align:center">
-      <div class="spinner"></div>
-      <h2 id="upload-title"></h2>
-      <p id="upload-sub"></p>
-      <div class="progress-wrap"><div class="progress-fill" id="upload-progress"></div></div>
-      <p id="upload-pct" style="font-size:13px;color:var(--sub);margin-top:4px">0%</p>
+  <!-- Step 5: Uploading (dark water) -->
+  <div id="step-upload" class="step dark-step">
+    <div class="dark-bg"></div>
+    <div class="dark-content">
+      <div class="ripple-container">
+        <div class="ripple-ring"></div>
+        <div class="ripple-ring"></div>
+        <div class="ripple-ring"></div>
+        <div class="ripple-core"></div>
+      </div>
+      <h2 class="upload-title" id="upload-title"></h2>
+      <p class="upload-sub" id="upload-sub"></p>
+      <div class="dark-progress-wrap"><div class="dark-progress-fill" id="upload-progress"></div></div>
+      <p class="dark-pct" id="upload-pct">0%</p>
     </div>
   </div>
 
-  <!-- Step 6: Done -->
-  <div id="step-done" class="step">
-    <div class="card" style="text-align:center">
-      <div class="emoji-big">🎉</div>
-      <h2 id="done-title"></h2>
-      <p id="done-desc"></p>
-    </div>
-    <div class="card">
-      <h2 style="margin-bottom:8px" id="done-cta-title"></h2>
-      <p id="done-cta-desc"></p>
-      <a class="btn btn-ios" href="${APP_STORE_URL}" target="_blank">${T.iphone}</a>
-      <a class="btn btn-android" href="${PLAY_STORE_URL}" target="_blank">${T.android}</a>
+  <!-- Step 6: Done (dark water emotional) -->
+  <div id="step-done" class="step dark-step">
+    <div class="dark-bg"></div>
+    <div class="dark-content">
+      <img class="done-logo" src="/assets/rilio-logo-primary.png.png" alt="RILIO">
+      <div class="done-check">✨</div>
+      <h2 class="done-title" id="done-title"></h2>
+      <p class="done-desc" id="done-desc"></p>
+      <p class="done-cta-label" id="done-cta-title"></p>
+      <p class="done-desc" id="done-cta-desc" style="margin-bottom:20px;font-size:13px"></p>
+      <a class="done-btn done-btn-ios" href="${APP_STORE_URL}" target="_blank">${T.iphone}</a>
+      <a class="done-btn done-btn-android" href="${PLAY_STORE_URL}" target="_blank">${T.android}</a>
     </div>
   </div>
 
@@ -779,6 +845,8 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
     function showStep(id) {
       document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
       document.getElementById('step-' + id).classList.add('active');
+      // Lock body scroll when dark-water screens are shown (they use position:fixed)
+      document.body.style.overflow = (id === 'upload' || id === 'done') ? 'hidden' : '';
       window.scrollTo(0, 0);
     }
 
