@@ -248,7 +248,7 @@ async function getActiveJob(firestoreDb) {
  * Returns { jobId, outputUrl } on success.
  * Throws on any failure (job is marked 'failed' in Firestore before throw).
  */
-async function renderCubePoc(storyId, { firestoreDb, bucket, uploadToFirebase, isAllowedVideoUrl }) {
+async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, uploadToFirebase, isAllowedVideoUrl }) {
   // ── Gate: feature flag ────────────────────────────────────────────────────
   if (process.env.SERVER_CUBE_RENDER_POC !== 'true') {
     const e = new Error('POC feature flag is disabled');
@@ -311,7 +311,7 @@ async function renderCubePoc(storyId, { firestoreDb, bucket, uploadToFirebase, i
   }
 
   // ── Create Firestore job doc ──────────────────────────────────────────────
-  const jobId = `poc_${storyId}_${Date.now()}`;
+  const jobId = preJobId || `poc_${storyId}_${Date.now()}`;
   const nowDate = new Date();
   await firestoreDb.collection(POC_COLLECTION).doc(jobId).set({
     jobId,

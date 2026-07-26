@@ -3478,12 +3478,16 @@ app.post('/api/poc/render-cube', async (req, res) => {
   const cleanStoryId = storyId.trim();
   if (!firestoreDb) return res.status(503).json({ error: 'Firestore not ready' });
 
+  // Pre-generate jobId before responding so the caller can poll immediately.
+  const pocJobId = `poc_${cleanStoryId}_${Date.now()}`;
+
   // Respond immediately; render runs in background
-  res.json({ success: true, message: 'POC render started', storyId: cleanStoryId });
+  res.json({ success: true, message: 'POC render started', storyId: cleanStoryId, jobId: pocJobId });
 
   setImmediate(async () => {
     try {
       await renderCubePoc(cleanStoryId, {
+        jobId: pocJobId,
         firestoreDb,
         bucket,
         uploadToFirebase,
