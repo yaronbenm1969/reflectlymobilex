@@ -3458,6 +3458,81 @@ app.get('/record-invite', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SERVER-SIDE CUBE POC
+// Feature flag: SERVER_CUBE_RENDER_POC=true (env var) must be set.
+// Rollback: set flag to false — endpoints return 403 immediately.
+// These endpoints NEVER modify stories/{storyId}.finalVideoUrl.
+// ─────────────────────────────────────────────────────────────────────────────
+const { renderCubePoc, POC_COLLECTION } = require('./poc/cube-render-poc');
+
+// POST /api/poc/render-cube
+// Body: { storyId: string }
+// Protected by: x-app-access-code header (via existing middleware) +
+//               SERVER_CUBE_RENDER_POC flag (checked inside renderCubePoc) +
+//               one-active-job guard + Firestore active-job check
+app.post('/api/poc/render-cube', async (req, res) => {
+  const { storyId } = req.body || {};
+  if (!storyId || typeof storyId !== 'string' || storyId.trim().length === 0) {
+    return res.status(400).json({ error: 'storyId is required' });
+  }
+  const cleanStoryId = storyId.trim();
+  if (!firestoreDb) return res.status(503).json({ error: 'Firestore not ready' });
+
+  // Respond immediately; render runs in background
+  res.json({ success: true, message: 'POC render started', storyId: cleanStoryId });
+
+  setImmediate(async () => {
+    try {
+      await renderCubePoc(cleanStoryId, {
+        firestoreDb,
+        bucket,
+        uploadToFirebase,
+        isAllowedVideoUrl,
+      });
+    } catch (err) {
+      // Errors are already written to Firestore by renderCubePoc.
+      // Log here for Render log visibility.
+      console.error('[POC endpoint] render failed:', err.code, err.message);
+    }
+  });
+});
+
+// GET /api/poc/render-cube/:jobId
+// Poll for POC job status.
+app.get('/api/poc/render-cube/:jobId', async (req, res) => {
+  if (process.env.SERVER_CUBE_RENDER_POC !== 'true') {
+    return res.status(403).json({ error: 'POC disabled' });
+  }
+  const { jobId } = req.params;
+  if (!jobId || !jobId.startsWith('poc_')) {
+    return res.status(400).json({ error: 'Invalid jobId' });
+  }
+  if (!firestoreDb) return res.status(503).json({ error: 'Firestore not ready' });
+  try {
+    const snap = await firestoreDb.collection(POC_COLLECTION).doc(jobId).get();
+    if (!snap.exists) return res.status(404).json({ error: 'Job not found' });
+    const d = snap.data();
+    res.json({
+      jobId: d.jobId,
+      storyId: d.storyId,
+      status: d.status,
+      outputUrl: d.outputUrl || null,
+      errorCode: d.errorCode || null,
+      errorMessage: d.errorMessage || null,
+      totalDurationMs: d.totalDurationMs || null,
+      renderAndEncodeDurationMs: d.renderAndEncodeDurationMs || null,
+      frameCount: d.frameCount || null,
+      outputSizeMb: d.outputSizeMb || null,
+      outputResolution: d.outputResolution || null,
+      outputFps: d.outputFps || null,
+      createdAt: d.createdAt,
+      completedAt: d.completedAt || null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Video Converter API running on port ${PORT}`);

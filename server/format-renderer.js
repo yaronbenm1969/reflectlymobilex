@@ -959,4 +959,8 @@ module.exports = {
   cleanupRenderDir,
   generateCubeHTML,
   generateFlipPagesHTML,
+  // Exported for POC use — no behaviour changes
+  downloadFile,
+  getVideoDuration,
+  startLocalVideoServer,
 };
