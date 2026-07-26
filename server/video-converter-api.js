@@ -456,6 +456,48 @@ app.get('/record/:storyId', async (req, res) => {
   res.send(buildWebRecordHtml(storyData, firebaseConfig, invitationContext));
 });
 
+// Trigger Suno music generation in the background for a story.
+// Called fire-and-forget after a player uploads — gives music 2-5 min head start
+// before the creator opens FinalVideoScreen.
+async function triggerBackgroundMusicGeneration(storyId) {
+  if (!firestoreDb) return;
+  try {
+    const storyDoc = await firestoreDb.collection('stories').doc(storyId).get();
+    if (!storyDoc.exists) return;
+    const story = storyDoc.data();
+    // Skip if music already generated for this story
+    if (story.generatedMusicUrl) {
+      console.log(`🎵 bg-music: story ${storyId} already has music, skipping`);
+      return;
+    }
+    // Count reflections to estimate clip count / duration
+    const reflSnap = await firestoreDb.collection('reflections').where('storyId', '==', storyId).get();
+    const numClips = Math.max(reflSnap.docs.length, 1);
+    const totalDuration = numClips * 30; // ~30s per clip estimate
+    const lockedSet = story.lockedSet != null ? parseInt(story.lockedSet) : null;
+    console.log(`🎵 bg-music: starting Suno for story ${storyId} (${numClips} clips, ~${totalDuration}s)`);
+    const { generateMusicForVideo } = require('./music/music-service');
+    const result = await generateMusicForVideo(
+      [{ start: 0, end: totalDuration, text: '' }],
+      totalDuration,
+      null,      // style — auto
+      numClips,
+      firestoreDb,
+      null, null,
+      'suno',    // forceEngine
+      lockedSet
+    );
+    if (result.success && result.musicUrl) {
+      await firestoreDb.collection('stories').doc(storyId).update({ generatedMusicUrl: result.musicUrl });
+      console.log(`✅ bg-music: Suno done for story ${storyId}`);
+    } else {
+      console.warn(`⚠️ bg-music: Suno generation failed for story ${storyId}:`, result.error || 'no musicUrl');
+    }
+  } catch (err) {
+    console.warn(`⚠️ bg-music: error for story ${storyId}:`, err.message);
+  }
+}
+
 // Upload a player clip via server (bypasses Firebase Storage rules for unauthenticated browsers)
 app.post('/api/upload-player-clip', upload.single('video'), async (req, res) => {
   // Rate limit: 10 uploads/IP/hour
@@ -517,6 +559,8 @@ app.post('/api/upload-player-clip', upload.single('video'), async (req, res) => 
       }
 
       sendCreatorNotification(storyId, playerName || null).catch(() => {});
+      // Start Suno music generation now — gives 2-5 min head start before creator opens FinalVideoScreen
+      triggerBackgroundMusicGeneration(storyId).catch(() => {});
       console.log(`✅ Player clip uploaded (bg): ${storagePath}`);
     } catch (err) {
       console.error('❌ upload-player-clip bg failed:', err.message);
@@ -590,6 +634,8 @@ app.post('/api/player-clip-done', async (req, res) => {
 
     // Notify story creator (fire-and-forget)
     sendCreatorNotification(storyId, playerName || null).catch(() => {});
+    // Start Suno music generation now — gives 2-5 min head start before creator opens FinalVideoScreen
+    triggerBackgroundMusicGeneration(storyId).catch(() => {});
 
     console.log(`✅ Player clip done (direct upload): ${storagePath}`);
     res.json({ success: true, url: downloadUrl });
