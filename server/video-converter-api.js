@@ -439,11 +439,21 @@ app.get('/record/:storyId', async (req, res) => {
     hasMusic:       !!(musicUrl || musicTrackId),
     musicName:      story.musicAmbient?.nameHe || story.musicAmbient?.name || null,
     lockedSet:      story.lockedSet || null,
+    language:       story.language || 'he',
+    allowSocialMedia: !!(story.privacySettings?.allowSocialMedia),
+  };
+
+  // Always show consent screen — for direct /join/ links there's no token/invitation
+  const invitationContext = {
+    invitationId: null,
+    participantName: null,
+    requiresPublicConsent: !!(story.privacySettings?.allowSocialMedia),
+    storyId: story.id,
   };
 
   res.set('Content-Type', 'text/html');
   res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.send(buildWebRecordHtml(storyData, firebaseConfig));
+  res.send(buildWebRecordHtml(storyData, firebaseConfig, invitationContext));
 });
 
 // Upload a player clip via server (bypasses Firebase Storage rules for unauthenticated browsers)
@@ -2326,17 +2336,54 @@ function probeVideoHasAudio(videoPath) {
 // POST /api/reencode-for-whatsapp — Re-encodes VFR iOS recording to CFR h264 baseline.
 // Use when recording already has music (performance mode) — no AI music mixing needed,
 // but VFR→CFR conversion is required for WhatsApp to show video instead of audio-only.
+// Optional: backgroundVideoUrl — if provided, colorkey-composites background behind cube before re-encode.
 app.post('/api/reencode-for-whatsapp', express.json(), async (req, res) => {
-  const { videoUrl, storyId } = req.body;
+  const { videoUrl, storyId, backgroundVideoUrl } = req.body;
   if (!videoUrl) return res.status(400).json({ error: 'videoUrl required' });
   try {
     const { reencodeForWhatsApp } = require('./music/mixing-service');
     const jobDir = path.join(tempDir, `reencode_${Date.now()}`);
     fs.mkdirSync(jobDir, { recursive: true });
     const videoPath  = path.join(jobDir, 'video.mp4');
+    const bgPath     = path.join(jobDir, 'background.mp4');
     const outputPath = path.join(jobDir, 'output.mp4');
-    await downloadFile(videoUrl, videoPath);
-    await reencodeForWhatsApp(videoPath, outputPath);
+
+    const downloads = [downloadFile(videoUrl, videoPath)];
+    if (backgroundVideoUrl) downloads.push(downloadFile(backgroundVideoUrl, bgPath));
+    await Promise.all(downloads);
+
+    // Composite background behind cube using colorkey (black areas become transparent)
+    let mixInputPath = videoPath;
+    if (backgroundVideoUrl && fs.existsSync(bgPath) && fs.statSync(bgPath).size > 1000) {
+      const compositedPath = path.join(jobDir, 'composited.mp4');
+      console.log('🎨 Compositing background behind cube (no-music path)...');
+      await new Promise((resolve) => {
+        execFile('ffmpeg', [
+          '-i', bgPath,
+          '-i', videoPath,
+          '-filter_complex',
+          '[1:v]colorkey=color=000000:similarity=0.15:blend=0.05[ck];' +
+          '[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280[bg];' +
+          '[bg][ck]overlay=format=auto[v]',
+          '-map', '[v]',
+          '-map', '1:a?',
+          '-c:v', 'libx264', '-preset', 'fast', '-crf', '22',
+          '-c:a', 'aac', '-shortest',
+          '-y', compositedPath,
+        ], { timeout: 120000 }, (err, _stdout, stderr) => {
+          if (err) {
+            console.warn('⚠️ Background compositing failed, using original:', err.message);
+            if (stderr) console.warn('FFmpeg stderr:', stderr.slice(-300));
+          } else {
+            console.log('✅ Background composited (no-music path)');
+            mixInputPath = compositedPath;
+          }
+          resolve();
+        });
+      });
+    }
+
+    await reencodeForWhatsApp(mixInputPath, outputPath);
     const outputSize = fs.existsSync(outputPath) ? fs.statSync(outputPath).size : 0;
     console.log(`📦 Re-encoded size: ${(outputSize / 1024 / 1024).toFixed(2)} MB`);
     let finalUrl = null;
@@ -3375,6 +3422,23 @@ app.post('/api/invitations/:id/decline', async (req, res) => {
   }
 });
 
+// POST /api/story/:storyId/consent-decline — web player declines (no invitation token)
+app.post('/api/story/:storyId/consent-decline', async (req, res) => {
+  if (!firestoreDb) return res.status(503).json({ error: 'DB not ready' });
+  const { storyId } = req.params;
+  try {
+    await firestoreDb.collection('stories').doc(storyId).update({
+      declinedConsentName: 'שחקן ווב',
+      declinedConsentReason: 'publishing_conflict',
+    });
+    sendConsentDeclinedNotification(storyId, 'שחקן ווב', 'publishing_conflict').catch(() => {});
+    res.json({ success: true });
+  } catch (err) {
+    console.error('story consent-decline error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /invite/:token — web landing page that deep-links to app or shows web consent
 app.get('/invite/:token', async (req, res) => {
   const { token } = req.params;
@@ -3465,12 +3529,49 @@ app.get('/record-invite', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const { renderCubePoc, POC_COLLECTION } = require('./poc/cube-render-poc');
 
+// ─── POC startup cleanup ───────────────────────────────────────────────────
+// On every server start, any render_poc_jobs document left in a non-terminal
+// status (queued/downloading/normalizing/rendering/encoding/uploading) from
+// a previous instance is marked failed with errorCode INSTANCE_RESTART.
+// Only documents that existed before this startup are affected — the query
+// runs before any request handler can create a new job document.
+// _pocReadyPromise is awaited by the POST handler so no new job can start
+// until cleanup is confirmed complete.
+const _pocActiveStatuses = ['queued', 'downloading', 'normalizing', 'rendering', 'encoding', 'uploading'];
+let _pocReadyPromise = Promise.resolve();
+if (firestoreDb) {
+  _pocReadyPromise = firestoreDb.collection(POC_COLLECTION)
+    .where('status', 'in', _pocActiveStatuses)
+    .get()
+    .then(snap => {
+      if (snap.empty) {
+        console.log('[POC] Startup cleanup: no orphaned jobs found');
+        return;
+      }
+      console.log(`[POC] Startup cleanup: marking ${snap.size} orphaned job(s) as failed`);
+      return Promise.all(snap.docs.map(doc => {
+        console.log(`[POC] Startup cleanup: ${doc.id} (was: ${doc.data().status})`);
+        return doc.ref.update({
+          status: 'failed',
+          errorCode: 'INSTANCE_RESTART',
+          errorMessage: 'Server instance restarted while job was active — job state was lost',
+          failedAt: new Date(),
+          updatedAt: new Date(),
+          cleanupStatus: 'done',
+        }).catch(e => console.error(`[POC] Startup cleanup update failed for ${doc.id}:`, e.message));
+      }));
+    })
+    .then(() => console.log('[POC] Startup cleanup complete — ready for new POC jobs'))
+    .catch(e => console.error('[POC] Startup cleanup error (non-fatal):', e.message));
+}
+
 // POST /api/poc/render-cube
 // Body: { storyId: string }
 // Protected by: x-app-access-code header (via existing middleware) +
 //               SERVER_CUBE_RENDER_POC flag (checked inside renderCubePoc) +
 //               one-active-job guard + Firestore active-job check
 app.post('/api/poc/render-cube', async (req, res) => {
+  await _pocReadyPromise; // ensure startup cleanup completed before accepting any new job
   const { storyId } = req.body || {};
   if (!storyId || typeof storyId !== 'string' || storyId.trim().length === 0) {
     return res.status(400).json({ error: 'storyId is required' });

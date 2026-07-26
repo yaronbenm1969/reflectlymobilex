@@ -177,6 +177,9 @@ export const PlayerRecordScreen = () => {
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
       ambient.stop();
       waitingAmbient.stop();
+      // Reset audio session so FinalVideoScreen hears cube video audio on speakers (not earpiece).
+      // expo-camera's recordAsync() leaves allowsRecordingIOS:true which routes audio to earpiece.
+      Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }).catch(() => {});
     };
   }, []);
 

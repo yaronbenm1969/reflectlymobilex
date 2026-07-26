@@ -1282,6 +1282,16 @@ const CubeWebView = ({
         currentRotX = initial.rotX;
         // currentRotY already = initial.rotY + HALF_ANGLE (set before revealFromTopFace)
         floatStartTime = 0;
+        // Pre-position float wrapper to elapsed=0 values before starting the loop.
+        // Without this, floatWrapper jumps from (0,0,0) to the elapsed=0 position on the first frame.
+        (function() {
+          var _fw = document.querySelector('.float-wrapper');
+          if (!_fw) return;
+          var _fy = Math.sin(1)*26 + 16;
+          var _fz = Math.sin(2)*38 + 20 + Math.sin(2)*110 + 70;
+          var _ds = 0.95 + Math.sin(1.5)*0.11;
+          _fw.style.transform = 'translate3d(0px,' + _fy.toFixed(1) + 'px,' + _fz.toFixed(1) + 'px) scale(' + _ds.toFixed(4) + ')';
+        })();
         floatAnimId = requestAnimationFrame(floatLoop);
         // Ensure face-0 is at t=0 (it was paused+reset after unlock, but reset again for safety)
         var face0El = faceVideoElements[getFaceForIndex(0)];
@@ -1744,19 +1754,33 @@ const CubeWebView = ({
         var ds = 0.95 + dp1 + dp2;
         var dtz = Math.sin(elapsed*0.18+2)*110 + Math.cos(elapsed*0.12)*70;
         
-        // Recording canvas background: always solid black to prevent iOS WKWebView canvas taint.
-        // Drawing cross-origin video (customBgEl) taints the canvas → captureStream() returns 1s clips.
-        // Live preview still shows custom background via CSS/DOM layer (unaffected).
+        // Recording canvas: solid fill only — NO drawImage from video elements.
+        // Drawing any cross-origin content (video or customBgEl) taints the canvas on iOS WKWebView
+        // → captureStream() stops recording after 1-2s regardless of CORS headers or blob: URLs.
+        // Live preview still shows real video via CSS/DOM (unaffected by recording canvas).
+        // Server mixing step adds the background video and music on top of this recording.
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, RW, RH);
-        
+
         var visible = [];
         for (var f = 0; f < 6; f++) {
           var fd = computeFace(f, fx, fy, fz + dtz, ds);
           if (fd) visible.push(fd);
         }
         visible.sort(function(a,b) { return a.z - b.z; });
-        for (var i = 0; i < visible.length; i++) drawQuad(visible[i]);
+        // Draw each face as a solid dark-purple polygon — no drawImage → no canvas taint.
+        var REC_FACE_COLORS = ['#2a1060','#1e0a4a','#361270','#180838','#100428','#240e58'];
+        for (var i = 0; i < visible.length; i++) {
+          var rfd = visible[i];
+          ctx.save();
+          ctx.fillStyle = REC_FACE_COLORS[rfd.id] || '#1a0838';
+          ctx.beginPath();
+          ctx.moveTo(rfd.proj[0][0], rfd.proj[0][1]);
+          for (var rpi = 1; rpi < 4; rpi++) ctx.lineTo(rfd.proj[rpi][0], rfd.proj[rpi][1]);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
         
         recAnimId = requestAnimationFrame(renderRecFrame);
       }

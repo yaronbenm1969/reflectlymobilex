@@ -709,15 +709,20 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
     };
 
     window.handleConsentDecline = async function() {
-      if (INVITATION_ID) {
-        try {
+      try {
+        if (INVITATION_ID) {
           await fetch(API_BASE + '/api/invitations/' + INVITATION_ID + '/decline', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reason: 'publishing_conflict' }),
           });
-        } catch (e) { /* non-fatal */ }
-      }
+        } else if (STORY_ID) {
+          await fetch(API_BASE + '/api/story/' + STORY_ID + '/consent-decline', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      } catch (e) { /* non-fatal */ }
       document.getElementById('consent-form-card').style.display = 'none';
       document.getElementById('consent-declined-card').style.display = 'block';
     };

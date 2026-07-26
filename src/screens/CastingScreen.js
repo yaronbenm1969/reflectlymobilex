@@ -61,6 +61,11 @@ export const CastingScreen = () => {
   const returnTo = navigationParams?.returnTo || null;
   const communityMode = communitySettings?.communityMode ?? false;
 
+  // ── Privacy state ──
+  const [allowSocialMedia, setAllowSocialMedia] = useState(
+    communitySettings?.privacySettings?.allowSocialMedia ?? false
+  );
+
   // ── Accordion ──
   const [expandedCard, setExpandedCard] = useState('instructions');
   const toggleCard = (id) => setExpandedCard((prev) => (prev === id ? null : id));
@@ -104,18 +109,24 @@ export const CastingScreen = () => {
     return t('whatsapp.message_with_link', { storyName, participantLink });
   }, [storyName, participantLink, t]);
 
-  const doOpenWhatsApp = async () => {
+  // bare WhatsApp open — no save (used on "invite more" return)
+  const openWhatsApp = async () => {
     try {
       sentToWhatsApp.current = true;
       await Linking.openURL(`whatsapp://send?text=${encodeURIComponent(messageTemplate)}`);
       setSharedCount((prev) => prev + 1);
     } catch {
       sentToWhatsApp.current = false;
-      handleNativeShare();
+      try {
+        const result = await Share.share({ message: messageTemplate, title: storyName });
+        if (result.action === Share.sharedAction) setSharedCount((prev) => prev + 1);
+      } catch (e) { console.error('Share error', e); }
     }
   };
 
-  const handleShareWhatsApp = () => {
+  const handleShareWhatsApp = async () => {
+    const ok = await doSave();
+    if (!ok) return;
     Alert.alert(
       isHe ? 'הזמן משתתפים' : 'Invite Participants',
       isHe
@@ -123,12 +134,14 @@ export const CastingScreen = () => {
         : 'After sending your invitations in WhatsApp, return to Rilio to continue.',
       [
         { text: isHe ? 'ביטול' : 'Cancel', style: 'cancel' },
-        { text: isHe ? 'המשך ל-WhatsApp' : 'Continue to WhatsApp', onPress: doOpenWhatsApp },
+        { text: isHe ? 'המשך ל-WhatsApp' : 'Continue to WhatsApp', onPress: openWhatsApp },
       ],
     );
   };
 
   const handleNativeShare = async () => {
+    const ok = await doSave();
+    if (!ok) return;
     try {
       const result = await Share.share({ message: messageTemplate, title: storyName });
       if (result.action === Share.sharedAction) setSharedCount((prev) => prev + 1);
@@ -164,7 +177,7 @@ export const CastingScreen = () => {
           [
             {
               text: isHe ? 'הזמן עוד' : 'Invite More Participants',
-              onPress: doOpenWhatsApp,
+              onPress: openWhatsApp,
             },
             {
               text: isHe ? 'סיימתי' : "I'm Done",
@@ -268,25 +281,25 @@ export const CastingScreen = () => {
   };
 
   // ── Save ──
-  const handleSave = async () => {
+  // Returns true on success, false on error (does NOT navigate)
+  const doSave = async () => {
+    if (isSaving) return false;
     setIsSaving(true);
     try {
       setPlayerInstructions({ generic: genericInstructions, video1Time: clipTime, video2Time: clipTime, video3Time: clipTime });
       setStoryMaxClipDuration(clipTime);
       setStoryClipCount(selectedParticipantOpt.clipCount);
 
-      if (!currentStoryId) { _navigate(); return; }
+      if (!currentStoryId) return true;
 
       let uploadedVideoUri = null;
       let instructionAudioUrl = null;
 
       if (lastRecordingUri) {
-        // Fresh local recording — upload now
         const result = await storageService.uploadVideo(lastRecordingUri, currentStoryId, 'key');
         if (result.success) uploadedVideoUri = result.url;
-        else { Alert.alert(t('common.error'), t('instructions.error_upload')); setIsSaving(false); return; }
+        else { Alert.alert(t('common.error'), t('instructions.error_upload')); return false; }
       } else {
-        // No local URI — check for background draft (crash recovery)
         const snap = await storiesService.getStory(currentStoryId);
         const draft = snap?.story;
         if (draft?.draftVideoStatus === 'uploading') {
@@ -294,8 +307,7 @@ export const CastingScreen = () => {
             isHe ? 'העלאה בתהליך' : 'Upload in Progress',
             isHe ? 'הסרטון שלך עדיין מועלה ברקע. נסה שוב בעוד רגע.' : 'Your video is still uploading in the background. Please try again in a moment.',
           );
-          setIsSaving(false);
-          return;
+          return false;
         } else if (draft?.draftVideoStatus === 'ready' && draft?.draftVideoUrl) {
           uploadedVideoUri = draft.draftVideoUrl;
           console.log('♻️ Recovered draft video from Firebase:', uploadedVideoUri);
@@ -316,7 +328,8 @@ export const CastingScreen = () => {
         maxParticipants: participantRange,
         maxClipDuration: clipTime,
         clipCount: selectedParticipantOpt.clipCount,
-        draftVideoUrl: null,     // clear draft after final save
+        privacySettings: { allowSocialMedia },
+        draftVideoUrl: null,
         draftVideoStatus: null,
       };
       if (uploadedVideoUri) updateFields.videoUri = uploadedVideoUri;
@@ -325,14 +338,20 @@ export const CastingScreen = () => {
       if (communityMode && returnTo !== 'EditRoom') {
         await storiesService.updateStory(currentStoryId, { status: 'active' });
       }
-
-      _navigate();
+      return true;
     } catch (error) {
       console.error('CastingScreen save error:', error);
       Alert.alert(t('common.error'), t('instructions.error_upload_generic'));
+      return false;
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Only used in community mode / returnTo flow
+  const handleSave = async () => {
+    const ok = await doSave();
+    if (ok) _navigate();
   };
 
   const _navigate = () => {
@@ -409,23 +428,73 @@ export const CastingScreen = () => {
           );
         })}
 
+        {/* Privacy / publishing */}
+        <View style={styles.glassCard}>
+          <View style={[styles.cardHeader, { pointerEvents: 'none' }]}>
+            <View style={styles.cardHeaderLeft}>
+              <View style={styles.cardIconBg}>
+                <Ionicons name="eye-outline" size={18} color="rgba(255,255,255,0.7)" />
+              </View>
+              <Text style={styles.cardTitle}>{isHe ? 'שיתוף ופרסום' : 'Sharing & Publishing'}</Text>
+            </View>
+          </View>
+          <View style={[styles.cardContent, { gap: 8 }]}>
+            <TouchableOpacity
+              style={[styles.privacyOption, !allowSocialMedia && styles.privacyOptionSelected]}
+              onPress={() => setAllowSocialMedia(false)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="lock-closed-outline" size={18} color={!allowSocialMedia ? 'white' : 'rgba(255,255,255,0.55)'} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.privacyOptionTitle, !allowSocialMedia && { color: 'white' }]}>
+                  {isHe ? 'פרטי' : 'Private'}
+                </Text>
+                <Text style={styles.privacyOptionDesc}>
+                  {isHe ? 'הסרטון נשמר עבור המשתתפים בלבד' : 'Video saved for participants only'}
+                </Text>
+              </View>
+              {!allowSocialMedia && <Ionicons name="checkmark-circle" size={20} color={ACCENT} />}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.privacyOption, allowSocialMedia && styles.privacyOptionSelected]}
+              onPress={() => setAllowSocialMedia(true)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="globe-outline" size={18} color={allowSocialMedia ? 'white' : 'rgba(255,255,255,0.55)'} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.privacyOptionTitle, allowSocialMedia && { color: 'white' }]}>
+                  {isHe ? 'ציבורי / רשת חברתית' : 'Public / Social Media'}
+                </Text>
+                <Text style={styles.privacyOptionDesc}>
+                  {isHe ? 'השחקנים יתבקשו לאשר פרסום' : 'Players will be asked to consent to publishing'}
+                </Text>
+              </View>
+              {allowSocialMedia && <Ionicons name="checkmark-circle" size={20} color={ACCENT} />}
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Share / invite section */}
         <View style={styles.shareSection}>
           <Text style={styles.shareSectionTitle}>
             {isHe ? 'שלח הזמנה לשחקנים' : 'Invite Players'}
           </Text>
 
-          <TouchableOpacity style={styles.whatsappBtn} onPress={handleShareWhatsApp} activeOpacity={0.85}>
-            <Ionicons name="logo-whatsapp" size={24} color="white" />
-            <Text style={styles.whatsappBtnText}>{t('whatsapp.btn_whatsapp')}</Text>
-            {sharedCount > 0 && (
-              <View style={styles.sharedBadge}>
-                <Text style={styles.sharedBadgeText}>{sharedCount}</Text>
-              </View>
-            )}
+          <TouchableOpacity style={styles.whatsappBtn} onPress={handleShareWhatsApp} disabled={isSaving} activeOpacity={0.85}>
+            {isSaving
+              ? <ActivityIndicator color="white" />
+              : <>
+                  <Ionicons name="logo-whatsapp" size={24} color="white" />
+                  <Text style={styles.whatsappBtnText}>{t('whatsapp.btn_whatsapp')}</Text>
+                  {sharedCount > 0 && (
+                    <View style={styles.sharedBadge}>
+                      <Text style={styles.sharedBadgeText}>{sharedCount}</Text>
+                    </View>
+                  )}
+                </>}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.nativeShareBtn} onPress={handleNativeShare} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.nativeShareBtn} onPress={handleNativeShare} disabled={isSaving} activeOpacity={0.85}>
             <Ionicons name="share-outline" size={20} color="rgba(255,255,255,0.8)" />
             <Text style={styles.nativeShareBtnText}>{t('whatsapp.btn_other_share')}</Text>
           </TouchableOpacity>
@@ -439,17 +508,19 @@ export const CastingScreen = () => {
         </View>
       </ScrollView>
 
-      {/* Floating save + share button */}
-      <View style={[styles.saveBar, { paddingBottom: insets.bottom + 8 }]}>
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={isSaving} activeOpacity={0.85}>
-          {isSaving
-            ? <ActivityIndicator color="white" />
-            : <>
-                <Ionicons name="send" size={18} color="white" />
-                <Text style={styles.saveBtnText}>{isHe ? 'שמור והמשך' : 'Save & Continue'}</Text>
-              </>}
-        </TouchableOpacity>
-      </View>
+      {/* Floating save button — only in community/returnTo flow */}
+      {(communityMode || returnTo === 'EditRoom') && (
+        <View style={[styles.saveBar, { paddingBottom: insets.bottom + 8 }]}>
+          <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={isSaving} activeOpacity={0.85}>
+            {isSaving
+              ? <ActivityIndicator color="white" />
+              : <>
+                  <Ionicons name="send" size={18} color="white" />
+                  <Text style={styles.saveBtnText}>{isHe ? 'שמור והמשך' : 'Save & Continue'}</Text>
+                </>}
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Section renderers */}
       {null}
@@ -685,6 +756,19 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT, paddingHorizontal: 14,
     paddingVertical: 8, borderRadius: 20,
   },
+  // Privacy
+  privacyOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+  },
+  privacyOptionSelected: {
+    backgroundColor: 'rgba(192,98,42,0.18)',
+    borderColor: ACCENT,
+  },
+  privacyOptionTitle: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.75)', marginBottom: 2 },
+  privacyOptionDesc: { fontSize: 12, color: 'rgba(255,255,255,0.40)' },
   // Share section
   shareSection: {
     backgroundColor: 'rgba(255,255,255,0.07)',

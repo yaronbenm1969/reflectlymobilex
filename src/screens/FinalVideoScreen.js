@@ -247,11 +247,15 @@ export const FinalVideoScreen = () => {
           if (res.story?.generatedMusicUrl) return;
         }
       } catch (e) {}
-      if (attempts < 5) {
+      if (attempts < 1) {
         attempts++;
+        // One 2s retry — give Firestore a second chance (e.g. ProcessingScreen just saved it)
         setTimeout(tryLoad, 2000);
       } else if (!cancelled) {
-        // All Firestore retries exhausted — generate music now (cube-3d bypasses ProcessingScreen)
+        // Music not in Firestore after 2 polls (~4s).
+        // Start Suno generation NOW (8s earlier than waiting for 5 failed polls).
+        // The 30s UI timer still controls when AnimationPlayer unblocks — no blank-screen gap.
+        // When Suno finishes it saves to Firestore → next view loads instantly.
         generateMusicInBackground();
       }
     };
@@ -992,7 +996,7 @@ export const FinalVideoScreen = () => {
               const reRes = await fetch(`${VIDEO_CONVERTER_URL}/api/reencode-for-whatsapp`, {
                 method: 'POST',
                 headers: SERVER_HEADERS,
-                body: JSON.stringify({ videoUrl: finalMp4Url, storyId: currentStoryId }),
+                body: JSON.stringify({ videoUrl: finalMp4Url, storyId: currentStoryId, backgroundVideoUrl: backgroundVideoUrl || null }),
                 signal: reCtrl.signal,
               });
               clearTimeout(reTimeout);
@@ -1001,7 +1005,7 @@ export const FinalVideoScreen = () => {
                 const recodedUrl = reResult.finalUrl || reResult.videoUrl;
                 if (recodedUrl) {
                   finalMp4Url = recodedUrl;
-                  console.log('✅ Re-encoded for WhatsApp (CFR h264 baseline)');
+                  console.log('✅ Re-encoded for WhatsApp (CFR h264 baseline + background)');
                 }
               }
             } catch (reErr) {
@@ -1170,6 +1174,31 @@ export const FinalVideoScreen = () => {
                 }
               } catch (mixErr) {
                 console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
+              }
+            } else if (backgroundVideoUrl) {
+              // No music but background selected — composite background without music
+              console.log('🎨 No music — compositing background behind cube (no-music path)...');
+              setDownloadProgress(t('finalVideo.factory_mixing'));
+              try {
+                const reCtrl = new AbortController();
+                const reTimeout = setTimeout(() => reCtrl.abort(), 4 * 60 * 1000);
+                const reRes = await fetch(`${VIDEO_CONVERTER_URL}/api/reencode-for-whatsapp`, {
+                  method: 'POST',
+                  headers: SERVER_HEADERS,
+                  body: JSON.stringify({ videoUrl: finalMp4Url, storyId: currentStoryId, backgroundVideoUrl }),
+                  signal: reCtrl.signal,
+                });
+                clearTimeout(reTimeout);
+                if (reRes.ok) {
+                  const reResult = await reRes.json();
+                  const recodedUrl = reResult.finalUrl || reResult.videoUrl;
+                  if (recodedUrl) {
+                    finalMp4Url = recodedUrl;
+                    console.log('✅ Background composited (no-music cube path)');
+                  }
+                }
+              } catch (reErr) {
+                console.warn('⚠️ Background compositing failed (no-music cube path):', reErr.message);
               }
             }
 
