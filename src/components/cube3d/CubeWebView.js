@@ -44,45 +44,7 @@ const CubeWebView = ({
   const recordingMetaRef = useRef(null);
   const [logoDataUri, setLogoDataUri] = useState('');
 
-  // Local file path for recording canvas background (downloaded by RN — avoids iOS canvas taint)
-  const bgLocalUriRef = useRef(null);
-  const webViewLoadedRef = useRef(false);
 
-  // Inject local background file URI into WebView recording canvas
-  const injectBgLocal = useCallback((uri) => {
-    if (!webViewRef.current) return;
-    const safe = uri.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    webViewRef.current.injectJavaScript(
-      `if (typeof window._preloadRecBackground === 'function') { window._preloadRecBackground('${safe}'); } true;`
-    );
-  }, []);
-
-  // Download background video to local cache so WebView can load it as file:// (same-origin → no canvas taint)
-  useEffect(() => {
-    if (!backgroundUrl || backgroundMediaType !== 'video') { bgLocalUriRef.current = null; return; }
-    let cancelled = false;
-    bgLocalUriRef.current = null;
-    const localPath = CUBE_HTML_DIR + 'rec_bg.mp4';
-    // Ensure directory exists before downloading (creation happens asynchronously in cubeHTML setup)
-    FileSystem.makeDirectoryAsync(CUBE_HTML_DIR, { intermediates: true })
-      .catch(() => {}) // ignore if already exists
-      .then(() => {
-        if (cancelled) return Promise.reject('cancelled');
-        return FileSystem.downloadAsync(backgroundUrl, localPath);
-      })
-      .then(result => {
-        if (cancelled) return;
-        if (result.status === 200) {
-          bgLocalUriRef.current = result.uri;
-          if (webViewLoadedRef.current) injectBgLocal(result.uri);
-          console.log('[bg] Background cached locally for recording canvas:', result.uri.slice(-40));
-        } else {
-          console.warn('[bg] Background download failed, status:', result.status);
-        }
-      })
-      .catch(e => { if (e !== 'cancelled') console.warn('[bg] Background download error:', e.message); });
-    return () => { cancelled = true; };
-  }, [backgroundUrl, backgroundMediaType, injectBgLocal]);
 
 
   useEffect(() => {
@@ -154,18 +116,13 @@ const CubeWebView = ({
     if (recordNextPlayback && webViewRef.current) {
       console.log('📹 Enabling recording for next playback');
       const safeMusicUrl = musicUrl ? musicUrl.replace(/\\/g, '\\\\').replace(/'/g, "\\'") : '';
-      // If a video background is expected, signal WebView to wait for it even if download still in progress
-      const bgSignal = (backgroundUrl && backgroundMediaType === 'video') ? 'recBgRequired = true;' : '';
       webViewRef.current.injectJavaScript(`
         window._recEnabled = true;
-        ${bgSignal}
         ${safeMusicUrl ? `window._musicUrl = '${safeMusicUrl}'; if (typeof window._preloadMusic === 'function') { window._preloadMusic('${safeMusicUrl}'); }` : ''}
         true;
       `);
-      // Inject local background URI so recording canvas can bake it in (file:// → no canvas taint)
-      if (bgLocalUriRef.current) injectBgLocal(bgLocalUriRef.current);
     }
-  }, [recordNextPlayback, injectBgLocal, backgroundUrl, backgroundMediaType]);
+  }, [recordNextPlayback]);
 
   // Use initial faces for HTML generation - prevents WebView reload on face updates
   const cubeHTML = useMemo(() => {
@@ -1787,40 +1744,6 @@ const CubeWebView = ({
         // visible as white seam lines against colored backgrounds in recordings.
       }
       
-      // Recording canvas background — loaded from local file:// URI (same-origin → no canvas taint).
-      // React Native downloads the background video to CUBE_HTML_DIR/rec_bg.mp4 and injects the
-      // file:// URI via _preloadRecBackground. No crossorigin attribute — file:// is already same-origin.
-      var recBgVideoEl = null;
-      var recBgRequired = false; // true when background URL was injected — startRec waits for it
-      window._preloadRecBackground = function(url) {
-        if (!url) return;
-        recBgRequired = true; // signal startRec to wait up to 8s for background to load
-        console.log('[rec] Loading bg for recording canvas: ' + url.substring(0, 60));
-        var vid = document.createElement('video');
-        vid.muted = true;
-        vid.loop = true;
-        vid.playsInline = true;
-        vid.setAttribute('playsinline', '');
-        // NO crossorigin attribute — file:// is same-origin with the WebView page, so no taint.
-        vid.oncanplay = function() {
-          vid.play().catch(function() {});
-          recBgVideoEl = vid;
-          console.log('[rec] Background ready for recording canvas');
-        };
-        vid.onerror = function() {
-          console.warn('[rec] Background video error — black fallback');
-        };
-        if (url.startsWith('file://') || url.startsWith('blob:')) {
-          vid.src = url;
-          vid.load();
-        } else {
-          // HTTP fallback — fetch as blob to avoid canvas taint
-          fetch(url, { mode: 'cors' })
-            .then(function(r) { if (!r.ok) throw new Error('fetch ' + r.status); return r.blob(); })
-            .then(function(blob) { vid.src = URL.createObjectURL(blob); vid.load(); })
-            .catch(function(e) { console.warn('[rec] Background fetch failed:', e.message); });
-        }
-      };
 
       function renderRecFrame() {
         if (recState !== 'recording') return;
@@ -1834,14 +1757,11 @@ const CubeWebView = ({
         var ds = 0.95 + dp1 + dp2;
         var dtz = Math.sin(elapsed*0.18+2)*110 + Math.cos(elapsed*0.12)*70;
 
-        // Background: draw from local file:// (same-origin → no canvas taint), fallback to black.
-        // Face videos are NOT drawn (cross-origin https:// URLs taint the canvas on iOS WKWebView).
-        if (recBgVideoEl && recBgVideoEl.readyState >= 2) {
-          ctx.drawImage(recBgVideoEl, 0, 0, RW, RH);
-        } else {
-          ctx.fillStyle = '#000';
-          ctx.fillRect(0, 0, RW, RH);
-        }
+        // Always solid black fill — no drawImage from any source.
+        // External video (even file://) taints iOS WKWebView canvas → MediaRecorder stops.
+        // Background is composited server-side via FFmpeg colorkey (reencode-for-whatsapp).
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, RW, RH);
 
         var visible = [];
         for (var f = 0; f < 6; f++) {
@@ -1954,20 +1874,6 @@ const CubeWebView = ({
       
       function startRec(skipWait) {
         if (recState !== 'idle') return;
-        // If background was injected but not yet loaded, wait up to 8s before starting
-        if (recBgRequired && !recBgVideoEl) {
-          console.log('[rec] Waiting for background video to load...');
-          var bgWaited = 0;
-          var bgWaitInterval = setInterval(function() {
-            bgWaited += 100;
-            if (recBgVideoEl || bgWaited >= 8000) {
-              clearInterval(bgWaitInterval);
-              console.log('[rec] Background ' + (recBgVideoEl ? 'ready' : 'timed out') + ' after ' + bgWaited + 'ms');
-              _doStartRec(skipWait);
-            }
-          }, 100);
-          return;
-        }
         _doStartRec(skipWait);
       }
 
@@ -2285,9 +2191,6 @@ const CubeWebView = ({
         onError={(e) => setError(e.nativeEvent.description)}
         onLoad={() => {
           setIsLoading(false);
-          webViewLoadedRef.current = true;
-          // Inject background URI if already downloaded (may have arrived before WebView was ready)
-          if (bgLocalUriRef.current) injectBgLocal(bgLocalUriRef.current);
         }}
         javaScriptEnabled={true}
         domStorageEnabled={true}
