@@ -2393,9 +2393,27 @@ function probeVideoHasAudio(videoPath) {
 // but VFR→CFR conversion is required for WhatsApp to show video instead of audio-only.
 // Optional: backgroundVideoUrl — if provided, colorkey-composites background behind cube before re-encode.
 app.post('/api/reencode-for-whatsapp', express.json(), async (req, res) => {
-  const { videoUrl, storyId, backgroundVideoUrl, performanceMusicTrackUrl, performanceMusicOffsetMs } = req.body;
+  let { videoUrl, storyId, backgroundVideoUrl, performanceMusicTrackUrl, performanceMusicOffsetMs } = req.body;
   if (!videoUrl) return res.status(400).json({ error: 'videoUrl required' });
   try {
+    // Fetch missing fields from Firestore — client may not have them loaded yet (race condition)
+    if (storyId && firestoreDb && (!backgroundVideoUrl || !performanceMusicTrackUrl)) {
+      try {
+        const snap = await firestoreDb.collection('stories').doc(storyId).get();
+        if (snap.exists) {
+          const sd = snap.data();
+          if (!backgroundVideoUrl && sd.backgroundVideoUrl) {
+            backgroundVideoUrl = sd.backgroundVideoUrl;
+            console.log('🖼️ reencode: loaded backgroundVideoUrl from Firestore');
+          }
+          if (!performanceMusicTrackUrl && sd.performanceMusicTrack?.url) {
+            performanceMusicTrackUrl = sd.performanceMusicTrack.url;
+            performanceMusicOffsetMs = sd.performanceMusicTrack?.offsets?.[0] ?? 0;
+            console.log('🎤 reencode: loaded performanceMusicTrack from Firestore');
+          }
+        }
+      } catch (fsErr) { console.warn('reencode Firestore lookup failed:', fsErr.message); }
+    }
     const { reencodeForWhatsApp } = require('./music/mixing-service');
     const jobDir = path.join(tempDir, `reencode_${Date.now()}`);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -2550,13 +2568,23 @@ app.post('/api/test-mix', express.json(), async (req, res) => {
 });
 
 app.post('/api/mix-music-with-video', async (req, res) => {
-  const { videoUrl, musicUrl, musicVolume = 0.15, storyId, replaceAudio = false, clipUrls, backgroundVideoUrl } = req.body;
+  let { videoUrl, musicUrl, musicVolume = 0.15, storyId, replaceAudio = false, clipUrls, backgroundVideoUrl } = req.body;
 
   if (!videoUrl || !musicUrl) {
     return res.status(400).json({ error: 'videoUrl and musicUrl are required' });
   }
 
   try {
+    // Fetch backgroundVideoUrl from Firestore if not provided by client (race condition on first view)
+    if (!backgroundVideoUrl && storyId && firestoreDb) {
+      try {
+        const snap = await firestoreDb.collection('stories').doc(storyId).get();
+        if (snap.exists && snap.data()?.backgroundVideoUrl) {
+          backgroundVideoUrl = snap.data().backgroundVideoUrl;
+          console.log('🖼️ mix-music: loaded backgroundVideoUrl from Firestore');
+        }
+      } catch (fsErr) { console.warn('mix-music Firestore lookup failed:', fsErr.message); }
+    }
     const { mixMusicWithVideo, mixMusicWithVideoNoAudio, mixCubeWithVoicesAndMusic, mixRecordingAudioWithMusic } = require('./music/mixing-service');
 
     const jobDir = path.join(tempDir, `mix_${Date.now()}`);
