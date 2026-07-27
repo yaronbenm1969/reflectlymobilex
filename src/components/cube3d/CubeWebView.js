@@ -154,15 +154,18 @@ const CubeWebView = ({
     if (recordNextPlayback && webViewRef.current) {
       console.log('📹 Enabling recording for next playback');
       const safeMusicUrl = musicUrl ? musicUrl.replace(/\\/g, '\\\\').replace(/'/g, "\\'") : '';
+      // If a video background is expected, signal WebView to wait for it even if download still in progress
+      const bgSignal = (backgroundUrl && backgroundMediaType === 'video') ? 'recBgRequired = true;' : '';
       webViewRef.current.injectJavaScript(`
         window._recEnabled = true;
+        ${bgSignal}
         ${safeMusicUrl ? `window._musicUrl = '${safeMusicUrl}'; if (typeof window._preloadMusic === 'function') { window._preloadMusic('${safeMusicUrl}'); }` : ''}
         true;
       `);
       // Inject local background URI so recording canvas can bake it in (file:// → no canvas taint)
       if (bgLocalUriRef.current) injectBgLocal(bgLocalUriRef.current);
     }
-  }, [recordNextPlayback, injectBgLocal]);
+  }, [recordNextPlayback, injectBgLocal, backgroundUrl, backgroundMediaType]);
 
   // Use initial faces for HTML generation - prevents WebView reload on face updates
   const cubeHTML = useMemo(() => {

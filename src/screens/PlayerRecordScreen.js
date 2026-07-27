@@ -153,6 +153,8 @@ export const PlayerRecordScreen = () => {
   const musicMode = useAppState((state) => state.clipMusicMode);
   const setMusicMode = useAppState((state) => state.setClipMusicMode);
   const setGeneratedMusicUrl = useAppState((state) => state.setGeneratedMusicUrl);
+  // Per-clip music offsets (positionMillis when recording started) for server-side sync
+  const [clipMusicOffsets, setClipMusicOffsets] = useState({});
   const [activeClip, setActiveClip] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTimer, setRecordingTimer] = useState(0);
@@ -248,7 +250,7 @@ export const PlayerRecordScreen = () => {
     if (clipIndex === 0) analyticsService.recordingStarted(storyIdForMusic || playerStoryId);
     if (isWeb) {
       if (musicMode === 'none') { ambient.stop(); }
-      else { ambient.setVolume(0.0025); } // instant — no reload
+      else { ambient.setVolume(0.5); } // earpiece mode on web is N/A but keep volume consistent
       setActiveClip(clipIndex);
       setIsRecording(true);
       setRecordingTimer(0);
@@ -277,11 +279,17 @@ export const PlayerRecordScreen = () => {
       }, 1000);
 
       let volInterval = null;
+      let perfMusicOffsetMs = 0;
       if (musicMode === 'none') { ambient.stop(); }
       else {
-        await ambient.playPhase(1, 0.0025, true);
+        // Capture position BEFORE switching to earpiece mode (position is preserved)
+        perfMusicOffsetMs = await ambient.getCurrentPositionMs();
+        // Route to earpiece — on iOS with allowsRecordingIOS:true, audio goes to earpiece/headphones.
+        // Mic won't pick up music. Play at normal volume so player can hear clearly while singing.
+        await ambient.setVolumeAndMode(0.5, true);
+        setClipMusicOffsets(prev => ({ ...prev, [clipIndex]: perfMusicOffsetMs }));
         // iOS resets audio volume when camera session starts — re-apply every 500ms during recording
-        volInterval = setInterval(() => { ambient.setVolume(0.0025); }, 500);
+        volInterval = setInterval(() => { ambient.setVolume(0.5); }, 500);
       }
 
       const video = await cameraRef.current.recordAsync({
@@ -373,6 +381,7 @@ export const PlayerRecordScreen = () => {
 
     // Upload via server — server responds as soon as it receives the file,
     // then uploads to Firebase in background. Player can close app after this.
+    const perfTrackUrl = resolvedTrackUrl || null;
     const uploadClipToServer = (clipUri, clipIndex) => new Promise((resolve) => {
       const formData = new FormData();
       const uriLower = clipUri.toLowerCase();
@@ -382,6 +391,11 @@ export const PlayerRecordScreen = () => {
       formData.append('clipNumber', String(clipIndex));
       formData.append('playerName', participantName || '');
       formData.append('participantId', participantId);
+      // Performance mode: include track URL + per-clip offset so server can sync music back
+      if (musicMode === 'performance' && perfTrackUrl) {
+        formData.append('performanceMusicTrackUrl', perfTrackUrl);
+        formData.append('performanceMusicOffsetMs', String(clipMusicOffsets[clipIndex - 1] || 0));
+      }
 
       const xhr = new XMLHttpRequest();
       xhr.upload.onprogress = (e) => {

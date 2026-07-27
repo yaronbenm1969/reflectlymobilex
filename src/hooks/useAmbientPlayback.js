@@ -169,11 +169,38 @@ export const useAmbientPlayback = (trackId, directUrl = null) => {
     }
   }, []);
 
+  // Returns current playback position in milliseconds (without restarting)
+  const getCurrentPositionMs = useCallback(async () => {
+    if (!soundRef.current) return 0;
+    try {
+      const status = await soundRef.current.getStatusAsync();
+      return status.isLoaded ? (status.positionMillis || 0) : 0;
+    } catch (e) {
+      return 0;
+    }
+  }, []);
+
+  // Switch audio routing mode + volume without restarting playback.
+  // duringRecording=true routes output to earpiece on iOS (mic won't pick it up).
+  const setVolumeAndMode = useCallback(async (volume, duringRecording = false) => {
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: duringRecording,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+    }).catch(() => {});
+    if (soundRef.current) {
+      try { await soundRef.current.setVolumeAsync(volume); } catch (e) {}
+    }
+  }, []);
+
   return {
     playPhase,
     stop,
     fadeOut,
     setVolume,
+    getCurrentPositionMs,
+    setVolumeAndMode,
     isPlaying,
     isLoaded,
     currentPhase,

@@ -516,7 +516,8 @@ app.post('/api/upload-player-clip', upload.single('video'), async (req, res) => 
     return res.status(415).json({ error: 'Only video files are accepted' });
   }
 
-  const { storyId, playerName, clipNumber = '1', webUid, participantId } = req.body;
+  const { storyId, playerName, clipNumber = '1', webUid, participantId,
+          performanceMusicTrackUrl, performanceMusicOffsetMs } = req.body;
   if (!storyId) { fs.unlinkSync(req.file.path); return res.status(400).json({ error: 'storyId required' }); }
   if (!bucket) { fs.unlinkSync(req.file.path); return res.status(503).json({ error: 'Storage not configured' }); }
 
@@ -553,14 +554,22 @@ app.post('/api/upload-player-clip', upload.single('video'), async (req, res) => 
           status:          'pending',
           createdAt:       new Date(),
         });
-        firestoreDb.collection('stories').doc(storyId).update({
-          pendingReflectionsCount: FieldValue.increment(1),
-        }).catch(() => {});
+        const storyUpdate = { pendingReflectionsCount: FieldValue.increment(1) };
+        // Performance mode: store backing track URL + clip offset so reencode-for-whatsapp can sync
+        if (performanceMusicTrackUrl) {
+          const clipIdx = parseInt(clipNumber, 10) - 1;
+          storyUpdate[`performanceMusicTrack.url`] = performanceMusicTrackUrl;
+          storyUpdate[`performanceMusicTrack.offsets.${clipIdx}`] = parseFloat(performanceMusicOffsetMs) || 0;
+          console.log(`🎤 Performance track stored: clip ${clipNumber}, offset ${performanceMusicOffsetMs}ms`);
+        }
+        firestoreDb.collection('stories').doc(storyId).update(storyUpdate).catch(() => {});
       }
 
       sendCreatorNotification(storyId, playerName || null).catch(() => {});
-      // Start Suno music generation now — gives 2-5 min head start before creator opens FinalVideoScreen
-      triggerBackgroundMusicGeneration(storyId).catch(() => {});
+      // Skip Suno generation if this is a performance (karaoke) recording — use backing track directly
+      if (!performanceMusicTrackUrl) {
+        triggerBackgroundMusicGeneration(storyId).catch(() => {});
+      }
       console.log(`✅ Player clip uploaded (bg): ${storagePath}`);
     } catch (err) {
       console.error('❌ upload-player-clip bg failed:', err.message);
@@ -2384,7 +2393,7 @@ function probeVideoHasAudio(videoPath) {
 // but VFR→CFR conversion is required for WhatsApp to show video instead of audio-only.
 // Optional: backgroundVideoUrl — if provided, colorkey-composites background behind cube before re-encode.
 app.post('/api/reencode-for-whatsapp', express.json(), async (req, res) => {
-  const { videoUrl, storyId, backgroundVideoUrl } = req.body;
+  const { videoUrl, storyId, backgroundVideoUrl, performanceMusicTrackUrl, performanceMusicOffsetMs } = req.body;
   if (!videoUrl) return res.status(400).json({ error: 'videoUrl required' });
   try {
     const { reencodeForWhatsApp } = require('./music/mixing-service');
@@ -2392,10 +2401,12 @@ app.post('/api/reencode-for-whatsapp', express.json(), async (req, res) => {
     fs.mkdirSync(jobDir, { recursive: true });
     const videoPath  = path.join(jobDir, 'video.mp4');
     const bgPath     = path.join(jobDir, 'background.mp4');
+    const perfMusicPath = path.join(jobDir, 'perf_music.mp3');
     const outputPath = path.join(jobDir, 'output.mp4');
 
     const downloads = [downloadFile(videoUrl, videoPath)];
     if (backgroundVideoUrl) downloads.push(downloadFile(backgroundVideoUrl, bgPath));
+    if (performanceMusicTrackUrl) downloads.push(downloadFile(performanceMusicTrackUrl, perfMusicPath));
     await Promise.all(downloads);
 
     // Composite background behind cube using colorkey (black areas become transparent)
@@ -2423,6 +2434,35 @@ app.post('/api/reencode-for-whatsapp', express.json(), async (req, res) => {
           } else {
             console.log('✅ Background composited (no-music path)');
             mixInputPath = compositedPath;
+          }
+          resolve();
+        });
+      });
+    }
+
+    // Performance mode: mix the original backing track back in sync with the clean vocal recording
+    if (performanceMusicTrackUrl && fs.existsSync(perfMusicPath) && fs.statSync(perfMusicPath).size > 1000) {
+      const syncedPath = path.join(jobDir, 'synced.mp4');
+      const offsetSec = ((parseFloat(performanceMusicOffsetMs) || 0) / 1000).toFixed(3);
+      console.log(`🎤 Mixing performance track at offset ${offsetSec}s...`);
+      await new Promise((resolve) => {
+        execFile('ffmpeg', [
+          '-i', mixInputPath,
+          '-ss', offsetSec, '-i', perfMusicPath,
+          '-filter_complex',
+          '[0:a]volume=1.0[voice];[1:a]volume=0.4[music];[voice][music]amix=inputs=2:duration=shortest[a]',
+          '-map', '0:v',
+          '-map', '[a]',
+          '-c:v', 'copy',
+          '-c:a', 'aac', '-b:a', '192k',
+          '-y', syncedPath,
+        ], { timeout: 120000 }, (err, _stdout, stderr) => {
+          if (err) {
+            console.warn('⚠️ Performance music sync failed, using original audio:', err.message);
+            if (stderr) console.warn('FFmpeg stderr:', stderr.slice(-300));
+          } else {
+            console.log('✅ Performance music synced');
+            mixInputPath = syncedPath;
           }
           resolve();
         });

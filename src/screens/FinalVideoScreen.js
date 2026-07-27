@@ -73,6 +73,7 @@ export const FinalVideoScreen = () => {
   const setBackgroundVideoUrl = useAppState((state) => state.setBackgroundVideoUrl);
   const setBackgroundMediaType = useAppState((state) => state.setBackgroundMediaType);
 
+  const [performanceMusicTrack, setPerformanceMusicTrack] = useState(null); // { url, offsets }
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [playbackComplete, setPlaybackComplete] = useState(false);
@@ -237,6 +238,10 @@ export const FinalVideoScreen = () => {
             setBackgroundVideoUrl(res.story.backgroundVideoUrl);
             setBackgroundMediaType(res.story.backgroundMediaType || 'video');
             console.log('🖼️ Loaded backgroundVideoUrl from Firestore');
+          }
+          // Load performance music track (karaoke mode — sync backing track with vocal recording)
+          if (res.story?.performanceMusicTrack?.url) {
+            setPerformanceMusicTrack(res.story.performanceMusicTrack);
           }
           // Load server-processed video URL so getVideoForSharing can use it
           // when finalVideoUri in Zustand is null (e.g. opened from EditRoom)
@@ -986,17 +991,23 @@ export const FinalVideoScreen = () => {
               console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
             }
           } else {
-            // No AI music (e.g. performance mode — music already in recording).
-            // Still must re-encode VFR→CFR h264 baseline for WhatsApp compatibility.
-            console.log('🎵 No AI music — re-encoding VFR→CFR for WhatsApp compatibility...');
+            // No AI music — performance mode: re-encode + mix backing track at recorded offset.
+            console.log('🎤 Performance mode — re-encoding + syncing backing track...');
             setDownloadProgress(t('finalVideo.factory_mixing'));
             try {
               const reCtrl = new AbortController();
               const reTimeout = setTimeout(() => reCtrl.abort(), 4 * 60 * 1000);
+              const perfTrackUrl = performanceMusicTrack?.url || null;
+              const perfOffsetMs = performanceMusicTrack?.offsets?.[0] ?? 0;
               const reRes = await fetch(`${VIDEO_CONVERTER_URL}/api/reencode-for-whatsapp`, {
                 method: 'POST',
                 headers: SERVER_HEADERS,
-                body: JSON.stringify({ videoUrl: finalMp4Url, storyId: currentStoryId, backgroundVideoUrl: backgroundVideoUrl || null }),
+                body: JSON.stringify({
+                  videoUrl: finalMp4Url,
+                  storyId: currentStoryId,
+                  backgroundVideoUrl: backgroundVideoUrl || null,
+                  ...(perfTrackUrl ? { performanceMusicTrackUrl: perfTrackUrl, performanceMusicOffsetMs: perfOffsetMs } : {}),
+                }),
                 signal: reCtrl.signal,
               });
               clearTimeout(reTimeout);
@@ -1175,17 +1186,24 @@ export const FinalVideoScreen = () => {
               } catch (mixErr) {
                 console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
               }
-            } else if (backgroundVideoUrl) {
-              // No music but background selected — composite background without music
-              console.log('🎨 No music — compositing background behind cube (no-music path)...');
+            } else if (backgroundVideoUrl || performanceMusicTrack?.url) {
+              // No Suno music — composite background and/or mix performance backing track
+              console.log('🎨 No Suno — compositing background / performance track...');
               setDownloadProgress(t('finalVideo.factory_mixing'));
               try {
                 const reCtrl = new AbortController();
                 const reTimeout = setTimeout(() => reCtrl.abort(), 4 * 60 * 1000);
+                const perfTrackUrl2 = performanceMusicTrack?.url || null;
+                const perfOffsetMs2 = performanceMusicTrack?.offsets?.[0] ?? 0;
                 const reRes = await fetch(`${VIDEO_CONVERTER_URL}/api/reencode-for-whatsapp`, {
                   method: 'POST',
                   headers: SERVER_HEADERS,
-                  body: JSON.stringify({ videoUrl: finalMp4Url, storyId: currentStoryId, backgroundVideoUrl }),
+                  body: JSON.stringify({
+                    videoUrl: finalMp4Url,
+                    storyId: currentStoryId,
+                    backgroundVideoUrl: backgroundVideoUrl || null,
+                    ...(perfTrackUrl2 ? { performanceMusicTrackUrl: perfTrackUrl2, performanceMusicOffsetMs: perfOffsetMs2 } : {}),
+                  }),
                   signal: reCtrl.signal,
                 });
                 clearTimeout(reTimeout);
