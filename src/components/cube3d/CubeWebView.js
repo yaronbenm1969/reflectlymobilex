@@ -63,16 +63,24 @@ const CubeWebView = ({
     let cancelled = false;
     bgLocalUriRef.current = null;
     const localPath = CUBE_HTML_DIR + 'rec_bg.mp4';
-    FileSystem.downloadAsync(backgroundUrl, localPath)
+    // Ensure directory exists before downloading (creation happens asynchronously in cubeHTML setup)
+    FileSystem.makeDirectoryAsync(CUBE_HTML_DIR, { intermediates: true })
+      .catch(() => {}) // ignore if already exists
+      .then(() => {
+        if (cancelled) return Promise.reject('cancelled');
+        return FileSystem.downloadAsync(backgroundUrl, localPath);
+      })
       .then(result => {
         if (cancelled) return;
         if (result.status === 200) {
           bgLocalUriRef.current = result.uri;
           if (webViewLoadedRef.current) injectBgLocal(result.uri);
-          console.log('[bg] Background cached locally for recording canvas');
+          console.log('[bg] Background cached locally for recording canvas:', result.uri.slice(-40));
+        } else {
+          console.warn('[bg] Background download failed, status:', result.status);
         }
       })
-      .catch(e => console.warn('[bg] Background download failed:', e.message));
+      .catch(e => { if (e !== 'cancelled') console.warn('[bg] Background download error:', e.message); });
     return () => { cancelled = true; };
   }, [backgroundUrl, backgroundMediaType, injectBgLocal]);
 

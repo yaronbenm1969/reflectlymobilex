@@ -1673,12 +1673,19 @@ export const FinalVideoScreen = () => {
     setBackgroundVideoUrl(url);
     setBackgroundMediaType(mediaType);
     setShowBgPicker(false);
+    // Persist to Firestore so background survives app restarts
+    if (currentStoryId) {
+      storiesService.updateStory(currentStoryId, { backgroundVideoUrl: url, backgroundMediaType: mediaType }).catch(() => {});
+    }
   };
 
   const resetBg = () => {
     setBackgroundVideoUrl(null);
     setBackgroundMediaType(null);
     setShowBgPicker(false);
+    if (currentStoryId) {
+      storiesService.updateStory(currentStoryId, { backgroundVideoUrl: null, backgroundMediaType: null }).catch(() => {});
+    }
   };
 
   const pickBgFromGallery = async () => {
