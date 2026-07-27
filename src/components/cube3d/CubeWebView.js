@@ -1788,8 +1788,10 @@ const CubeWebView = ({
       // React Native downloads the background video to CUBE_HTML_DIR/rec_bg.mp4 and injects the
       // file:// URI via _preloadRecBackground. No crossorigin attribute — file:// is already same-origin.
       var recBgVideoEl = null;
+      var recBgRequired = false; // true when background URL was injected — startRec waits for it
       window._preloadRecBackground = function(url) {
         if (!url) return;
+        recBgRequired = true; // signal startRec to wait up to 8s for background to load
         console.log('[rec] Loading bg for recording canvas: ' + url.substring(0, 60));
         var vid = document.createElement('video');
         vid.muted = true;
@@ -1805,8 +1807,16 @@ const CubeWebView = ({
         vid.onerror = function() {
           console.warn('[rec] Background video error — black fallback');
         };
-        vid.src = url;
-        vid.load();
+        if (url.startsWith('file://') || url.startsWith('blob:')) {
+          vid.src = url;
+          vid.load();
+        } else {
+          // HTTP fallback — fetch as blob to avoid canvas taint
+          fetch(url, { mode: 'cors' })
+            .then(function(r) { if (!r.ok) throw new Error('fetch ' + r.status); return r.blob(); })
+            .then(function(blob) { vid.src = URL.createObjectURL(blob); vid.load(); })
+            .catch(function(e) { console.warn('[rec] Background fetch failed:', e.message); });
+        }
       };
 
       function renderRecFrame() {
@@ -1941,6 +1951,24 @@ const CubeWebView = ({
       
       function startRec(skipWait) {
         if (recState !== 'idle') return;
+        // If background was injected but not yet loaded, wait up to 8s before starting
+        if (recBgRequired && !recBgVideoEl) {
+          console.log('[rec] Waiting for background video to load...');
+          var bgWaited = 0;
+          var bgWaitInterval = setInterval(function() {
+            bgWaited += 100;
+            if (recBgVideoEl || bgWaited >= 8000) {
+              clearInterval(bgWaitInterval);
+              console.log('[rec] Background ' + (recBgVideoEl ? 'ready' : 'timed out') + ' after ' + bgWaited + 'ms');
+              _doStartRec(skipWait);
+            }
+          }, 100);
+          return;
+        }
+        _doStartRec(skipWait);
+      }
+
+      function _doStartRec(skipWait) {
         // skipWait=true: start immediately (used when triggered by videoStart — video is already playing)
         if (skipWait) {
           actualStartRec();
