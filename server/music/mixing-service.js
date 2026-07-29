@@ -525,15 +525,19 @@ async function mixCubeWithVoicesAndMusic(videoPath, clipPaths, musicPath, output
   });
 }
 
-// Remux iOS recording for WhatsApp (no music added) — copy video stream, re-encode audio only.
-// The raw iOS WebView h264 stream IS WhatsApp-compatible; re-encoding it breaks playback.
+// Re-encode iOS recording for WhatsApp — force CFR h264 baseline so WhatsApp shows video (not audio-only).
+// iOS MediaRecorder produces VFR mp4; WhatsApp requires CFR. Using -c:v copy preserves VFR → audio-only.
 async function reencodeForWhatsApp(videoPath, outputPath) {
-  console.log('🎬 Remuxing for WhatsApp (copy video, re-encode audio only)...');
+  console.log('🎬 Re-encoding for WhatsApp (CFR h264 baseline)...');
   const args = [
     '-i', videoPath,
-    '-map', '0:v',
-    '-map', '0:a',
-    '-c:v', 'copy',
+    '-vf', 'fps=30',           // Force CFR 30fps (converts iOS VFR → CFR)
+    '-c:v', 'libx264',         // Re-encode video (not copy) — required for VFR→CFR
+    '-preset', 'fast',
+    '-crf', '23',
+    '-profile:v', 'baseline',  // Maximum WhatsApp compatibility
+    '-pix_fmt', 'yuv420p',
+    '-bf', '0',
     '-c:a', 'aac', '-b:a', '192k',
     '-ar', '44100', '-ac', '2',
     '-movflags', '+faststart',
@@ -546,7 +550,7 @@ async function reencodeForWhatsApp(videoPath, outputPath) {
         console.error('FFmpeg stderr:', stderr?.substring(0, 300));
         reject(err);
       } else {
-        console.log('✅ Remuxed for WhatsApp (video copied, audio re-encoded):', outputPath);
+        console.log('✅ Re-encoded for WhatsApp (CFR h264 baseline):', outputPath);
         resolve(outputPath);
       }
     });

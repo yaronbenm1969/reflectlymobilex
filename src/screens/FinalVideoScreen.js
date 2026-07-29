@@ -122,11 +122,12 @@ export const FinalVideoScreen = () => {
   useEffect(() => {
     generatedMusicUrlRef.current = generatedMusicUrl;
     // URL arrived while cube was already playing — start music immediately.
+    // Skip if auto-recording is in progress (avoids abrupt music disrupting speech mid-recording).
     // Use pendingMusicStartRef (ref) not cubeStarted (state) to avoid stale closure.
-    if (generatedMusicUrl && pendingMusicStartRef.current && !aiMusicSoundRef.current) {
+    if (generatedMusicUrl && pendingMusicStartRef.current && !aiMusicSoundRef.current && !recordNextPlayback) {
       startAiMusic();
     }
-  }, [generatedMusicUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [generatedMusicUrl, recordNextPlayback]); // eslint-disable-line react-hooks/exhaustive-deps
   const musicTimedOutRef = useRef(false);
   useEffect(() => { musicTimedOutRef.current = musicTimedOut; }, [musicTimedOut]);
   const firestoreVideoUrlRef = useRef(null); // videoUrl/finalVideoUrl loaded from Firestore
@@ -405,10 +406,16 @@ export const FinalVideoScreen = () => {
       }
       const { sound } = await Audio.Sound.createAsync(
         { uri: musicUrl },
-        { shouldPlay: true, volume: 0.12, isLooping: true }
+        { shouldPlay: true, volume: 0, isLooping: true }
       );
       aiMusicSoundRef.current = sound;
-      console.log('🎵 AI music started for cube playback');
+      console.log('🎵 AI music started for cube playback (fading in)...');
+      // Fade in over ~1.5s so music doesn't abruptly interrupt speech audio
+      for (let i = 1; i <= 12; i++) {
+        if (!aiMusicSoundRef.current) break;
+        try { await sound.setVolumeAsync(0.01 * i); } catch (e) { break; }
+        await new Promise(r => setTimeout(r, 125));
+      }
     } catch (err) {
       console.warn('AI music playback failed:', err.message);
     }
