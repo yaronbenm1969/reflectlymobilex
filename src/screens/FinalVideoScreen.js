@@ -681,12 +681,20 @@ export const FinalVideoScreen = () => {
                      'reflectly-mobile-x--yaronbenm1.replit.app';
       const watchUrl = `https://${domain}/s/${currentStoryId}`;
       const text = t('finalVideo.whatsapp_share_text', { storyName }) + '\n' + watchUrl;
+
+      // If no finalVideoUrl yet → process video first so web player shows clean watch view.
+      // getVideoForSharing triggers recording → upload → server mix → saves finalVideoUrl to Firestore.
+      const hasProcessedUrl = firestoreVideoUrlRef.current || firebaseUrlRef.current;
+      if (!hasProcessedUrl) {
+        await getVideoForSharing('מכין לשיתוף...');
+        // After processing, setShowEndScreen(true) was called — end screen is back.
+      }
+
       const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(text)}`;
       const canOpen = await Linking.canOpenURL(whatsappUrl);
       if (canOpen) {
         await Linking.openURL(whatsappUrl);
       } else {
-        // WhatsApp not installed — fall back to general share
         await Share.share({ message: text, url: watchUrl });
       }
     } catch (error) {
