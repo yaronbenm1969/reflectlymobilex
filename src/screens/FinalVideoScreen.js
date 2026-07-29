@@ -1786,8 +1786,9 @@ export const FinalVideoScreen = () => {
               if (generatedMusicUrlRef.current) {
                 startAiMusic();
               } else {
-                // Suno not ready yet — play ambient library music as fallback
-                startAmbientMusic();
+                // Suno not ready yet — play ambient library music as fallback.
+                // Delay 1.2s so VideoFactoryWaiting's fadeOut (1000ms) finishes first.
+                setTimeout(() => { if (!aiMusicSoundRef.current) startAmbientMusic(); }, 1200);
               }
               if (recordNextPlayback) {
                 setClientRecordingInProgress(true);
@@ -1838,8 +1839,8 @@ export const FinalVideoScreen = () => {
         </View>
       )}
 
-      {/* Factory Waiting Screen — replaces old music banner */}
-      {isAnimatedFormat && !generatedMusicUrl && !musicTimedOut && !musicServerDown && (
+      {/* Factory Waiting Screen — only while waiting for Suno, before animation starts */}
+      {isAnimatedFormat && !generatedMusicUrl && !musicTimedOut && !musicServerDown && !isCubeFullscreen && !videoHasPlayed && (
         <VideoFactoryWaiting estimatedSeconds={180} storyName={storyName} />
       )}
 
