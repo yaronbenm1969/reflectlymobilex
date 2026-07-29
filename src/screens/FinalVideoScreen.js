@@ -873,11 +873,9 @@ export const FinalVideoScreen = () => {
     console.log('📹 Client recording supported:', supported, 'format:', videoFormat);
     setClientRecordingSupported(supported);
     clientRecordingSupportedRef.current = supported;
-    if (supported && isAnimatedFormat && !autoRecordTriggeredRef.current) {
-      console.log('📹 Auto-recording enabled - will record first playback');
-      autoRecordTriggeredRef.current = true;
-      setRecordNextPlayback(true);
-    }
+    // No auto-record on first view — user watches cleanly with music.
+    // getVideoForSharing() triggers performClientRecording() on demand
+    // when user taps Instagram / TikTok and no cached URL exists.
   };
 
   const handleRecordingComplete = async (fileUri, meta = {}) => {
