@@ -125,7 +125,7 @@ export const FinalVideoScreen = () => {
     // Skip if auto-recording is in progress (avoids abrupt music disrupting speech mid-recording).
     // Use pendingMusicStartRef (ref) not cubeStarted (state) to avoid stale closure.
     if (generatedMusicUrl && pendingMusicStartRef.current && !aiMusicSoundRef.current && !recordNextPlayback) {
-      startAiMusic();
+      stopAmbientMusic().then(() => startAiMusic());
     }
   }, [generatedMusicUrl, recordNextPlayback]); // eslint-disable-line react-hooks/exhaustive-deps
   const musicTimedOutRef = useRef(false);
@@ -640,6 +640,26 @@ export const FinalVideoScreen = () => {
     } catch (error) {
       console.error('Error sharing:', error);
       Alert.alert(t('common.error'), t('finalVideo.error_share_video'));
+    }
+  };
+
+  const handleShareToWhatsApp = async () => {
+    try {
+      analyticsService.shareClicked(currentStoryId, 'whatsapp');
+      const domain = Constants.expoConfig?.extra?.webPlayerDomain ||
+                     'reflectly-mobile-x--yaronbenm1.replit.app';
+      const watchUrl = `https://${domain}/s/${currentStoryId}`;
+      const text = t('finalVideo.whatsapp_share_text', { storyName }) + '\n' + watchUrl;
+      const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(text)}`;
+      const canOpen = await Linking.canOpenURL(whatsappUrl);
+      if (canOpen) {
+        await Linking.openURL(whatsappUrl);
+      } else {
+        // WhatsApp not installed — fall back to general share
+        await Share.share({ message: text, url: watchUrl });
+      }
+    } catch (error) {
+      console.error('WhatsApp share error:', error);
     }
   };
 
@@ -1763,7 +1783,12 @@ export const FinalVideoScreen = () => {
               setIsCubeFullscreen(true);
               pendingMusicStartRef.current = true;
               setCubeStarted(true);
-              startAiMusic();
+              if (generatedMusicUrlRef.current) {
+                startAiMusic();
+              } else {
+                // Suno not ready yet — play ambient library music as fallback
+                startAmbientMusic();
+              }
               if (recordNextPlayback) {
                 setClientRecordingInProgress(true);
               }
@@ -1913,7 +1938,17 @@ export const FinalVideoScreen = () => {
               <Text style={styles.endScreenSectionTitle}>{t('finalVideo.section_social')}</Text>
 
               <View style={styles.endScreenSocials}>
-                <TouchableOpacity 
+                <TouchableOpacity
+                  style={styles.socialBtn}
+                  onPress={handleShareToWhatsApp}
+                >
+                  <View style={[styles.socialIconCircle, { backgroundColor: '#25D366' }]}>
+                    <Ionicons name="logo-whatsapp" size={30} color="white" />
+                  </View>
+                  <Text style={styles.socialLabel}>{t('finalVideo.social_whatsapp')}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
                   style={[styles.socialBtn, isDownloading && styles.disabledBtn]}
                   onPress={handleShareToFacebook}
                   disabled={isDownloading}
