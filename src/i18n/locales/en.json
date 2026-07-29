@@ -520,6 +520,8 @@
     "social_facebook": "Facebook",
     "social_instagram": "Instagram",
     "social_tiktok": "TikTok",
+    "social_whatsapp": "WhatsApp",
+    "whatsapp_share_text": "Watch my story: \"{{storyName}}\" 🎬",
     "btn_go_home": "Go to Home",
     "btn_watch_again": "Watch Again",
     "guide_title": "3D Video Recording",

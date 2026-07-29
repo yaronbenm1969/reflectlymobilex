@@ -1651,12 +1651,33 @@ export const FinalVideoScreen = () => {
     }
   };
 
+  const getWatchUrl = () => {
+    const domain = Constants.expoConfig?.extra?.webPlayerDomain ||
+                   'reflectly-mobile-x--yaronbenm1.replit.app';
+    return `https://${domain}/s/${currentStoryId}`;
+  };
+
+  const handleShareToWhatsApp = async () => {
+    try {
+      const watchUrl = getWatchUrl();
+      const message = `${t('finalVideo.whatsapp_share_text', { storyName })}\n${watchUrl}`;
+      const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
+      const canOpen = await Linking.canOpenURL(whatsappUrl);
+      if (canOpen) {
+        await Linking.openURL(whatsappUrl);
+      } else {
+        // WhatsApp not installed — fall back to native share sheet
+        await Share.share({ message, title: storyName, url: watchUrl });
+      }
+    } catch (error) {
+      console.error('WhatsApp share error:', error);
+    }
+  };
+
   const handleGeneralShare = async () => {
     console.log('🔗 handleGeneralShare v2 - link share');
     try {
-      const domain = Constants.expoConfig?.extra?.webPlayerDomain ||
-                     'reflectly-mobile-x--yaronbenm1.replit.app';
-      const watchUrl = `https://${domain}/s/${currentStoryId}`;
+      const watchUrl = getWatchUrl();
       await Share.share({
         message: `צפה בסיפור שלי: "${storyName}" 🎬\n${watchUrl}`,
         title: storyName,
@@ -1932,12 +1953,22 @@ export const FinalVideoScreen = () => {
               <Text style={styles.endScreenSectionTitle}>{t('finalVideo.section_social')}</Text>
 
               <View style={styles.endScreenSocials}>
-                <TouchableOpacity 
+                <TouchableOpacity
+                  style={styles.socialBtn}
+                  onPress={handleShareToWhatsApp}
+                >
+                  <View style={[styles.socialIconCircle, { backgroundColor: '#25D366' }]}>
+                    <Ionicons name="logo-whatsapp" size={30} color="white" />
+                  </View>
+                  <Text style={styles.socialLabel}>{t('finalVideo.social_whatsapp')}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
                   style={[styles.socialBtn, isDownloading && styles.disabledBtn]}
                   onPress={handleShareToFacebook}
                   disabled={isDownloading}
                 >
-                  <View style={[styles.socialIconCircle, { backgroundColor: '#1877F2' }]}>  
+                  <View style={[styles.socialIconCircle, { backgroundColor: '#1877F2' }]}>
                     <Ionicons name="logo-facebook" size={30} color="white" />
                   </View>
                   <Text style={styles.socialLabel}>{t('finalVideo.social_facebook')}</Text>

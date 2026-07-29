@@ -520,6 +520,8 @@
     "social_facebook": "פייסבוק",
     "social_instagram": "אינסטגרם",
     "social_tiktok": "טיקטוק",
+    "social_whatsapp": "וואטסאפ",
+    "whatsapp_share_text": "צפה בסיפור שלי: \"{{storyName}}\" 🎬",
     "btn_go_home": "חזור לדף הבית",
     "btn_watch_again": "צפה שוב",
     "guide_title": "הקלטת סרטון תלת-מימד",
