@@ -1783,11 +1783,10 @@ export const FinalVideoScreen = () => {
               setCubeStarted(true);
               if (generatedMusicUrlRef.current) {
                 startAiMusic();
-              } else {
-                // Suno not ready yet — play ambient library music as fallback.
-                // Delay 1.2s so VideoFactoryWaiting's fadeOut (1000ms) finishes first.
-                setTimeout(() => { if (!aiMusicSoundRef.current) startAmbientMusic(); }, 1200);
               }
+              // Do NOT start ambient music here — Audio.Sound.createAsync / setAudioModeAsync
+              // while face-0 is buffering causes iOS to interrupt the WKWebView audio session,
+              // stalling face-0 for 3-6s before the watchdog skips to face-1.
               if (recordNextPlayback) {
                 setClientRecordingInProgress(true);
               }
