@@ -2503,6 +2503,13 @@ app.post('/api/reencode-for-whatsapp', express.json(), async (req, res) => {
       finalUrl = `${serverBase}/converted/${filename}`;
     }
     fs.rmSync(jobDir, { recursive: true, force: true });
+    // Save processed URL to Firestore so client can get it via polling
+    if (firestoreDb && storyId && finalUrl) {
+      firestoreDb.collection('stories').doc(storyId).update({
+        finalVideoUrl: finalUrl,
+        status: 'completed',
+      }).catch(e => console.warn('reencode: Firestore save failed:', e.message));
+    }
     res.json({ success: true, finalUrl, videoUrl: finalUrl });
   } catch (err) {
     console.error('❌ Re-encode for WhatsApp failed:', err);
@@ -2721,6 +2728,13 @@ app.post('/api/mix-music-with-video', async (req, res) => {
 
     fs.rmSync(jobDir, { recursive: true, force: true });
 
+    // Save processed URL to Firestore — client polls instead of waiting for this long HTTP response
+    if (firestoreDb && storyId && finalUrl) {
+      firestoreDb.collection('stories').doc(storyId).update({
+        finalVideoUrl: finalUrl,
+        status: 'completed',
+      }).catch(e => console.warn('mix-music: Firestore save failed:', e.message));
+    }
     res.json({ success: true, finalUrl, videoUrl: finalUrl });
   } catch (error) {
     console.error('❌ Mix music with video failed:', error);

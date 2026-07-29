@@ -854,6 +854,10 @@ export const FinalVideoScreen = () => {
     setClientRecordingSupported(supported);
     clientRecordingSupportedRef.current = supported;
     if (supported && isAnimatedFormat && !autoRecordTriggeredRef.current) {
+      if (firestoreVideoUrlRef.current) {
+        console.log('📹 Skipping auto-record — processed final video already exists in Firestore');
+        return;
+      }
       console.log('📹 Auto-recording enabled - will record first playback');
       autoRecordTriggeredRef.current = true;
       setRecordNextPlayback(true);
@@ -927,7 +931,6 @@ export const FinalVideoScreen = () => {
     try {
       setIsUploadingRecording(true);
       isUploadingRef.current = true;
-      startAmbientMusic();
 
       if (isAlreadyMp4) {
         console.log('📹 Recording is already MP4 (iOS) - uploading directly...');
@@ -945,6 +948,17 @@ export const FinalVideoScreen = () => {
         if (uploadResult.success && uploadResult.url) {
           console.log('📹 MP4 uploaded to Firebase:', uploadResult.url.substring(0, 60));
           let finalMp4Url = uploadResult.url;
+
+          // Save source URL now (needed for /api/remix-music later)
+          storiesService.updateStory(currentStoryId, { sourceVideoUrl: uploadResult.url }).catch(() => {});
+
+          // Clear raw local cache — getVideoForSharing will wait for processed URL via isUploadingRef
+          cachedRecordingRef.current = null;
+          setCachedRecordingUri(null);
+
+          // Show end screen immediately — mixing continues in background.
+          // Badge shows spinner (isUploadingRecording=true) → ✅ when mix finishes (conversionSucceeded=true).
+          setShowEndScreen(true);
 
           // Wait for AI music generation if still in progress (up to 3 min)
           // UI timeout (30s) fires to unblock AnimationPlayer — but mix should still wait longer.
@@ -977,15 +991,11 @@ export const FinalVideoScreen = () => {
             console.log('🎵 Mixing AI music into recording (using recording audio for sync)...');
             setDownloadProgress(t('finalVideo.factory_mixing'));
             try {
-              const mixCtrl = new AbortController();
-              const mixTimeout = setTimeout(() => mixCtrl.abort(), 4 * 60 * 1000);
               const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                 method: 'POST',
                 headers: SERVER_HEADERS,
                 body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.06, backgroundVideoUrl: backgroundVideoUrl || null, storyId: currentStoryId }),
-                signal: mixCtrl.signal,
               });
-              clearTimeout(mixTimeout);
               if (mixRes.ok) {
                 const mixResult = await mixRes.json();
                 const mixedUrl = mixResult.finalUrl || mixResult.videoUrl;
@@ -995,15 +1005,20 @@ export const FinalVideoScreen = () => {
                 }
               }
             } catch (mixErr) {
-              console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
+              console.warn('⚠️ Music mixing failed, checking Firestore for server-saved URL...');
+              try {
+                const fsRes = await storiesService.getStory(currentStoryId);
+                if (fsRes.success && fsRes.story?.finalVideoUrl) {
+                  finalMp4Url = fsRes.story.finalVideoUrl;
+                  console.log('✅ Got finalVideoUrl from Firestore after mix error');
+                }
+              } catch (e) {}
             }
           } else {
             // No AI music — performance mode: re-encode + mix backing track at recorded offset.
             console.log('🎤 Performance mode — re-encoding + syncing backing track...');
             setDownloadProgress(t('finalVideo.factory_mixing'));
             try {
-              const reCtrl = new AbortController();
-              const reTimeout = setTimeout(() => reCtrl.abort(), 4 * 60 * 1000);
               const perfTrackUrl = performanceMusicTrack?.url || null;
               const perfOffsetMs = performanceMusicTrack?.offsets?.[0] ?? 0;
               const reRes = await fetch(`${VIDEO_CONVERTER_URL}/api/reencode-for-whatsapp`, {
@@ -1015,9 +1030,7 @@ export const FinalVideoScreen = () => {
                   backgroundVideoUrl: backgroundVideoUrl || null,
                   ...(perfTrackUrl ? { performanceMusicTrackUrl: perfTrackUrl, performanceMusicOffsetMs: perfOffsetMs } : {}),
                 }),
-                signal: reCtrl.signal,
               });
-              clearTimeout(reTimeout);
               if (reRes.ok) {
                 const reResult = await reRes.json();
                 const recodedUrl = reResult.finalUrl || reResult.videoUrl;
@@ -1027,23 +1040,26 @@ export const FinalVideoScreen = () => {
                 }
               }
             } catch (reErr) {
-              console.warn('⚠️ Re-encode failed, using raw mp4 (may fail in WhatsApp):', reErr.message);
+              console.warn('⚠️ Re-encode failed, checking Firestore for server-saved URL...');
+              try {
+                const fsRes = await storiesService.getStory(currentStoryId);
+                if (fsRes.success && fsRes.story?.finalVideoUrl) {
+                  finalMp4Url = fsRes.story.finalVideoUrl;
+                  console.log('✅ Got finalVideoUrl from Firestore after reencode error');
+                }
+              } catch (e) {}
             }
           }
 
+          // Update refs with processed URL (replaces the raw upload URL set above)
           setRecordingFirebaseUrl(finalMp4Url);
           firebaseUrlRef.current = finalMp4Url;
+          firestoreVideoUrlRef.current = finalMp4Url;
           setConversionSucceeded(true);
           if (currentStoryId) {
-            storiesService.updateStory(currentStoryId, { sourceVideoUrl: uploadResult.url, finalVideoUrl: finalMp4Url, status: 'completed' }).catch(() => {});
+            storiesService.updateStory(currentStoryId, { finalVideoUrl: finalMp4Url, status: 'completed' }).catch(() => {});
             analyticsService.finalMovieReady(currentStoryId);
           }
-          // Clear raw recording from cache BEFORE showing end screen.
-          // This forces getVideoForSharing to use firebaseUrlRef (the mixed CFR mp4)
-          // instead of the raw VFR file — which causes WhatsApp audio-only playback.
-          cachedRecordingRef.current = null;
-          setCachedRecordingUri(null);
-          setShowEndScreen(true);
           // Download the final mixed mp4 to local cache for faster sharing.
           try {
             const mp4LocalPath = FileSystem.cacheDirectory + `recording_mp4_${Date.now()}.mp4`;
@@ -1173,15 +1189,11 @@ export const FinalVideoScreen = () => {
               console.log('🎵 Mixing AI music into cube recording (using recording audio for sync)...');
               setDownloadProgress(t('finalVideo.factory_mixing'));
               try {
-                const mixCtrl = new AbortController();
-                const mixTimeout = setTimeout(() => mixCtrl.abort(), 4 * 60 * 1000);
                 const mixRes = await fetch(`${VIDEO_CONVERTER_URL}/api/mix-music-with-video`, {
                   method: 'POST',
                   headers: SERVER_HEADERS,
                   body: JSON.stringify({ videoUrl: finalMp4Url, musicUrl, musicVolume: 0.06, backgroundVideoUrl: backgroundVideoUrl || null, storyId: currentStoryId }),
-                  signal: mixCtrl.signal,
                 });
-                clearTimeout(mixTimeout);
                 if (mixRes.ok) {
                   const mixResult = await mixRes.json();
                   const mixedUrl = mixResult.finalUrl || mixResult.videoUrl;
@@ -1191,15 +1203,20 @@ export const FinalVideoScreen = () => {
                   }
                 }
               } catch (mixErr) {
-                console.warn('⚠️ Music mixing failed, using unmixed mp4:', mixErr.message);
+                console.warn('⚠️ Music mixing failed, checking Firestore for server-saved URL...');
+                try {
+                  const fsRes = await storiesService.getStory(currentStoryId);
+                  if (fsRes.success && fsRes.story?.finalVideoUrl) {
+                    finalMp4Url = fsRes.story.finalVideoUrl;
+                    console.log('✅ Got finalVideoUrl from Firestore (webm path)');
+                  }
+                } catch (e) {}
               }
             } else if (backgroundVideoUrl || performanceMusicTrack?.url) {
               // No Suno music — composite background and/or mix performance backing track
               console.log('🎨 No Suno — compositing background / performance track...');
               setDownloadProgress(t('finalVideo.factory_mixing'));
               try {
-                const reCtrl = new AbortController();
-                const reTimeout = setTimeout(() => reCtrl.abort(), 4 * 60 * 1000);
                 const perfTrackUrl2 = performanceMusicTrack?.url || null;
                 const perfOffsetMs2 = performanceMusicTrack?.offsets?.[0] ?? 0;
                 const reRes = await fetch(`${VIDEO_CONVERTER_URL}/api/reencode-for-whatsapp`, {
@@ -1211,9 +1228,7 @@ export const FinalVideoScreen = () => {
                     backgroundVideoUrl: backgroundVideoUrl || null,
                     ...(perfTrackUrl2 ? { performanceMusicTrackUrl: perfTrackUrl2, performanceMusicOffsetMs: perfOffsetMs2 } : {}),
                   }),
-                  signal: reCtrl.signal,
                 });
-                clearTimeout(reTimeout);
                 if (reRes.ok) {
                   const reResult = await reRes.json();
                   const recodedUrl = reResult.finalUrl || reResult.videoUrl;
