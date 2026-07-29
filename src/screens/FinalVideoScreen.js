@@ -121,11 +121,13 @@ export const FinalVideoScreen = () => {
   const pendingMusicStartRef = useRef(false);
   useEffect(() => {
     generatedMusicUrlRef.current = generatedMusicUrl;
-    // URL arrived while cube was already playing — start music immediately.
-    // Skip if auto-recording is in progress (avoids abrupt music disrupting speech mid-recording).
-    // Use pendingMusicStartRef (ref) not cubeStarted (state) to avoid stale closure.
-    if (generatedMusicUrl && pendingMusicStartRef.current && !aiMusicSoundRef.current && !recordNextPlayback) {
+    if (!generatedMusicUrl) return;
+    if (pendingMusicStartRef.current && !recordNextPlayback) {
+      // Animation already playing — start music now (preloaded sound plays instantly)
       stopAmbientMusic().then(() => startAiMusic());
+    } else if (!pendingMusicStartRef.current && !aiMusicSoundRef.current) {
+      // Animation not started yet — preload so it plays instantly on onPlaybackStart
+      preloadAiMusic();
     }
   }, [generatedMusicUrl, recordNextPlayback]); // eslint-disable-line react-hooks/exhaustive-deps
   const musicTimedOutRef = useRef(false);
@@ -393,24 +395,53 @@ export const FinalVideoScreen = () => {
     ambientPhaseIndexRef.current = 0;
   };
 
-  const startAiMusic = async () => {
-    // Use ref so we always get the latest URL even if state hasn't propagated yet
+  // Preload music into memory (shouldPlay:false) so startAiMusic can begin instantly.
+  // Called when generatedMusicUrl arrives before the animation starts.
+  const preloadAiMusic = async () => {
+    if (aiMusicSoundRef.current) return;
     const musicUrl = generatedMusicUrlRef.current;
-    console.log('🎵 startAiMusic called, generatedMusicUrl:', musicUrl ? 'exists' : 'null');
     if (!musicUrl) return;
     try {
-      if (aiMusicSoundRef.current) {
-        await aiMusicSoundRef.current.stopAsync().catch(() => {});
-        await aiMusicSoundRef.current.unloadAsync().catch(() => {});
-        aiMusicSoundRef.current = null;
-      }
       const { sound } = await Audio.Sound.createAsync(
         { uri: musicUrl },
-        { shouldPlay: true, volume: 0, isLooping: true }
+        { shouldPlay: false, volume: 0, isLooping: true }
       );
       aiMusicSoundRef.current = sound;
-      console.log('🎵 AI music started for cube playback (fading in)...');
-      // Fade in over ~1.5s so music doesn't abruptly interrupt speech audio
+      console.log('🎵 AI music preloaded (ready to play instantly)');
+    } catch (err) {
+      console.warn('AI music preload failed:', err.message);
+    }
+  };
+
+  const startAiMusic = async () => {
+    const musicUrl = generatedMusicUrlRef.current;
+    console.log('🎵 startAiMusic called, url:', musicUrl ? 'exists' : 'null');
+    if (!musicUrl) return;
+    try {
+      let sound = aiMusicSoundRef.current;
+      if (sound) {
+        const status = await sound.getStatusAsync().catch(() => ({ isLoaded: false }));
+        if (!status.isLoaded) {
+          // Bad state — discard and reload
+          await sound.unloadAsync().catch(() => {});
+          aiMusicSoundRef.current = null;
+          sound = null;
+        } else if (status.isPlaying) {
+          return; // already playing
+        }
+        // else: preloaded + paused — just play below
+      }
+      if (!sound) {
+        const res = await Audio.Sound.createAsync(
+          { uri: musicUrl },
+          { shouldPlay: true, volume: 0, isLooping: true }
+        );
+        sound = res.sound;
+        aiMusicSoundRef.current = sound;
+      } else {
+        await sound.playAsync();
+      }
+      console.log('🎵 AI music playing (fading in)...');
       for (let i = 1; i <= 12; i++) {
         if (!aiMusicSoundRef.current) break;
         try { await sound.setVolumeAsync(0.01 * i); } catch (e) { break; }
