@@ -121,13 +121,13 @@ export const FinalVideoScreen = () => {
   const pendingMusicStartRef = useRef(false);
   useEffect(() => {
     generatedMusicUrlRef.current = generatedMusicUrl;
-    // URL arrived while cube was already playing — start music immediately.
-    // Skip if auto-recording is in progress (avoids abrupt music disrupting speech mid-recording).
-    // Use pendingMusicStartRef (ref) not cubeStarted (state) to avoid stale closure.
-    if (generatedMusicUrl && pendingMusicStartRef.current && !aiMusicSoundRef.current && !recordNextPlayback) {
+    // Suno URL arrived while animation is playing — stop ambient fallback and start Suno.
+    // expo-av audio is NOT captured by WebView captureStream, so playing during recording is safe.
+    if (generatedMusicUrl && pendingMusicStartRef.current && !aiMusicSoundRef.current) {
+      stopAmbientMusic(); // stop ambient fallback (no-op if not playing)
       startAiMusic();
     }
-  }, [generatedMusicUrl, recordNextPlayback]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [generatedMusicUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const musicTimedOutRef = useRef(false);
   useEffect(() => { musicTimedOutRef.current = musicTimedOut; }, [musicTimedOut]);
   const firestoreVideoUrlRef = useRef(null); // videoUrl/finalVideoUrl loaded from Firestore
@@ -1778,7 +1778,11 @@ export const FinalVideoScreen = () => {
               setIsCubeFullscreen(true);
               pendingMusicStartRef.current = true;
               setCubeStarted(true);
-              startAiMusic();
+              if (generatedMusicUrlRef.current) {
+                startAiMusic(); // Suno ready — play immediately
+              } else {
+                startAmbientMusic(); // Suno not ready yet — play ambient fallback
+              }
               if (recordNextPlayback) {
                 setClientRecordingInProgress(true);
               }
