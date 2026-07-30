@@ -98,6 +98,7 @@ export const FinalVideoScreen = () => {
   const [recordingFirebaseUrl, setRecordingFirebaseUrl] = useState(null);
   const [isUploadingRecording, setIsUploadingRecording] = useState(false);
   const [conversionSucceeded, setConversionSucceeded] = useState(false);
+  const [videoReadyForShare, setVideoReadyForShare] = useState(false);
   const [localVideoUri, setLocalVideoUri] = useState(null);
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
   const [musicTimedOut, setMusicTimedOut] = useState(false);
@@ -122,14 +123,15 @@ export const FinalVideoScreen = () => {
   useEffect(() => {
     generatedMusicUrlRef.current = generatedMusicUrl;
     if (!generatedMusicUrl) return;
-    if (pendingMusicStartRef.current && !recordNextPlayback) {
-      // Animation already playing — start music now (preloaded sound plays instantly)
+    if (pendingMusicStartRef.current) {
+      // Animation already playing (including during auto-recording) — start music now.
+      // Canvas captureStream() does NOT capture expo-av audio, so no double-music in recording.
       stopAmbientMusic().then(() => startAiMusic());
-    } else if (!pendingMusicStartRef.current && !aiMusicSoundRef.current) {
+    } else if (!aiMusicSoundRef.current) {
       // Animation not started yet — preload so it plays instantly on onPlaybackStart
       preloadAiMusic();
     }
-  }, [generatedMusicUrl, recordNextPlayback]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [generatedMusicUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const musicTimedOutRef = useRef(false);
   useEffect(() => { musicTimedOutRef.current = musicTimedOut; }, [musicTimedOut]);
   const firestoreVideoUrlRef = useRef(null); // videoUrl/finalVideoUrl loaded from Firestore
@@ -271,33 +273,50 @@ export const FinalVideoScreen = () => {
     return () => { cancelled = true; };
   }, [currentStoryId, musicRetryTrigger]);
 
-  // Load story's videoUrl / finalVideoUrl from Firestore so getVideoForSharing can use it
-  // when finalVideoUri in Zustand is null (e.g. user navigated here from EditRoom, not ProcessingScreen)
+  // Check if server has marked video as ready (videoPublishReady: true — server-only field).
+  // Also loads finalVideoUrl so getVideoForSharing can use it when opened from EditRoom.
   useEffect(() => {
-    if (!currentStoryId || firestoreVideoUrlRef.current) return;
-    console.log('📹 Loading videoUrl from Firestore, finalVideoUri:', finalVideoUri ? 'set' : 'null');
+    if (!currentStoryId) return;
+    setVideoReadyForShare(false);
+    firestoreVideoUrlRef.current = null;
     storiesService.getStory(currentStoryId).then(res => {
       if (res.success) {
-        // Only use finalVideoUrl — videoUrl/videoUri are the organizer's raw intro clip, not the final mix
         const url = res.story?.finalVideoUrl;
-        if (url) {
-          firestoreVideoUrlRef.current = url;
-          console.log('📹 Loaded finalVideoUrl from Firestore for sharing:', url.substring(0, 60));
+        if (url) firestoreVideoUrlRef.current = url;
+        if (res.story?.videoPublishReady && url) {
+          setVideoReadyForShare(true);
+          console.log('📹 videoPublishReady=true — WhatsApp button enabled');
         }
       }
     }).catch(() => {});
   }, [currentStoryId]);
 
-  // If music generation takes too long (server down / no network), unblock the AnimationPlayer
+  // Poll every 15s for server to set videoPublishReady after processing.
   useEffect(() => {
-    if (generatedMusicUrl || musicTimedOut) return;
-    const timer = setTimeout(() => {
-      console.warn('⏱️ Music generation timed out — server unavailable');
-      setMusicTimedOut(true);
-      setMusicServerDown(true);
-    }, 30000); // 30 sec timeout — unblocks AnimationPlayer so user can proceed without music
-    return () => clearTimeout(timer);
-  }, [generatedMusicUrl, musicTimedOut]);
+    if (!currentStoryId) return;
+    let cancelled = false;
+    const poll = async () => {
+      while (!cancelled) {
+        await new Promise(r => setTimeout(r, 15000));
+        if (cancelled) break;
+        try {
+          const res = await storiesService.getStory(currentStoryId);
+          if (res.success && res.story?.videoPublishReady && res.story?.finalVideoUrl) {
+            firestoreVideoUrlRef.current = res.story.finalVideoUrl;
+            setVideoReadyForShare(true);
+            break;
+          }
+        } catch (e) {}
+      }
+    };
+    poll();
+    return () => { cancelled = true; };
+  }, [currentStoryId]);
+
+  // NOTE: 30s timeout removed — we now wait for Suno to finish before starting the animation.
+  // The AnimationPlayer is unblocked only when generatedMusicUrl is set (Suno done) OR
+  // when musicServerDown is set (real Suno failure after ~5min polling).
+  // This ensures music is always mixed into the video on first view.
 
   // Download final video locally for smooth playback (avoids network buffering)
   useEffect(() => {
@@ -675,21 +694,20 @@ export const FinalVideoScreen = () => {
   };
 
   const handleShareToWhatsApp = async () => {
+    if (!videoReadyForShare) {
+      Alert.alert(
+        'הסרטון בעיבוד 🎬',
+        'הסרטון שלך מעובד עם מוזיקה ורקע.\nתישלח אליך הודעה כשיהיה מוכן לשיתוף.',
+        [{ text: 'הבנתי' }]
+      );
+      return;
+    }
     try {
       analyticsService.shareClicked(currentStoryId, 'whatsapp');
       const domain = Constants.expoConfig?.extra?.webPlayerDomain ||
-                     'reflectly-mobile-x--yaronbenm1.replit.app';
+                     'reflectlymobilex.onrender.com';
       const watchUrl = `https://${domain}/s/${currentStoryId}`;
       const text = t('finalVideo.whatsapp_share_text', { storyName }) + '\n' + watchUrl;
-
-      // If no finalVideoUrl yet → process video first so web player shows clean watch view.
-      // getVideoForSharing triggers recording → upload → server mix → saves finalVideoUrl to Firestore.
-      const hasProcessedUrl = firestoreVideoUrlRef.current || firebaseUrlRef.current;
-      if (!hasProcessedUrl) {
-        await getVideoForSharing('מכין לשיתוף...');
-        // After processing, setShowEndScreen(true) was called — end screen is back.
-      }
-
       const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(text)}`;
       const canOpen = await Linking.canOpenURL(whatsappUrl);
       if (canOpen) {
@@ -912,9 +930,17 @@ export const FinalVideoScreen = () => {
     console.log('📹 Client recording supported:', supported, 'format:', videoFormat);
     setClientRecordingSupported(supported);
     clientRecordingSupportedRef.current = supported;
-    // No auto-record on first view — user watches cleanly with music.
-    // getVideoForSharing() triggers performClientRecording() on demand
-    // when user taps Instagram / TikTok and no cached URL exists.
+    // Auto-record on first view: enables recording BEFORE play starts so music gets
+    // mixed into the video server-side. End screen only shows after mixing is done.
+    if (supported && !autoRecordTriggeredRef.current && !showEndScreen) {
+      autoRecordTriggeredRef.current = true;
+      setRecordNextPlayback(true);
+      // 300ms delay ensures _recEnabled=true JS arrives in WebView before handlePlayClick()
+      setTimeout(() => {
+        setTriggerAutoPlay(true);
+        setTimeout(() => setTriggerAutoPlay(false), 500);
+      }, 300);
+    }
   };
 
   const handleRecordingComplete = async (fileUri, meta = {}) => {
@@ -1092,7 +1118,7 @@ export const FinalVideoScreen = () => {
           firebaseUrlRef.current = finalMp4Url;
           setConversionSucceeded(true);
           if (currentStoryId) {
-            storiesService.updateStory(currentStoryId, { sourceVideoUrl: uploadResult.url, finalVideoUrl: finalMp4Url, status: 'completed' }).catch(() => {});
+            storiesService.updateStory(currentStoryId, { sourceVideoUrl: uploadResult.url }).catch(() => {});
             analyticsService.finalMovieReady(currentStoryId);
           }
           // Clear raw recording from cache BEFORE showing end screen.
@@ -1288,7 +1314,8 @@ export const FinalVideoScreen = () => {
             firebaseUrlRef.current = finalMp4Url;
             setConversionSucceeded(true);
             if (currentStoryId) {
-              storiesService.updateStory(currentStoryId, { finalVideoUrl: finalMp4Url, status: 'completed' }).catch(() => {});
+              // finalVideoUrl is set only by the server (mixed version with music + player clips)
+            // storiesService.updateStory(currentStoryId, { finalVideoUrl: finalMp4Url, status: 'completed' }).catch(() => {});
             }
             setShowEndScreen(true);
 
@@ -1314,7 +1341,8 @@ export const FinalVideoScreen = () => {
       setRecordingFirebaseUrl(webmUrl);
       firebaseUrlRef.current = webmUrl;
       if (currentStoryId) {
-        storiesService.updateStory(currentStoryId, { finalVideoUrl: webmUrl, status: 'completed' }).catch(() => {});
+        // Save as sourceVideoUrl only — finalVideoUrl is server-only to prevent sharing unprocessed webm
+        storiesService.updateStory(currentStoryId, { sourceVideoUrl: webmUrl }).catch(() => {});
       }
       setShowEndScreen(true); // fallback: server conversion failed, show end screen with webm
     } catch (err) {
@@ -1836,7 +1864,10 @@ export const FinalVideoScreen = () => {
               setVideoHasPlayed(true);
               analyticsService.movieWatched(currentStoryId);
               stopAmbientMusic();
-              stopAiMusic();
+              stopAiMusic().then(() => {
+                // Pre-load music so next playback starts instantly (no reload delay)
+                if (generatedMusicUrlRef.current) preloadAiMusic();
+              });
               if (clientRecordingInProgress) {
                 console.log('📹 Playback complete during recording — VideoFactoryWaiting shows until upload done');
                 // Do NOT setShowEndScreen here — VideoFactoryWaiting will show (isUploadingRecording)
@@ -1976,13 +2007,18 @@ export const FinalVideoScreen = () => {
 
               <View style={styles.endScreenSocials}>
                 <TouchableOpacity
-                  style={styles.socialBtn}
+                  style={[styles.socialBtn, !videoReadyForShare && { opacity: 0.55 }]}
                   onPress={handleShareToWhatsApp}
                 >
-                  <View style={[styles.socialIconCircle, { backgroundColor: '#25D366' }]}>
-                    <Ionicons name="logo-whatsapp" size={30} color="white" />
+                  <View style={[styles.socialIconCircle, { backgroundColor: videoReadyForShare ? '#25D366' : '#888' }]}>
+                    {videoReadyForShare
+                      ? <Ionicons name="logo-whatsapp" size={30} color="white" />
+                      : <Ionicons name="time-outline" size={26} color="white" />
+                    }
                   </View>
-                  <Text style={styles.socialLabel}>{t('finalVideo.social_whatsapp')}</Text>
+                  <Text style={styles.socialLabel}>
+                    {videoReadyForShare ? t('finalVideo.social_whatsapp') : 'בעיבוד...'}
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity

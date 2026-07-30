@@ -1735,9 +1735,9 @@ app.post('/api/stories/:storyId/render', async (req, res) => {
         completedAt: new Date().toISOString()
       });
 
-      // Save finalVideoUrl to Firestore so client can load it after notification tap
+      // Save finalVideoUrl to Firestore — videoPublishReady signals client WhatsApp button is ready
       if (firestoreDb && storyId && finalUrl) {
-        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl }).catch(() => {});
+        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl, status: 'completed', videoPublishReady: true }).catch(() => {});
       }
       sendVideoReadyNotification(storyId, finalUrl).catch(() => {});
 
@@ -1835,9 +1835,9 @@ app.post('/api/stories/:storyId/render-format', async (req, res) => {
         completedAt: new Date().toISOString()
       });
 
-      // Save finalVideoUrl to Firestore so client can load it after notification tap
+      // Save finalVideoUrl to Firestore — videoPublishReady signals client WhatsApp button is ready
       if (firestoreDb && storyId && finalUrl) {
-        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl }).catch(() => {});
+        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl, status: 'completed', videoPublishReady: true }).catch(() => {});
       }
       sendVideoReadyNotification(storyId, finalUrl).catch(() => {});
 
@@ -2034,8 +2034,8 @@ async function sendVideoReadyNotification(storyId, finalUrl) {
     }
     await expoClient.sendPushNotificationsAsync([{
       to: pushToken,
-      title: '🎬 הסרט מוכן לצפייה!',
-      body: `'${storyName}' עובד וממתין לך`,
+      title: '🎬 הסרטון מוכן לשיתוף!',
+      body: `'${storyName}' — לחץ לשיתוף בווטסאפ`,
       data: { type: 'video_ready', storyId, storyName },
     }]);
     console.log(`🔔 Video-ready notification sent for story ${storyId}`);
@@ -2503,11 +2503,12 @@ app.post('/api/reencode-for-whatsapp', express.json(), async (req, res) => {
       finalUrl = `${serverBase}/converted/${filename}`;
     }
     fs.rmSync(jobDir, { recursive: true, force: true });
-    // Save processed URL to Firestore so client can get it via polling
+    // Save processed URL to Firestore — videoPublishReady signals client WhatsApp button is ready
     if (firestoreDb && storyId && finalUrl) {
       firestoreDb.collection('stories').doc(storyId).update({
         finalVideoUrl: finalUrl,
         status: 'completed',
+        videoPublishReady: true,
       }).catch(e => console.warn('reencode: Firestore save failed:', e.message));
     }
     res.json({ success: true, finalUrl, videoUrl: finalUrl });
@@ -2728,12 +2729,14 @@ app.post('/api/mix-music-with-video', async (req, res) => {
 
     fs.rmSync(jobDir, { recursive: true, force: true });
 
-    // Save processed URL to Firestore — client polls instead of waiting for this long HTTP response
+    // Save processed URL to Firestore — videoPublishReady signals client WhatsApp button is ready
     if (firestoreDb && storyId && finalUrl) {
       firestoreDb.collection('stories').doc(storyId).update({
         finalVideoUrl: finalUrl,
         status: 'completed',
+        videoPublishReady: true,
       }).catch(e => console.warn('mix-music: Firestore save failed:', e.message));
+      sendVideoReadyNotification(storyId, finalUrl).catch(() => {});
     }
     res.json({ success: true, finalUrl, videoUrl: finalUrl });
   } catch (error) {
