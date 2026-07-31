@@ -398,13 +398,25 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     for (let i = 0; i < videoUrls.length; i++) {
       const srcPath  = path.join(videosDir, `video_${i}.mp4`);
       const destPath = path.join(normDir,   `norm_${i}.mp4`);
+      const srcSizeMb = parseFloat((fs.statSync(srcPath).size / (1024 * 1024)).toFixed(1));
+      console.log(`[POC] Normalizing clip ${i}/${videoUrls.length - 1} (${srcSizeMb} MB source)`);
+      logMemory(`before-normalize-clip-${i}`);
       const result = await normalizeClip(srcPath, destPath);
-      console.log(`[POC] Normalized clip ${i}: ok=${result.ok} hasAudio=${result.hasAudio} size=${result.sizeMb} MB${result.errorMessage ? ' err=' + result.errorMessage : ''}`);
       if (!result.ok) {
-        const e = new Error(`Normalization failed for clip ${i}${result.errorMessage ? ': ' + result.errorMessage : ''}`);
+        const errMsg = `Normalization failed for clip ${i}: ${result.errorMessage || 'unknown FFmpeg error'}`;
+        console.error(`[POC] ${errMsg}`);
+        // Record clip index and error in Firestore before throwing so diagnostics survive OOM restart
+        await updateJob(firestoreDb, jobId, {
+          normalizationFailedClipIndex: i,
+          normalizationFailedClipSizeMb: srcSizeMb,
+          normalizationFailedReason: (result.errorMessage || 'unknown').slice(0, 500),
+        }).catch(() => {});
+        const e = new Error(errMsg);
         e.code = 'NORMALIZATION_FAILED';
         throw e;
       }
+      logMemory(`after-normalize-clip-${i}`);
+      console.log(`[POC] Normalized clip ${i}: hasAudio=${result.hasAudio} outputSize=${result.sizeMb} MB`);
       normPaths.push(destPath);
       const dur = getVideoDuration(destPath);
       videoDurations.push(dur > 0 ? dur : 5);

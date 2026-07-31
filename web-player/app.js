@@ -476,6 +476,26 @@ async function loadStory(code) {
         return true;
     }
 
+    // /s/ result-sharing link but no finalVideoUrl yet — show "processing" instead of recording UI
+    const isResultLink = window.location.pathname.split('/').filter(Boolean)[0] === 's';
+    if (isResultLink) {
+        const instructionsCard = document.querySelector('#watch-screen .card');
+        if (instructionsCard) {
+            instructionsCard.innerHTML = `
+                <div style="text-align:center;padding:32px 16px">
+                    <div style="font-size:48px;margin-bottom:16px">🎬</div>
+                    <h2 style="color:#fff;margin:0 0 12px">הסרטון מוכן בקרוב</h2>
+                    <p style="color:rgba(255,255,255,0.75);font-size:15px;margin:0">
+                        הסרטון מעובד ויהיה מוכן בדקות הקרובות.<br>נסה שוב בעוד כמה דקות.
+                    </p>
+                </div>`;
+        }
+        if (watchHint) watchHint.style.display = 'none';
+        if (recordBtn) recordBtn.style.display = 'none';
+        showScreen('watch');
+        return true;
+    }
+
     // Normal player flow — show creator's intro clip + recording interface
     showScreen('watch');
 

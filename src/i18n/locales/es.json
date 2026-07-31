@@ -124,6 +124,7 @@
     "new_videos_count": "{{count}} nuevos videos recibidos",
     "declined_banner": "{{playerName}} rechazó la publicación — invita a otro participante",
     "watch_final": "Ver video final",
+    "my_recording": "Mi grabación",
     "delete_confirm": "¿Eliminar?",
     "delete_confirm_yes": "Eliminar",
     "delete_confirm_no": "Cancelar"

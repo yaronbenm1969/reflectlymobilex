@@ -313,10 +313,16 @@ export const FinalVideoScreen = () => {
     return () => { cancelled = true; };
   }, [currentStoryId]);
 
-  // NOTE: 30s timeout removed — we now wait for Suno to finish before starting the animation.
-  // The AnimationPlayer is unblocked only when generatedMusicUrl is set (Suno done) OR
-  // when musicServerDown is set (real Suno failure after ~5min polling).
-  // This ensures music is always mixed into the video on first view.
+  // Unblock AnimationPlayer after 2 min if Suno hasn't finished yet.
+  useEffect(() => {
+    if (generatedMusicUrl || musicTimedOut) return;
+    const timer = setTimeout(() => {
+      console.warn('⏱️ Music generation taking too long — unblocking animation');
+      setMusicTimedOut(true);
+      setMusicServerDown(true);
+    }, 120000); // 2 min
+    return () => clearTimeout(timer);
+  }, [generatedMusicUrl, musicTimedOut]);
 
   // Download final video locally for smooth playback (avoids network buffering)
   useEffect(() => {
@@ -353,7 +359,7 @@ export const FinalVideoScreen = () => {
     return () => { sub1.remove(); };
   }, [player]);
 
-  const isAmbientMusic = true;
+  const isAmbientMusic = false; // files missing from Storage — Suno AI music replaces this
 
   const startAmbientMusic = async () => {
     if (!isAmbientMusic) return;
@@ -1011,6 +1017,10 @@ export const FinalVideoScreen = () => {
       setIsUploadingRecording(true);
       isUploadingRef.current = true;
       startAmbientMusic();
+      // Reset videoPublishReady so WhatsApp button stays grey until new mix is done.
+      // Old sessions may have videoPublishReady:true pointing to a stale/wrong finalVideoUrl.
+      setVideoReadyForShare(false);
+      storiesService.updateStory(currentStoryId, { videoPublishReady: false }).catch(() => {});
 
       if (isAlreadyMp4) {
         console.log('📹 Recording is already MP4 (iOS) - uploading directly...');
@@ -1029,11 +1039,23 @@ export const FinalVideoScreen = () => {
           console.log('📹 MP4 uploaded to Firebase:', uploadResult.url.substring(0, 60));
           let finalMp4Url = uploadResult.url;
 
+          // Show end screen immediately after upload — mixing continues in background.
+          // WhatsApp button stays grey until videoPublishReady is set by server (polling picks it up).
+          setRecordingFirebaseUrl(finalMp4Url);
+          firebaseUrlRef.current = finalMp4Url;
+          setConversionSucceeded(true);
+          if (currentStoryId) {
+            storiesService.updateStory(currentStoryId, { sourceVideoUrl: uploadResult.url }).catch(() => {});
+            analyticsService.finalMovieReady(currentStoryId);
+          }
+          cachedRecordingRef.current = null;
+          setCachedRecordingUri(null);
+          setShowEndScreen(true);
+
+          // Background: wait for music → mix → server saves videoPublishReady → polling enables WhatsApp
           // Wait for AI music generation if still in progress (up to 3 min)
-          // UI timeout (30s) fires to unblock AnimationPlayer — but mix should still wait longer.
           if (!generatedMusicUrlRef.current) {
             console.log('🎵 Waiting for AI music generation before mixing...');
-            setDownloadProgress(t('finalVideo.waiting_for_music'));
             const deadline = Date.now() + 3 * 60 * 1000;
             while (!generatedMusicUrlRef.current && Date.now() < deadline) {
               await new Promise(r => setTimeout(r, 5000));
@@ -1058,7 +1080,6 @@ export const FinalVideoScreen = () => {
           const musicUrl = generatedMusicUrlRef.current;
           if (musicUrl) {
             console.log('🎵 Mixing AI music into recording (using recording audio for sync)...');
-            setDownloadProgress(t('finalVideo.factory_mixing'));
             try {
               const mixCtrl = new AbortController();
               const mixTimeout = setTimeout(() => mixCtrl.abort(), 4 * 60 * 1000);
@@ -1074,6 +1095,7 @@ export const FinalVideoScreen = () => {
                 const mixedUrl = mixResult.finalUrl || mixResult.videoUrl;
                 if (mixedUrl) {
                   finalMp4Url = mixedUrl;
+                  firebaseUrlRef.current = mixedUrl; // update to mixed URL for Instagram sharing
                   console.log('✅ AI music mixed into recording');
                 }
               }
@@ -1083,7 +1105,6 @@ export const FinalVideoScreen = () => {
           } else {
             // No AI music — performance mode: re-encode + mix backing track at recorded offset.
             console.log('🎤 Performance mode — re-encoding + syncing backing track...');
-            setDownloadProgress(t('finalVideo.factory_mixing'));
             try {
               const reCtrl = new AbortController();
               const reTimeout = setTimeout(() => reCtrl.abort(), 4 * 60 * 1000);
@@ -1106,6 +1127,7 @@ export const FinalVideoScreen = () => {
                 const recodedUrl = reResult.finalUrl || reResult.videoUrl;
                 if (recodedUrl) {
                   finalMp4Url = recodedUrl;
+                  firebaseUrlRef.current = recodedUrl;
                   console.log('✅ Re-encoded for WhatsApp (CFR h264 baseline + background)');
                 }
               }
@@ -1114,19 +1136,6 @@ export const FinalVideoScreen = () => {
             }
           }
 
-          setRecordingFirebaseUrl(finalMp4Url);
-          firebaseUrlRef.current = finalMp4Url;
-          setConversionSucceeded(true);
-          if (currentStoryId) {
-            storiesService.updateStory(currentStoryId, { sourceVideoUrl: uploadResult.url }).catch(() => {});
-            analyticsService.finalMovieReady(currentStoryId);
-          }
-          // Clear raw recording from cache BEFORE showing end screen.
-          // This forces getVideoForSharing to use firebaseUrlRef (the mixed CFR mp4)
-          // instead of the raw VFR file — which causes WhatsApp audio-only playback.
-          cachedRecordingRef.current = null;
-          setCachedRecordingUri(null);
-          setShowEndScreen(true);
           // Download the final mixed mp4 to local cache for faster sharing.
           try {
             const mp4LocalPath = FileSystem.cacheDirectory + `recording_mp4_${Date.now()}.mp4`;

@@ -295,7 +295,8 @@ export const MyStoriesScreen = () => {
           <View style={styles.storiesGrid}>
             {stories.map((story) => {
               const videoUrl = story.finalVideoUrl || story.videoUrl || null;
-              const isCompleted = !!videoUrl;
+              const creatorVideoUrl = story.sourceVideoUrl || null;
+              const isCompleted = !!videoUrl || story.status === 'completed';
               return (
                 <View key={story.id} style={styles.storyCard}>
                   {/* New videos banner — tappable, navigates to EditRoom */}
@@ -339,7 +340,7 @@ export const MyStoriesScreen = () => {
                       />
                     </View>
                     <View style={styles.storyInfo}>
-                      <Text style={styles.storyTitle}>{story.name}</Text>
+                      <Text style={styles.storyTitle}>{story.name || story.storyName || ''}</Text>
                       <Text style={styles.storyStatusDesc}>
                         {getStatusDescription(story.status)}
                       </Text>
@@ -348,7 +349,7 @@ export const MyStoriesScreen = () => {
                           {t('myStories.participants_joined', { count: story.currentPlayers })}
                         </Text>
                       )}
-                      <Text style={styles.storyMeta}>{formatDate(story.createdAt)}</Text>
+                      <Text style={styles.storyMeta}>{formatDate(story.createdAt || story.updatedAt)}</Text>
                       <View style={[styles.statusBadge, { backgroundColor: getStatusColor(story.status) + '28' }]}>
                         <Text style={[styles.statusText, { color: getStatusColor(story.status) }]}>
                           {getStatusText(story.status)}
@@ -373,6 +374,17 @@ export const MyStoriesScreen = () => {
                         <Ionicons name="play-circle-outline" size={15} color="rgba(255,255,255,0.75)" />
                         <Text style={styles.completedActionText}>{t('myStories.watch')}</Text>
                       </TouchableOpacity>
+                      {!!creatorVideoUrl && (
+                        <TouchableOpacity
+                          style={styles.completedAction}
+                          onPress={() => setWatchData({ url: creatorVideoUrl, name: story.name, story })}
+                        >
+                          <Ionicons name="camera-outline" size={15} color="rgba(255,255,255,0.4)" />
+                          <Text style={[styles.completedActionText, styles.completedActionTextDim]}>
+                            {t('myStories.my_recording')}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                       <TouchableOpacity
                         style={styles.completedAction}
                         onPress={() => openStory(story)}
@@ -383,6 +395,18 @@ export const MyStoriesScreen = () => {
                         </Text>
                       </TouchableOpacity>
                     </View>
+                  )}
+
+                  {!isCompleted && !!creatorVideoUrl && (
+                    <TouchableOpacity
+                      style={styles.completedAction}
+                      onPress={() => setWatchData({ url: creatorVideoUrl, name: story.name, story })}
+                    >
+                      <Ionicons name="camera-outline" size={15} color="rgba(255,255,255,0.4)" />
+                      <Text style={[styles.completedActionText, styles.completedActionTextDim]}>
+                        {t('myStories.my_recording')}
+                      </Text>
+                    </TouchableOpacity>
                   )}
 
                   {!isCompleted && (
