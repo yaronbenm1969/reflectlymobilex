@@ -109,6 +109,7 @@ export const FinalVideoScreen = () => {
   const [musicEngine, setMusicEngine] = useState('suno'); // 'suno' | 'musicgen'
   const clientRecordingResolveRef = useRef(null);
   const autoRecordTriggeredRef = useRef(false);
+  const videoReadyForShareRef = useRef(false); // mirrors videoReadyForShare — readable inside closures
   const isUploadingRef = useRef(false);
   const cachedRecordingRef = useRef(null);
   const firebaseUrlRef = useRef(null);
@@ -284,8 +285,10 @@ export const FinalVideoScreen = () => {
         const url = res.story?.finalVideoUrl;
         if (url) firestoreVideoUrlRef.current = url;
         if (res.story?.videoPublishReady && url) {
+          videoReadyForShareRef.current = true;
+          autoRecordTriggeredRef.current = true; // story already complete — skip auto-record
           setVideoReadyForShare(true);
-          console.log('📹 videoPublishReady=true — WhatsApp button enabled');
+          console.log('📹 videoPublishReady=true — WhatsApp button enabled, auto-record skipped');
         }
       }
     }).catch(() => {});
@@ -303,6 +306,7 @@ export const FinalVideoScreen = () => {
           const res = await storiesService.getStory(currentStoryId);
           if (res.success && res.story?.videoPublishReady && res.story?.finalVideoUrl) {
             firestoreVideoUrlRef.current = res.story.finalVideoUrl;
+            videoReadyForShareRef.current = true;
             setVideoReadyForShare(true);
             break;
           }
@@ -938,7 +942,7 @@ export const FinalVideoScreen = () => {
     clientRecordingSupportedRef.current = supported;
     // Auto-record on first view: enables recording BEFORE play starts so music gets
     // mixed into the video server-side. End screen only shows after mixing is done.
-    if (supported && !autoRecordTriggeredRef.current && !showEndScreen) {
+    if (supported && !autoRecordTriggeredRef.current && !showEndScreen && !videoReadyForShareRef.current) {
       autoRecordTriggeredRef.current = true;
       setRecordNextPlayback(true);
       // 300ms delay ensures _recEnabled=true JS arrives in WebView before handlePlayClick()

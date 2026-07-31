@@ -2431,18 +2431,20 @@ app.post('/api/reencode-for-whatsapp', express.json(), async (req, res) => {
     let mixInputPath = videoPath;
     if (backgroundVideoUrl && fs.existsSync(bgPath) && fs.statSync(bgPath).size > 1000) {
       const compositedPath = path.join(jobDir, 'composited.mp4');
-      console.log('🎨 Compositing background behind cube (no-music path)...');
+      console.log('🎨 Compositing background behind cube (no-music path, low-mem)...');
       await new Promise((resolve) => {
         execFile('ffmpeg', [
           '-i', bgPath,
           '-i', videoPath,
           '-filter_complex',
-          '[1:v]colorkey=color=000000:similarity=0.15:blend=0.05[ck];' +
-          '[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280[bg];' +
-          '[bg][ck]overlay=format=auto[v]',
+          '[1:v]fps=30,scale=360:640[cube];' +
+          '[cube]colorkey=color=000000:similarity=0.15:blend=0.05[ck];' +
+          '[0:v]scale=360:640:force_original_aspect_ratio=increase,crop=360:640[bg];' +
+          '[bg][ck]overlay=format=auto,scale=720:1280[v]',
           '-map', '[v]',
           '-map', '1:a?',
           '-c:v', 'libx264', '-preset', 'fast', '-crf', '22',
+          '-threads', '2',
           '-c:a', 'aac', '-shortest',
           '-y', compositedPath,
         ], { timeout: 120000 }, (err, _stdout, stderr) => {
@@ -2647,18 +2649,20 @@ app.post('/api/mix-music-with-video', async (req, res) => {
     let mixInputPath = videoPath;
     if (backgroundVideoUrl && fs.existsSync(bgPath) && fs.statSync(bgPath).size > 1000) {
       const compositedPath = path.join(jobDir, 'composited.mp4');
-      console.log('🎨 Compositing background behind cube with colorkey...');
+      console.log('🎨 Compositing background behind cube with colorkey (low-mem)...');
       await new Promise((resolve) => {
         execFile('ffmpeg', [
           '-i', bgPath,
           '-i', videoPath,
           '-filter_complex',
-          '[1:v]colorkey=color=000000:similarity=0.15:blend=0.05[ck];' +
-          '[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280[bg];' +
-          '[bg][ck]overlay=format=auto[v]',
+          '[1:v]fps=30,scale=360:640[cube];' +
+          '[cube]colorkey=color=000000:similarity=0.15:blend=0.05[ck];' +
+          '[0:v]scale=360:640:force_original_aspect_ratio=increase,crop=360:640[bg];' +
+          '[bg][ck]overlay=format=auto,scale=720:1280[v]',
           '-map', '[v]',
           '-map', '1:a?',
           '-c:v', 'libx264', '-preset', 'fast', '-crf', '22',
+          '-threads', '2',
           '-c:a', 'aac', '-shortest',
           '-y', compositedPath,
         ], { timeout: 120000 }, (err, stdout, stderr) => {
