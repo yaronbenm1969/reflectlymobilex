@@ -110,6 +110,7 @@ export const FinalVideoScreen = () => {
   const clientRecordingResolveRef = useRef(null);
   const autoRecordTriggeredRef = useRef(false);
   const videoReadyForShareRef = useRef(false); // mirrors videoReadyForShare — readable inside closures
+  const initialCheckDoneRef = useRef(false); // prevents auto-record race: wait for Firestore check before allowing
   const isUploadingRef = useRef(false);
   const cachedRecordingRef = useRef(null);
   const firebaseUrlRef = useRef(null);
@@ -291,7 +292,15 @@ export const FinalVideoScreen = () => {
           console.log('📹 videoPublishReady=true — WhatsApp button enabled, auto-record skipped');
         }
       }
-    }).catch(() => {});
+      // Mark initial check done — now allow auto-record if recording was already ready
+      initialCheckDoneRef.current = true;
+      if (clientRecordingSupportedRef.current && !autoRecordTriggeredRef.current && !videoReadyForShareRef.current) {
+        console.log('📹 Deferred auto-record: initial check done, triggering now');
+        autoRecordTriggeredRef.current = true;
+        setRecordNextPlayback(true);
+        setTimeout(() => { setTriggerAutoPlay(true); setTimeout(() => setTriggerAutoPlay(false), 500); }, 300);
+      }
+    }).catch(() => { initialCheckDoneRef.current = true; });
   }, [currentStoryId]);
 
   // Poll every 15s for server to set videoPublishReady after processing.
@@ -943,6 +952,11 @@ export const FinalVideoScreen = () => {
     // Auto-record on first view: enables recording BEFORE play starts so music gets
     // mixed into the video server-side. End screen only shows after mixing is done.
     if (supported && !autoRecordTriggeredRef.current && !showEndScreen && !videoReadyForShareRef.current) {
+      if (!initialCheckDoneRef.current) {
+        // Firestore initial check not yet complete — defer auto-record until check returns
+        console.log('📹 Auto-record deferred: waiting for initial Firestore check...');
+        return;
+      }
       autoRecordTriggeredRef.current = true;
       setRecordNextPlayback(true);
       // 300ms delay ensures _recEnabled=true JS arrives in WebView before handlePlayClick()
