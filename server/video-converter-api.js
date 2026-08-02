@@ -1737,7 +1737,7 @@ app.post('/api/stories/:storyId/render', async (req, res) => {
 
       // Save finalVideoUrl to Firestore — videoPublishReady signals client WhatsApp button is ready
       if (firestoreDb && storyId && finalUrl) {
-        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl, status: 'completed', videoPublishReady: true }).catch(() => {});
+        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl, status: 'completed', videoPublishReady: true, completedAt: new Date() }).catch(() => {});
       }
       sendVideoReadyNotification(storyId, finalUrl).catch(() => {});
 
@@ -1837,7 +1837,7 @@ app.post('/api/stories/:storyId/render-format', async (req, res) => {
 
       // Save finalVideoUrl to Firestore — videoPublishReady signals client WhatsApp button is ready
       if (firestoreDb && storyId && finalUrl) {
-        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl, status: 'completed', videoPublishReady: true }).catch(() => {});
+        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl, status: 'completed', videoPublishReady: true, completedAt: new Date() }).catch(() => {});
       }
       sendVideoReadyNotification(storyId, finalUrl).catch(() => {});
 
@@ -2431,14 +2431,35 @@ app.post('/api/reencode-for-whatsapp', express.json(), async (req, res) => {
     let mixInputPath = videoPath;
     if (backgroundVideoUrl && fs.existsSync(bgPath) && fs.statSync(bgPath).size > 1000) {
       const compositedPath = path.join(jobDir, 'composited.mp4');
-      console.log('🎨 Compositing background behind cube (no-music path, low-mem)...');
+      // Two-step: normalize cube to 30fps first (prevents OOM from 600fps VFR), then composite.
+      const normalizedCubePath2 = path.join(jobDir, 'cube_norm.mp4');
+      let cubeInputPath2 = videoPath;
+      await new Promise((resolve) => {
+        console.log('🎬 Pre-normalizing cube video to 30fps 360p...');
+        execFile('ffmpeg', [
+          '-i', videoPath,
+          '-vf', 'fps=30,scale=360:640',
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '26',
+          '-c:a', 'aac', '-b:a', '128k',
+          '-threads', '1',
+          '-y', normalizedCubePath2,
+        ], { timeout: 90000 }, (err) => {
+          if (!err && fs.existsSync(normalizedCubePath2) && fs.statSync(normalizedCubePath2).size > 1000) {
+            cubeInputPath2 = normalizedCubePath2;
+            console.log('✅ Cube pre-normalized to 30fps 360p');
+          } else {
+            console.warn('⚠️ Pre-normalization failed, using original:', err?.message);
+          }
+          resolve();
+        });
+      });
+      console.log('🎨 Compositing background behind cube (no-music path)...');
       await new Promise((resolve) => {
         execFile('ffmpeg', [
           '-i', bgPath,
-          '-i', videoPath,
+          '-i', cubeInputPath2,
           '-filter_complex',
-          '[1:v]fps=30,scale=360:640[cube];' +
-          '[cube]colorkey=color=000000:similarity=0.15:blend=0.05[ck];' +
+          '[1:v]colorkey=color=000000:similarity=0.15:blend=0.05[ck];' +
           '[0:v]scale=360:640:force_original_aspect_ratio=increase,crop=360:640[bg];' +
           '[bg][ck]overlay=format=auto,scale=720:1280[v]',
           '-map', '[v]',
@@ -2511,6 +2532,7 @@ app.post('/api/reencode-for-whatsapp', express.json(), async (req, res) => {
         finalVideoUrl: finalUrl,
         status: 'completed',
         videoPublishReady: true,
+        completedAt: new Date(),
       }).catch(e => console.warn('reencode: Firestore save failed:', e.message));
     }
     res.json({ success: true, finalUrl, videoUrl: finalUrl });
@@ -2643,20 +2665,42 @@ app.post('/api/mix-music-with-video', async (req, res) => {
     });
 
     // If a background video URL was provided, composite it behind the cube.
-    // colorkey makes pure-black pixels in the cube recording transparent, then overlays
-    // the result over the background. Unlike blend=screen, this does NOT alter the colors
-    // of the cube face videos — only the black areas (outside the cube) become transparent.
+    // Two-step: normalize cube to 30fps first (prevents OOM from 600fps VFR), then composite.
     let mixInputPath = videoPath;
     if (backgroundVideoUrl && fs.existsSync(bgPath) && fs.statSync(bgPath).size > 1000) {
       const compositedPath = path.join(jobDir, 'composited.mp4');
-      console.log('🎨 Compositing background behind cube with colorkey (low-mem)...');
+      const normalizedCubePath = path.join(jobDir, 'cube_norm.mp4');
+
+      // Step 1: normalize cube to 30fps 360p — one input, low memory, fast
+      let cubeInputPath = videoPath;
       await new Promise((resolve) => {
+        console.log('🎬 Pre-normalizing cube video to 30fps 360p...');
+        execFile('ffmpeg', [
+          '-i', videoPath,
+          '-vf', 'fps=30,scale=360:640',
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '26',
+          '-c:a', 'aac', '-b:a', '128k',
+          '-threads', '1',
+          '-y', normalizedCubePath,
+        ], { timeout: 90000 }, (err) => {
+          if (!err && fs.existsSync(normalizedCubePath) && fs.statSync(normalizedCubePath).size > 1000) {
+            cubeInputPath = normalizedCubePath;
+            console.log('✅ Cube pre-normalized to 30fps 360p');
+          } else {
+            console.warn('⚠️ Pre-normalization failed, using original:', err?.message);
+          }
+          resolve();
+        });
+      });
+
+      // Step 2: composite pre-normalized (small) cube with background
+      await new Promise((resolve) => {
+        console.log('🎨 Compositing background behind cube...');
         execFile('ffmpeg', [
           '-i', bgPath,
-          '-i', videoPath,
+          '-i', cubeInputPath,
           '-filter_complex',
-          '[1:v]fps=30,scale=360:640[cube];' +
-          '[cube]colorkey=color=000000:similarity=0.15:blend=0.05[ck];' +
+          '[1:v]colorkey=color=000000:similarity=0.15:blend=0.05[ck];' +
           '[0:v]scale=360:640:force_original_aspect_ratio=increase,crop=360:640[bg];' +
           '[bg][ck]overlay=format=auto,scale=720:1280[v]',
           '-map', '[v]',
@@ -2669,12 +2713,11 @@ app.post('/api/mix-music-with-video', async (req, res) => {
           if (err) {
             console.warn('⚠️ Background colorkey failed, using original video:', err.message);
             if (stderr) console.warn('FFmpeg stderr:', stderr.slice(-500));
-            resolve(); // fall through with original videoPath
           } else {
             console.log('✅ Background colorkey composited');
             mixInputPath = compositedPath;
-            resolve();
           }
+          resolve();
         });
       });
     }
@@ -2739,6 +2782,7 @@ app.post('/api/mix-music-with-video', async (req, res) => {
         finalVideoUrl: finalUrl,
         status: 'completed',
         videoPublishReady: true,
+        completedAt: new Date(),
       }).catch(e => console.warn('mix-music: Firestore save failed:', e.message));
       sendVideoReadyNotification(storyId, finalUrl).catch(() => {});
     }

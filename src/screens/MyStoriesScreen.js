@@ -349,7 +349,7 @@ export const MyStoriesScreen = () => {
                           {t('myStories.participants_joined', { count: story.currentPlayers })}
                         </Text>
                       )}
-                      <Text style={styles.storyMeta}>{formatDate(story.createdAt || story.updatedAt)}</Text>
+                      <Text style={styles.storyMeta}>{formatDate(story.completedAt || story.createdAt || story.updatedAt)}</Text>
                       <View style={[styles.statusBadge, { backgroundColor: getStatusColor(story.status) + '28' }]}>
                         <Text style={[styles.statusText, { color: getStatusColor(story.status) }]}>
                           {getStatusText(story.status)}
