@@ -4,11 +4,13 @@ services:
     runtime: node
     rootDir: server
     plan: standard
-    buildCommand: npm install --legacy-peer-deps
+    buildCommand: npm install --legacy-peer-deps && npx puppeteer browsers install chrome
     startCommand: node video-converter-api.js
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/.cache/puppeteer
 
   - type: web
     name: rilio-website
