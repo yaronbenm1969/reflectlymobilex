@@ -296,7 +296,8 @@ export const MyStoriesScreen = () => {
             {stories.map((story) => {
               const videoUrl = story.finalVideoUrl || story.videoUrl || null;
               const creatorVideoUrl = story.sourceVideoUrl || null;
-              const isCompleted = !!videoUrl || story.status === 'completed';
+              const isCubeFormat = story.videoFormat === 'cube-3d';
+              const isCompleted = !!videoUrl || story.status === 'completed' || isCubeFormat;
               return (
                 <View key={story.id} style={styles.storyCard}>
                   {/* New videos banner — tappable, navigates to EditRoom */}
@@ -369,7 +370,15 @@ export const MyStoriesScreen = () => {
                     <View style={styles.completedActions}>
                       <TouchableOpacity
                         style={styles.completedAction}
-                        onPress={() => setWatchData({ url: videoUrl, name: story.name, story })}
+                        onPress={() => {
+                          if (videoUrl) {
+                            setWatchData({ url: videoUrl, name: story.name, story });
+                          } else {
+                            setStoryName(story.name);
+                            setCurrentStoryId(story.id);
+                            go('FinalVideo');
+                          }
+                        }}
                       >
                         <Ionicons name="play-circle-outline" size={15} color="rgba(255,255,255,0.75)" />
                         <Text style={styles.completedActionText}>{t('myStories.watch')}</Text>
