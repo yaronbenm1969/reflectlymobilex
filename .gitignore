@@ -1,4 +1,5 @@
 node_modules/
+server/.puppeteer-cache/
 .expo/
 .expo-shared/
 dist/
