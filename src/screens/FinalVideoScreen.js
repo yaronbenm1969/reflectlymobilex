@@ -50,6 +50,9 @@ const SERVER_HEADERS = {
   ...(process.env.EXPO_PUBLIC_ACCESS_CODE ? { 'x-app-access-code': process.env.EXPO_PUBLIC_ACCESS_CODE } : {}),
 };
 
+// Set false to revert to client-side canvas recording for cube-3d
+const USE_SERVER_CUBE_RENDER = true;
+
 const convertedUrlCache = new Map();
 
 export const FinalVideoScreen = () => {
@@ -107,6 +110,8 @@ export const FinalVideoScreen = () => {
   const [isRemixingMusic, setIsRemixingMusic] = useState(false);
   const [musicHint, setMusicHint] = useState('');
   const [musicEngine, setMusicEngine] = useState('suno'); // 'suno' | 'musicgen'
+  const [serverRenderJobId, setServerRenderJobId] = useState(null);
+  const [serverRenderError, setServerRenderError] = useState(null);
   const clientRecordingResolveRef = useRef(null);
   const autoRecordTriggeredRef = useRef(false);
   const videoReadyForShareRef = useRef(false); // mirrors videoReadyForShare — readable inside closures
@@ -292,9 +297,15 @@ export const FinalVideoScreen = () => {
           console.log('📹 videoPublishReady=true — WhatsApp button enabled, auto-record skipped');
         }
       }
-      // Mark initial check done — now allow auto-record if recording was already ready
+      // Mark initial check done — now decide how to proceed
       initialCheckDoneRef.current = true;
-      if (clientRecordingSupportedRef.current && !autoRecordTriggeredRef.current && !videoReadyForShareRef.current) {
+      if (autoRecordTriggeredRef.current || videoReadyForShareRef.current) return; // already handled
+      if (USE_SERVER_CUBE_RENDER && videoFormat === 'cube-3d') {
+        // Route cube-3d through server-side Puppeteer renderer
+        autoRecordTriggeredRef.current = true; // prevents client recording
+        console.log('📹 Server cube render: starting...');
+        startServerCubeRender();
+      } else if (clientRecordingSupportedRef.current) {
         console.log('📹 Deferred auto-record: initial check done, triggering now');
         autoRecordTriggeredRef.current = true;
         setRecordNextPlayback(true);
@@ -945,6 +956,43 @@ export const FinalVideoScreen = () => {
     });
   };
 
+  // ── Server-side cube rendering ────────────────────────────────────────────
+  const startServerCubeRender = async () => {
+    setServerRenderError(null);
+    setDownloadProgress(t('finalVideo.server_rendering'));
+    setShowEndScreen(true);
+    // Auto-play animation so user watches while server renders (~3-6 min)
+    setTimeout(() => { setTriggerAutoPlay(true); setTimeout(() => setTriggerAutoPlay(false), 500); }, 300);
+    try {
+      const res = await fetch(`${VIDEO_CONVERTER_URL}/api/poc/render-cube`, {
+        method: 'POST',
+        headers: SERVER_HEADERS,
+        body: JSON.stringify({ storyId: currentStoryId }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json();
+      setServerRenderJobId(data.jobId);
+      setDownloadProgress('');
+      console.log('[ServerRender] Job started:', data.jobId);
+    } catch (err) {
+      console.error('[ServerRender] Failed to start:', err.message);
+      setServerRenderError(err.message);
+      setDownloadProgress('');
+    }
+  };
+
+  const handleServerRenderFallback = () => {
+    // User chose to fall back to client recording
+    setServerRenderError(null);
+    autoRecordTriggeredRef.current = false;
+    setShowEndScreen(false);
+    if (clientRecordingSupportedRef.current) {
+      autoRecordTriggeredRef.current = true;
+      setRecordNextPlayback(true);
+      setTimeout(() => { setTriggerAutoPlay(true); setTimeout(() => setTriggerAutoPlay(false), 500); }, 300);
+    }
+  };
+
   const handleRecordingSupport = (supported) => {
     console.log('📹 Client recording supported:', supported, 'format:', videoFormat);
     setClientRecordingSupported(supported);
@@ -957,6 +1005,8 @@ export const FinalVideoScreen = () => {
         console.log('📹 Auto-record deferred: waiting for initial Firestore check...');
         return;
       }
+      // Server-side render handles cube-3d — never start client recording for this format
+      if (USE_SERVER_CUBE_RENDER && videoFormat === 'cube-3d') return;
       autoRecordTriggeredRef.current = true;
       setRecordNextPlayback(true);
       // 300ms delay ensures _recEnabled=true JS arrives in WebView before handlePlayClick()
@@ -1996,6 +2046,27 @@ export const FinalVideoScreen = () => {
                   <Text style={styles.recordingReadyText}>{t('finalVideo.upload_recorded')}</Text>
                 </View>
               ) : null}
+
+              {/* Server render error UI */}
+              {serverRenderError && (
+                <View style={{ marginTop: 14, alignItems: 'center', paddingHorizontal: 20 }}>
+                  <Text style={{ color: '#ff6b6b', fontSize: 13, textAlign: 'center', marginBottom: 10 }}>
+                    {t('finalVideo.server_render_error')} ({serverRenderError})
+                  </Text>
+                  <TouchableOpacity
+                    onPress={startServerCubeRender}
+                    style={{ backgroundColor: '#8446b0', borderRadius: 20, paddingVertical: 8, paddingHorizontal: 22, marginBottom: 8 }}
+                  >
+                    <Text style={{ color: 'white', fontSize: 14, fontWeight: '600' }}>נסה שוב</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleServerRenderFallback}
+                    style={{ borderRadius: 20, paddingVertical: 8, paddingHorizontal: 22, borderWidth: 1, borderColor: '#8446b0' }}
+                  >
+                    <Text style={{ color: '#8446b0', fontSize: 14 }}>הקלט מהמכשיר</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               <View style={styles.endScreenDivider} />
 

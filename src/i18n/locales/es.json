@@ -552,6 +552,8 @@
     "factory_processing": "Procesando video",
     "factory_mixing": "Mezclando música...",
     "factory_preparing": "Preparando video...",
+    "server_rendering": "El servidor está renderizando...",
+    "server_render_error": "Error de renderizado en servidor",
     "my_story": "Mi historia",
     "participant_n": "Participante {{n}}",
     "error_share_video": "No se puede compartir el video",

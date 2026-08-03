@@ -552,6 +552,8 @@
     "factory_processing": "Traitement de la vidéo",
     "factory_mixing": "Mixage de la musique...",
     "factory_preparing": "Préparation de la vidéo...",
+    "server_rendering": "Le serveur effectue le rendu...",
+    "server_render_error": "Erreur de rendu serveur",
     "my_story": "Mon histoire",
     "participant_n": "Participant {{n}}",
     "error_share_video": "Impossible de partager la vidéo",

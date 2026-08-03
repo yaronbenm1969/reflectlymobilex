@@ -41,7 +41,7 @@ const POC_PRESET     = 'fast';
 const POC_SCREENSHOT = 'png'; // lossless per-frame capture
 
 // ─── Safety limits ────────────────────────────────────────────────────────────
-const MAX_STORY_DURATION_SECS = 20;  // raise only after first test succeeds
+const MAX_STORY_DURATION_SECS = 120; // max story length for server render
 const MIN_DISK_BYTES          = 700 * 1024 * 1024; // 700 MB
 const STALE_JOB_MINUTES       = 30;
 
@@ -678,7 +678,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     });
 
     console.log(`[POC] ✅ Done — jobId=${jobId} url=${outputUrl} total=${totalDurationMs}ms`);
-    return { jobId, outputUrl };
+    return { jobId, outputUrl, generatedMusicUrl: story.generatedMusicUrl || null };
 
   } catch (err) {
     console.error('[POC] ❌ Render failed:', err.code || 'UNKNOWN', err.message);

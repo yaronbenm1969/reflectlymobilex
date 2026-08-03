@@ -3765,8 +3765,9 @@ app.post('/api/poc/render-cube', async (req, res) => {
   res.json({ success: true, message: 'POC render started', storyId: cleanStoryId, jobId: pocJobId });
 
   setImmediate(async () => {
+    let pocResult = null;
     try {
-      await renderCubePoc(cleanStoryId, {
+      pocResult = await renderCubePoc(cleanStoryId, {
         jobId: pocJobId,
         firestoreDb,
         bucket,
@@ -3775,9 +3776,52 @@ app.post('/api/poc/render-cube', async (req, res) => {
       });
     } catch (err) {
       // Errors are already written to Firestore by renderCubePoc.
-      // Log here for Render log visibility.
       console.error('[POC endpoint] render failed:', err.code, err.message);
+      return;
     }
+
+    // ── Post-render: mix music → update stories doc → push notification ──────
+    const { outputUrl, generatedMusicUrl: musicUrl } = pocResult;
+    let finalUrl = outputUrl;
+
+    if (musicUrl) {
+      console.log('[POC] Mixing Suno music into rendered video...');
+      const ts = Date.now();
+      const tmpVideo  = path.join(os.tmpdir(), `poc_premix_${ts}.mp4`);
+      const tmpMusic  = path.join(os.tmpdir(), `poc_music_${ts}.m4a`);
+      const tmpOutput = path.join(os.tmpdir(), `poc_mixed_${ts}.mp4`);
+      try {
+        await downloadFile(outputUrl, tmpVideo, 180000);
+        await downloadFile(musicUrl, tmpMusic, 60000);
+        const { mixRecordingAudioWithMusic } = require('./music/mixing-service');
+        await mixRecordingAudioWithMusic(tmpVideo, tmpMusic, tmpOutput, 0.06);
+        const mixedStoragePath = `edited/${cleanStoryId}/poc_final_${ts}.mp4`;
+        finalUrl = await uploadToFirebase(tmpOutput, mixedStoragePath);
+        console.log('[POC] Music mixed and uploaded:', finalUrl);
+      } catch (mixErr) {
+        console.warn('[POC] Music mix failed, using un-mixed video:', mixErr.message);
+      } finally {
+        for (const f of [tmpVideo, tmpMusic, tmpOutput]) {
+          try { fs.unlinkSync(f); } catch { }
+        }
+      }
+    }
+
+    // Update stories/{storyId} — same fields as mix-music-with-video
+    try {
+      await firestoreDb.collection('stories').doc(cleanStoryId).update({
+        finalVideoUrl: finalUrl,
+        status: 'completed',
+        videoPublishReady: true,
+        completedAt: new Date(),
+      });
+      console.log(`[POC] ✅ stories/${cleanStoryId} updated — videoPublishReady=true`);
+    } catch (fsErr) {
+      console.error('[POC] Firestore stories update failed:', fsErr.message);
+    }
+
+    // Push notification to creator
+    sendVideoReadyNotification(cleanStoryId, finalUrl).catch(() => {});
   });
 });
 

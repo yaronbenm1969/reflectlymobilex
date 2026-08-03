@@ -552,6 +552,8 @@
     "factory_processing": "Processing video",
     "factory_mixing": "Mixing music...",
     "factory_preparing": "Preparing video...",
+    "server_rendering": "Server is rendering...",
+    "server_render_error": "Server render error",
     "uploading_video": "Uploading video",
     "waiting_for_music": "Waiting for music...",
     "my_story": "My Story",

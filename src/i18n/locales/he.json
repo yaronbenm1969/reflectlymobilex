@@ -552,6 +552,8 @@
     "factory_processing": "מעבד את הסרטון",
     "factory_mixing": "מערבב מוזיקה...",
     "factory_preparing": "מכין את הסרטון...",
+    "server_rendering": "השרת מרנדר את הסרטון...",
+    "server_render_error": "שגיאה בעיבוד השרת",
     "uploading_video": "מעלה סרטון",
     "waiting_for_music": "ממתין למוזיקה...",
     "my_story": "הסיפור שלי",
