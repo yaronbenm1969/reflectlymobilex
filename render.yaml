@@ -3,6 +3,7 @@ services:
     name: reflectly-server
     runtime: node
     rootDir: server
+    plan: standard
     buildCommand: npm install --legacy-peer-deps
     startCommand: node video-converter-api.js
     envVars:

@@ -21,7 +21,7 @@ const os   = require('os');
 const { execSync } = require('child_process');
 
 let puppeteer;
-try { puppeteer = require('puppeteer-core'); } catch { puppeteer = null; }
+try { puppeteer = require('puppeteer'); } catch { puppeteer = null; }
 
 const {
   downloadFile,
@@ -454,11 +454,15 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
 
     // ── Chromium / Puppeteer ──────────────────────────────────────────────
     if (!puppeteer) {
-      const e = new Error('puppeteer-core is not installed on this server');
+      const e = new Error('puppeteer is not installed on this server');
       e.code = 'NO_CHROMIUM';
       throw e;
     }
-    const chromiumPath = findChromium();
+    // Full puppeteer package ships its own Chrome — use it.
+    // Fall back to findChromium() only for local dev (puppeteer-core / system Chrome).
+    const chromiumPath = (typeof puppeteer.executablePath === 'function')
+      ? puppeteer.executablePath()
+      : findChromium();
     if (!chromiumPath) {
       const e = new Error('Chromium executable not found');
       e.code = 'NO_CHROMIUM';
