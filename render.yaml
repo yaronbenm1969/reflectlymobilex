@@ -4,7 +4,7 @@ services:
     runtime: node
     rootDir: server
     plan: standard
-    buildCommand: npm install --legacy-peer-deps && npx puppeteer browsers install chrome
+    buildCommand: npm install --legacy-peer-deps && PUPPETEER_CACHE_DIR=/opt/render/project/src/server/.puppeteer-cache npx puppeteer browsers install chrome
     startCommand: node video-converter-api.js
     envVars:
       - key: NODE_ENV
