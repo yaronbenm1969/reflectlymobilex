@@ -149,6 +149,7 @@ export const MyStoriesScreen = () => {
   const user = useAppState((state) => state.user);
   const setStoryName = useAppState((state) => state.setStoryName);
   const setCurrentStoryId = useAppState((state) => state.setCurrentStoryId);
+  const setVideoFormat = useAppState((state) => state.setVideoFormat);
 
   const bgVideoRef = useRef(null);
   const [stories, setStories] = useState([]);
@@ -376,6 +377,7 @@ export const MyStoriesScreen = () => {
                           } else {
                             setStoryName(story.name);
                             setCurrentStoryId(story.id);
+                            setVideoFormat(story.format);
                             go('FinalVideo');
                           }
                         }}
