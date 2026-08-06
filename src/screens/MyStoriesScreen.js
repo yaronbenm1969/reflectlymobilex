@@ -295,14 +295,9 @@ export const MyStoriesScreen = () => {
         ) : (
           <View style={styles.storiesGrid}>
             {stories.map((story) => {
+              const videoUrl = story.finalVideoUrl || story.videoUrl || null;
+              const creatorVideoUrl = story.sourceVideoUrl || null;
               const isCubeFormat = story.format === 'cube-3d';
-              // For cube-3d: Watch plays the rendered cube (finalVideoUrl only)
-              // For other formats: Watch plays final or source video
-              const videoUrl = isCubeFormat
-                ? (story.finalVideoUrl || null)
-                : (story.finalVideoUrl || story.videoUrl || null);
-              // Creator's original source video shown separately from cube
-              const creatorVideoUrl = story.videoUri || story.videoUrl || null;
               const isCompleted = !!videoUrl || story.status === 'completed' || isCubeFormat;
               return (
                 <View key={story.id} style={styles.storyCard}>

@@ -281,8 +281,10 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
   }
   const story = storySnap.data();
 
-  // Only participant clips go in the cube — creator video shown separately in Projects
+  // Creator clip
   const videoUrls = [];
+  const creatorUrl = story.videoUri || story.videoUrl || null;
+  if (creatorUrl) videoUrls.push(creatorUrl);
 
   // Participant reflections (separate collection)
   const reflSnap = await firestoreDb.collection('reflections')
