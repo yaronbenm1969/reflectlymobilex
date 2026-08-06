@@ -2336,7 +2336,7 @@ export const FinalVideoScreen = () => {
                 </TouchableOpacity>
               </View>
             </View>
-          ) : isAnimatedFormat && (assetStatus === 'loading' || assetStatus === 'converting' || (assetStatus === 'idle' && reflections.length > 0)) && !assetsReady ? (
+          ) : isAnimatedFormat && !assetsReady ? (
             /* Show loading screen while downloading ALL videos */
             <View style={styles.cubeContainer}>
               <View style={styles.loadingContainer}>
