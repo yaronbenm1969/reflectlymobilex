@@ -695,12 +695,15 @@ async function downloadFile(url, destPath) {
 
 function startLocalVideoServer(videosDir, port) {
   const http = require('http');
+  const MIME = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png' };
   const server = http.createServer((req, res) => {
     const filePath = path.join(videosDir, req.url.replace(/^\//, ''));
-    if (!fs.existsSync(filePath)) {
+    if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
       res.writeHead(404); res.end(); return;
     }
     const stat = fs.statSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType = MIME[ext] || 'application/octet-stream';
     const range = req.headers.range;
     if (range) {
       const parts = range.replace(/bytes=/, '').split('-');
@@ -710,13 +713,13 @@ function startLocalVideoServer(videosDir, port) {
         'Content-Range': `bytes ${start}-${end}/${stat.size}`,
         'Accept-Ranges': 'bytes',
         'Content-Length': end - start + 1,
-        'Content-Type': 'video/mp4',
+        'Content-Type': contentType,
         'Access-Control-Allow-Origin': '*',
       });
       fs.createReadStream(filePath, { start, end }).pipe(res);
     } else {
       res.writeHead(200, {
-        'Content-Type': 'video/mp4',
+        'Content-Type': contentType,
         'Content-Length': stat.size,
         'Access-Control-Allow-Origin': '*',
         'Accept-Ranges': 'bytes',

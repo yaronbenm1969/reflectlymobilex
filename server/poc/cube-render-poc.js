@@ -27,7 +27,6 @@ const {
   downloadFile,
   getVideoDuration,
   startLocalVideoServer,
-  generateCubeHTML,
 } = require('../format-renderer');
 
 // ─── POC quality profile ──────────────────────────────────────────────────────
@@ -235,6 +234,188 @@ async function getActiveJob(firestoreDb) {
     if ((now - ts) / 60000 < STALE_JOB_MINUTES) return { id: doc.id, ...d };
   }
   return null;
+}
+
+// ─── Image-sequence cube HTML (replaces video elements for headless Chrome) ───
+/**
+ * Same visual output as generateCubeHTML but loads JPEG frames extracted by
+ * FFmpeg instead of <video> elements. ctx.drawImage(<img>) always works in
+ * headless Chrome; ctx.drawImage(<video>) returns black without GPU decode.
+ */
+function generateCubeHtmlFromFrames(frameBaseUrls, frameCounts, videoDurations, fps, bgUrl) {
+  const CS = 280; // cube size px
+  const W  = POC_WIDTH;
+  const H  = POC_HEIGHT;
+  const bgHtml = bgUrl
+    ? `<video id="custom-bg" src="${bgUrl.replace(/'/g,'')}" autoplay loop muted playsinline
+         style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;"></video>`
+    : `<div class="space-bg"></div>`;
+
+  return `<!DOCTYPE html>
+<html lang="he" dir="rtl"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=${W},height=${H}">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:${W}px;height:${H}px;overflow:hidden;background:#000;}
+body{display:flex;align-items:center;justify-content:center;font-family:sans-serif;}
+.space-bg{position:fixed;top:0;left:0;width:100%;height:100%;
+  background:radial-gradient(ellipse at center,#0a0a1a 0%,#000 100%);z-index:0;}
+.stars{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;}
+.stars-layer{position:absolute;width:100%;height:100%;}
+.stars-layer-1{background-image:
+  radial-gradient(1px 1px at 10% 20%,rgba(255,255,255,.9) 0%,transparent 100%),
+  radial-gradient(1px 1px at 25% 45%,rgba(255,255,255,.7) 0%,transparent 100%),
+  radial-gradient(1.5px 1.5px at 40% 15%,rgba(255,255,255,.8) 0%,transparent 100%),
+  radial-gradient(1px 1px at 55% 70%,rgba(255,255,255,.6) 0%,transparent 100%),
+  radial-gradient(2px 2px at 70% 35%,rgba(255,255,255,.9) 0%,transparent 100%),
+  radial-gradient(1px 1px at 85% 60%,rgba(255,255,255,.7) 0%,transparent 100%);
+  animation:twinkle 4s ease-in-out infinite;}
+.stars-layer-2{background-image:
+  radial-gradient(1px 1px at 5% 55%,rgba(255,255,255,.5) 0%,transparent 100%),
+  radial-gradient(1.5px 1.5px at 20% 30%,rgba(255,255,255,.6) 0%,transparent 100%),
+  radial-gradient(1px 1px at 60% 25%,rgba(255,255,255,.7) 0%,transparent 100%),
+  radial-gradient(2px 2px at 75% 55%,rgba(255,255,255,.5) 0%,transparent 100%);
+  animation:twinkle 6s ease-in-out infinite 2s;}
+.depth-grid{position:fixed;top:0;left:0;width:100%;height:100%;
+  background:linear-gradient(rgba(255,107,157,.03) 1px,transparent 1px),
+             linear-gradient(90deg,rgba(255,107,157,.03) 1px,transparent 1px);
+  background-size:50px 50px;
+  transform:perspective(500px) rotateX(60deg);transform-origin:center 120%;z-index:1;opacity:.5;}
+@keyframes twinkle{0%,100%{opacity:1;}50%{opacity:.5;}}
+.scene{width:${CS}px;height:${CS}px;perspective:800px;perspective-origin:50% 50%;z-index:10;position:relative;}
+.cube{width:100%;height:100%;position:relative;transform-style:preserve-3d;}
+.cube-face{position:absolute;width:${CS}px;height:${CS}px;
+  border:4px solid rgba(255,255,255,.7);border-radius:16px;overflow:hidden;
+  background:#000;box-shadow:0 0 30px rgba(0,0,0,.3);backface-visibility:hidden;}
+.cube-face canvas{width:100%;height:100%;position:absolute;top:0;left:0;background:#000;}
+.front {transform:rotateY(0deg)   translateZ(${CS/2}px);}
+.back  {transform:rotateY(180deg) translateZ(${CS/2}px);}
+.right {transform:rotateY(90deg)  translateZ(${CS/2}px);}
+.left  {transform:rotateY(-90deg) translateZ(${CS/2}px);}
+.top   {transform:rotateX(90deg)  translateZ(${CS/2}px);}
+.bottom{transform:rotateX(-90deg) translateZ(${CS/2}px);}
+.float-wrapper{width:100%;height:100%;transform-style:preserve-3d;}
+.spin-wrapper {width:100%;height:100%;transform-style:preserve-3d;}
+</style></head>
+<body>
+${bgHtml}
+<div class="stars"><div class="stars-layer stars-layer-1"></div><div class="stars-layer stars-layer-2"></div></div>
+<div class="depth-grid"></div>
+<div class="scene">
+  <div class="float-wrapper" id="float-wrapper">
+    <div class="spin-wrapper" id="spin-wrapper">
+      <div class="cube" id="cube">
+        <div class="cube-face front"  id="face-0"></div>
+        <div class="cube-face back"   id="face-1"></div>
+        <div class="cube-face right"  id="face-2"></div>
+        <div class="cube-face left"   id="face-3"></div>
+        <div class="cube-face top"    id="face-4"></div>
+        <div class="cube-face bottom" id="face-5"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const frameBaseUrls  = ${JSON.stringify(frameBaseUrls)};
+const frameCounts    = ${JSON.stringify(frameCounts)};
+const videoDurations = ${JSON.stringify(videoDurations)};
+const FPS         = ${fps};
+const CANVAS_SIZE = ${CS};
+const ROTATION_PATH = [
+  {faceId:0,rotX:0,  rotY:0},
+  {faceId:2,rotX:12, rotY:-90},
+  {faceId:1,rotX:-35,rotY:-180},
+  {faceId:3,rotX:10, rotY:-270},
+];
+const HALF_ANGLE = 45;
+const ctxElements = [];
+let cumulativeTimes = [], totalDuration = 0;
+
+function init() {
+  let t = 0;
+  for (let i = 0; i < videoDurations.length; i++) { cumulativeTimes.push(t); t += videoDurations[i]; }
+  totalDuration = t;
+  [0,1,2,3,4,5].forEach(faceId => {
+    const el = document.getElementById('face-'+faceId);
+    const cv = document.createElement('canvas');
+    cv.width = CANVAS_SIZE; cv.height = CANVAS_SIZE;
+    el.appendChild(cv);
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#111'; ctx.fillRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+    ctxElements[faceId] = ctx;
+  });
+}
+
+function getFaceForIndex(idx) { return ROTATION_PATH[idx%4].faceId; }
+function getTargetRotation(idx) {
+  const cycle = Math.floor(idx/4), step = ROTATION_PATH[idx%4];
+  return {rotX:step.rotX, rotY:step.rotY-(cycle*360)};
+}
+function getVideoAtTime(globalTime) {
+  for (let i = videoDurations.length-1; i >= 0; i--) {
+    if (globalTime >= cumulativeTimes[i]) {
+      const lt = globalTime - cumulativeTimes[i];
+      if (lt <= videoDurations[i]) return {videoIndex:i, localTime:Math.min(lt, videoDurations[i]-0.01)};
+    }
+  }
+  return {videoIndex:videoDurations.length-1, localTime:videoDurations[videoDurations.length-1]-0.01};
+}
+function getFrameUrl(videoIndex, localTime) {
+  const count = frameCounts[videoIndex];
+  const fi = Math.max(0, Math.min(count-1, Math.floor(localTime*FPS)));
+  return frameBaseUrls[videoIndex]+'/f_'+String(fi+1).padStart(6,'0')+'.jpg';
+}
+function loadImageIntoFace(url, faceId) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const ctx = ctxElements[faceId];
+      const iw = img.naturalWidth||CANVAS_SIZE, ih = img.naturalHeight||CANVAS_SIZE;
+      const scale = Math.max(CANVAS_SIZE/iw, CANVAS_SIZE/ih);
+      const sw = iw*scale, sh = ih*scale;
+      const sx = (CANVAS_SIZE-sw)/2, sy = (CANVAS_SIZE-sh)/2;
+      ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+      ctx.drawImage(img, sx, sy, sw, sh);
+      resolve();
+    };
+    img.onerror = () => resolve();
+    img.src = url;
+  });
+}
+
+window.__seekAndDraw = function(globalTime) {
+  return new Promise(async resolve => {
+    if (globalTime >= totalDuration) { resolve({done:true}); return; }
+    const {videoIndex, localTime} = getVideoAtTime(globalTime);
+    const faceId = getFaceForIndex(videoIndex);
+    await loadImageIntoFace(getFrameUrl(videoIndex, localTime), faceId);
+
+    const dur = videoDurations[videoIndex];
+    const vp  = dur > 0 ? Math.min(localTime/dur, 1) : 0;
+    const from = getTargetRotation(videoIndex), to = getTargetRotation(videoIndex+1);
+    const ease = vp < 0.5 ? 2*vp*vp : 1-Math.pow(-2*vp+2,2)/2;
+    const rX = from.rotX+(to.rotX-from.rotX)*ease;
+    const rY = (from.rotY+HALF_ANGLE)+((to.rotY+HALF_ANGLE)-(from.rotY+HALF_ANGLE))*ease;
+    const e  = globalTime;
+    const fx = Math.sin(e*.5)*22+Math.sin(e*.3)*13;
+    const fy = Math.sin(e*.4+1)*26+Math.cos(e*.25)*16;
+    const fz = Math.sin(e*.35+2)*38+Math.cos(e*.2)*20;
+    const ds = .95+Math.sin(e*.15)*.22+Math.sin(e*.4+1.5)*.11;
+    const dz = Math.sin(e*.18+2)*110+Math.cos(e*.12)*70;
+    const sw = document.getElementById('spin-wrapper');
+    const fw = document.getElementById('float-wrapper');
+    if (sw) sw.style.transform  = 'rotateX('+rX+'deg) rotateY('+rY+'deg)';
+    if (fw) fw.style.transform  = 'translate3d('+fx+'px,'+fy+'px,'+(fz+dz)+'px) scale('+ds+')';
+    resolve({done:false, videoIndex, localTime:localTime.toFixed(2), faceId});
+  });
+};
+window.__getTotalDuration = function() { return totalDuration; };
+window.__ready = true;
+init();
+console.log('READY: image-frames cube, totalDuration='+totalDuration);
+</script>
+</body></html>`;
 }
 
 // ─── Main POC render function ─────────────────────────────────────────────────
@@ -445,10 +626,26 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
 
     await updateJob(firestoreDb, jobId, { status: 'rendering', normalizationDurationMs });
 
-    // ── Local video server for normalized clips ────────────────────────────
+    // ── Extract frame sequences from normalized clips ──────────────────────
+    // ctx.drawImage(<video>) returns black in headless Chrome without GPU.
+    // ctx.drawImage(<img>) always works — so we pre-extract frames via FFmpeg.
+    const frameCounts = [];
+    for (let i = 0; i < normPaths.length; i++) {
+      const vfDir = path.join(tmpDir, `vframes_${i}`);
+      fs.mkdirSync(vfDir, { recursive: true });
+      execSync(
+        `ffmpeg -y -i "${normPaths[i]}" -vf fps=${POC_FPS} -q:v 3 "${path.join(vfDir, 'f_%06d.jpg')}"`,
+        { timeout: 180000, stdio: 'pipe' }
+      );
+      const count = fs.readdirSync(vfDir).filter(f => f.endsWith('.jpg')).length;
+      frameCounts.push(count);
+      console.log(`[POC] Extracted ${count} frames from clip ${i}`);
+    }
+
+    // ── Local server: serve from tmpDir so vframes_N/ dirs are accessible ─
     const localPort = 9200 + Math.floor(Math.random() * 700);
-    localServer = await startLocalVideoServer(normDir, localPort);
-    const localUrls = normPaths.map((_, i) => `http://127.0.0.1:${localPort}/norm_${i}.mp4`);
+    localServer = await startLocalVideoServer(tmpDir, localPort);
+    const localFrameBaseUrls = normPaths.map((_, i) => `http://127.0.0.1:${localPort}/vframes_${i}`);
 
     // ── Chromium / Puppeteer ──────────────────────────────────────────────
     if (!puppeteer) {
@@ -507,7 +704,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     // Background: use story's background URL if available (image only for POC;
     // video background may not render reliably without GPU — treated as best-effort)
     const bgUrl = story.backgroundVideoUrl || story.backgroundUrl || null;
-    const html = generateCubeHTML(localUrls, videoDurations, bgUrl);
+    const html = generateCubeHtmlFromFrames(localFrameBaseUrls, frameCounts, videoDurations, POC_FPS, bgUrl);
 
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60000 });
 
