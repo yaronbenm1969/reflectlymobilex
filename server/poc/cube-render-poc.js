@@ -38,7 +38,7 @@ const POC_HEIGHT     = 1280;
 const POC_FPS        = 24;
 const POC_CRF        = 20;
 const POC_PRESET     = 'fast';
-const POC_SCREENSHOT = 'png'; // lossless per-frame capture
+const POC_SCREENSHOT = 'jpeg'; // jpeg reduces Chrome memory pressure vs png
 
 // ─── Safety limits ────────────────────────────────────────────────────────────
 const MAX_STORY_DURATION_SECS = 120; // max story length for server render
@@ -281,10 +281,8 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
   }
   const story = storySnap.data();
 
-  // Creator clip
+  // Cube faces: participant reflections only (creator video is NOT included)
   const videoUrls = [];
-  const creatorUrl = story.videoUri || story.videoUrl || null;
-  if (creatorUrl) videoUrls.push(creatorUrl);
 
   // Participant reflections (separate collection)
   const reflSnap = await firestoreDb.collection('reflections')
@@ -494,8 +492,6 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
         '--safebrowsing-disable-auto-update',
         '--mute-audio',
         '--metrics-recording-only',
-        // Limit V8 old-space to reduce peak heap
-        '--js-flags=--max-old-space-size=128',
         // Playback
         '--autoplay-policy=no-user-gesture-required',
         '--disable-web-security',
@@ -539,8 +535,8 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
       const globalTime = f / POC_FPS;
       const result = await page.evaluate(async (t) => window.__seekAndDraw(t), globalTime);
 
-      const framePath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.png`);
-      const { data } = await cdpSession.send('Page.captureScreenshot', { format: 'png' });
+      const framePath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.jpg`);
+      const { data } = await cdpSession.send('Page.captureScreenshot', { format: 'jpeg', quality: 85 });
       fs.writeFileSync(framePath, Buffer.from(data, 'base64'));
       frameCount++;
 
@@ -550,7 +546,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
         // Append 1-second still tail so the final frame is visible
         const tailData = data;
         for (let x = 0; x < POC_FPS; x++) {
-          const tailPath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.png`);
+          const tailPath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.jpg`);
           fs.writeFileSync(tailPath, Buffer.from(tailData, 'base64'));
           frameCount++;
         }
@@ -596,7 +592,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     }
 
     // ── FFmpeg encode at POC quality ──────────────────────────────────────
-    const inputPattern = path.join(framesDir, 'frame_%06d.png');
+    const inputPattern = path.join(framesDir, 'frame_%06d.jpg');
     const videoArgsParts = [
       '-c:v', 'libx264',
       '-preset', POC_PRESET,
