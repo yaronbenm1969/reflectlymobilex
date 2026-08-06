@@ -26,7 +26,6 @@ try { puppeteer = require('puppeteer'); } catch { puppeteer = null; }
 const {
   downloadFile,
   getVideoDuration,
-  startLocalVideoServer,
 } = require('../format-renderer');
 
 // ─── POC quality profile ──────────────────────────────────────────────────────
@@ -242,7 +241,23 @@ async function getActiveJob(firestoreDb) {
  * FFmpeg instead of <video> elements. ctx.drawImage(<img>) always works in
  * headless Chrome; ctx.drawImage(<video>) returns black without GPU decode.
  */
-function generateCubeHtmlFromFrames(frameBaseUrls, frameCounts, videoDurations, fps, bgUrl) {
+// Node.js helper — mirrors getVideoAtTime in the browser
+function getVideoAtTimeNode(globalTime, videoDurations, cumulativeTimes) {
+  for (let i = videoDurations.length - 1; i >= 0; i--) {
+    if (globalTime >= cumulativeTimes[i]) {
+      const lt = globalTime - cumulativeTimes[i];
+      if (lt <= videoDurations[i]) return { videoIndex: i, localTime: Math.min(lt, videoDurations[i] - 0.01) };
+    }
+  }
+  return { videoIndex: videoDurations.length - 1, localTime: videoDurations[videoDurations.length - 1] - 0.01 };
+}
+
+/**
+ * Cube HTML that receives JPEG frames as base64 data URIs from Node.js
+ * (passed via page.evaluate), avoiding any HTTP requests from the browser.
+ * This sidesteps Chrome's null-origin → localhost blocking even with --disable-web-security.
+ */
+function generateCubeHtmlFromFrames(videoDurations, fps, bgUrl) {
   const CS = 280; // cube size px
   const W  = POC_WIDTH;
   const H  = POC_HEIGHT;
@@ -317,8 +332,6 @@ ${bgHtml}
   </div>
 </div>
 <script>
-const frameBaseUrls  = ${JSON.stringify(frameBaseUrls)};
-const frameCounts    = ${JSON.stringify(frameCounts)};
 const videoDurations = ${JSON.stringify(videoDurations)};
 const FPS         = ${fps};
 const CANVAS_SIZE = ${CS};
@@ -361,53 +374,51 @@ function getVideoAtTime(globalTime) {
   }
   return {videoIndex:videoDurations.length-1, localTime:videoDurations[videoDurations.length-1]-0.01};
 }
-function getFrameUrl(videoIndex, localTime) {
-  const count = frameCounts[videoIndex];
-  const fi = Math.max(0, Math.min(count-1, Math.floor(localTime*FPS)));
-  return frameBaseUrls[videoIndex]+'/f_'+String(fi+1).padStart(6,'0')+'.jpg';
-}
-function loadImageIntoFace(url, faceId) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => {
-      const ctx = ctxElements[faceId];
-      const iw = img.naturalWidth||CANVAS_SIZE, ih = img.naturalHeight||CANVAS_SIZE;
-      const scale = Math.max(CANVAS_SIZE/iw, CANVAS_SIZE/ih);
-      const sw = iw*scale, sh = ih*scale;
-      const sx = (CANVAS_SIZE-sw)/2, sy = (CANVAS_SIZE-sh)/2;
-      ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
-      ctx.drawImage(img, sx, sy, sw, sh);
-      resolve();
-    };
-    img.onerror = () => resolve();
-    img.src = url;
-  });
-}
 
-window.__seekAndDraw = function(globalTime) {
-  return new Promise(async resolve => {
+// frameBase64: base64-encoded JPEG passed from Node.js via page.evaluate
+window.__seekAndDraw = function(globalTime, frameBase64) {
+  return new Promise(resolve => {
     if (globalTime >= totalDuration) { resolve({done:true}); return; }
     const {videoIndex, localTime} = getVideoAtTime(globalTime);
     const faceId = getFaceForIndex(videoIndex);
-    await loadImageIntoFace(getFrameUrl(videoIndex, localTime), faceId);
 
-    const dur = videoDurations[videoIndex];
-    const vp  = dur > 0 ? Math.min(localTime/dur, 1) : 0;
-    const from = getTargetRotation(videoIndex), to = getTargetRotation(videoIndex+1);
-    const ease = vp < 0.5 ? 2*vp*vp : 1-Math.pow(-2*vp+2,2)/2;
-    const rX = from.rotX+(to.rotX-from.rotX)*ease;
-    const rY = (from.rotY+HALF_ANGLE)+((to.rotY+HALF_ANGLE)-(from.rotY+HALF_ANGLE))*ease;
-    const e  = globalTime;
-    const fx = Math.sin(e*.5)*22+Math.sin(e*.3)*13;
-    const fy = Math.sin(e*.4+1)*26+Math.cos(e*.25)*16;
-    const fz = Math.sin(e*.35+2)*38+Math.cos(e*.2)*20;
-    const ds = .95+Math.sin(e*.15)*.22+Math.sin(e*.4+1.5)*.11;
-    const dz = Math.sin(e*.18+2)*110+Math.cos(e*.12)*70;
-    const sw = document.getElementById('spin-wrapper');
-    const fw = document.getElementById('float-wrapper');
-    if (sw) sw.style.transform  = 'rotateX('+rX+'deg) rotateY('+rY+'deg)';
-    if (fw) fw.style.transform  = 'translate3d('+fx+'px,'+fy+'px,'+(fz+dz)+'px) scale('+ds+')';
-    resolve({done:false, videoIndex, localTime:localTime.toFixed(2), faceId});
+    const finishAndRotate = () => {
+      const dur = videoDurations[videoIndex];
+      const vp  = dur > 0 ? Math.min(localTime/dur, 1) : 0;
+      const from = getTargetRotation(videoIndex), to = getTargetRotation(videoIndex+1);
+      const ease = vp < 0.5 ? 2*vp*vp : 1-Math.pow(-2*vp+2,2)/2;
+      const rX = from.rotX+(to.rotX-from.rotX)*ease;
+      const rY = (from.rotY+HALF_ANGLE)+((to.rotY+HALF_ANGLE)-(from.rotY+HALF_ANGLE))*ease;
+      const e  = globalTime;
+      const fx = Math.sin(e*.5)*22+Math.sin(e*.3)*13;
+      const fy = Math.sin(e*.4+1)*26+Math.cos(e*.25)*16;
+      const fz = Math.sin(e*.35+2)*38+Math.cos(e*.2)*20;
+      const ds = .95+Math.sin(e*.15)*.22+Math.sin(e*.4+1.5)*.11;
+      const dz = Math.sin(e*.18+2)*110+Math.cos(e*.12)*70;
+      const spinEl  = document.getElementById('spin-wrapper');
+      const floatEl = document.getElementById('float-wrapper');
+      if (spinEl)  spinEl.style.transform  = 'rotateX('+rX+'deg) rotateY('+rY+'deg)';
+      if (floatEl) floatEl.style.transform = 'translate3d('+fx+'px,'+fy+'px,'+(fz+dz)+'px) scale('+ds+')';
+      resolve({done:false, videoIndex, localTime:localTime.toFixed(2), faceId});
+    };
+
+    if (frameBase64) {
+      const img = new Image();
+      img.onload = () => {
+        const ctx = ctxElements[faceId];
+        const iw = img.naturalWidth||CANVAS_SIZE, ih = img.naturalHeight||CANVAS_SIZE;
+        const scale = Math.max(CANVAS_SIZE/iw, CANVAS_SIZE/ih);
+        const sw = iw*scale, sh = ih*scale;
+        const sx = (CANVAS_SIZE-sw)/2, sy = (CANVAS_SIZE-sh)/2;
+        ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+        ctx.drawImage(img, sx, sy, sw, sh);
+        finishAndRotate();
+      };
+      img.onerror = finishAndRotate;
+      img.src = 'data:image/jpeg;base64,' + frameBase64;
+    } else {
+      finishAndRotate();
+    }
   });
 };
 window.__getTotalDuration = function() { return totalDuration; };
@@ -533,7 +544,6 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
 
   let heartbeatTimer = null;
   let browser       = null;
-  let localServer   = null;
   let frameCount    = 0;
 
   try {
@@ -642,10 +652,10 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
       console.log(`[POC] Extracted ${count} frames from clip ${i}`);
     }
 
-    // ── Local server: serve from tmpDir so vframes_N/ dirs are accessible ─
-    const localPort = 9200 + Math.floor(Math.random() * 700);
-    localServer = await startLocalVideoServer(tmpDir, localPort);
-    const localFrameBaseUrls = normPaths.map((_, i) => `http://127.0.0.1:${localPort}/vframes_${i}`);
+    // Cumulative start times (mirrors browser-side logic, used in frame loop)
+    const cumulativeTimes = [];
+    let cumT = 0;
+    for (const d of videoDurations) { cumulativeTimes.push(cumT); cumT += d; }
 
     // ── Chromium / Puppeteer ──────────────────────────────────────────────
     if (!puppeteer) {
@@ -704,7 +714,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     // Background: use story's background URL if available (image only for POC;
     // video background may not render reliably without GPU — treated as best-effort)
     const bgUrl = story.backgroundVideoUrl || story.backgroundUrl || null;
-    const html = generateCubeHtmlFromFrames(localFrameBaseUrls, frameCounts, videoDurations, POC_FPS, bgUrl);
+    const html = generateCubeHtmlFromFrames(videoDurations, POC_FPS, bgUrl);
 
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60000 });
 
@@ -730,7 +740,15 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     // ── Frame capture loop ────────────────────────────────────────────────
     for (let f = 0; f < totalFrames; f++) {
       const globalTime = f / POC_FPS;
-      const result = await page.evaluate(async (t) => window.__seekAndDraw(t), globalTime);
+
+      // Compute frame path in Node.js and pass as base64 to avoid
+      // Chrome null-origin → localhost HTTP blocking
+      const { videoIndex, localTime } = getVideoAtTimeNode(globalTime, videoDurations, cumulativeTimes);
+      const frameIdx  = Math.max(0, Math.min(frameCounts[videoIndex] - 1, Math.floor(localTime * POC_FPS)));
+      const frameFile = path.join(tmpDir, `vframes_${videoIndex}`, `f_${String(frameIdx + 1).padStart(6, '0')}.jpg`);
+      const frameB64  = fs.existsSync(frameFile) ? fs.readFileSync(frameFile).toString('base64') : '';
+
+      const result = await page.evaluate((t, b64) => window.__seekAndDraw(t, b64), globalTime, frameB64);
 
       const framePath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.jpg`);
       const { data } = await cdpSession.send('Page.captureScreenshot', { format: 'jpeg', quality: 85 });
@@ -757,8 +775,6 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     await cdpSession.detach();
     await browser.close();
     browser = null;
-    localServer.close();
-    localServer = null;
     logMemory('after-browser-close');
 
     console.log(`[POC] Captured ${frameCount} frames (${(frameCount / POC_FPS).toFixed(1)}s)`);
@@ -894,7 +910,6 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     _pocActive = false;
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (browser) { try { await browser.close(); } catch { } }
-    if (localServer) { try { localServer.close(); } catch { } }
   }
 }
 

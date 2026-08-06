@@ -3850,6 +3850,26 @@ app.post('/api/poc/render-cube', async (req, res) => {
   });
 });
 
+// POST /api/poc/reset-story/:storyId
+// Dev helper: clear videoPublishReady + finalVideoUrl so FinalVideoScreen triggers a fresh render.
+app.post('/api/poc/reset-story/:storyId', async (req, res) => {
+  if (process.env.SERVER_CUBE_RENDER_POC !== 'true') return res.status(403).json({ error: 'POC disabled' });
+  const { storyId } = req.params;
+  if (!storyId) return res.status(400).json({ error: 'storyId required' });
+  try {
+    await firestoreDb.collection('stories').doc(storyId).update({
+      videoPublishReady: false,
+      finalVideoUrl: null,
+      status: 'shared',
+      completedAt: null,
+    });
+    console.log(`[POC] Reset story ${storyId} for re-render`);
+    res.json({ success: true, storyId });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/poc/render-cube/:jobId
 // Poll for POC job status.
 app.get('/api/poc/render-cube/:jobId', async (req, res) => {
