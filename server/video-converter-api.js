@@ -6,6 +6,31 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 unhandledRejection (server stays alive):', reason?.message || reason);
 });
 
+// Ensure Chrome is installed before any Puppeteer usage
+(function ensureChrome() {
+  const { execSync } = require('child_process');
+  const fsSync = require('fs');
+  const CACHE_DIR = require('path').join(__dirname, '.puppeteer-cache');
+  try {
+    const puppeteer = require('puppeteer');
+    const exe = puppeteer.executablePath();
+    if (fsSync.existsSync(exe)) {
+      console.log('[Chrome] Found:', exe);
+      return;
+    }
+  } catch (_) {}
+  console.log('[Chrome] Not found — installing to', CACHE_DIR, '...');
+  try {
+    execSync(
+      `npx puppeteer browsers install chrome`,
+      { env: { ...process.env, PUPPETEER_CACHE_DIR: CACHE_DIR }, stdio: 'inherit', timeout: 300000 }
+    );
+    console.log('[Chrome] Installed successfully');
+  } catch (e) {
+    console.error('[Chrome] Install failed:', e.message);
+  }
+})();
+
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
