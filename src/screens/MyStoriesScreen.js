@@ -296,7 +296,7 @@ export const MyStoriesScreen = () => {
           <View style={styles.storiesGrid}>
             {stories.map((story) => {
               const videoUrl = story.finalVideoUrl || story.videoUrl || null;
-              const creatorVideoUrl = story.sourceVideoUrl || null;
+              const creatorVideoUrl = story.videoUri || null;
               const isCubeFormat = story.format === 'cube-3d';
               const isCompleted = !!videoUrl || story.status === 'completed' || isCubeFormat;
               return (
