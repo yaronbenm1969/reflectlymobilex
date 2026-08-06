@@ -378,7 +378,7 @@ export const MyStoriesScreen = () => {
                             setStoryName(story.name);
                             setCurrentStoryId(story.id);
                             setVideoFormat(story.format);
-                            go('FinalVideo');
+                            go('FinalVideo', { fromProjects: true });
                           }
                         }}
                       >

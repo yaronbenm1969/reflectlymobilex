@@ -71,6 +71,8 @@ export const FinalVideoScreen = () => {
   const setGeneratedMusicUrl = useAppState((state) => state.setGeneratedMusicUrl);
   const preferredMusicEngine = useAppState((state) => state.preferredMusicEngine);
   const lockedSet = useAppState((state) => state.lockedSet);
+  const navigationParams = useAppState((state) => state.navigationParams);
+  const fromProjects = navigationParams?.fromProjects || false;
   const backgroundVideoUrl = useAppState((state) => state.backgroundVideoUrl);
   const backgroundMediaType = useAppState((state) => state.backgroundMediaType);
   const setBackgroundVideoUrl = useAppState((state) => state.setBackgroundVideoUrl);
@@ -286,6 +288,10 @@ export const FinalVideoScreen = () => {
     if (!currentStoryId) return;
     setVideoReadyForShare(false);
     firestoreVideoUrlRef.current = null;
+    // From Projects: show end screen immediately (no spinner) while Firestore check runs
+    if (fromProjects && USE_SERVER_CUBE_RENDER && videoFormat === 'cube-3d') {
+      setShowEndScreen(true);
+    }
     storiesService.getStory(currentStoryId).then(res => {
       if (res.success) {
         const url = res.story?.finalVideoUrl;
