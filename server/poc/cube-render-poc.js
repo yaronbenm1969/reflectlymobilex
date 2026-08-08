@@ -421,6 +421,29 @@ window.__seekAndDraw = function(globalTime, frameBase64) {
     }
   });
 };
+// Fill all 6 faces with thumbnails so no face is ever black.
+// thumbs: array of base64 JPEG strings (one per clip). Cycles if fewer than 6.
+window.__initFaces = function(thumbs) {
+  return new Promise(resolve => {
+    if (!thumbs || !thumbs.length) { resolve(); return; }
+    let done = 0;
+    [0,1,2,3,4,5].forEach(faceId => {
+      const b64 = thumbs[faceId % thumbs.length];
+      if (!b64) { if (++done === 6) resolve(); return; }
+      const img = new Image();
+      img.onload = () => {
+        const ctx = ctxElements[faceId];
+        const iw = img.naturalWidth||CANVAS_SIZE, ih = img.naturalHeight||CANVAS_SIZE;
+        const scale = Math.max(CANVAS_SIZE/iw, CANVAS_SIZE/ih);
+        ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+        ctx.drawImage(img, (CANVAS_SIZE-iw*scale)/2, (CANVAS_SIZE-ih*scale)/2, iw*scale, ih*scale);
+        if (++done === 6) resolve();
+      };
+      img.onerror = () => { if (++done === 6) resolve(); };
+      img.src = 'data:image/jpeg;base64,' + b64;
+    });
+  });
+};
 window.__getTotalDuration = function() { return totalDuration; };
 window.__ready = true;
 init();
@@ -725,6 +748,17 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
 
     const animDuration = await page.evaluate(() => window.__getTotalDuration());
     console.log(`[POC] Cube animation duration: ${animDuration.toFixed(2)}s`);
+
+    // Initialize all 6 cube faces with a thumbnail from each clip (no black faces).
+    // 1 clip → same thumbnail on all 6. Multiple clips → distributed across faces.
+    const thumbnailB64s = normPaths.map((_, i) => {
+      const f = path.join(tmpDir, `vframes_${i}`, 'f_000001.jpg');
+      return fs.existsSync(f) ? fs.readFileSync(f).toString('base64') : '';
+    }).filter(Boolean);
+    if (thumbnailB64s.length > 0) {
+      await page.evaluate((thumbs) => window.__initFaces(thumbs), thumbnailB64s);
+      console.log(`[POC] Initialized 6 cube faces with ${thumbnailB64s.length} thumbnail(s)`);
+    }
 
     const totalFrames = Math.ceil(animDuration * POC_FPS) + POC_FPS * 2; // +2s tail
     const cdpSession = await page.createCDPSession();
