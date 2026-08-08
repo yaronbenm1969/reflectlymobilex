@@ -3806,8 +3806,19 @@ app.post('/api/poc/render-cube', async (req, res) => {
     }
 
     // ── Post-render: mix music → update stories doc → push notification ──────
-    const { outputUrl, generatedMusicUrl: musicUrl } = pocResult;
+    const { outputUrl } = pocResult;
     let finalUrl = outputUrl;
+
+    // Re-fetch story to get latest generatedMusicUrl — Suno may have finished
+    // generating music during the render (render takes 5-10 min, Suno ~2-5 min).
+    let musicUrl = pocResult.generatedMusicUrl;
+    if (!musicUrl) {
+      try {
+        const freshSnap = await firestoreDb.collection('stories').doc(cleanStoryId).get();
+        musicUrl = freshSnap.data()?.generatedMusicUrl || null;
+        if (musicUrl) console.log('[POC] generatedMusicUrl arrived during render — will mix now');
+      } catch { }
+    }
 
     if (musicUrl) {
       console.log('[POC] Mixing Suno music into rendered video...');
