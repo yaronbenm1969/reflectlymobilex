@@ -732,9 +732,9 @@ export const FinalVideoScreen = () => {
   const handleShareToWhatsApp = async () => {
     if (!videoReadyForShare) {
       Alert.alert(
-        'הסרטון בעיבוד 🎬',
-        'הסרטון שלך מעובד עם מוזיקה ורקע.\nתישלח אליך הודעה כשיהיה מוכן לשיתוף.',
-        [{ text: 'הבנתי' }]
+        'הסרטון עדיין בהכנה 🎬',
+        'הסרטון שלך עדיין לא מוכן — נסה שוב בעוד כמה דקות.',
+        [{ text: 'אוקיי, אנסה שוב' }]
       );
       return;
     }
