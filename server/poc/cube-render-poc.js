@@ -257,7 +257,7 @@ function getVideoAtTimeNode(globalTime, videoDurations, cumulativeTimes) {
  * (passed via page.evaluate), avoiding any HTTP requests from the browser.
  * This sidesteps Chrome's null-origin → localhost blocking even with --disable-web-security.
  */
-function generateCubeHtmlFromFrames(videoDurations, fps, bgUrl) {
+function generateCubeHtmlFromFrames(videoDurations, fps, bgUrl, logoB64, storyTitle) {
   const CS = 280; // cube size px
   const W  = POC_WIDTH;
   const H  = POC_HEIGHT;
@@ -317,6 +317,12 @@ body{display:flex;align-items:center;justify-content:center;font-family:sans-ser
 ${bgHtml}
 <div class="stars"><div class="stars-layer stars-layer-1"></div><div class="stars-layer stars-layer-2"></div></div>
 <div class="depth-grid"></div>
+<div id="title-card" style="opacity:0;transition:opacity 0.4s;position:fixed;top:0;left:0;width:100%;height:100%;
+  background:linear-gradient(180deg,#0d0020 0%,#1a0535 100%);
+  z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;">
+  ${logoB64 ? `<img src="data:image/png;base64,${logoB64}" style="width:72px;height:auto;object-fit:contain;">` : ''}
+  ${storyTitle ? `<div style="color:#fff;font-size:30px;font-weight:700;text-align:center;padding:0 40px;line-height:1.35;font-family:sans-serif;">${storyTitle.replace(/</g,'&lt;')}</div>` : ''}
+</div>
 <div class="scene">
   <div class="float-wrapper" id="float-wrapper">
     <div class="spin-wrapper" id="spin-wrapper">
@@ -427,6 +433,10 @@ window.__initFaces = function(thumbs) {
   });
 };
 window.__getTotalDuration = function() { return totalDuration; };
+window.__showTitle = function() {
+  const card = document.getElementById('title-card');
+  if (card) card.style.opacity = '1';
+};
 window.__ready = true;
 init();
 console.log('READY: image-frames cube, totalDuration='+totalDuration);
@@ -719,7 +729,11 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     // Background: use story's background URL if available (image only for POC;
     // video background may not render reliably without GPU — treated as best-effort)
     const bgUrl = story.backgroundVideoUrl || story.backgroundUrl || null;
-    const html = generateCubeHtmlFromFrames(videoDurations, POC_FPS, bgUrl);
+    const storyTitle = story.title || story.storyName || story.name || '';
+    const logoPath = path.join(__dirname, '../../assets/rilio-logo-primary.png.png');
+    const logoB64 = fs.existsSync(logoPath) ? fs.readFileSync(logoPath).toString('base64') : '';
+    if (logoB64) console.log('[POC] Logo loaded for title card');
+    const html = generateCubeHtmlFromFrames(videoDurations, POC_FPS, bgUrl, logoB64, storyTitle);
 
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60000 });
 
@@ -774,13 +788,16 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
       if (frameCount % 50 === 0) logMemory(`frame-${frameCount}`);
 
       if (result.done) {
-        // Append 1-second still tail so the final frame is visible
-        const tailData = data;
-        for (let x = 0; x < POC_FPS; x++) {
+        // Show title card (logo + story name) for 2 seconds at the end
+        await page.evaluate(() => window.__showTitle());
+        await new Promise(r => setTimeout(r, 150)); // allow opacity transition to start
+        for (let x = 0; x < POC_FPS * 2; x++) {
+          const { data: titleData } = await cdpSession.send('Page.captureScreenshot', { format: 'jpeg', quality: 85 });
           const tailPath = path.join(framesDir, `frame_${String(frameCount).padStart(6, '0')}.jpg`);
-          fs.writeFileSync(tailPath, Buffer.from(tailData, 'base64'));
+          fs.writeFileSync(tailPath, Buffer.from(titleData, 'base64'));
           frameCount++;
         }
+        console.log('[POC] Title card captured');
         break;
       }
     }
