@@ -342,7 +342,7 @@ const ROTATION_PATH = [
   {faceId:3,rotX:10, rotY:-270},
 ];
 const HALF_ANGLE = 45;
-const ctxElements = [];
+const imgElements = []; // <img> per face — composites correctly in headless Chrome (unlike <canvas>)
 let cumulativeTimes = [], totalDuration = 0;
 
 function init() {
@@ -351,12 +351,10 @@ function init() {
   totalDuration = t;
   [0,1,2,3,4,5].forEach(faceId => {
     const el = document.getElementById('face-'+faceId);
-    const cv = document.createElement('canvas');
-    cv.width = CANVAS_SIZE; cv.height = CANVAS_SIZE;
-    el.appendChild(cv);
-    const ctx = cv.getContext('2d');
-    ctx.fillStyle = '#111'; ctx.fillRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
-    ctxElements[faceId] = ctx;
+    const img = document.createElement('img');
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;display:block;';
+    el.appendChild(img);
+    imgElements[faceId] = img;
   });
 }
 
@@ -403,19 +401,10 @@ window.__seekAndDraw = function(globalTime, frameBase64) {
     };
 
     if (frameBase64) {
-      const img = new Image();
-      img.onload = () => {
-        const ctx = ctxElements[faceId];
-        const iw = img.naturalWidth||CANVAS_SIZE, ih = img.naturalHeight||CANVAS_SIZE;
-        const scale = Math.max(CANVAS_SIZE/iw, CANVAS_SIZE/ih);
-        const sw = iw*scale, sh = ih*scale;
-        const sx = (CANVAS_SIZE-sw)/2, sy = (CANVAS_SIZE-sh)/2;
-        ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
-        ctx.drawImage(img, sx, sy, sw, sh);
-        finishAndRotate();
-      };
-      img.onerror = finishAndRotate;
-      img.src = 'data:image/jpeg;base64,' + frameBase64;
+      const el = imgElements[faceId];
+      el.onload = () => { finishAndRotate(); };
+      el.onerror = finishAndRotate;
+      el.src = 'data:image/jpeg;base64,' + frameBase64;
     } else {
       finishAndRotate();
     }
@@ -430,17 +419,10 @@ window.__initFaces = function(thumbs) {
     [0,1,2,3,4,5].forEach(faceId => {
       const b64 = thumbs[faceId % thumbs.length];
       if (!b64) { if (++done === 6) resolve(); return; }
-      const img = new Image();
-      img.onload = () => {
-        const ctx = ctxElements[faceId];
-        const iw = img.naturalWidth||CANVAS_SIZE, ih = img.naturalHeight||CANVAS_SIZE;
-        const scale = Math.max(CANVAS_SIZE/iw, CANVAS_SIZE/ih);
-        ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
-        ctx.drawImage(img, (CANVAS_SIZE-iw*scale)/2, (CANVAS_SIZE-ih*scale)/2, iw*scale, ih*scale);
-        if (++done === 6) resolve();
-      };
-      img.onerror = () => { if (++done === 6) resolve(); };
-      img.src = 'data:image/jpeg;base64,' + b64;
+      const el = imgElements[faceId];
+      el.onload = () => { if (++done === 6) resolve(); };
+      el.onerror = () => { if (++done === 6) resolve(); };
+      el.src = 'data:image/jpeg;base64,' + b64;
     });
   });
 };
