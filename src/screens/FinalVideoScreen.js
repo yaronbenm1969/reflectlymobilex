@@ -2108,6 +2108,7 @@ export const FinalVideoScreen = () => {
 
               <View style={styles.endScreenSocials}>
                 <TouchableOpacity
+                  disabled={!videoReadyForShare}
                   style={[styles.socialBtn, !videoReadyForShare && { opacity: 0.55 }]}
                   onPress={handleShareToWhatsApp}
                 >
