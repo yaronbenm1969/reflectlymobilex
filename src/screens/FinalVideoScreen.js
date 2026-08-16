@@ -288,10 +288,6 @@ export const FinalVideoScreen = () => {
     if (!currentStoryId) return;
     setVideoReadyForShare(false);
     firestoreVideoUrlRef.current = null;
-    // From Projects: show end screen immediately (no spinner) while Firestore check runs
-    if (fromProjects && USE_SERVER_CUBE_RENDER && videoFormat === 'cube-3d') {
-      setShowEndScreen(true);
-    }
     storiesService.getStory(currentStoryId).then(res => {
       if (res.success) {
         const url = res.story?.finalVideoUrl;
@@ -300,6 +296,7 @@ export const FinalVideoScreen = () => {
           videoReadyForShareRef.current = true;
           autoRecordTriggeredRef.current = true; // story already complete — skip auto-record
           setVideoReadyForShare(true);
+          setShowEndScreen(true); // story already rendered — show end screen (not first view)
           console.log('📹 videoPublishReady=true — WhatsApp button enabled, auto-record skipped');
         }
       }
