@@ -3790,6 +3790,14 @@ app.post('/api/poc/render-cube', async (req, res) => {
   res.json({ success: true, message: 'POC render started', storyId: cleanStoryId, jobId: pocJobId });
 
   setImmediate(async () => {
+    // Mark story as processing — web player will show "still rendering" instead of old video
+    try {
+      await firestoreDb.collection('stories').doc(cleanStoryId).update({
+        status: 'processing',
+        videoPublishReady: false,
+      });
+    } catch (e) { console.warn('[POC] Could not mark processing:', e.message); }
+
     let pocResult = null;
     try {
       pocResult = await renderCubePoc(cleanStoryId, {

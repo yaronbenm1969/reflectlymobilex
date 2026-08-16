@@ -427,6 +427,25 @@ async function loadStory(code) {
         recordBtn.style.cursor = 'not-allowed';
     }
 
+    // If story is being re-rendered — show "processing" even when old finalVideoUrl exists
+    if (window.location.pathname.split('/').filter(Boolean)[0] === 's' && story.status === 'processing') {
+        const processingCard = document.querySelector('#watch-screen .card');
+        if (processingCard) {
+            processingCard.innerHTML = `
+                <div style="text-align:center;padding:32px 16px">
+                    <div style="font-size:48px;margin-bottom:16px">🎬</div>
+                    <h2 style="color:#fff;margin:0 0 12px">הסרטון בעריכה אחרונה</h2>
+                    <p style="color:rgba(255,255,255,0.75);font-size:15px;margin:0">
+                        הסרטון מוכן בקרוב — נסה שוב בעוד כמה דקות.
+                    </p>
+                </div>`;
+        }
+        if (watchHint) watchHint.style.display = 'none';
+        if (recordBtn) recordBtn.style.display = 'none';
+        showScreen('watch');
+        return true;
+    }
+
     // If story has a final video — show it as result viewer (/s/ link = creator sharing result)
     if (story.finalVideoUrl) {
         console.log('🎬 finalVideoUrl found — showing result viewer');
