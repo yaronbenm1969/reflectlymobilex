@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
-import { getFirestore, doc, getDoc, collection, addDoc, query, where, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
+import { getFirestore, doc, getDoc, collection, addDoc, query, where, getDocs, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-storage.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
 import { firebaseConfig } from './config.js';
@@ -435,14 +435,39 @@ async function loadStory(code) {
                 <div style="text-align:center;padding:32px 16px">
                     <div style="font-size:48px;margin-bottom:16px">🎬</div>
                     <h2 style="color:#fff;margin:0 0 12px">הסרטון בעריכה אחרונה</h2>
-                    <p style="color:rgba(255,255,255,0.75);font-size:15px;margin:0">
-                        הסרטון מוכן בקרוב — נסה שוב בעוד כמה דקות.
+                    <p style="color:rgba(255,255,255,0.75);font-size:15px;margin:0 0 20px">
+                        הסרטון מוכן בקרוב — ממתין לסיום...
                     </p>
+                    <div style="width:32px;height:32px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto;"></div>
+                    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
                 </div>`;
         }
         if (watchHint) watchHint.style.display = 'none';
         if (recordBtn) recordBtn.style.display = 'none';
         showScreen('watch');
+        // Auto-update when server finishes — no page refresh needed
+        const unsubscribe = onSnapshot(doc(db, 'stories', story.id), (snap) => {
+            const d = snap.data();
+            if (d?.videoPublishReady && d?.finalVideoUrl) {
+                unsubscribe();
+                // Replace processing card with video player
+                if (processingCard) processingCard.style.display = 'none';
+                const vidEl = document.getElementById('story-video');
+                const phEl  = document.getElementById('video-placeholder');
+                if (vidEl && phEl) {
+                    vidEl.src = d.finalVideoUrl;
+                    phEl.style.display = 'flex';
+                    vidEl.addEventListener('loadedmetadata', () => {
+                        if (vidEl.paused) {
+                            phEl.innerHTML = '<div style="font-size:60px;cursor:pointer">▶️</div><p style="margin-top:8px;color:#fff;font-size:16px">לחץ לצפייה</p>';
+                            phEl.onclick = () => { vidEl.play(); phEl.style.display = 'none'; };
+                        }
+                    }, { once: true });
+                    vidEl.addEventListener('playing', () => { phEl.style.display = 'none'; }, { once: true });
+                    vidEl.play().catch(() => {});
+                }
+            }
+        });
         return true;
     }
 
