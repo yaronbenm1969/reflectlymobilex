@@ -258,7 +258,7 @@ function getVideoAtTimeNode(globalTime, videoDurations, cumulativeTimes) {
  * This sidesteps Chrome's null-origin → localhost blocking even with --disable-web-security.
  */
 function generateCubeHtmlFromFrames(videoDurations, fps, bgUrl, logoB64, storyTitle) {
-  const CS = 280; // cube size px
+  const CS = 440; // cube size px (440/720 = 61% of frame width — cube is main subject)
   const W  = POC_WIDTH;
   const H  = POC_HEIGHT;
   const bgHtml = bgUrl
@@ -298,7 +298,7 @@ body{display:flex;align-items:center;justify-content:center;font-family:sans-ser
   background-size:50px 50px;
   transform:perspective(500px) rotateX(60deg);transform-origin:center 120%;z-index:1;opacity:.5;}
 @keyframes twinkle{0%,100%{opacity:1;}50%{opacity:.5;}}
-.scene{width:${CS}px;height:${CS}px;perspective:800px;perspective-origin:50% 50%;z-index:10;position:relative;}
+.scene{width:${CS}px;height:${CS}px;perspective:1260px;perspective-origin:50% 50%;z-index:10;position:relative;}
 .cube{width:100%;height:100%;position:relative;transform-style:preserve-3d;}
 .cube-face{position:absolute;width:${CS}px;height:${CS}px;
   border:4px solid rgba(255,255,255,.7);border-radius:16px;overflow:hidden;
