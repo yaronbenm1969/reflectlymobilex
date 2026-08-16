@@ -434,12 +434,18 @@ async function loadStory(code) {
             processingCard.innerHTML = `
                 <div style="text-align:center;padding:32px 16px">
                     <div style="font-size:48px;margin-bottom:16px">🎬</div>
-                    <h2 style="color:#fff;margin:0 0 12px">הסרטון בעריכה אחרונה</h2>
-                    <p style="color:rgba(255,255,255,0.75);font-size:15px;margin:0 0 20px">
-                        הסרטון מוכן בקרוב — ממתין לסיום...
+                    <h2 style="color:#fff;margin:0 0 12px">הסרטון בעריכה</h2>
+                    <p style="color:rgba(255,255,255,0.85);font-size:15px;margin:0 0 8px">
+                        הסרטון יהיה מוכן בעוד כ-5–10 דקות.
                     </p>
-                    <div style="width:32px;height:32px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto;"></div>
+                    <p style="color:rgba(255,255,255,0.6);font-size:13px;margin:0 0 24px">
+                        הדף יתעדכן אוטומטית כשמוכן — אין צורך לרענן.
+                    </p>
+                    <div style="width:32px;height:32px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 24px;"></div>
                     <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+                    <button onclick="location.reload()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:10px 24px;font-size:14px;cursor:pointer;">
+                        רענן ידנית
+                    </button>
                 </div>`;
         }
         if (watchHint) watchHint.style.display = 'none';
