@@ -95,7 +95,7 @@ export const HomeScreen = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       const withNew = all.filter(s => (s.pendingReflectionsCount || 0) > 0);
-      console.log(`🏠 HomeSnapshot: ${all.length} stories, withNew=${withNew.length}, counts=${all.map(s=>s.pendingReflectionsCount||0).join(',')}`);
+
       setStoriesWithNewVideos(withNew);
     }, (err) => console.warn('HomeScreen stories snapshot error:', err.message));
     return unsubscribe;

@@ -708,12 +708,20 @@ export const FinalVideoScreen = () => {
   };
 
   const handleShare = async () => {
+    if (!videoReadyForShare) {
+      Alert.alert(
+        'הסרטון עדיין בעריכה 🎬',
+        'הסרטון מוכן בקרוב — תקבל הודעה כשאפשר לשלוח.',
+        [{ text: 'הבנתי' }]
+      );
+      return;
+    }
     try {
       analyticsService.shareClicked(currentStoryId, 'link');
       analyticsService.inviteSent(currentStoryId);
       // Share watch link — shows full experience (background + music + animation)
       const domain = Constants.expoConfig?.extra?.webPlayerDomain ||
-                     'reflectly-mobile-x--yaronbenm1.replit.app';
+                     'reflectlymobilex.onrender.com';
       const watchUrl = `https://${domain}/s/${currentStoryId}`;
       await Share.share({
         message: `צפה בסיפור שלי: "${storyName}" 🎬\n${watchUrl}`,
@@ -730,8 +738,8 @@ export const FinalVideoScreen = () => {
     if (!videoReadyForShare) {
       Alert.alert(
         'הסרטון עדיין בהכנה 🎬',
-        'הסרטון שלך עדיין לא מוכן — נסה שוב בעוד כמה דקות.',
-        [{ text: 'אוקיי, אנסה שוב' }]
+        'הסרטון מוכן בקרוב — תקבל הודעה כשאפשר לשלוח.',
+        [{ text: 'הבנתי' }]
       );
       return;
     }
@@ -2108,7 +2116,6 @@ export const FinalVideoScreen = () => {
 
               <View style={styles.endScreenSocials}>
                 <TouchableOpacity
-                  disabled={!videoReadyForShare}
                   style={[styles.socialBtn, !videoReadyForShare && { opacity: 0.55 }]}
                   onPress={handleShareToWhatsApp}
                 >

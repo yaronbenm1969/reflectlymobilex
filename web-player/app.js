@@ -427,8 +427,9 @@ async function loadStory(code) {
         recordBtn.style.cursor = 'not-allowed';
     }
 
-    // If story is being re-rendered — show "processing" even when old finalVideoUrl exists
-    if (window.location.pathname.split('/').filter(Boolean)[0] === 's' && story.status === 'processing') {
+    // If story is being re-rendered and NOT yet ready — show "processing"
+    // videoPublishReady is the source of truth: if true, skip to finalVideoUrl block below
+    if (!story.videoPublishReady && window.location.pathname.split('/').filter(Boolean)[0] === 's' && story.status === 'processing') {
         const processingCard = document.querySelector('#watch-screen .card');
         if (processingCard) {
             processingCard.innerHTML = `
