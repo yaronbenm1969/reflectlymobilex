@@ -34,8 +34,8 @@ const {
 const POC_WIDTH      = 720;
 const POC_HEIGHT     = 1280;
 const POC_FPS        = 24;
-const POC_CRF        = 20;
-const POC_PRESET     = 'fast';
+const POC_CRF        = 26;
+const POC_PRESET     = 'veryfast';
 const POC_SCREENSHOT = 'jpeg'; // jpeg reduces Chrome memory pressure vs png
 
 // ─── Safety limits ────────────────────────────────────────────────────────────
