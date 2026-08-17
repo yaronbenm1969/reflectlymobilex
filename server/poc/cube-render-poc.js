@@ -577,17 +577,19 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
       throw e;
     }
 
-    // ── Download clips ────────────────────────────────────────────────────
+    // ── Download clips (parallel) ─────────────────────────────────────────
     const dlStart = Date.now();
+    await Promise.all(videoUrls.map((url, i) =>
+      downloadFile(url, path.join(videosDir, `video_${i}.mp4`))
+    ));
     let inputTotalSizeMb = 0;
     for (let i = 0; i < videoUrls.length; i++) {
-      const destPath = path.join(videosDir, `video_${i}.mp4`);
-      await downloadFile(videoUrls[i], destPath);
-      const mb = fs.statSync(destPath).size / (1024 * 1024);
+      const mb = fs.statSync(path.join(videosDir, `video_${i}.mp4`)).size / (1024 * 1024);
       inputTotalSizeMb += mb;
       console.log(`[POC] Downloaded clip ${i}: ${mb.toFixed(1)} MB`);
     }
     const inputDownloadDurationMs = Date.now() - dlStart;
+    console.log(`[POC] All ${videoUrls.length} clips downloaded in parallel: ${(inputDownloadDurationMs/1000).toFixed(1)}s`);
 
     await updateJob(firestoreDb, jobId, {
       status: 'normalizing',
