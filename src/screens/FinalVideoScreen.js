@@ -331,6 +331,7 @@ export const FinalVideoScreen = () => {
             firestoreVideoUrlRef.current = res.story.finalVideoUrl;
             videoReadyForShareRef.current = true;
             setVideoReadyForShare(true);
+            setShowEndScreen(true); // render complete — now show end screen
             break;
           }
         } catch (e) {}
@@ -971,7 +972,7 @@ export const FinalVideoScreen = () => {
   const startServerCubeRender = async () => {
     setServerRenderError(null);
     setDownloadProgress(t('finalVideo.server_rendering'));
-    setShowEndScreen(true);
+    // Keep animation visible while server renders — end screen shows only when render completes
     // Auto-play animation so user watches while server renders (~3-6 min)
     setTimeout(() => { setTriggerAutoPlay(true); setTimeout(() => setTriggerAutoPlay(false), 500); }, 300);
     try {
