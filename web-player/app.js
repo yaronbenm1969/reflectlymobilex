@@ -466,12 +466,17 @@ async function loadStory(code) {
                 if (vidEl && phEl) {
                     vidEl.src = d.finalVideoUrl;
                     phEl.style.display = 'flex';
-                    vidEl.addEventListener('loadedmetadata', () => {
-                        if (vidEl.paused) {
-                            phEl.innerHTML = '<div style="font-size:60px;cursor:pointer">▶️</div><p style="margin-top:8px;color:#fff;font-size:16px">לחץ לצפייה</p>';
-                            phEl.onclick = () => { vidEl.play(); phEl.style.display = 'none'; };
-                        }
-                    }, { once: true });
+                    // Show tap-to-play immediately — iOS WKWebView won't autoload without gesture
+                    phEl.innerHTML = '<div style="font-size:70px;cursor:pointer;line-height:1">▶️</div><p style="color:#fff;font-size:15px;margin-top:10px;margin-bottom:0">לחץ לצפייה</p>';
+                    phEl.style.background = 'rgba(0,0,0,0.55)';
+                    phEl.style.cursor = 'pointer';
+                    phEl.onclick = () => {
+                        phEl.innerHTML = '<div style="width:32px;height:32px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;margin:12px auto;"></div><p style="color:#fff;margin:8px 0;font-size:14px">טוען...</p>';
+                        phEl.style.cursor = 'default';
+                        phEl.onclick = null;
+                        vidEl.load();
+                        vidEl.play().catch(() => {});
+                    };
                     vidEl.addEventListener('playing', () => { phEl.style.display = 'none'; }, { once: true });
                     vidEl.play().catch(() => {});
                 }
@@ -492,25 +497,32 @@ async function loadStory(code) {
         showScreen('watch');
         setupStoryVideo(story.finalVideoUrl, story.id, null, null);
 
-        // Result viewer: try autoplay. iOS blocks audio autoplay — show tap-to-play overlay.
+        // Result viewer: show tap-to-play immediately — iOS WKWebView won't autoload without gesture
         const vidEl = document.getElementById('story-video');
         const phEl = document.getElementById('video-placeholder');
         const finalUrl = story.finalVideoUrl;
         console.log('🎬 Result viewer URL:', finalUrl);
         if (vidEl && phEl) {
-            // On successful load: show tap-to-play
-            vidEl.addEventListener('loadedmetadata', () => {
-                console.log('✅ Video metadata loaded, duration:', vidEl.duration);
-                if (vidEl.paused) {
-                    phEl.innerHTML = '<div style="font-size:60px;cursor:pointer">▶️</div><p style="margin-top:8px;color:#fff;font-size:16px">לחץ לצפייה</p>';
-                    phEl.style.background = 'rgba(0,0,0,0.5)';
-                    phEl.style.cursor = 'pointer';
-                    phEl.onclick = () => { vidEl.play(); phEl.classList.add('hidden'); };
-                }
-            }, { once: true });
+            // Override oncanplay from setupStoryVideo — only hide overlay when actually playing
+            vidEl.oncanplay = null;
+
+            // Show tap-to-play immediately (iOS WKWebView stalls without user gesture)
+            phEl.innerHTML = '<div style="font-size:70px;cursor:pointer;line-height:1">▶️</div><p style="color:#fff;font-size:15px;margin-top:10px;margin-bottom:0">לחץ לצפייה</p>';
+            phEl.style.background = 'rgba(0,0,0,0.55)';
+            phEl.style.cursor = 'pointer';
+            phEl.onclick = () => {
+                phEl.innerHTML = '<div style="width:32px;height:32px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;margin:12px auto;"></div><p style="color:#fff;margin:8px 0;font-size:14px">טוען...</p>';
+                phEl.style.cursor = 'default';
+                phEl.onclick = null;
+                vidEl.load();
+                vidEl.play().catch(() => {});
+            };
+
+            // Hide overlay when video actually starts playing (covers both autoplay and tap cases)
             vidEl.addEventListener('playing', () => { phEl.classList.add('hidden'); }, { once: true });
+
             // On error: show direct link so user can open in Safari
-            vidEl.addEventListener('error', () => {
+            vidEl.onerror = () => {
                 const code = vidEl.error ? vidEl.error.code : '?';
                 console.error('❌ Video error code:', code, vidEl.error?.message);
                 phEl.innerHTML = `
@@ -522,8 +534,11 @@ async function loadStory(code) {
                         border-radius:20px;font-size:14px;text-decoration:none;font-weight:700;
                     ">פתח בסאפרי ▶️</a>`;
                 phEl.style.background = 'rgba(0,0,0,0.8)';
-            }, { once: true });
-            // Try autoplay (works on desktop/Android; iOS requires gesture)
+                phEl.style.cursor = 'default';
+                phEl.onclick = null;
+            };
+
+            // Try autoplay (desktop/Android) — if playing fires, overlay hides automatically
             vidEl.play().catch(() => {});
         }
         return true;
