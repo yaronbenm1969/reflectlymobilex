@@ -3769,13 +3769,105 @@ if (firestoreDb) {
     .catch(e => console.error('[POC] Startup cleanup error (non-fatal):', e.message));
 }
 
+// ─── POC render queue ──────────────────────────────────────────────────────────
+// Renders run one at a time. Additional requests wait in queue instead of being rejected.
+const _pocRenderQueue = []; // [{ storyId, jobId }]
+let _pocIsRunning = false;
+
+async function _runPocRender(storyId, jobId) {
+  try {
+    await firestoreDb.collection('stories').doc(storyId).update({
+      status: 'processing',
+      videoPublishReady: false,
+      queuePosition: 0,
+    });
+  } catch (e) { console.warn('[POC] Could not mark processing:', e.message); }
+
+  let pocResult = null;
+  try {
+    pocResult = await renderCubePoc(storyId, {
+      jobId,
+      firestoreDb,
+      bucket,
+      uploadToFirebase,
+      isAllowedVideoUrl,
+    });
+  } catch (err) {
+    console.error('[POC endpoint] render failed:', err.code, err.message);
+    return;
+  }
+
+  const { outputUrl } = pocResult;
+  let finalUrl = outputUrl;
+
+  let musicUrl = pocResult.generatedMusicUrl;
+  if (!musicUrl) {
+    try {
+      const freshSnap = await firestoreDb.collection('stories').doc(storyId).get();
+      musicUrl = freshSnap.data()?.generatedMusicUrl || null;
+      if (musicUrl) console.log('[POC] generatedMusicUrl arrived during render — will mix now');
+    } catch { }
+  }
+
+  if (musicUrl) {
+    console.log('[POC] Mixing Suno music into rendered video...');
+    const ts = Date.now();
+    const tmpVideo  = path.join(os.tmpdir(), `poc_premix_${ts}.mp4`);
+    const tmpMusic  = path.join(os.tmpdir(), `poc_music_${ts}.m4a`);
+    const tmpOutput = path.join(os.tmpdir(), `poc_mixed_${ts}.mp4`);
+    try {
+      await downloadFile(outputUrl, tmpVideo, 180000);
+      await downloadFile(musicUrl, tmpMusic, 60000);
+      const { mixRecordingAudioWithMusic } = require('./music/mixing-service');
+      await mixRecordingAudioWithMusic(tmpVideo, tmpMusic, tmpOutput, 0.06);
+      const mixedStoragePath = `edited/${storyId}/poc_final_${ts}.mp4`;
+      finalUrl = await uploadToFirebase(tmpOutput, mixedStoragePath);
+      console.log('[POC] Music mixed and uploaded:', finalUrl);
+    } catch (mixErr) {
+      console.warn('[POC] Music mix failed, using un-mixed video:', mixErr.message);
+    } finally {
+      for (const f of [tmpVideo, tmpMusic, tmpOutput]) {
+        try { fs.unlinkSync(f); } catch { }
+      }
+    }
+  }
+
+  try {
+    await firestoreDb.collection('stories').doc(storyId).update({
+      finalVideoUrl: finalUrl,
+      status: 'completed',
+      videoPublishReady: true,
+      completedAt: new Date(),
+    });
+    console.log(`[POC] ✅ stories/${storyId} updated — videoPublishReady=true`);
+  } catch (fsErr) {
+    console.error('[POC] Firestore stories update failed:', fsErr.message);
+  }
+
+  sendVideoReadyNotification(storyId, finalUrl).catch(() => {});
+}
+
+function _tryStartPocRender() {
+  if (_pocIsRunning || _pocRenderQueue.length === 0) return;
+  _pocIsRunning = true;
+  const { storyId, jobId } = _pocRenderQueue.shift();
+  // Update queue positions for remaining items
+  _pocRenderQueue.forEach((item, idx) => {
+    firestoreDb.collection('stories').doc(item.storyId)
+      .update({ queuePosition: idx + 1 }).catch(() => {});
+  });
+  console.log(`[POC Queue] Starting render for story ${storyId} — ${_pocRenderQueue.length} remaining in queue`);
+  _runPocRender(storyId, jobId).finally(() => {
+    _pocIsRunning = false;
+    _tryStartPocRender();
+  });
+}
+
 // POST /api/poc/render-cube
 // Body: { storyId: string }
-// Protected by: x-app-access-code header (via existing middleware) +
-//               SERVER_CUBE_RENDER_POC flag (checked inside renderCubePoc) +
-//               one-active-job guard + Firestore active-job check
+// Renders run one at a time via _pocRenderQueue — no rejections when busy.
 app.post('/api/poc/render-cube', async (req, res) => {
-  await _pocReadyPromise; // ensure startup cleanup completed before accepting any new job
+  await _pocReadyPromise;
   const { storyId } = req.body || {};
   if (!storyId || typeof storyId !== 'string' || storyId.trim().length === 0) {
     return res.status(400).json({ error: 'storyId is required' });
@@ -3783,90 +3875,29 @@ app.post('/api/poc/render-cube', async (req, res) => {
   const cleanStoryId = storyId.trim();
   if (!firestoreDb) return res.status(503).json({ error: 'Firestore not ready' });
 
-  // Pre-generate jobId before responding so the caller can poll immediately.
   const pocJobId = `poc_${cleanStoryId}_${Date.now()}`;
+  const queuePosition = _pocRenderQueue.length + (_pocIsRunning ? 1 : 0);
 
-  // Respond immediately; render runs in background
-  res.json({ success: true, message: 'POC render started', storyId: cleanStoryId, jobId: pocJobId });
-
-  setImmediate(async () => {
-    // Mark story as processing — web player will show "still rendering" instead of old video
-    try {
-      await firestoreDb.collection('stories').doc(cleanStoryId).update({
-        status: 'processing',
-        videoPublishReady: false,
-      });
-    } catch (e) { console.warn('[POC] Could not mark processing:', e.message); }
-
-    let pocResult = null;
-    try {
-      pocResult = await renderCubePoc(cleanStoryId, {
-        jobId: pocJobId,
-        firestoreDb,
-        bucket,
-        uploadToFirebase,
-        isAllowedVideoUrl,
-      });
-    } catch (err) {
-      // Errors are already written to Firestore by renderCubePoc.
-      console.error('[POC endpoint] render failed:', err.code, err.message);
-      return;
-    }
-
-    // ── Post-render: mix music → update stories doc → push notification ──────
-    const { outputUrl } = pocResult;
-    let finalUrl = outputUrl;
-
-    // Re-fetch story to get latest generatedMusicUrl — Suno may have finished
-    // generating music during the render (render takes 5-10 min, Suno ~2-5 min).
-    let musicUrl = pocResult.generatedMusicUrl;
-    if (!musicUrl) {
-      try {
-        const freshSnap = await firestoreDb.collection('stories').doc(cleanStoryId).get();
-        musicUrl = freshSnap.data()?.generatedMusicUrl || null;
-        if (musicUrl) console.log('[POC] generatedMusicUrl arrived during render — will mix now');
-      } catch { }
-    }
-
-    if (musicUrl) {
-      console.log('[POC] Mixing Suno music into rendered video...');
-      const ts = Date.now();
-      const tmpVideo  = path.join(os.tmpdir(), `poc_premix_${ts}.mp4`);
-      const tmpMusic  = path.join(os.tmpdir(), `poc_music_${ts}.m4a`);
-      const tmpOutput = path.join(os.tmpdir(), `poc_mixed_${ts}.mp4`);
-      try {
-        await downloadFile(outputUrl, tmpVideo, 180000);
-        await downloadFile(musicUrl, tmpMusic, 60000);
-        const { mixRecordingAudioWithMusic } = require('./music/mixing-service');
-        await mixRecordingAudioWithMusic(tmpVideo, tmpMusic, tmpOutput, 0.06);
-        const mixedStoragePath = `edited/${cleanStoryId}/poc_final_${ts}.mp4`;
-        finalUrl = await uploadToFirebase(tmpOutput, mixedStoragePath);
-        console.log('[POC] Music mixed and uploaded:', finalUrl);
-      } catch (mixErr) {
-        console.warn('[POC] Music mix failed, using un-mixed video:', mixErr.message);
-      } finally {
-        for (const f of [tmpVideo, tmpMusic, tmpOutput]) {
-          try { fs.unlinkSync(f); } catch { }
-        }
-      }
-    }
-
-    // Update stories/{storyId} — same fields as mix-music-with-video
-    try {
-      await firestoreDb.collection('stories').doc(cleanStoryId).update({
-        finalVideoUrl: finalUrl,
-        status: 'completed',
-        videoPublishReady: true,
-        completedAt: new Date(),
-      });
-      console.log(`[POC] ✅ stories/${cleanStoryId} updated — videoPublishReady=true`);
-    } catch (fsErr) {
-      console.error('[POC] Firestore stories update failed:', fsErr.message);
-    }
-
-    // Push notification to creator
-    sendVideoReadyNotification(cleanStoryId, finalUrl).catch(() => {});
+  res.json({
+    success: true,
+    message: queuePosition === 0 ? 'POC render started' : `POC render queued (position ${queuePosition})`,
+    storyId: cleanStoryId,
+    jobId: pocJobId,
+    queuePosition,
   });
+
+  if (queuePosition > 0) {
+    // Story must wait — mark as queued so web-player shows correct state
+    firestoreDb.collection('stories').doc(cleanStoryId).update({
+      status: 'queued',
+      videoPublishReady: false,
+      queuePosition,
+    }).catch(() => {});
+    console.log(`[POC Queue] Story ${cleanStoryId} queued at position ${queuePosition}`);
+  }
+
+  _pocRenderQueue.push({ storyId: cleanStoryId, jobId: pocJobId });
+  setImmediate(() => _tryStartPocRender());
 });
 
 // POST /api/poc/reset-story/:storyId

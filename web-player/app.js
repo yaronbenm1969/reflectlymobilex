@@ -427,17 +427,19 @@ async function loadStory(code) {
         recordBtn.style.cursor = 'not-allowed';
     }
 
-    // If story is being re-rendered and NOT yet ready — show "processing"
+    // If story is queued or processing and NOT yet ready — show waiting screen
     // videoPublishReady is the source of truth: if true, skip to finalVideoUrl block below
-    if (!story.videoPublishReady && window.location.pathname.split('/').filter(Boolean)[0] === 's' && story.status === 'processing') {
+    if (!story.videoPublishReady && window.location.pathname.split('/').filter(Boolean)[0] === 's' && (story.status === 'processing' || story.status === 'queued')) {
+        const isQueued = story.status === 'queued';
+        const queuePos = story.queuePosition || 1;
         const processingCard = document.querySelector('#watch-screen .card');
         if (processingCard) {
             processingCard.innerHTML = `
                 <div style="text-align:center;padding:32px 16px">
                     <div style="font-size:48px;margin-bottom:16px">🎬</div>
-                    <h2 style="color:#fff;margin:0 0 12px">הסרטון בעריכה</h2>
+                    <h2 style="color:#fff;margin:0 0 12px">${isQueued ? 'הסרטון ממתין לתור' : 'הסרטון בעריכה'}</h2>
                     <p style="color:rgba(255,255,255,0.85);font-size:15px;margin:0 0 8px">
-                        הסרטון יהיה מוכן בעוד כ-5–10 דקות.
+                        ${isQueued ? `סרט אחר מעובד כרגע — הסרטון שלך הבא בתור (מקום ${queuePos}).` : 'הסרטון יהיה מוכן בעוד כ-5–10 דקות.'}
                     </p>
                     <p style="color:rgba(255,255,255,0.6);font-size:13px;margin:0 0 24px">
                         הדף יתעדכן אוטומטית כשמוכן — אין צורך לרענן.
