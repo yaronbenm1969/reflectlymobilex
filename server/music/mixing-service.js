@@ -240,7 +240,7 @@ async function mixMusicWithVideo(videoPath, musicPath, outputPath, musicVolume =
   }
 
   const filterComplex = [
-    `[0:v]setpts=PTS-STARTPTS[vout]`,
+    `[0:v]setpts=PTS-STARTPTS,eq=contrast=1.05:saturation=1.1,unsharp=3:3:0.5[vout]`,
     `[0:a]${voiceFilter}[voice]`,
     `[1:a]volume=${musicVolume}[music]`,
     `[voice][music]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]`
@@ -292,7 +292,7 @@ async function mixMusicWithVideoNoAudio(videoPath, musicPath, outputPath, musicV
     ...(videoDuration ? ['-t', String(videoDuration)] : []),
     '-i', musicPath,
     '-filter_complex',
-    `[0:v]setpts=PTS-STARTPTS[vout];[1:a]aresample=44100,asetpts=PTS-STARTPTS,volume=${musicVolume}[music]`,
+    `[0:v]setpts=PTS-STARTPTS,eq=contrast=1.05:saturation=1.1,unsharp=3:3:0.5[vout];[1:a]aresample=44100,asetpts=PTS-STARTPTS,volume=${musicVolume}[music]`,
     '-map', '[vout]',
     '-map', '[music]',
     '-c:v', 'libx264',
