@@ -2057,13 +2057,18 @@ async function sendVideoReadyNotification(storyId, finalUrl) {
       console.warn(`⚠️ sendVideoReadyNotification: no push token for creator ${userId}`);
       return;
     }
-    await expoClient.sendPushNotificationsAsync([{
+    const tickets = await expoClient.sendPushNotificationsAsync([{
       to: pushToken,
       title: '🎬 הסרטון מוכן לשיתוף!',
       body: `'${storyName}' — לחץ לשיתוף בווטסאפ`,
       data: { type: 'video_ready', storyId, storyName },
     }]);
-    console.log(`🔔 Video-ready notification sent for story ${storyId}`);
+    const ticket = tickets[0];
+    if (ticket?.status === 'error') {
+      console.warn(`⚠️ Push ticket error for story ${storyId}: ${ticket.message} (${ticket.details?.error})`);
+    } else {
+      console.log(`🔔 Video-ready notification sent for story ${storyId} — ticket: ${ticket?.id}`);
+    }
   } catch (err) {
     console.warn(`⚠️ sendVideoReadyNotification failed: ${err.message}`);
   }
