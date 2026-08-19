@@ -23,7 +23,7 @@
     "error_create_story": "No pudimos crear la historia",
     "header_subtitle": "Comparte tu historia, recibe reflexiones de tus amigos",
     "card_title": "¿Cuál es el nombre de tu historia?",
-    "story_input_placeholder": "Ingresa el nombre de la historia...",
+    "story_input_placeholder": "Dale un título a tu película...",
     "participants_label": "¿Cuántos participantes?",
     "card_description": "Graba una historia personal e invita a amigos a compartir sus reflexiones",
     "button_creating": "Creando historia...",
@@ -31,7 +31,8 @@
     "button_my_stories": "Mis historias",
     "mode_private": "Privado",
     "mode_community": "Comunidad",
-    "tagline": "Tu historia crea ondas",
+    "tagline": "Empieza tu película. Invita a otros a unirse.",
+    "tagline2": "Rilio une los clips de todos",
     "community_tagline": "Crear Juntos",
     "community_subtitle": "Comparte tu historia con la comunidad",
     "info_title": "Cómo funciona",
@@ -147,7 +148,9 @@
   },
   "record": {
     "permission_camera_mic": "Necesitamos permiso de cámara y micrófono",
-    "permission_required_text": "Se requiere permiso de cámara y micrófono"
+    "permission_required_text": "Se requiere permiso de cámara y micrófono",
+    "question_title": "¿De qué trata tu película?",
+    "question_sub": "Cuenta una historia, comparte algo, o haz una pregunta — los participantes responderán a este video."
   },
   "review": {
     "done": "Listo"

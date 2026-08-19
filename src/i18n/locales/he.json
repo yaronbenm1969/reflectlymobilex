@@ -23,7 +23,7 @@
     "error_create_story": "לא הצלחנו ליצור את הסיפור",
     "header_subtitle": "שתף את הסיפור שלך, קבל שיקופים מחברים",
     "card_title": "מה שם הסיפור שלך?",
-    "story_input_placeholder": "הכנס שם לסיפור...",
+    "story_input_placeholder": "תן כותרת לסרט שלך...",
     "participants_label": "כמה משתתפים?",
     "card_description": "הקלט סיפור אישי והזמן חברים לשתף את השיקופים שלהם",
     "button_creating": "יוצר סיפור...",
@@ -31,7 +31,8 @@
     "button_my_stories": "הסיפורים שלי",
     "mode_private": "פרטי",
     "mode_community": "קהילה",
-    "tagline": "הסיפור שלך יוצר גלים",
+    "tagline": "התחל סרט. הזמן אחרים להצטרף.",
+    "tagline2": "ריליו דואג לשאר.",
     "community_tagline": "יוצרים יחד",
     "community_subtitle": "ספר את הסיפור שלך לקהילה",
     "info_title": "איך זה עובד",
@@ -147,7 +148,9 @@
   },
   "record": {
     "permission_camera_mic": "אנו זקוקים להרשאת מצלמה ומיקרופון",
-    "permission_required_text": "נדרשת הרשאת מצלמה ומיקרופון"
+    "permission_required_text": "נדרשת הרשאת מצלמה ומיקרופון",
+    "question_title": "על מה הסרט שלך?",
+    "question_sub": "ספר סיפור, שתף משהו, או שאל שאלה — המשתתפים יגיבו לסרטון הזה."
   },
   "review": {
     "done": "סיום"

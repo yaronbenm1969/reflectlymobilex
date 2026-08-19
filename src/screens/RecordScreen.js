@@ -307,36 +307,36 @@ export const RecordScreen = () => {
 
   return (
     <View style={styles.container}>
-      <CameraView
-        style={styles.camera} 
-        facing={facing}
-        ref={cameraRef}
-        mode="video"
-      >
-        {/* Header */}
-        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-          <TouchableOpacity 
-            style={styles.headerButton}
-            onPress={back}
-          >
+      {/* Fixed banner ABOVE camera — not part of camera frame */}
+      <View style={[styles.headerBanner, { paddingTop: insets.top + 6 }]}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.headerButton} onPress={back}>
             <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
-          
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Record Story</Text>
             {isRecording && (
               <Text style={styles.timer}>{formatTime(recordingTimer)}</Text>
             )}
           </View>
-
-          <TouchableOpacity 
-            style={styles.headerButton}
-            onPress={toggleCameraType}
-          >
+          <TouchableOpacity style={styles.headerButton} onPress={toggleCameraType}>
             <Ionicons name="camera-reverse" size={24} color="white" />
           </TouchableOpacity>
         </View>
 
+        {!isRecording && (
+          <View style={styles.titleBanner}>
+            <Text style={styles.titleBannerHeading}>{t('record.question_title')}</Text>
+            <Text style={styles.titleBannerSub}>{t('record.question_sub')}</Text>
+          </View>
+        )}
+      </View>
+
+      <CameraView
+        style={styles.camera}
+        facing={facing}
+        ref={cameraRef}
+        mode="video"
+      >
         {/* Countdown overlay */}
         {isCountingDown && countdown > 0 && (
           <View style={styles.countdownOverlay}>
@@ -417,12 +417,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  headerBanner: {
+    backgroundColor: 'rgba(38, 40, 50, 0.97)',
+    paddingBottom: 16,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing[4],
-    paddingTop: theme.spacing[2], // overridden inline with insets
+    paddingBottom: theme.spacing[1],
+  },
+  titleBanner: {
+    paddingHorizontal: 20,
+    paddingTop: 6,
+    alignItems: 'center',
+  },
+  titleBannerHeading: {
+    color: 'rgba(200,155,70,0.85)',
+    fontSize: 19,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  titleBannerSub: {
+    color: 'rgba(180,140,60,0.85)',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 5,
+    lineHeight: 19,
+    paddingHorizontal: 10,
+    letterSpacing: 0.5,
   },
   previewBackBtn: {
     position: 'absolute',

@@ -5,12 +5,15 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  KeyboardAvoidingView,
   Platform,
   Alert,
   ActivityIndicator,
+  Image,
+  Animated,
+  Dimensions,
 } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('screen');
 import * as FileSystem from 'expo-file-system';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -48,6 +51,7 @@ export const HomeScreen = () => {
   const [localStoryName, setLocalStoryName] = useState(storyName || '');
   const [isCreating, setIsCreating] = useState(false);
   const [bgVideoUri, setBgVideoUri] = useState(HOME_BG_VIDEO_URL);
+  const cardOpacity = useRef(new Animated.Value(0)).current;
 
   // Cache background video locally after first download
   useEffect(() => {
@@ -109,6 +113,18 @@ export const HomeScreen = () => {
   useEffect(() => {
     if (currentScreen === 'Home') refreshBanners(user?.uid);
   }, [currentScreen]);
+
+  // Fade-in content card after 2 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.timing(cardOpacity, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: true,
+      }).start();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleJoinApproved = async (app) => {
     try {
@@ -174,23 +190,13 @@ export const HomeScreen = () => {
   // ────────────────────────────────────────────────────────────────────────
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      {/* Full-screen looping background video at half speed */}
-      <Video
-        ref={bgVideoRef}
-        source={{ uri: bgVideoUri }}
+    <View style={styles.container}>
+      {/* Full-screen background image */}
+      <Image
+        source={require('../../assets/Home-beckground.jpg (2).png')}
         style={styles.bgVideo}
-        resizeMode={ResizeMode.COVER}
-        shouldPlay
-        isLooping
-        isMuted
-        rate={1.0}
+        resizeMode="contain"
         pointerEvents="none"
-        posterSource={require('../../assets/home-bg-poster.jpg')}
-        usePoster
       />
       <View style={styles.bgOverlay} pointerEvents="none" />
 
@@ -212,16 +218,48 @@ export const HomeScreen = () => {
         </TouchableOpacity>
       </View>
 
+      {/* Content card — fades in after 2s, covers hero + input */}
+      <Animated.View style={[styles.contentCard, { opacity: cardOpacity }]}>
+
       {/* Hero title */}
       <View style={styles.heroSection}>
-        <Text style={styles.heroTitle}>Rilio</Text>
+        <Image
+          source={require('../../assets/rilio-logo-primary.png.png')}
+          style={styles.heroLogoFull}
+          resizeMode="contain"
+        />
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.storyInput}
+            placeholder={t('home.story_input_placeholder')}
+            placeholderTextColor="rgba(220,185,110,0.65)"
+            value={localStoryName}
+            onChangeText={setLocalStoryName}
+            onSubmitEditing={navigateToRecord}
+            returnKeyType="go"
+            textAlign="right"
+          />
+          <TouchableOpacity
+            style={[styles.arrowButton, (!localStoryName.trim() || isCreating) && styles.arrowButtonDisabled]}
+            onPress={navigateToRecord}
+            disabled={!localStoryName.trim() || isCreating}
+          >
+            {isCreating
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Ionicons name="arrow-forward" size={22} color="#fff" />
+            }
+          </TouchableOpacity>
+        </View>
         {isCommunity ? (
           <>
             <Text style={styles.heroTaglineCommunity}>{t('home.community_tagline')}</Text>
             <Text style={styles.communitySubtitle}>{t('home.community_subtitle')}</Text>
           </>
         ) : (
-          <Text style={styles.heroTagline}>{t('home.tagline')}</Text>
+          <>
+            <Text style={styles.heroTagline}>{t('home.tagline')}</Text>
+            <Text style={styles.heroTagline2}>{t('home.tagline2')}</Text>
+          </>
         )}
       </View>
 
@@ -277,33 +315,9 @@ export const HomeScreen = () => {
         </TouchableOpacity>
       ))}
 
-      {/* Input area */}
-      <View style={styles.inputSection}>
-        <View style={styles.inputRow}>
-          <TextInput
-            style={styles.storyInput}
-            placeholder={t('home.story_input_placeholder')}
-            placeholderTextColor="rgba(255,255,255,0.5)"
-            value={localStoryName}
-            onChangeText={setLocalStoryName}
-            onSubmitEditing={navigateToRecord}
-            returnKeyType="go"
-            textAlign="right"
-          />
-          <TouchableOpacity
-            style={[styles.arrowButton, (!localStoryName.trim() || isCreating) && styles.arrowButtonDisabled]}
-            onPress={navigateToRecord}
-            disabled={!localStoryName.trim() || isCreating}
-          >
-            {isCreating
-              ? <ActivityIndicator color="#fff" size="small" />
-              : <Ionicons name="arrow-forward" size={22} color="#fff" />
-            }
-          </TouchableOpacity>
-        </View>
 
-      </View>
-    </KeyboardAvoidingView>
+      </Animated.View>
+    </View>
   );
 };
 
@@ -313,11 +327,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   bgVideo: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: SCREEN_W,
+    height: SCREEN_H,
   },
   bgOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.40)',
+    backgroundColor: 'rgba(20,50,120,0.52)',
+  },
+  contentCard: {
+    flex: 1,
+    marginTop: Platform.OS === 'ios' ? 134 : 108,
+    marginHorizontal: 14,
+    marginBottom: Platform.OS === 'ios' ? 150 : 130,
+    backgroundColor: 'rgba(38, 40, 50, 0.88)',
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.13)',
+    paddingTop: 12,
+    overflow: 'hidden',
   },
 
   // Top bar
@@ -341,31 +371,40 @@ const styles = StyleSheet.create({
   // Hero
   heroSection: {
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 148 : 128,
-    paddingBottom: 48,
+    paddingTop: 24,
+    paddingBottom: 24,
   },
-  heroTitle: {
-    fontSize: 64,
-    fontWeight: '200',
-    color: '#fff',
-    letterSpacing: 4,
+  heroLogoFull: {
+    width: 960,
+    height: 202,
+    marginTop: -10,
   },
   heroTagline: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.75)',
-    letterSpacing: 1,
-    marginTop: 8,
+    fontSize: 14,
+    color: 'rgba(200,155,70,0.85)',
+    letterSpacing: 0.5,
+    marginTop: 22,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  heroTagline2: {
+    fontSize: 14,
+    color: 'rgba(180,140,60,0.85)',
+    letterSpacing: 0.5,
+    marginTop: 4,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   heroTaglineCommunity: {
     fontSize: 22,
     fontWeight: '300',
-    color: '#fff',
+    color: '#C49030',
     letterSpacing: 2,
     marginTop: 12,
   },
   communitySubtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.65)',
+    color: 'rgba(190,140,60,0.85)',
     letterSpacing: 0.5,
     marginTop: 8,
     textAlign: 'center',
@@ -416,24 +455,27 @@ const styles = StyleSheet.create({
   // Input section — extra bottom padding to clear the BottomTabBar
   inputSection: {
     paddingHorizontal: 24,
-    paddingBottom: Platform.OS === 'ios' ? 100 : 90,
+    paddingBottom: 20,
     gap: 16,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignSelf: 'stretch',
+    marginHorizontal: 24,
+    marginTop: 8,
+    backgroundColor: 'rgba(196,144,48,0.14)',
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(196,144,48,0.55)',
     overflow: 'hidden',
   },
   storyInput: {
     flex: 1,
     height: 56,
-    paddingHorizontal: 18,
-    fontSize: 17,
-    color: '#fff',
+    paddingHorizontal: 12,
+    fontSize: 15,
+    color: '#C49030',
   },
   arrowButton: {
     width: 56,

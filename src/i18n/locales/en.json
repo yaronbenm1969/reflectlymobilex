@@ -23,7 +23,7 @@
     "error_create_story": "We could not create the story",
     "header_subtitle": "Share your story, get reflections from friends",
     "card_title": "What's your story name?",
-    "story_input_placeholder": "Enter story name...",
+    "story_input_placeholder": "Give your movie a title...",
     "participants_label": "How many participants?",
     "card_description": "Record a personal story and invite friends to share their reflections",
     "button_creating": "Creating story...",
@@ -31,7 +31,8 @@
     "button_my_stories": "My Stories",
     "mode_private": "Private",
     "mode_community": "Community",
-    "tagline": "Your story creates ripples",
+    "tagline": "Start a movie. Invite others to join.",
+    "tagline2": "Rilio takes care of the rest.",
     "community_tagline": "Create Together",
     "community_subtitle": "Share your story with the community",
     "info_title": "How it works",
@@ -147,7 +148,9 @@
   },
   "record": {
     "permission_camera_mic": "We need camera and microphone permission",
-    "permission_required_text": "Camera and microphone permission required"
+    "permission_required_text": "Camera and microphone permission required",
+    "question_title": "What is your movie about?",
+    "question_sub": "Tell a story, share something, or ask a question — participants will respond to this video."
   },
   "review": {
     "done": "Done"

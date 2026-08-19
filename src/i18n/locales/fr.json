@@ -23,7 +23,7 @@
     "error_create_story": "Impossible de créer l'histoire",
     "header_subtitle": "Partagez votre histoire, recevez des réflexions de vos amis",
     "card_title": "Quel est le nom de votre histoire ?",
-    "story_input_placeholder": "Entrez le nom de l'histoire...",
+    "story_input_placeholder": "Donnez un titre à votre film...",
     "participants_label": "Combien de participants ?",
     "card_description": "Enregistrez une histoire personnelle et invitez des amis à partager leurs réflexions",
     "button_creating": "Création de l'histoire...",
@@ -31,7 +31,8 @@
     "button_my_stories": "Mes histoires",
     "mode_private": "Privé",
     "mode_community": "Communauté",
-    "tagline": "Votre histoire crée des ondulations",
+    "tagline": "Démarrez votre film. Invitez d'autres à participer.",
+    "tagline2": "Rilio rassemble les clips de chacun",
     "community_tagline": "Créer Ensemble",
     "community_subtitle": "Partagez votre histoire avec la communauté",
     "info_title": "Comment ça marche",
@@ -147,7 +148,9 @@
   },
   "record": {
     "permission_camera_mic": "Nous avons besoin de la permission caméra et microphone",
-    "permission_required_text": "Permission caméra et microphone requise"
+    "permission_required_text": "Permission caméra et microphone requise",
+    "question_title": "De quoi parle votre film ?",
+    "question_sub": "Racontez une histoire, partagez quelque chose, ou posez une question — les participants répondront à cette vidéo."
   },
   "review": {
     "done": "Terminé"
