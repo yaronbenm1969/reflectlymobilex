@@ -1812,9 +1812,17 @@ export const FinalVideoScreen = () => {
 
   const handleGeneralShare = async () => {
     console.log('🔗 handleGeneralShare v2 - link share');
+    if (!videoReadyForShare) {
+      Alert.alert(
+        'הסרטון עדיין בהכנה 🎬',
+        'הסרטון מוכן בקרוב — תקבל הודעה כשאפשר לשלוח.',
+        [{ text: 'הבנתי' }]
+      );
+      return;
+    }
     try {
       const domain = Constants.expoConfig?.extra?.webPlayerDomain ||
-                     'reflectly-mobile-x--yaronbenm1.replit.app';
+                     'reflectlymobilex.onrender.com';
       const watchUrl = `https://${domain}/s/${currentStoryId}`;
       await Share.share({
         message: `צפה בסיפור שלי: "${storyName}" 🎬\n${watchUrl}`,
@@ -2101,15 +2109,20 @@ export const FinalVideoScreen = () => {
                 </TouchableOpacity>
 
 
-                <TouchableOpacity 
-                  style={[styles.endScreenActionBtn, isDownloading && styles.disabledBtn]}
+                <TouchableOpacity
+                  style={[styles.endScreenActionBtn, (!videoReadyForShare || isDownloading) && styles.disabledBtn]}
                   onPress={handleGeneralShare}
                   disabled={isDownloading}
                 >
                   <View style={styles.endScreenIconCircle}>
-                    <Ionicons name="share-outline" size={28} color="#8446b0" />
+                    {videoReadyForShare
+                      ? <Ionicons name="share-outline" size={28} color="#8446b0" />
+                      : <Ionicons name="time-outline" size={28} color="#888" />
+                    }
                   </View>
-                  <Text style={styles.endScreenActionLabel}>{t('finalVideo.btn_send')}</Text>
+                  <Text style={styles.endScreenActionLabel}>
+                    {videoReadyForShare ? t('finalVideo.btn_send') : 'בעיבוד...'}
+                  </Text>
                 </TouchableOpacity>
               </View>
 
