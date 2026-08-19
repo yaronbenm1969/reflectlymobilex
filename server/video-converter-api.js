@@ -2049,14 +2049,19 @@ async function sendVideoReadyNotification(storyId, finalUrl) {
   try {
     const storyDoc = await firestoreDb.collection('stories').doc(storyId).get();
     if (!storyDoc.exists) return;
-    const { userId, name: storyName = '' } = storyDoc.data();
+    const { userId, name: storyName = '', pushToken: storyPushToken } = storyDoc.data();
     if (!userId) return;
     const userDoc = await firestoreDb.collection('users').doc(userId).get();
-    const pushToken = userDoc.exists ? userDoc.data()?.expoPushToken : null;
-    if (!pushToken || !Expo.isExpoPushToken(pushToken)) {
-      console.warn(`⚠️ sendVideoReadyNotification: no push token for creator ${userId}`);
+    const expoPushToken = userDoc.exists ? userDoc.data()?.expoPushToken : null;
+    // Prefer users.expoPushToken (most recent), fall back to story.pushToken (set when player recorded)
+    const pushToken = (expoPushToken && Expo.isExpoPushToken(expoPushToken))
+      ? expoPushToken
+      : (storyPushToken && Expo.isExpoPushToken(storyPushToken) ? storyPushToken : null);
+    if (!pushToken) {
+      console.warn(`⚠️ sendVideoReadyNotification: no push token for creator ${userId} (expo=${!!expoPushToken} story=${!!storyPushToken})`);
       return;
     }
+    console.log(`🔔 Using push token source: ${(expoPushToken && Expo.isExpoPushToken(expoPushToken)) ? 'users.expoPushToken' : 'story.pushToken'}`);
     const tickets = await expoClient.sendPushNotificationsAsync([{
       to: pushToken,
       title: '🎬 הסרטון מוכן לשיתוף!',
