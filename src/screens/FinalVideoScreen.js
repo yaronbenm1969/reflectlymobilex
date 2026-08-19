@@ -1978,6 +1978,9 @@ export const FinalVideoScreen = () => {
                     [{ text: t('finalVideo.stop_recording_ok'), onPress: () => setShowEndScreen(true) }]
                   );
                 }, 500);
+              } else if (USE_SERVER_CUBE_RENDER && videoFormat === 'cube-3d' && !videoReadyForShareRef.current) {
+                // Server still rendering — VideoFactoryWaiting will show automatically until push arrives
+                console.log('📹 Animation done but server still rendering — showing VideoFactoryWaiting');
               } else {
                 setShowEndScreen(true);
               }
@@ -2006,6 +2009,16 @@ export const FinalVideoScreen = () => {
       {/* Factory Waiting Screen — only while waiting for Suno, before animation starts */}
       {isAnimatedFormat && !generatedMusicUrl && !musicTimedOut && !musicServerDown && !isCubeFullscreen && !videoHasPlayed && (
         <VideoFactoryWaiting estimatedSeconds={180} storyName={storyName} />
+      )}
+
+      {/* Server Cube Render — waiting after animation finishes until push notification arrives */}
+      {USE_SERVER_CUBE_RENDER && videoFormat === 'cube-3d' && videoHasPlayed && !videoReadyForShare && !showEndScreen && !isCubeFullscreen && (
+        <VideoFactoryWaiting
+          estimatedSeconds={300}
+          storyName={storyName}
+          title="הסרטון שלך בעריכה 🎬"
+          message="נשלח לך התראה כשמוכן לשליחה"
+        />
       )}
 
       {/* Recording + Upload/Mix Processing Overlay — shown until the final mixed URL is ready */}
