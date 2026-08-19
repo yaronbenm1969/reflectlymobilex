@@ -317,7 +317,7 @@ body{display:flex;align-items:center;justify-content:center;font-family:sans-ser
 ${bgHtml}
 <div class="stars"><div class="stars-layer stars-layer-1"></div><div class="stars-layer stars-layer-2"></div></div>
 <div class="depth-grid"></div>
-<div id="title-card" style="opacity:0;transition:opacity 0.07s;position:fixed;top:0;left:0;width:100%;height:100%;
+<div id="title-card" style="opacity:0;transition:opacity 0.6s ease-in;position:fixed;top:0;left:0;width:100%;height:100%;
   background:linear-gradient(180deg,#0d0020 0%,#1a0535 100%);
   z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:36px;">
   ${logoB64 ? `<img src="data:image/png;base64,${logoB64}" style="width:288px;height:auto;object-fit:contain;">` : ''}
