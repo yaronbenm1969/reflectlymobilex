@@ -317,11 +317,12 @@ body{display:flex;align-items:center;justify-content:center;font-family:sans-ser
 ${bgHtml}
 <div class="stars"><div class="stars-layer stars-layer-1"></div><div class="stars-layer stars-layer-2"></div></div>
 <div class="depth-grid"></div>
-<div id="title-card" style="opacity:0;transition:opacity 0.4s;position:fixed;top:0;left:0;width:100%;height:100%;
+<div id="title-card" style="opacity:0;transition:opacity 0.07s;position:fixed;top:0;left:0;width:100%;height:100%;
   background:linear-gradient(180deg,#0d0020 0%,#1a0535 100%);
-  z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;">
-  ${logoB64 ? `<img src="data:image/png;base64,${logoB64}" style="width:72px;height:auto;object-fit:contain;">` : ''}
-  ${storyTitle ? `<div style="color:#fff;font-size:30px;font-weight:700;text-align:center;padding:0 40px;line-height:1.35;font-family:sans-serif;">${storyTitle.replace(/</g,'&lt;')}</div>` : ''}
+  z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:36px;">
+  ${logoB64 ? `<img src="data:image/png;base64,${logoB64}" style="width:288px;height:auto;object-fit:contain;">` : ''}
+  ${storyTitle ? `<div style="color:#fff;font-size:112px;font-weight:800;text-align:center;padding:0 32px;line-height:1.2;font-family:sans-serif;word-break:break-word;">${storyTitle.replace(/</g,'&lt;')}</div>` : ''}
+  <div style="position:absolute;bottom:90px;color:rgba(255,255,255,0.6);font-size:64px;font-weight:300;font-family:sans-serif;letter-spacing:12px;">סוף</div>
 </div>
 <div class="scene">
   <div class="float-wrapper" id="float-wrapper">
