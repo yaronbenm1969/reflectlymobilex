@@ -2032,13 +2032,20 @@ async function sendCreatorNotification(storyId, playerName) {
       body = `כל הסרטונים ל'${storyName}' הגיעו. אפשר להתחיל לערוך`;
     }
 
-    await expoClient.sendPushNotificationsAsync([{
+    const creatorTickets = await expoClient.sendPushNotificationsAsync([{
       to: pushToken,
       title: 'התקבלו סרטונים חדשים',
       body,
+      sound: 'default',
+      priority: 'high',
       data: { storyId, type: 'story_reflection_update', storyName, playerName: playerName || null },
     }]);
-    console.log(`🔔 Creator notified for story ${storyId}: ${body}`);
+    const creatorTicket = creatorTickets[0];
+    if (creatorTicket?.status === 'error') {
+      console.warn(`⚠️ Creator push ticket error: ${creatorTicket.message} (${creatorTicket.details?.error})`);
+    } else {
+      console.log(`🔔 Creator notified for story ${storyId}: ${body} — ticket: ${creatorTicket?.id}`);
+    }
   } catch (err) {
     console.warn(`⚠️ sendCreatorNotification failed: ${err.message}`);
   }
@@ -2067,12 +2074,33 @@ async function sendVideoReadyNotification(storyId, finalUrl) {
       title: '🎬 הסרטון מוכן לשיתוף!',
       body: `'${storyName}' — לחץ לשיתוף בווטסאפ`,
       data: { type: 'video_ready', storyId, storyName },
+      sound: 'default',
+      priority: 'high',
     }]);
     const ticket = tickets[0];
     if (ticket?.status === 'error') {
       console.warn(`⚠️ Push ticket error for story ${storyId}: ${ticket.message} (${ticket.details?.error})`);
     } else {
       console.log(`🔔 Video-ready notification sent for story ${storyId} — ticket: ${ticket?.id}`);
+      // Check receipt ~35s later to verify APNS actually delivered it
+      if (ticket?.id) {
+        const ticketId = ticket.id;
+        setTimeout(async () => {
+          try {
+            const receipts = await expoClient.getPushNotificationReceiptsAsync([ticketId]);
+            const receipt = receipts[ticketId];
+            if (!receipt) {
+              console.warn(`⚠️ Push receipt: no receipt found for ticket ${ticketId}`);
+            } else if (receipt.status === 'ok') {
+              console.log(`✅ Push receipt OK for story ${storyId} — delivered to APNS`);
+            } else {
+              console.warn(`⚠️ Push receipt ERROR for story ${storyId}: ${receipt.message} (${receipt.details?.error})`);
+            }
+          } catch (e) {
+            console.warn(`⚠️ Receipt check failed for ${storyId}: ${e.message}`);
+          }
+        }, 35000);
+      }
     }
   } catch (err) {
     console.warn(`⚠️ sendVideoReadyNotification failed: ${err.message}`);
