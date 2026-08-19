@@ -142,10 +142,14 @@ if (bannerCloseBtn) {
 
 function showScreen(screenName) {
     Object.values(screens).forEach(s => {
-        if (s) s.classList.remove('active');
+        if (s) {
+            s.classList.remove('active');
+            s.style.display = 'none'; // override any inline display style (e.g. loading-screen has style="display:flex")
+        }
     });
     if (screens[screenName]) {
         screens[screenName].classList.add('active');
+        screens[screenName].style.display = ''; // let CSS .screen.active { display:flex } take over
     }
     updateBanner(screenName);
     if (screenName === 'record3clips') updateMusicModeBanner();
