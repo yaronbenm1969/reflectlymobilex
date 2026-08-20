@@ -258,7 +258,7 @@ app.get('/join/:storyId', async (req, res) => {
     }
   }
 
-  const ogImage = `${BASE_URL}/assets/home-bg-poster.jpg`;
+  const ogImage = `${BASE_URL}/assets/rilio-logo-primary.png.png`;
   const ogTitle = `${creatorName} מזמין אותך לסיפור: ${storyTitle}`;
   const ogDesc  = 'הקלט את התגובה שלך ב-60 שניות — כי המילים שלך חשובות.';
   const recordUrl = `${BASE_URL}/record/${storyId}`;
@@ -286,7 +286,7 @@ app.get('/join/:storyId', async (req, res) => {
     html, body {
       height: 100%;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #040c18;
+      background: #0d0e14;
       color: #fff;
       overflow-x: hidden;
     }
@@ -294,18 +294,13 @@ app.get('/join/:storyId', async (req, res) => {
     /* Fullscreen background */
     .bg {
       position: fixed; inset: 0;
-      background: url('/assets/home-bg-poster.jpg') center/cover no-repeat;
+      background: url('/assets/Home-%20beckground.jpg.jpg') center/cover no-repeat;
       z-index: 0;
     }
     .bg::after {
       content: '';
       position: absolute; inset: 0;
-      background: linear-gradient(
-        to bottom,
-        rgba(4, 12, 24, 0.55) 0%,
-        rgba(4, 12, 24, 0.70) 50%,
-        rgba(4, 12, 24, 0.92) 100%
-      );
+      background: rgba(20, 50, 120, 0.52);
     }
 
     /* Content layer */
@@ -320,24 +315,24 @@ app.get('/join/:storyId', async (req, res) => {
 
     /* Logo */
     .logo-wrap { margin-bottom: 32px; }
-    .logo-wrap img { height: 36px; opacity: 0.92; }
+    .logo-wrap img { height: 44px; opacity: 0.95; }
 
     /* Invitation text */
     .invite-label {
       font-size: 13px; font-weight: 600; letter-spacing: 0.12em;
-      text-transform: uppercase; color: rgba(255,255,255,0.45);
+      text-transform: uppercase; color: rgba(200,155,70,0.55);
       margin-bottom: 10px;
     }
     .creator-name {
       font-size: 28px; font-weight: 700; line-height: 1.2;
-      color: #fff; margin-bottom: 6px;
+      color: rgba(228,180,85,0.92); margin-bottom: 6px;
     }
     .story-title {
-      font-size: 16px; font-weight: 300; color: rgba(255,255,255,0.70);
+      font-size: 16px; font-weight: 300; color: rgba(200,155,70,0.70);
       margin-bottom: 12px; max-width: 300px;
     }
     .record-hint {
-      font-size: 13px; color: rgba(255,255,255,0.38);
+      font-size: 13px; color: rgba(200,155,70,0.40);
       margin-bottom: 36px; max-width: 260px; line-height: 1.5;
     }
 
@@ -348,27 +343,28 @@ app.get('/join/:storyId', async (req, res) => {
       padding: 18px 24px;
       border-radius: 14px;
       font-size: 17px; font-weight: 700;
-      text-decoration: none; color: #040c18;
-      background: linear-gradient(135deg, #7ecfe0 0%, #5ab4cc 100%);
-      box-shadow: 0 6px 32px rgba(94,190,218,0.40);
+      text-decoration: none; color: #fff;
+      background: rgba(90,170,255,0.85);
+      box-shadow: 0 6px 32px rgba(90,170,255,0.35);
       margin-bottom: 14px;
       transition: transform 0.15s, box-shadow 0.15s;
+      border-bottom: 3px solid rgba(60,130,220,0.80);
     }
-    .cta-btn:active { transform: scale(0.97); box-shadow: 0 3px 16px rgba(94,190,218,0.30); }
+    .cta-btn:active { transform: scale(0.97); box-shadow: 0 3px 16px rgba(90,170,255,0.25); }
 
     /* Secondary (app deep link) */
     .secondary-link {
       display: block;
-      font-size: 13px; color: rgba(255,255,255,0.45);
+      font-size: 13px; color: rgba(90,170,255,0.70);
       text-decoration: none; margin-top: 6px;
       padding: 8px 0;
     }
-    .secondary-link:hover { color: rgba(255,255,255,0.70); }
+    .secondary-link:hover { color: rgba(90,170,255,0.95); }
 
     /* Tagline at bottom */
     .tagline {
       position: fixed; bottom: 24px;
-      font-size: 11px; color: rgba(255,255,255,0.22);
+      font-size: 11px; color: rgba(200,155,70,0.28);
       letter-spacing: 0.08em;
     }
   </style>
