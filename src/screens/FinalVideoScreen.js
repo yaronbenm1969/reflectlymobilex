@@ -2245,7 +2245,7 @@ export const FinalVideoScreen = () => {
               <View style={styles.endScreenBottomBtns}>
                 <TouchableOpacity
                   style={styles.endScreenPrimaryBtn}
-                  onPress={() => go('Home')}
+                  onPress={() => { resetStory(); go('Home'); }}
                 >
                   <Ionicons name="home-outline" size={20} color="white" />
                   <Text style={styles.endScreenPrimaryBtnText}>{t('finalVideo.btn_go_home')}</Text>

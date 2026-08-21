@@ -85,21 +85,21 @@ const RecordingPreview = ({ videoUri, onRecordAgain, onContinue, onBack }) => {
       <View style={styles.reviewControls}>
         <View style={styles.reviewRow}>
           <TouchableOpacity style={styles.ghostButton} onPress={onRecordAgain}>
-            <Ionicons name="refresh" size={18} color="white" />
+            <Ionicons name="refresh" size={22} color="rgba(200,155,70,0.85)" />
             <Text style={styles.ghostButtonText}>הקלט מחדש</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.ghostButton} onPress={handlePlayPause}>
-            <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="white" />
+            <Ionicons name={isPlaying ? 'pause' : 'play'} size={22} color="rgba(200,155,70,0.85)" />
             <Text style={styles.ghostButtonText}>צפה</Text>
           </TouchableOpacity>
         </View>
         <LinearGradient
-          colors={['#c0622a', '#a04e1e']}
+          colors={['#c9a84c', '#a07830']}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
           style={styles.continueButton}
         >
           <TouchableOpacity onPress={onContinue} style={styles.continueButtonInner}>
-            <Ionicons name="arrow-forward" size={20} color="white" />
+            <Ionicons name="arrow-forward" size={24} color="white" />
             <Text style={styles.continueText}>המשך</Text>
           </TouchableOpacity>
         </LinearGradient>
@@ -565,10 +565,14 @@ const styles = StyleSheet.create({
   },
   reviewControls: {
     position: 'absolute',
-    bottom: 50,
-    left: theme.spacing[4],
-    right: theme.spacing[4],
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: 20,
+    paddingBottom: 44,
     gap: theme.spacing[3],
+    backgroundColor: 'rgba(38, 40, 50, 0.97)',
   },
   reviewRow: {
     flexDirection: 'row',
@@ -580,15 +584,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing[2],
-    height: 48,
+    height: 62,
     borderRadius: theme.radii.lg,
     backgroundColor: 'rgba(255,255,255,0.15)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
   },
   ghostButtonText: {
-    color: 'white',
-    fontSize: 14,
+    color: 'rgba(200,155,70,0.85)',
+    fontSize: 17,
     fontWeight: '600',
   },
   continueButton: {
@@ -600,11 +604,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing[2],
-    height: 52,
+    height: 66,
   },
   continueText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '700',
   },
 });

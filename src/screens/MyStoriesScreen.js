@@ -10,6 +10,8 @@ import {
   Alert,
   Platform,
   Share,
+  Image,
+  Dimensions,
 } from 'react-native';
 import Constants from 'expo-constants';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -17,7 +19,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
-import { Video, ResizeMode } from 'expo-av';
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('screen');
 import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
@@ -151,7 +154,6 @@ export const MyStoriesScreen = () => {
   const setCurrentStoryId = useAppState((state) => state.setCurrentStoryId);
   const setVideoFormat = useAppState((state) => state.setVideoFormat);
 
-  const bgVideoRef = useRef(null);
   const [stories, setStories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
@@ -228,11 +230,11 @@ export const MyStoriesScreen = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'draft': return '#999';
+      case 'draft': return 'rgba(90,170,255,0.85)';
       case 'shared': return '#2196F3';
       case 'processing': return '#FF9800';
-      case 'completed': return '#4CAF50';
-      default: return '#999';
+      case 'completed': return 'rgba(90,170,255,0.85)';
+      default: return 'rgba(90,170,255,0.85)';
     }
   };
 
@@ -248,14 +250,10 @@ export const MyStoriesScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Video
-        ref={bgVideoRef}
-        source={{ uri: 'https://storage.googleapis.com/reflectly-playback.firebasestorage.app/assets/home-background.mp4' }}
-        style={StyleSheet.absoluteFill}
-        resizeMode={ResizeMode.COVER}
-        shouldPlay
-        isLooping
-        isMuted
+      <Image
+        source={require('../../assets/Home- beckground.jpg.jpg')}
+        style={styles.bgImage}
+        resizeMode="contain"
         pointerEvents="none"
       />
       <View style={styles.bgOverlay} pointerEvents="none" />
@@ -298,9 +296,14 @@ export const MyStoriesScreen = () => {
               const videoUrl = story.finalVideoUrl || story.videoUrl || null;
               const creatorVideoUrl = story.videoUri || null;
               const isCubeFormat = story.format === 'cube-3d';
-              const isCompleted = !!videoUrl || story.status === 'completed' || isCubeFormat;
+              const isCompleted = !!videoUrl || story.status === 'completed';
               return (
                 <View key={story.id} style={styles.storyCard}>
+                  {/* Wave decoration */}
+                  <View style={styles.cardWaveContainer} pointerEvents="none">
+                    <View style={styles.cardWave1} />
+                    <View style={styles.cardWave2} />
+                  </View>
                   {/* New videos banner — tappable, navigates to EditRoom */}
                   {(story.pendingReflectionsCount || 0) > 0 && (
                     <TouchableOpacity
@@ -330,7 +333,7 @@ export const MyStoriesScreen = () => {
                       <Text style={styles.declinedBannerText}>
                         {t('myStories.declined_banner', { playerName: story.declinedConsentName })}
                       </Text>
-                      <Ionicons name="person-add-outline" size={14} color="rgba(255,255,255,0.7)" />
+                      <Ionicons name="person-add-outline" size={14} color="rgba(90,170,255,0.85)" />
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity style={styles.storyMain} onPress={() => handleStoryPress(story)}>
@@ -338,7 +341,7 @@ export const MyStoriesScreen = () => {
                       <Ionicons
                         name={isCompleted ? 'play-circle' : 'videocam'}
                         size={28}
-                        color={isCompleted ? 'rgba(255,255,255,0.85)' : 'rgba(132,70,176,0.85)'}
+                        color={isCompleted ? 'rgba(255,255,255,0.85)' : 'rgba(90,170,255,0.85)'}
                       />
                     </View>
                     <View style={styles.storyInfo}>
@@ -352,7 +355,7 @@ export const MyStoriesScreen = () => {
                         </Text>
                       )}
                       <Text style={styles.storyMeta}>{formatDate(story.completedAt || story.createdAt || story.updatedAt)}</Text>
-                      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(story.status) + '28' }]}>
+                      <View style={styles.statusBadge}>
                         <Text style={[styles.statusText, { color: getStatusColor(story.status) }]}>
                           {getStatusText(story.status)}
                         </Text>
@@ -385,17 +388,21 @@ export const MyStoriesScreen = () => {
                         <Ionicons name="play-circle-outline" size={15} color="rgba(255,255,255,0.75)" />
                         <Text style={styles.completedActionText}>{t('myStories.watch')}</Text>
                       </TouchableOpacity>
-                      {!!creatorVideoUrl && (
-                        <TouchableOpacity
-                          style={styles.completedAction}
-                          onPress={() => setWatchData({ url: creatorVideoUrl, name: story.name, story })}
-                        >
-                          <Ionicons name="camera-outline" size={15} color="rgba(255,255,255,0.4)" />
-                          <Text style={[styles.completedActionText, styles.completedActionTextDim]}>
-                            {t('myStories.my_recording')}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
+                      <TouchableOpacity
+                        style={styles.completedAction}
+                        onPress={() => {
+                          if (creatorVideoUrl) {
+                            setWatchData({ url: creatorVideoUrl, name: story.name, story });
+                          } else {
+                            Alert.alert('סרטון מוביל', 'הסרטון לא נשמר עדיין. כנס לעריכת הפרויקט ושמור שוב כדי להוסיף אותו לפלואו.');
+                          }
+                        }}
+                      >
+                        <Ionicons name={creatorVideoUrl ? "play-circle-outline" : "videocam-off-outline"} size={15} color={creatorVideoUrl ? "rgba(200,155,70,0.75)" : "rgba(255,255,255,0.25)"} />
+                        <Text style={[styles.completedActionText, !creatorVideoUrl && styles.completedActionTextDim]}>
+                          {creatorVideoUrl ? 'צפה בסרטון מוביל' : 'ללא סרטון מוביל'}
+                        </Text>
+                      </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.completedAction}
                         onPress={() => openStory(story)}
@@ -408,21 +415,27 @@ export const MyStoriesScreen = () => {
                     </View>
                   )}
 
-                  {!isCompleted && !!creatorVideoUrl && (
+                  {!isCompleted && (
                     <TouchableOpacity
-                      style={styles.completedAction}
-                      onPress={() => setWatchData({ url: creatorVideoUrl, name: story.name, story })}
+                      style={[styles.creatorVideoBtn, !creatorVideoUrl && styles.creatorVideoBtnDim]}
+                      onPress={() => {
+                        if (creatorVideoUrl) {
+                          setWatchData({ url: creatorVideoUrl, name: story.name, story });
+                        } else {
+                          Alert.alert('סרטון מוביל', 'הסרטון לא נשמר עדיין. כנס לעריכת הפרויקט ושמור שוב כדי להוסיף אותו לפלואו.');
+                        }
+                      }}
                     >
-                      <Ionicons name="camera-outline" size={15} color="rgba(255,255,255,0.4)" />
-                      <Text style={[styles.completedActionText, styles.completedActionTextDim]}>
-                        {t('myStories.my_recording')}
+                      <Ionicons name={creatorVideoUrl ? "play-circle-outline" : "videocam-off-outline"} size={17} color={creatorVideoUrl ? "rgba(228,180,85,0.95)" : "rgba(200,155,70,0.35)"} />
+                      <Text style={[styles.creatorVideoBtnText, !creatorVideoUrl && styles.creatorVideoBtnTextDim]}>
+                        {creatorVideoUrl ? 'צפה בסרטון המוביל' : 'סרטון מוביל לא נשמר'}
                       </Text>
                     </TouchableOpacity>
                   )}
 
                   {!isCompleted && (
                     <TouchableOpacity style={styles.inviteButton} onPress={() => handleInvite(story)}>
-                      <Ionicons name="person-add-outline" size={14} color="rgba(255,255,255,0.6)" />
+                      <Ionicons name="person-add-outline" size={14} color="rgba(90,170,255,0.85)" />
                       <Text style={styles.inviteButtonText}>{t('myStories.invite_btn')}</Text>
                     </TouchableOpacity>
                   )}
@@ -466,9 +479,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  bgImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: SCREEN_W,
+    height: SCREEN_H,
+  },
   bgOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.70)',
+    backgroundColor: 'rgba(20,50,120,0.52)',
   },
 
   // Header
@@ -479,8 +499,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 18,
+    backgroundColor: 'rgba(38, 40, 50, 0.97)',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomColor: 'rgba(200,155,70,0.15)',
   },
   backButton: {
     width: 40,
@@ -495,10 +516,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    fontSize: 26,
-    fontWeight: '200',
-    color: '#fff',
-    letterSpacing: 3,
+    fontSize: 20,
+    fontWeight: '700',
+    color: 'rgba(200,155,70,0.85)',
+    letterSpacing: 0.5,
   },
 
   // Scroll
@@ -517,7 +538,7 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   loadingText: {
-    color: 'rgba(255,255,255,0.4)',
+    color: 'rgba(200,155,70,0.55)',
     marginTop: 12,
     fontSize: 14,
   },
@@ -527,14 +548,14 @@ const styles = StyleSheet.create({
     paddingVertical: 80,
   },
   emptyTitle: {
-    color: '#fff',
+    color: 'rgba(228,180,85,0.90)',
     fontSize: 18,
     fontWeight: '300',
     marginTop: 16,
     textAlign: 'center',
   },
   emptySubtitle: {
-    color: 'rgba(255,255,255,0.45)',
+    color: 'rgba(208,163,72,0.65)',
     fontSize: 14,
     textAlign: 'center',
     marginTop: 8,
@@ -543,7 +564,7 @@ const styles = StyleSheet.create({
   loginButton: {
     marginTop: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: 'rgba(200,155,70,0.35)',
     paddingHorizontal: 28,
     paddingVertical: 11,
     borderRadius: 24,
@@ -559,11 +580,41 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   storyCard: {
-    backgroundColor: 'rgba(255,255,255,0.11)',
+    backgroundColor: 'rgba(55, 58, 72, 0.91)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
+    borderColor: 'rgba(200,155,70,0.15)',
     borderRadius: 18,
     overflow: 'hidden',
+  },
+  cardWaveContainer: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  cardWave1: {
+    position: 'absolute',
+    width: 280,
+    height: 60,
+    borderTopLeftRadius: 60,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 15,
+    borderBottomRightRadius: 70,
+    backgroundColor: 'rgba(135, 139, 162, 0.13)',
+    top: -10,
+    left: -80,
+    transform: [{ rotate: '-8deg' }],
+  },
+  cardWave2: {
+    position: 'absolute',
+    width: 220,
+    height: 80,
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 70,
+    borderBottomLeftRadius: 50,
+    borderBottomRightRadius: 10,
+    backgroundColor: 'rgba(100, 104, 124, 0.10)',
+    bottom: -15,
+    right: -50,
+    transform: [{ rotate: '7deg' }],
   },
   newVideosBanner: {
     flexDirection: 'row',
@@ -604,39 +655,39 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 14,
-    backgroundColor: 'rgba(132,70,176,0.20)',
+    backgroundColor: 'rgba(200,155,70,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
   },
   storyThumbnailDone: {
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(200,155,70,0.12)',
   },
   storyInfo: {
     flex: 1,
   },
   storyTitle: {
-    color: '#fff',
+    color: 'rgba(228,180,85,1.0)',
     fontSize: 18,
     fontWeight: '300',
     textAlign: 'right',
     letterSpacing: 0.3,
   },
   storyStatusDesc: {
-    color: 'rgba(255,255,255,0.55)',
+    color: 'rgba(208,163,72,0.85)',
     fontSize: 13,
     fontWeight: '300',
     marginTop: 4,
     textAlign: 'right',
   },
   storyParticipants: {
-    color: 'rgba(255,255,255,0.40)',
+    color: 'rgba(200,155,70,0.60)',
     fontSize: 12,
     marginTop: 2,
     textAlign: 'right',
   },
   storyMeta: {
-    color: 'rgba(255,255,255,0.18)',
+    color: 'rgba(200,155,70,0.35)',
     fontSize: 11,
     marginTop: 5,
     textAlign: 'right',
@@ -666,7 +717,7 @@ const styles = StyleSheet.create({
   completedActions: {
     flexDirection: 'row',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: 'rgba(200,155,70,0.15)',
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 20,
@@ -680,25 +731,78 @@ const styles = StyleSheet.create({
   completedActionText: {
     fontSize: 13,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.75)',
+    color: 'rgba(228,180,85,0.85)',
   },
   completedActionTextDim: {
-    color: 'rgba(255,255,255,0.4)',
+    color: 'rgba(200,155,70,0.50)',
   },
 
-  // Invite
+  // Invite — raised 3D button
   inviteButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.07)',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 14,
+    marginBottom: 14,
+    marginTop: 6,
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+    backgroundColor: 'rgba(60,130,230,0.18)',
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(90,170,255,0.45)',
+    borderBottomWidth: 3,
+    borderBottomColor: 'rgba(40,100,200,0.65)',
+    shadowColor: 'rgba(50,120,220,1)',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.30,
+    shadowRadius: 6,
+    elevation: 4,
   },
   inviteButtonText: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '600',
+    color: 'rgba(130,195,255,0.95)',
+  },
+
+  // Creator video — raised gold button
+  creatorVideoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 14,
+    marginBottom: 8,
+    marginTop: 6,
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(180,140,60,0.15)',
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.40)',
+    borderBottomWidth: 3,
+    borderBottomColor: 'rgba(160,120,40,0.60)',
+    shadowColor: 'rgba(200,155,70,1)',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  creatorVideoBtnDim: {
+    backgroundColor: 'rgba(80,80,80,0.10)',
+    borderColor: 'rgba(255,255,255,0.10)',
+    borderBottomColor: 'rgba(100,100,100,0.25)',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  creatorVideoBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(228,180,85,0.95)',
+  },
+  creatorVideoBtnTextDim: {
+    color: 'rgba(200,155,70,0.30)',
   },
 
   // Delete

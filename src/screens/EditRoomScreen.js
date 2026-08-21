@@ -9,6 +9,7 @@ import {
   Modal,
   Image,
   Switch,
+  ImageBackground,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NestableScrollContainer, NestableDraggableFlatList, ScaleDecorator } from 'react-native-draggable-flatlist';
@@ -436,7 +437,11 @@ export const EditRoomScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <ImageBackground
+      source={require('../../assets/edit-room-bg.jpg.jpg')}
+      style={styles.container}
+      resizeMode="cover"
+    >
       <LinearGradient
         colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
         start={{ x: 0, y: 0 }}
@@ -822,14 +827,13 @@ export const EditRoomScreen = () => {
           </View>
         </View>
       </Modal>
-    </View>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.bg,
   },
   header: {
     flexDirection: 'row',

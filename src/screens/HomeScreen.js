@@ -11,7 +11,9 @@ import {
   Image,
   Animated,
   Dimensions,
+  Modal,
 } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('screen');
 import * as FileSystem from 'expo-file-system';
@@ -27,6 +29,9 @@ import theme from '../theme/theme';
 
 const HOME_BG_VIDEO_URL = 'https://storage.googleapis.com/reflectly-playback.firebasestorage.app/assets/home-background.mp4';
 const HOME_BG_VIDEO_CACHE = `${FileSystem.cacheDirectory}home-background.mp4`;
+
+// TODO: replace with Firebase Storage URL after uploading the tutorial video
+const TUTORIAL_VIDEO_URL = '';
 
 // Clip count → per-clip duration:
 // 1-9 clips  → 60s | 10-20 → 30s | 21-40 → 5s | 40+ → 3s
@@ -51,6 +56,9 @@ export const HomeScreen = () => {
   const [localStoryName, setLocalStoryName] = useState(storyName || '');
   const [isCreating, setIsCreating] = useState(false);
   const [bgVideoUri, setBgVideoUri] = useState(HOME_BG_VIDEO_URL);
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const tutorialVideoRef = useRef(null);
   const cardOpacity = useRef(new Animated.Value(0)).current;
 
   // Cache background video locally after first download
@@ -99,8 +107,8 @@ export const HomeScreen = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       const withNew = all.filter(s => (s.pendingReflectionsCount || 0) > 0);
-
       setStoriesWithNewVideos(withNew);
+      setIsNewUser(all.length === 0);
     }, (err) => console.warn('HomeScreen stories snapshot error:', err.message));
     return unsubscribe;
   }, [user?.uid]);
@@ -193,7 +201,7 @@ export const HomeScreen = () => {
     <View style={styles.container}>
       {/* Full-screen background image */}
       <Image
-        source={require('../../assets/Home-beckground.jpg (2).png')}
+        source={require('../../assets/Home- beckground.jpg.jpg')}
         style={styles.bgVideo}
         resizeMode="contain"
         pointerEvents="none"
@@ -221,6 +229,14 @@ export const HomeScreen = () => {
       {/* Content card — fades in after 2s, covers hero + input */}
       <Animated.View style={[styles.contentCard, { opacity: cardOpacity }]}>
 
+      {/* Wave decoration */}
+      <View style={styles.waveContainer} pointerEvents="none">
+        <View style={styles.wave1} />
+        <View style={styles.wave2} />
+        <View style={styles.wave3} />
+        <View style={styles.wave4} />
+      </View>
+
       {/* Hero title */}
       <View style={styles.heroSection}>
         <Image
@@ -232,7 +248,7 @@ export const HomeScreen = () => {
           <TextInput
             style={styles.storyInput}
             placeholder={t('home.story_input_placeholder')}
-            placeholderTextColor="rgba(220,185,110,0.65)"
+            placeholderTextColor="rgba(228,180,85,0.90)"
             value={localStoryName}
             onChangeText={setLocalStoryName}
             onSubmitEditing={navigateToRecord}
@@ -262,6 +278,54 @@ export const HomeScreen = () => {
           </>
         )}
       </View>
+
+      {/* Tutorial section — visible only for new users (no stories yet) */}
+      {isNewUser && (
+        <View style={styles.tutorialSection}>
+          <TouchableOpacity
+            style={styles.tutorialBtn}
+            onPress={() => setShowTutorial(v => !v)}
+            activeOpacity={0.75}
+          >
+            <Ionicons
+              name={showTutorial ? 'chevron-up' : 'play-circle-outline'}
+              size={18}
+              color="rgba(200,155,70,0.90)"
+            />
+            <Text style={styles.tutorialBtnText}>
+              {showTutorial ? 'סגור' : 'איך זה עובד?'}
+            </Text>
+          </TouchableOpacity>
+
+          {showTutorial && (
+            <View style={styles.tutorialVideoContainer}>
+              {TUTORIAL_VIDEO_URL ? (
+                <>
+                  <Video
+                    ref={tutorialVideoRef}
+                    source={{ uri: TUTORIAL_VIDEO_URL }}
+                    style={styles.tutorialVideo}
+                    resizeMode={ResizeMode.CONTAIN}
+                    shouldPlay
+                    useNativeControls
+                  />
+                  <TouchableOpacity
+                    style={styles.tutorialFullscreenBtn}
+                    onPress={() => tutorialVideoRef.current?.presentFullscreenPlayerAsync()}
+                  >
+                    <Ionicons name="expand" size={15} color="rgba(255,255,255,0.85)" />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={styles.tutorialPlaceholder}>
+                  <Ionicons name="videocam-outline" size={34} color="rgba(200,155,70,0.40)" />
+                  <Text style={styles.tutorialPlaceholderText}>הסרטון יהיה זמין בקרוב</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Creator banner — pending applications to review */}
       {pendingCreatorApps.length > 0 && (
@@ -342,12 +406,70 @@ const styles = StyleSheet.create({
     marginTop: Platform.OS === 'ios' ? 134 : 108,
     marginHorizontal: 14,
     marginBottom: Platform.OS === 'ios' ? 150 : 130,
-    backgroundColor: 'rgba(38, 40, 50, 0.88)',
+    backgroundColor: 'rgba(55, 58, 72, 0.91)',
     borderRadius: 26,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.13)',
     paddingTop: 12,
     overflow: 'hidden',
+  },
+
+  // Wave decoration
+  waveContainer: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  wave1: {
+    position: 'absolute',
+    width: 440,
+    height: 90,
+    borderTopLeftRadius: 80,
+    borderTopRightRadius: 30,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 90,
+    backgroundColor: 'rgba(135, 139, 162, 0.17)',
+    top: 10,
+    left: -110,
+    transform: [{ rotate: '-11deg' }],
+  },
+  wave2: {
+    position: 'absolute',
+    width: 320,
+    height: 140,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 100,
+    borderBottomLeftRadius: 70,
+    borderBottomRightRadius: 15,
+    backgroundColor: 'rgba(100, 104, 124, 0.13)',
+    top: 170,
+    right: -60,
+    transform: [{ rotate: '14deg' }],
+  },
+  wave3: {
+    position: 'absolute',
+    width: 460,
+    height: 75,
+    borderTopLeftRadius: 50,
+    borderTopRightRadius: 15,
+    borderBottomLeftRadius: 90,
+    borderBottomRightRadius: 40,
+    backgroundColor: 'rgba(150, 154, 175, 0.11)',
+    bottom: 150,
+    left: -130,
+    transform: [{ rotate: '-4deg' }],
+  },
+  wave4: {
+    position: 'absolute',
+    width: 350,
+    height: 115,
+    borderTopLeftRadius: 90,
+    borderTopRightRadius: 25,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 75,
+    backgroundColor: 'rgba(118, 122, 145, 0.15)',
+    bottom: 30,
+    right: -70,
+    transform: [{ rotate: '9deg' }],
   },
 
   // Top bar
@@ -381,7 +503,7 @@ const styles = StyleSheet.create({
   },
   heroTagline: {
     fontSize: 14,
-    color: 'rgba(200,155,70,0.85)',
+    color: 'rgba(228,180,85,1.0)',
     letterSpacing: 0.5,
     marginTop: 22,
     textAlign: 'center',
@@ -389,7 +511,7 @@ const styles = StyleSheet.create({
   },
   heroTagline2: {
     fontSize: 14,
-    color: 'rgba(180,140,60,0.85)',
+    color: 'rgba(208,163,72,1.0)',
     letterSpacing: 0.5,
     marginTop: 4,
     textAlign: 'center',
@@ -398,13 +520,13 @@ const styles = StyleSheet.create({
   heroTaglineCommunity: {
     fontSize: 22,
     fontWeight: '300',
-    color: '#C49030',
+    color: '#DBA838',
     letterSpacing: 2,
     marginTop: 12,
   },
   communitySubtitle: {
     fontSize: 14,
-    color: 'rgba(190,140,60,0.85)',
+    color: 'rgba(218,162,72,1.0)',
     letterSpacing: 0.5,
     marginTop: 8,
     textAlign: 'center',
@@ -475,7 +597,7 @@ const styles = StyleSheet.create({
     height: 56,
     paddingHorizontal: 12,
     fontSize: 15,
-    color: '#C49030',
+    color: '#DBA838',
   },
   arrowButton: {
     width: 56,
@@ -486,6 +608,59 @@ const styles = StyleSheet.create({
   },
   arrowButtonDisabled: {
     opacity: 0.4,
+  },
+
+  // Tutorial section (new users only)
+  tutorialSection: {
+    marginHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  tutorialBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 9,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(200,155,70,0.10)',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.28)',
+  },
+  tutorialBtnText: {
+    color: 'rgba(200,155,70,0.90)',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  tutorialVideoContainer: {
+    marginTop: 10,
+    width: '100%',
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+  tutorialVideo: {
+    width: '100%',
+    height: 196,
+  },
+  tutorialFullscreenBtn: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 8,
+    padding: 6,
+  },
+  tutorialPlaceholder: {
+    height: 150,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  tutorialPlaceholderText: {
+    color: 'rgba(200,155,70,0.45)',
+    fontSize: 13,
   },
 
 });

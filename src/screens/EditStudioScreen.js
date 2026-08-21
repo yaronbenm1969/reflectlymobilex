@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, Modal, ActivityIndicator,
+  Image, Modal, ActivityIndicator, Animated,
   ImageBackground, Alert, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,7 +20,8 @@ import { storiesService } from '../services/storiesService';
 import { storageService } from '../services/storageService';
 import theme from '../theme/theme';
 
-const ACCENT = '#c0622a'; // deep terracotta — earthy, less orange
+const ACCENT = 'rgba(90,170,255,0.85)'; // light blue — selected states & icons
+const GOLD  = 'rgba(228,180,85,0.90)';  // gold — selected text only
 
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ||
@@ -113,9 +114,23 @@ export const EditStudioScreen = () => {
   const { go, back } = useNav();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef(null);
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+
+  // Fade-in content after 1s (let background show first)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.timing(cardOpacity, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: true,
+      }).start();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // ── Zustand ──
   const currentStoryId        = useAppState((s) => s.currentStoryId);
+  const lastRecordingUri      = useAppState((s) => s.lastRecordingUri);
   const storyName             = useAppState((s) => s.storyName);
   const navigationParams      = useAppState((s) => s.navigationParams);
   const communitySettings     = useAppState((s) => s.communitySettings);
@@ -320,6 +335,17 @@ export const EditStudioScreen = () => {
         backgroundMediaType: localBgMediaType || null,
         ...musicFields,
       };
+
+      // Upload creator's recording and save videoUri so the join page can show it to players
+      if (lastRecordingUri) {
+        try {
+          const uploadResult = await storageService.uploadVideo(lastRecordingUri, currentStoryId, 'key');
+          if (uploadResult.success) updateFields.videoUri = uploadResult.url;
+        } catch (e) {
+          console.warn('EditStudio: videoUri upload failed (non-fatal)', e.message);
+        }
+      }
+
       await storiesService.updateStory(currentStoryId, updateFields);
 
       if (communityMode && returnTo !== 'EditRoom') {
@@ -354,12 +380,13 @@ export const EditStudioScreen = () => {
 
   return (
     <ImageBackground
-      source={require('../../assets/edit-studio-bg.jpg')}
+      source={require('../../assets/edit-room-bg.jpg.jpg')}
       style={{ flex: 1 }}
       resizeMode="cover"
     >
       <View style={styles.overlay} />
 
+      <Animated.View style={{ flex: 1, opacity: cardOpacity }}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity style={styles.backBtn} onPress={back}>
@@ -390,12 +417,14 @@ export const EditStudioScreen = () => {
           const isOpen = expandedCard === card.id;
           return (
             <View key={card.id} style={styles.glassCard}>
+              <View style={styles.cardWave1} pointerEvents="none" />
+              <View style={styles.cardWave2} pointerEvents="none" />
               <TouchableOpacity style={styles.cardHeader} onPress={() => toggleCard(card.id)} activeOpacity={0.8}>
                 <View style={styles.cardHeaderLeft}>
                   <View style={[styles.cardIconBg, isOpen && styles.cardIconBgOpen, card.done && !isOpen && styles.cardIconBgDone]}>
                     {card.done && !isOpen
                       ? <Ionicons name="checkmark" size={18} color="white" />
-                      : <Ionicons name={card.icon} size={18} color={isOpen ? 'white' : 'rgba(255,255,255,0.7)'} />
+                      : <Ionicons name={card.icon} size={18} color={isOpen ? 'white' : 'rgba(90,170,255,0.85)'} />
                     }
                   </View>
                   <View style={{ flex: 1 }}>
@@ -438,6 +467,7 @@ export const EditStudioScreen = () => {
           </TouchableOpacity>
         </View>
       )}
+      </Animated.View>
 
       {/* Background preview modals */}
       <VideoPreviewModal
@@ -454,7 +484,7 @@ export const EditStudioScreen = () => {
                 style={{ flex: 1, backgroundColor: ACCENT, borderRadius: 12, alignItems: 'center', paddingVertical: 14 }}
                 onPress={() => { selectBg(previewBg.url, previewBg.mediaType); setPreviewBg(null); }}
               >
-                <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>{t('playerRecord.bg_select')}</Text>
+                <Text style={{ color: 'rgba(228,180,85,1.0)', fontSize: 16, fontWeight: '600' }}>{t('playerRecord.bg_select')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: `${theme.colors.secondary}15`, borderRadius: 12, alignItems: 'center', paddingVertical: 14 }}
@@ -497,7 +527,7 @@ export const EditStudioScreen = () => {
                 }
               }}
             >
-              <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>{t('formatSelection.btn_select_format')}</Text>
+              <Text style={{ color: 'rgba(228,180,85,1.0)', fontSize: 16, fontWeight: '600' }}>{t('formatSelection.btn_select_format')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -514,8 +544,8 @@ export const EditStudioScreen = () => {
           style={[styles.musicNoneRow, musicSelection === 'none' && styles.musicNoneRowSelected]}
           onPress={() => { setMusicSelection('none'); setExpandedCard('background'); }}
         >
-          <Ionicons name="volume-mute-outline" size={18} color={musicSelection === 'none' ? ACCENT : 'rgba(255,255,255,0.6)'} />
-          <Text style={[styles.musicNoneText, musicSelection === 'none' && { color: ACCENT }]}>
+          <Ionicons name="volume-mute-outline" size={18} color={musicSelection === 'none' ? ACCENT : 'rgba(200,155,70,0.50)'} />
+          <Text style={[styles.musicNoneText, musicSelection === 'none' && { color: GOLD }]}>
             {isHe ? 'ללא מוזיקה' : 'No music'}
           </Text>
           {musicSelection === 'none' && <Ionicons name="checkmark-circle" size={18} color={ACCENT} />}
@@ -547,7 +577,7 @@ export const EditStudioScreen = () => {
               >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <View style={[styles.musicIcon, isSelected && styles.musicIconSelected]}>
-                    <Ionicons name={setItem.icon || 'musical-notes-outline'} size={17} color={isSelected ? 'white' : 'rgba(255,255,255,0.7)'} />
+                    <Ionicons name={setItem.icon || 'musical-notes-outline'} size={17} color={isSelected ? 'white' : 'rgba(90,170,255,0.85)'} />
                   </View>
                   {isSelected && <Ionicons name="checkmark-circle" size={16} color={ACCENT} />}
                 </View>
@@ -555,7 +585,7 @@ export const EditStudioScreen = () => {
                   {isHe ? setItem.tone : setItem.toneEn}
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-                  <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{setItem.bpm} BPM</Text>
+                  <Text style={{ fontSize: 10, color: 'rgba(200,155,70,0.35)' }}>{setItem.bpm} BPM</Text>
                   {setItem.previewUrl && (
                     <TouchableOpacity
                       style={[styles.musicPreviewBtn, isPreviewing && styles.musicPreviewBtnActive]}
@@ -668,7 +698,7 @@ export const EditStudioScreen = () => {
               activeOpacity={0.8}
             >
               <View style={[styles.formatIconBg, isSelected && styles.formatIconBgSelected]}>
-                <Ionicons name={option.icon} size={19} color={isSelected ? 'white' : 'rgba(255,255,255,0.7)'} />
+                <Ionicons name={option.icon} size={19} color={isSelected ? 'white' : 'rgba(90,170,255,0.85)'} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.formatName, isSelected && styles.formatNameSelected]}>{option.name}</Text>
@@ -682,7 +712,7 @@ export const EditStudioScreen = () => {
                 onPress={() => setPreviewFormat(option.id)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Ionicons name="eye-outline" size={15} color="rgba(255,255,255,0.45)" />
+                <Ionicons name="eye-outline" size={15} color="rgba(90,170,255,0.65)" />
               </TouchableOpacity>
               {isSelected && (
                 <Ionicons name="checkmark-circle" size={20} color={ACCENT} style={{ marginLeft: 4 }} />
@@ -698,13 +728,14 @@ export const EditStudioScreen = () => {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(5, 2, 22, 0.73)',
+    backgroundColor: 'rgba(20, 50, 120, 0.52)',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 14,
+    backgroundColor: 'rgba(38, 40, 50, 0.97)',
   },
   backBtn: {
     width: 40,
@@ -719,12 +750,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'white',
+    color: 'rgba(200,155,70,0.85)',
     letterSpacing: 0.2,
   },
   headerSubtitle: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.50)',
+    color: 'rgba(180,140,60,0.85)',
     marginTop: 2,
   },
   headerPreview: {
@@ -744,10 +775,10 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
   glassCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+    backgroundColor: 'rgba(55, 58, 72, 0.91)',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(200,155,70,0.15)',
     marginBottom: 10,
     overflow: 'hidden',
   },
@@ -772,23 +803,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardIconBgOpen: {
-    backgroundColor: ACCENT,
+    backgroundColor: 'rgba(90,170,255,0.65)',
   },
   cardIconBgDone: {
-    backgroundColor: '#2a9d5c',
+    backgroundColor: 'rgba(90,170,255,0.65)',
   },
   cardTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: 'rgba(255,255,255,0.92)',
+    color: 'rgba(228,180,85,0.90)',
   },
   cardSummary: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.45)',
+    color: 'rgba(200,155,70,0.45)',
     marginTop: 2,
   },
   cardSummaryDone: {
-    color: '#4ade80',
+    color: 'rgba(200,155,70,0.85)',
   },
   cardContent: {
     paddingHorizontal: 14,
@@ -818,21 +849,21 @@ const styles = StyleSheet.create({
   },
   modeTabText: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.55)',
+    color: 'rgba(200,155,70,0.55)',
     fontWeight: '500',
   },
   modeTabTextActive: {
-    color: 'white',
+    color: 'rgba(228,180,85,1.0)',
     fontWeight: '700',
   },
   instrInput: {
-    backgroundColor: 'rgba(255,255,255,0.09)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: 'rgba(200,155,70,0.20)',
     padding: 12,
     fontSize: 15,
-    color: 'white',
+    color: 'rgba(228,180,85,0.90)',
     minHeight: 96,
   },
   dictateBtn: {
@@ -868,7 +899,7 @@ const styles = StyleSheet.create({
   timingLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.65)',
+    color: 'rgba(200,155,70,0.65)',
     marginBottom: 8,
     textAlign: 'right',
   },
@@ -880,7 +911,7 @@ const styles = StyleSheet.create({
   },
   timingRowLabel: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.50)',
+    color: 'rgba(200,155,70,0.50)',
     width: 46,
     textAlign: 'right',
   },
@@ -904,11 +935,11 @@ const styles = StyleSheet.create({
   },
   timeBtnText: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.55)',
+    color: 'rgba(200,155,70,0.55)',
     fontWeight: '500',
   },
   timeBtnTextSelected: {
-    color: 'white',
+    color: 'rgba(228,180,85,1.0)',
     fontWeight: '700',
   },
 
@@ -925,12 +956,12 @@ const styles = StyleSheet.create({
   },
   musicNoneRowSelected: {
     borderColor: ACCENT,
-    backgroundColor: `${ACCENT}20`,
+    backgroundColor: 'rgba(200,155,70,0.12)',
   },
   musicNoneText: {
     flex: 1,
     fontSize: 14,
-    color: 'rgba(255,255,255,0.65)',
+    color: 'rgba(200,155,70,0.65)',
     fontWeight: '500',
   },
   musicAiRow: {
@@ -946,11 +977,11 @@ const styles = StyleSheet.create({
   },
   musicAiRowSelected: {
     borderColor: ACCENT,
-    backgroundColor: `${ACCENT}20`,
+    backgroundColor: 'rgba(200,155,70,0.12)',
   },
   aiIcon:  { fontSize: 20 },
-  aiTitle: { fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.90)' },
-  aiDesc:  { fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 2 },
+  aiTitle: { fontSize: 14, fontWeight: '700', color: 'rgba(228,180,85,0.90)' },
+  aiDesc:  { fontSize: 11, color: 'rgba(200,155,70,0.45)', marginTop: 2 },
   musicGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -966,7 +997,7 @@ const styles = StyleSheet.create({
   },
   musicCardSelected: {
     borderColor: ACCENT,
-    backgroundColor: `${ACCENT}20`,
+    backgroundColor: 'rgba(200,155,70,0.12)',
   },
   musicIcon: {
     width: 32,
@@ -982,7 +1013,7 @@ const styles = StyleSheet.create({
   musicCardName: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.80)',
+    color: 'rgba(200,155,70,0.80)',
     textAlign: 'right',
     lineHeight: 16,
     marginTop: 2,
@@ -1019,11 +1050,11 @@ const styles = StyleSheet.create({
   },
   bgFilterText: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.55)',
+    color: 'rgba(200,155,70,0.55)',
     fontWeight: '500',
   },
   bgFilterTextActive: {
-    color: 'white',
+    color: 'rgba(228,180,85,1.0)',
     fontWeight: '700',
   },
   galleryBtn: {
@@ -1034,7 +1065,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: `${ACCENT}70`,
+    borderColor: 'rgba(90,170,255,0.45)',
     marginBottom: 9,
   },
   galleryBtnText: {
@@ -1094,7 +1125,7 @@ const styles = StyleSheet.create({
   },
   formatRowSelected: {
     borderColor: ACCENT,
-    backgroundColor: `${ACCENT}20`,
+    backgroundColor: 'rgba(200,155,70,0.12)',
   },
   formatIconBg: {
     width: 34,
@@ -1110,14 +1141,14 @@ const styles = StyleSheet.create({
   formatName: {
     fontSize: 13,
     fontWeight: '700',
-    color: 'rgba(255,255,255,0.85)',
+    color: 'rgba(200,155,70,0.85)',
   },
   formatNameSelected: {
-    color: ACCENT,
+    color: 'rgba(228,180,85,1.0)',
   },
   formatDesc: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.40)',
+    color: 'rgba(200,155,70,0.40)',
     marginTop: 1,
   },
   formatPreviewWrap: {
@@ -1133,27 +1164,57 @@ const styles = StyleSheet.create({
   floatBar: {
     paddingHorizontal: 16,
     paddingTop: 10,
-    backgroundColor: 'rgba(5, 2, 22, 0.88)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.09)',
+    backgroundColor: 'rgba(38, 40, 50, 0.97)',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(200,155,70,0.15)',
   },
   saveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    paddingVertical: 16,
+    paddingVertical: 15,
     borderRadius: 16,
-    backgroundColor: ACCENT,
+    backgroundColor: 'rgba(180,140,55,0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.50)',
+    borderBottomWidth: 3,
+    borderBottomColor: 'rgba(160,120,40,0.70)',
   },
   saveBtnDisabled: {
-    opacity: 0.55,
+    opacity: 0.45,
   },
   saveBtnText: {
     fontSize: 17,
     fontWeight: '700',
-    color: 'white',
+    color: 'rgba(228,180,85,0.95)',
     letterSpacing: 0.2,
+  },
+
+  // Wave decoration inside cards
+  cardWave1: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    top: -50,
+    right: -40,
+    borderRadius: 200,
+    borderTopLeftRadius: 80,
+    backgroundColor: 'rgba(135,139,162,0.13)',
+    transform: [{ rotate: '-8deg' }],
+    pointerEvents: 'none',
+  },
+  cardWave2: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    bottom: -30,
+    left: -20,
+    borderRadius: 100,
+    borderBottomRightRadius: 40,
+    backgroundColor: 'rgba(100,104,124,0.10)',
+    transform: [{ rotate: '5deg' }],
+    pointerEvents: 'none',
   },
 
   // Format preview modal

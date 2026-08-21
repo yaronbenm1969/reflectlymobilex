@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, Platform, ActivityIndicator, ImageBackground,
-  Linking, Share, AppState,
+  Linking, Share, AppState, Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,7 +14,8 @@ import { useAppState } from '../state/appState';
 import { storiesService } from '../services/storiesService';
 import { storageService } from '../services/storageService';
 
-const ACCENT = '#c0622a';
+const ACCENT = 'rgba(90,170,255,0.85)';  // light blue — icons & selected states
+const GOLD   = 'rgba(228,180,85,0.90)';  // gold — text headings
 
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ||
@@ -35,7 +36,7 @@ const PARTICIPANT_OPTIONS = [
   { label: '40+',   clipCount: 1, maxClipDuration: 3  },
 ];
 
-const BG_SOURCE = require('../../assets/casting-bg.jpg');
+const BG_SOURCE = require('../../assets/edit-room-bg.jpg.jpg');
 
 export const CastingScreen = () => {
   const { t, i18n } = useTranslation();
@@ -43,6 +44,15 @@ export const CastingScreen = () => {
   const { go, back } = useNav();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef(null);
+
+  // ── Fade-in ──
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.timing(cardOpacity, { toValue: 1, duration: 700, useNativeDriver: true }).start();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // ── Zustand ──
   const currentStoryId        = useAppState((s) => s.currentStoryId);
@@ -381,146 +391,154 @@ export const CastingScreen = () => {
     <ImageBackground source={BG_SOURCE} style={{ flex: 1 }} resizeMode="cover">
       <View style={styles.overlay} />
 
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={back}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>{isHe ? 'ליהוק' : 'Casting'}</Text>
-          {!!storyName && <Text style={styles.headerSubtitle} numberOfLines={1}>{storyName}</Text>}
-        </View>
-        <View style={{ width: 40 }} />
-      </View>
-
-      {/* Accordion cards */}
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 110 }]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {CARDS.map((card) => {
-          const isOpen = expandedCard === card.id;
-          return (
-            <View key={card.id} style={styles.glassCard}>
-              <TouchableOpacity style={styles.cardHeader} onPress={() => toggleCard(card.id)} activeOpacity={0.8}>
-                <View style={styles.cardHeaderLeft}>
-                  <View style={[styles.cardIconBg, isOpen && styles.cardIconBgOpen]}>
-                    <Ionicons name={card.icon} size={18} color={isOpen ? 'white' : 'rgba(255,255,255,0.7)'} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.cardTitle}>{card.label}</Text>
-                    {!isOpen && <Text style={styles.cardSummary} numberOfLines={1}>{card.summary}</Text>}
-                  </View>
-                </View>
-                <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={18} color="rgba(255,255,255,0.55)" />
-              </TouchableOpacity>
-
-              {isOpen && (
-                <View style={styles.cardContent}>
-                  {card.id === 'participants'  && renderParticipants()}
-                  {card.id === 'instructions'  && renderInstructions()}
-                </View>
-              )}
-            </View>
-          );
-        })}
-
-        {/* Privacy / publishing */}
-        <View style={styles.glassCard}>
-          <View style={[styles.cardHeader, { pointerEvents: 'none' }]}>
-            <View style={styles.cardHeaderLeft}>
-              <View style={styles.cardIconBg}>
-                <Ionicons name="eye-outline" size={18} color="rgba(255,255,255,0.7)" />
-              </View>
-              <Text style={styles.cardTitle}>{isHe ? 'שיתוף ופרסום' : 'Sharing & Publishing'}</Text>
-            </View>
+      <Animated.View style={{ flex: 1, opacity: cardOpacity }}>
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={back}>
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>{isHe ? 'ליהוק' : 'Casting'}</Text>
+            {!!storyName && <Text style={styles.headerSubtitle} numberOfLines={1}>{storyName}</Text>}
           </View>
-          <View style={[styles.cardContent, { gap: 8 }]}>
-            <TouchableOpacity
-              style={[styles.privacyOption, !allowSocialMedia && styles.privacyOptionSelected]}
-              onPress={() => setAllowSocialMedia(false)}
-              activeOpacity={0.75}
-            >
-              <Ionicons name="lock-closed-outline" size={18} color={!allowSocialMedia ? 'white' : 'rgba(255,255,255,0.55)'} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.privacyOptionTitle, !allowSocialMedia && { color: 'white' }]}>
-                  {isHe ? 'פרטי' : 'Private'}
-                </Text>
-                <Text style={styles.privacyOptionDesc}>
-                  {isHe ? 'הסרטון נשמר עבור המשתתפים בלבד' : 'Video saved for participants only'}
-                </Text>
-              </View>
-              {!allowSocialMedia && <Ionicons name="checkmark-circle" size={20} color={ACCENT} />}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.privacyOption, allowSocialMedia && styles.privacyOptionSelected]}
-              onPress={() => setAllowSocialMedia(true)}
-              activeOpacity={0.75}
-            >
-              <Ionicons name="globe-outline" size={18} color={allowSocialMedia ? 'white' : 'rgba(255,255,255,0.55)'} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.privacyOptionTitle, allowSocialMedia && { color: 'white' }]}>
-                  {isHe ? 'ציבורי / רשת חברתית' : 'Public / Social Media'}
-                </Text>
-                <Text style={styles.privacyOptionDesc}>
-                  {isHe ? 'השחקנים יתבקשו לאשר פרסום' : 'Players will be asked to consent to publishing'}
-                </Text>
-              </View>
-              {allowSocialMedia && <Ionicons name="checkmark-circle" size={20} color={ACCENT} />}
-            </TouchableOpacity>
-          </View>
+          <View style={{ width: 40 }} />
         </View>
 
-        {/* Share / invite section */}
-        <View style={styles.shareSection}>
-          <Text style={styles.shareSectionTitle}>
-            {isHe ? 'שלח הזמנה לשחקנים' : 'Invite Players'}
-          </Text>
-
-          <TouchableOpacity style={styles.whatsappBtn} onPress={handleShareWhatsApp} disabled={isSaving} activeOpacity={0.85}>
-            {isSaving
-              ? <ActivityIndicator color="white" />
-              : <>
-                  <Ionicons name="logo-whatsapp" size={24} color="white" />
-                  <Text style={styles.whatsappBtnText}>{t('whatsapp.btn_whatsapp')}</Text>
-                  {sharedCount > 0 && (
-                    <View style={styles.sharedBadge}>
-                      <Text style={styles.sharedBadgeText}>{sharedCount}</Text>
+        {/* Accordion cards */}
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.scroll}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 110 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {CARDS.map((card) => {
+            const isOpen = expandedCard === card.id;
+            return (
+              <View key={card.id} style={styles.glassCard}>
+                <TouchableOpacity style={styles.cardHeader} onPress={() => toggleCard(card.id)} activeOpacity={0.8}>
+                  <View style={styles.cardHeaderLeft}>
+                    <View style={[styles.cardIconBg, isOpen && styles.cardIconBgOpen]}>
+                      <Ionicons name={card.icon} size={18} color={isOpen ? 'white' : ACCENT} />
                     </View>
-                  )}
-                </>}
-          </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardTitle}>{card.label}</Text>
+                      {!isOpen && <Text style={styles.cardSummary} numberOfLines={1}>{card.summary}</Text>}
+                    </View>
+                  </View>
+                  <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={18} color="rgba(200,155,70,0.45)" />
+                </TouchableOpacity>
 
-          <TouchableOpacity style={styles.nativeShareBtn} onPress={handleNativeShare} disabled={isSaving} activeOpacity={0.85}>
-            <Ionicons name="share-outline" size={20} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.nativeShareBtnText}>{t('whatsapp.btn_other_share')}</Text>
-          </TouchableOpacity>
+                {isOpen && (
+                  <View style={styles.cardContent}>
+                    {card.id === 'participants'  && renderParticipants()}
+                    {card.id === 'instructions'  && renderInstructions()}
+                  </View>
+                )}
 
-          {storyCreationMode === 'community' && (
-            <TouchableOpacity style={styles.testBtn} onPress={handleTestAsPlayer} activeOpacity={0.85}>
-              <Ionicons name="flask-outline" size={16} color="rgba(255,255,255,0.5)" />
-              <Text style={styles.testBtnText}>{t('whatsapp.btn_test')}</Text>
+                {/* Wave decoration */}
+                <View pointerEvents="none" style={styles.cardWave1} />
+                <View pointerEvents="none" style={styles.cardWave2} />
+              </View>
+            );
+          })}
+
+          {/* Privacy / publishing */}
+          <View style={styles.glassCard}>
+            <View style={[styles.cardHeader, { pointerEvents: 'none' }]}>
+              <View style={styles.cardHeaderLeft}>
+                <View style={styles.cardIconBg}>
+                  <Ionicons name="eye-outline" size={18} color={ACCENT} />
+                </View>
+                <Text style={styles.cardTitle}>{isHe ? 'שיתוף ופרסום' : 'Sharing & Publishing'}</Text>
+              </View>
+            </View>
+            <View style={[styles.cardContent, { gap: 8 }]}>
+              <TouchableOpacity
+                style={[styles.privacyOption, !allowSocialMedia && styles.privacyOptionSelected]}
+                onPress={() => setAllowSocialMedia(false)}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="lock-closed-outline" size={18} color={!allowSocialMedia ? 'white' : ACCENT} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.privacyOptionTitle, !allowSocialMedia && { color: GOLD }]}>
+                    {isHe ? 'פרטי' : 'Private'}
+                  </Text>
+                  <Text style={styles.privacyOptionDesc}>
+                    {isHe ? 'הסרטון נשמר עבור המשתתפים בלבד' : 'Video saved for participants only'}
+                  </Text>
+                </View>
+                {!allowSocialMedia && <Ionicons name="checkmark-circle" size={20} color={ACCENT} />}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.privacyOption, allowSocialMedia && styles.privacyOptionSelected]}
+                onPress={() => setAllowSocialMedia(true)}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="globe-outline" size={18} color={allowSocialMedia ? 'white' : ACCENT} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.privacyOptionTitle, allowSocialMedia && { color: GOLD }]}>
+                    {isHe ? 'ציבורי / רשת חברתית' : 'Public / Social Media'}
+                  </Text>
+                  <Text style={styles.privacyOptionDesc}>
+                    {isHe ? 'השחקנים יתבקשו לאשר פרסום' : 'Players will be asked to consent to publishing'}
+                  </Text>
+                </View>
+                {allowSocialMedia && <Ionicons name="checkmark-circle" size={20} color={ACCENT} />}
+              </TouchableOpacity>
+            </View>
+            <View pointerEvents="none" style={styles.cardWave1} />
+            <View pointerEvents="none" style={styles.cardWave2} />
+          </View>
+
+          {/* Share / invite section */}
+          <View style={styles.shareSection}>
+            <Text style={styles.shareSectionTitle}>
+              {isHe ? 'שלח הזמנה לשחקנים' : 'Invite Players'}
+            </Text>
+
+            <TouchableOpacity style={styles.whatsappBtn} onPress={handleShareWhatsApp} disabled={isSaving} activeOpacity={0.85}>
+              {isSaving
+                ? <ActivityIndicator color="white" />
+                : <>
+                    <Ionicons name="logo-whatsapp" size={24} color="white" />
+                    <Text style={styles.whatsappBtnText}>{t('whatsapp.btn_whatsapp')}</Text>
+                    {sharedCount > 0 && (
+                      <View style={styles.sharedBadge}>
+                        <Text style={styles.sharedBadgeText}>{sharedCount}</Text>
+                      </View>
+                    )}
+                  </>}
             </TouchableOpacity>
-          )}
-        </View>
-      </ScrollView>
 
-      {/* Floating save button — only in community/returnTo flow */}
-      {(communityMode || returnTo === 'EditRoom') && (
-        <View style={[styles.saveBar, { paddingBottom: insets.bottom + 8 }]}>
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={isSaving} activeOpacity={0.85}>
-            {isSaving
-              ? <ActivityIndicator color="white" />
-              : <>
-                  <Ionicons name="send" size={18} color="white" />
-                  <Text style={styles.saveBtnText}>{isHe ? 'שמור והמשך' : 'Save & Continue'}</Text>
-                </>}
-          </TouchableOpacity>
-        </View>
-      )}
+            <TouchableOpacity style={styles.nativeShareBtn} onPress={handleNativeShare} disabled={isSaving} activeOpacity={0.85}>
+              <Ionicons name="share-outline" size={20} color={ACCENT} />
+              <Text style={styles.nativeShareBtnText}>{t('whatsapp.btn_other_share')}</Text>
+            </TouchableOpacity>
+
+            {storyCreationMode === 'community' && (
+              <TouchableOpacity style={styles.testBtn} onPress={handleTestAsPlayer} activeOpacity={0.85}>
+                <Ionicons name="flask-outline" size={16} color="rgba(90,170,255,0.40)" />
+                <Text style={styles.testBtnText}>{t('whatsapp.btn_test')}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
+
+        {/* Floating save button — only in community/returnTo flow */}
+        {(communityMode || returnTo === 'EditRoom') && (
+          <View style={[styles.saveBar, { paddingBottom: insets.bottom + 8 }]}>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={isSaving} activeOpacity={0.85}>
+              {isSaving
+                ? <ActivityIndicator color="rgba(228,180,85,0.95)" />
+                : <>
+                    <Ionicons name="send" size={18} color="rgba(228,180,85,0.95)" />
+                    <Text style={styles.saveBtnText}>{isHe ? 'שמור והמשך' : 'Save & Continue'}</Text>
+                  </>}
+            </TouchableOpacity>
+          </View>
+        )}
+      </Animated.View>
 
       {/* Section renderers */}
       {null}
@@ -530,7 +548,7 @@ export const CastingScreen = () => {
   function renderParticipants() {
     return (
       <>
-        <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', marginBottom: 14 }}>
+        <Text style={{ fontSize: 13, color: 'rgba(200,155,70,0.60)', marginBottom: 14 }}>
           {isHe ? 'כמה משתתפים צפויים לפרויקט?' : 'How many participants do you expect?'}
         </Text>
         <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
@@ -547,7 +565,7 @@ export const CastingScreen = () => {
             );
           })}
         </View>
-        <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 10 }}>
+        <Text style={{ fontSize: 12, color: 'rgba(200,155,70,0.40)', marginTop: 10 }}>
           {isHe
             ? `כל שחקן יצלם ${selectedParticipantOpt.clipCount === 3 ? '3 קטעים של' : 'קטע של'} עד ${clipTime} שניות`
             : `Each player records ${selectedParticipantOpt.clipCount === 3 ? '3 clips of' : 'a clip of'} up to ${clipTime}s`}
@@ -564,7 +582,7 @@ export const CastingScreen = () => {
             style={[styles.modeTab, inputMode === 'text' && styles.modeTabActive]}
             onPress={() => setInputMode('text')}
           >
-            <Ionicons name="pencil-outline" size={14} color={inputMode === 'text' ? 'white' : 'rgba(255,255,255,0.55)'} />
+            <Ionicons name="pencil-outline" size={14} color={inputMode === 'text' ? 'white' : ACCENT} />
             <Text style={[styles.modeTabText, inputMode === 'text' && styles.modeTabTextActive]}>
               {isHe ? 'טקסט' : 'Text'}
             </Text>
@@ -573,7 +591,7 @@ export const CastingScreen = () => {
             style={[styles.modeTab, inputMode === 'audio' && styles.modeTabActive]}
             onPress={() => setInputMode('audio')}
           >
-            <Ionicons name="mic-outline" size={14} color={inputMode === 'audio' ? 'white' : 'rgba(255,255,255,0.55)'} />
+            <Ionicons name="mic-outline" size={14} color={inputMode === 'audio' ? 'white' : ACCENT} />
             <Text style={[styles.modeTabText, inputMode === 'audio' && styles.modeTabTextActive]}>
               {isHe ? 'שמע' : 'Audio'}
             </Text>
@@ -585,7 +603,7 @@ export const CastingScreen = () => {
             <TextInput
               style={styles.instrInput}
               placeholder={t('instructions.general_placeholder')}
-              placeholderTextColor="rgba(255,255,255,0.35)"
+              placeholderTextColor="rgba(200,155,70,0.30)"
               value={genericInstructions}
               onChangeText={(v) => setGenericInstructions(v.slice(0, 400))}
               multiline
@@ -594,7 +612,7 @@ export const CastingScreen = () => {
               textAlign={isHe ? 'right' : 'left'}
             />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{genericInstructions.length}/400</Text>
+              <Text style={{ fontSize: 11, color: 'rgba(200,155,70,0.35)' }}>{genericInstructions.length}/400</Text>
               <TouchableOpacity
                 style={[styles.dictateBtn, isDictating && styles.dictateBtnActive]}
                 onPress={isDictating ? stopDictation : startDictation}
@@ -623,7 +641,7 @@ export const CastingScreen = () => {
                 >
                   <Ionicons name={isRecording ? 'stop' : 'mic'} size={32} color="white" />
                 </TouchableOpacity>
-                <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)' }}>
+                <Text style={{ fontSize: 14, color: 'rgba(200,155,70,0.55)' }}>
                   {isRecording
                     ? `${isHe ? 'מקליט' : 'Recording'} ${formatSecs(recordingSecs)}`
                     : (isHe ? 'לחץ להקלטה' : 'Tap to record')}
@@ -633,7 +651,7 @@ export const CastingScreen = () => {
               <>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Ionicons name="checkmark-circle" size={24} color="#4ade80" />
-                  <Text style={{ color: 'rgba(255,255,255,0.85)', fontWeight: '600' }}>
+                  <Text style={{ color: GOLD, fontWeight: '600' }}>
                     {isHe ? 'הוקלט' : 'Recorded'} ({formatSecs(recordingSecs)})
                   </Text>
                 </View>
@@ -643,11 +661,11 @@ export const CastingScreen = () => {
                     <Text style={{ fontSize: 13, color: 'white', marginLeft: 4 }}>{isHe ? 'נגן' : 'Play'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.audioActionBtn, { backgroundColor: 'rgba(255,255,255,0.10)' }]}
+                    style={[styles.audioActionBtn, { backgroundColor: 'rgba(55,58,72,0.70)' }]}
                     onPress={() => { setInstructionAudioUri(null); setRecordingSecs(0); }}
                   >
-                    <Ionicons name="refresh" size={16} color="rgba(255,255,255,0.65)" />
-                    <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', marginLeft: 4 }}>
+                    <Ionicons name="refresh" size={16} color={ACCENT} />
+                    <Text style={{ fontSize: 13, color: 'rgba(200,155,70,0.65)', marginLeft: 4 }}>
                       {isHe ? 'הקלט שוב' : 'Re-record'}
                     </Text>
                   </TouchableOpacity>
@@ -664,28 +682,31 @@ export const CastingScreen = () => {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: 'rgba(20,50,120,0.52)',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 12,
+    backgroundColor: 'rgba(38,40,50,0.97)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(200,155,70,0.15)',
   },
   backBtn: {
     width: 40, height: 40,
     alignItems: 'center', justifyContent: 'center',
   },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: 'white', letterSpacing: 0.3 },
-  headerSubtitle: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: GOLD, letterSpacing: 0.3 },
+  headerSubtitle: { fontSize: 12, color: 'rgba(200,155,70,0.55)', marginTop: 2 },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 12 },
   glassCard: {
-    backgroundColor: 'rgba(255,255,255,0.09)',
+    backgroundColor: 'rgba(55,58,72,0.91)',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.13)',
+    borderColor: 'rgba(200,155,70,0.15)',
     overflow: 'hidden',
   },
   cardHeader: {
@@ -695,32 +716,52 @@ const styles = StyleSheet.create({
   cardHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   cardIconBg: {
     width: 34, height: 34, borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(90,170,255,0.12)',
     alignItems: 'center', justifyContent: 'center',
   },
-  cardIconBgOpen: { backgroundColor: ACCENT },
-  cardTitle: { fontSize: 15, fontWeight: '600', color: 'white' },
-  cardSummary: { fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
+  cardIconBgOpen: { backgroundColor: 'rgba(90,170,255,0.65)' },
+  cardTitle: { fontSize: 15, fontWeight: '600', color: GOLD },
+  cardSummary: { fontSize: 12, color: 'rgba(200,155,70,0.50)', marginTop: 2 },
   cardContent: { paddingHorizontal: 16, paddingBottom: 18, paddingTop: 4 },
+  cardWave1: {
+    position: 'absolute', bottom: -18, right: -10,
+    width: 90, height: 36,
+    borderRadius: 999,
+    backgroundColor: 'rgba(200,155,70,0.04)',
+    transform: [{ rotate: '-12deg' }],
+  },
+  cardWave2: {
+    position: 'absolute', bottom: -10, right: 40,
+    width: 60, height: 22,
+    borderRadius: 999,
+    backgroundColor: 'rgba(200,155,70,0.03)',
+    transform: [{ rotate: '-8deg' }],
+  },
   saveBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     paddingHorizontal: 16, paddingTop: 10,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(38,40,50,0.97)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(200,155,70,0.15)',
   },
   saveBtn: {
-    backgroundColor: ACCENT,
+    backgroundColor: 'rgba(180,140,60,0.15)',
     borderRadius: 14, paddingVertical: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderWidth: 1, borderColor: 'rgba(200,155,70,0.40)',
+    borderBottomWidth: 3, borderBottomColor: 'rgba(160,120,40,0.60)',
+    shadowColor: 'rgba(200,155,70,1)', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22, shadowRadius: 5, elevation: 3,
   },
-  saveBtnText: { color: 'white', fontSize: 16, fontWeight: '700' },
+  saveBtnText: { color: 'rgba(228,180,85,0.95)', fontSize: 16, fontWeight: '700' },
   // Participant
   timeBtn: {
     paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(55,58,72,0.70)',
+    borderWidth: 1, borderColor: 'rgba(200,155,70,0.18)',
   },
-  timeBtnSelected: { backgroundColor: ACCENT, borderColor: ACCENT },
-  timeBtnText: { fontSize: 14, color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
+  timeBtnSelected: { backgroundColor: 'rgba(90,170,255,0.25)', borderColor: ACCENT },
+  timeBtnText: { fontSize: 14, color: 'rgba(200,155,70,0.60)', fontWeight: '500' },
   timeBtnTextSelected: { color: 'white', fontWeight: '700' },
   // Instructions
   modeTabs: {
@@ -729,59 +770,60 @@ const styles = StyleSheet.create({
   modeTab: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(55,58,72,0.70)',
+    borderWidth: 1, borderColor: 'rgba(200,155,70,0.15)',
   },
-  modeTabActive: { backgroundColor: ACCENT },
-  modeTabText: { fontSize: 13, color: 'rgba(255,255,255,0.55)', fontWeight: '500' },
+  modeTabActive: { backgroundColor: 'rgba(90,170,255,0.65)', borderColor: ACCENT },
+  modeTabText: { fontSize: 13, color: 'rgba(200,155,70,0.55)', fontWeight: '500' },
   modeTabTextActive: { color: 'white' },
   instrInput: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(38,40,50,0.70)',
     borderRadius: 12, padding: 14, minHeight: 100,
-    color: 'white', fontSize: 14, lineHeight: 22,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    color: GOLD, fontSize: 14, lineHeight: 22,
+    borderWidth: 1, borderColor: 'rgba(200,155,70,0.18)',
   },
   dictateBtn: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(90,170,255,0.25)',
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
   },
   dictateBtnActive: { backgroundColor: '#e74c3c' },
   micBtn: {
     width: 72, height: 72, borderRadius: 36,
-    backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(90,170,255,0.65)', alignItems: 'center', justifyContent: 'center',
   },
   micBtnActive: { backgroundColor: '#e74c3c' },
   audioActionBtn: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: ACCENT, paddingHorizontal: 14,
+    backgroundColor: 'rgba(90,170,255,0.55)', paddingHorizontal: 14,
     paddingVertical: 8, borderRadius: 20,
   },
   // Privacy
   privacyOption: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: 'rgba(55,58,72,0.70)',
     borderRadius: 12, padding: 14,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1, borderColor: 'rgba(200,155,70,0.12)',
   },
   privacyOptionSelected: {
-    backgroundColor: 'rgba(192,98,42,0.18)',
+    backgroundColor: 'rgba(90,170,255,0.12)',
     borderColor: ACCENT,
   },
-  privacyOptionTitle: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.75)', marginBottom: 2 },
-  privacyOptionDesc: { fontSize: 12, color: 'rgba(255,255,255,0.40)' },
+  privacyOptionTitle: { fontSize: 14, fontWeight: '600', color: 'rgba(200,155,70,0.65)', marginBottom: 2 },
+  privacyOptionDesc: { fontSize: 12, color: 'rgba(200,155,70,0.35)' },
   // Share section
   shareSection: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: 'rgba(55,58,72,0.91)',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.11)',
+    borderColor: 'rgba(200,155,70,0.15)',
     padding: 16,
     gap: 10,
   },
   shareSectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.75)',
+    color: GOLD,
     marginBottom: 2,
   },
   whatsappBtn: {
@@ -797,14 +839,14 @@ const styles = StyleSheet.create({
   sharedBadgeText: { color: 'white', fontSize: 11, fontWeight: '700' },
   nativeShareBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(55,58,72,0.70)',
     borderRadius: 12, paddingVertical: 12,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1, borderColor: 'rgba(200,155,70,0.20)',
   },
-  nativeShareBtnText: { color: 'rgba(255,255,255,0.8)', fontSize: 15 },
+  nativeShareBtnText: { color: 'rgba(200,155,70,0.75)', fontSize: 15 },
   testBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 8,
   },
-  testBtnText: { color: 'rgba(255,255,255,0.45)', fontSize: 13 },
+  testBtnText: { color: 'rgba(200,155,70,0.40)', fontSize: 13 },
 });
