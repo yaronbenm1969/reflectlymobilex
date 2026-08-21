@@ -186,6 +186,31 @@ app.get('/support', (req, res) => {
 // Static assets (logo, background images) served from project root /assets/
 app.use('/assets', express.static(path.join(__dirname, '..', 'assets')));
 
+// Generate OG invite image (background + logo) once at startup
+(async () => {
+  try {
+    const sharp = require('sharp');
+    const ogOut  = path.join(__dirname, '..', 'assets', 'og-invite.jpg');
+    const bgFile = path.join(__dirname, '..', 'assets', 'Home- beckground.jpg.jpg');
+    const logoFile = path.join(__dirname, '..', 'assets', 'rilio-logo-primary.png.png');
+    const W = 1200, H = 630, LOGO_H = 90;
+    const logoResized = await sharp(logoFile).resize({ height: LOGO_H }).toBuffer();
+    const logoMeta = await sharp(logoResized).metadata();
+    await sharp(bgFile)
+      .resize(W, H, { fit: 'cover' })
+      .composite([{
+        input: logoResized,
+        top: Math.round(H * 0.15),
+        left: Math.round((W - logoMeta.width) / 2),
+      }])
+      .jpeg({ quality: 88 })
+      .toFile(ogOut);
+    console.log('🖼 og-invite.jpg generated');
+  } catch (e) {
+    console.warn('⚠️ og-invite.jpg generation failed:', e.message);
+  }
+})();
+
 // Simple in-memory rate limiter: max 5 support emails per IP per hour
 const _supportRateMap = new Map();
 function _supportRateOk(ip) {
@@ -260,7 +285,7 @@ app.get('/join/:storyId', async (req, res) => {
     }
   }
 
-  const ogImage = `${BASE_URL}/assets/home-bg-poster.jpg`;
+  const ogImage = `${BASE_URL}/assets/og-invite.jpg`;
   const ogTitle = `${creatorName} מזמין אותך לסיפור: ${storyTitle}`;
   const ogDesc  = 'הקלט את התגובה שלך ב-60 שניות — כי המילים שלך חשובות.';
   const recordUrl = `${BASE_URL}/record/${storyId}`;
