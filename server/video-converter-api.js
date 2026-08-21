@@ -242,16 +242,18 @@ app.get('/join/:storyId', async (req, res) => {
   const { storyId } = req.params;
   const BASE_URL = 'https://reflectlymobilex.onrender.com';
 
-  let creatorName = 'מישהו';
-  let storyTitle = 'סיפור';
+  let creatorName    = 'מישהו';
+  let storyTitle     = '';
+  let maxClipDuration = 60;
 
   if (firestoreDb) {
     try {
       const snap = await firestoreDb.collection('stories').doc(storyId).get();
       if (snap.exists) {
         const data = snap.data();
-        creatorName = data.creatorName || data.userName || creatorName;
-        storyTitle  = data.storyTitle  || data.title    || storyTitle;
+        creatorName     = data.creatorName     || data.userName  || creatorName;
+        storyTitle      = data.name            || data.storyTitle || data.title || '';
+        maxClipDuration = data.maxClipDuration || 60;
       }
     } catch (e) {
       console.warn('Could not load story for /join/:', e.message);
@@ -384,8 +386,8 @@ app.get('/join/:storyId', async (req, res) => {
 
     <p class="invite-label">הוזמנת</p>
     <h1 class="creator-name">${escapeHtml(creatorName)}</h1>
-    <p class="story-title">מזמין אותך לסיפור: <strong>${escapeHtml(storyTitle)}</strong></p>
-    <p class="record-hint">תצלם קליפ קצר שיהפוך לחלק מהסרט הסופי</p>
+    <p class="story-title">מזמין אותך${storyTitle ? ` ל<strong>${escapeHtml(storyTitle)}</strong>` : ' לסיפור'}</p>
+    <p class="record-hint">תצלם קליפ קצר של עד ${maxClipDuration} שניות שיהפוך לחלק מהסרט הסופי</p>
 
     <a class="cta-btn" href="${recordUrl}">הצטרף לסיפור</a>
     <a class="secondary-link" href="reflectly://s/${storyId}">יש לי את האפליקציה ←</a>
