@@ -258,7 +258,7 @@ app.get('/join/:storyId', async (req, res) => {
     }
   }
 
-  const ogImage = `${BASE_URL}/assets/rilio-logo-primary.png.png`;
+  const ogImage = `${BASE_URL}/assets/Home-%20beckground.jpg.jpg`;
   const ogTitle = `${creatorName} מזמין אותך לסיפור: ${storyTitle}`;
   const ogDesc  = 'הקלט את התגובה שלך ב-60 שניות — כי המילים שלך חשובות.';
   const recordUrl = `${BASE_URL}/record/${storyId}`;
@@ -273,6 +273,7 @@ app.get('/join/:storyId', async (req, res) => {
 
   <!-- Open Graph / WhatsApp -->
   <meta property="og:type"        content="website">
+  <meta property="og:site_name"   content="RILIO">
   <meta property="og:url"         content="${BASE_URL}/join/${storyId}">
   <meta property="og:title"       content="${ogTitle}">
   <meta property="og:description" content="${ogDesc}">
