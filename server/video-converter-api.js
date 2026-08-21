@@ -186,6 +186,11 @@ app.get('/support', (req, res) => {
 // Static assets (logo, background images) served from project root /assets/
 app.use('/assets', express.static(path.join(__dirname, '..', 'assets')));
 
+// Clean alias for background image (avoids space/encoding issues in CSS)
+app.get('/assets/home-bg.jpg', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'assets', 'Home- beckground.jpg.jpg'));
+});
+
 // Simple in-memory rate limiter: max 5 support emails per IP per hour
 const _supportRateMap = new Map();
 function _supportRateOk(ip) {
@@ -258,7 +263,7 @@ app.get('/join/:storyId', async (req, res) => {
     }
   }
 
-  const ogImage = `${BASE_URL}/assets/Home-%20beckground.jpg.jpg`;
+  const ogImage = `${BASE_URL}/assets/home-bg.jpg`;
   const ogTitle = `${creatorName} מזמין אותך לסיפור: ${storyTitle}`;
   const ogDesc  = 'הקלט את התגובה שלך ב-60 שניות — כי המילים שלך חשובות.';
   const recordUrl = `${BASE_URL}/record/${storyId}`;
@@ -295,7 +300,7 @@ app.get('/join/:storyId', async (req, res) => {
     /* Fullscreen background */
     .bg {
       position: fixed; inset: 0;
-      background: url('/assets/Home-%20beckground.jpg.jpg') center/cover no-repeat;
+      background: url('/assets/home-bg.jpg') center/cover no-repeat;
       z-index: 0;
     }
     .bg::after {
