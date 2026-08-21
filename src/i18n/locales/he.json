@@ -108,7 +108,7 @@
     "login_button": "התחבר עכשיו",
     "empty_title": "אין סיפורים עדיין",
     "empty_subtitle": "התחל להקליט את הסיפור הראשון שלך",
-    "status_draft": "טיוטה",
+    "status_draft": "אוסף סרטונים",
     "status_shared": "נשלח לחברים",
     "status_processing": "בעריכה",
     "status_completed": "הושלם",
@@ -221,7 +221,7 @@
     "test_desc": "היכנס כשחקן לסיפור הזה כדי לבדוק את הפלואו (כולל מוזיקה בהקלטה)",
     "btn_test": "בדוק כשחקן",
     "error_no_story": "אין סיפור פעיל",
-    "message_with_link": "הי 🎬 {{storyName}}\n\nיש משהו שרק אתה יכול לשתף.\nלחץ כאן להקלטה:\n{{participantLink}}",
+    "message_with_link": "🎬 הוזמנת להשתתף בסרט!\n\nיש רגע שרק אתה יכול לתעד.\nלחץ כאן להקלטה:\n{{participantLink}}",
     "message_no_link": "הי 🎬 {{storyName}}\n\nיש משהו שרק אתה יכול לשתף.\nהורד את RILIO ופתח את הלינק.",
     "story_not_found": "לא נמצא סיפור",
     "native_share_title": "הסיפור שלי: {{storyName}}"

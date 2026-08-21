@@ -286,8 +286,8 @@ app.get('/join/:storyId', async (req, res) => {
   }
 
   const ogImage = `${BASE_URL}/assets/og-invite.jpg`;
-  const ogTitle = `${creatorName} מזמין אותך לסיפור: ${storyTitle}`;
-  const ogDesc  = 'הקלט את התגובה שלך ב-60 שניות — כי המילים שלך חשובות.';
+  const ogTitle = `${creatorName} מזמין אותך לסרט 🎬`;
+  const ogDesc  = 'הוזמנת להקליט קליפ קצר שיהפוך לחלק מהסרט הסופי 🎬';
   const recordUrl = `${BASE_URL}/record/${storyId}`;
 
   res.set('Content-Type', 'text/html');
