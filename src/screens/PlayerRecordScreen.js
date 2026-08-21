@@ -15,8 +15,8 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useNav } from '../hooks/useNav';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { useAppState } from '../state/appState';
 import { useAmbientPlayback } from '../hooks/useAmbientPlayback';
 import storageService from '../services/storageService';
@@ -804,16 +804,7 @@ export const PlayerRecordScreen = () => {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
-        style={styles.header}
-      >
-        <TouchableOpacity style={styles.backButton} onPress={back}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('playerRecord.header_title')}</Text>
-        <View style={styles.placeholder} />
-      </LinearGradient>
+      <ScreenHeader title={t('playerRecord.header_title')} onBack={back} />
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
 
@@ -1164,28 +1155,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textSecondary || '#888',
     textDecorationLine: 'underline',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 50,
-    paddingBottom: theme.spacing[4],
-    paddingHorizontal: theme.spacing[4],
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  placeholder: {
-    width: 40,
   },
   content: {
     flex: 1,

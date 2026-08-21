@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
@@ -162,18 +163,7 @@ export const MusicSelectionScreen = () => {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.header}
-      >
-        <TouchableOpacity style={styles.backButton} onPress={back}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('musicSelection.title')}</Text>
-        <View style={styles.placeholder} />
-      </LinearGradient>
+      <ScreenHeader title={t('musicSelection.title')} onBack={back} />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.description}>{t('musicSelection.description')}</Text>
@@ -309,10 +299,6 @@ export const MusicSelectionScreen = () => {
 
 const styles = StyleSheet.create({
   container:            { flex: 1, backgroundColor: theme.colors.bg },
-  header:               { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing[4], paddingTop: 50, paddingBottom: theme.spacing[4] },
-  backButton:           { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  title:                { ...theme.typography.h3, color: 'white' },
-  placeholder:          { width: 40 },
   content:              { flex: 1, padding: theme.spacing[4] },
   description:          { ...theme.typography.body, color: theme.colors.subtext, textAlign: 'center', marginBottom: theme.spacing[4], lineHeight: 24 },
   noneOption:           { flexDirection: 'row', alignItems: 'center', padding: theme.spacing[3], borderRadius: theme.radii.md, borderWidth: 1.5, borderColor: '#e0e0e0', marginBottom: theme.spacing[4], gap: 10 },

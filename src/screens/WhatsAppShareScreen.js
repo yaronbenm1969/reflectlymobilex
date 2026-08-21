@@ -11,8 +11,8 @@ import {
 } from 'react-native';
 import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
@@ -121,13 +121,7 @@ export const WhatsAppShareScreen = () => {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={[theme.colors.gradient.start, theme.colors.gradient.end]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={back}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('whatsapp.title')}</Text>
-        <View style={styles.placeholder} />
-      </LinearGradient>
+      <ScreenHeader title={t('whatsapp.title')} onBack={back} />
 
       <ScrollView style={styles.content}>
         <Card style={styles.previewCard}>
@@ -206,24 +200,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.bg,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing[4],
-    paddingTop: 50,
-    paddingBottom: theme.spacing[4],
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    ...theme.typography.h3,
-    color: 'white',
   },
   placeholder: {
     width: 40,

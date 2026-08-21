@@ -11,13 +11,13 @@ import {
   Switch,
   ImageBackground,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { NestableScrollContainer, NestableDraggableFlatList, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { Video } from 'expo-av';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
 
@@ -442,18 +442,7 @@ export const EditRoomScreen = () => {
       style={styles.container}
       resizeMode="cover"
     >
-      <LinearGradient
-        colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.header}
-      >
-        <TouchableOpacity style={styles.backButton} onPress={back}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('editRoom.title')}</Text>
-        <View style={styles.placeholder} />
-      </LinearGradient>
+      <ScreenHeader title={t('editRoom.title')} onBack={back} />
 
       <NestableScrollContainer style={styles.content}>
         <Text style={styles.storyHeading}>{storyName}</Text>
@@ -834,27 +823,6 @@ export const EditRoomScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing[4],
-    paddingTop: 50,
-    paddingBottom: theme.spacing[4],
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    ...theme.typography.h3,
-    color: 'white',
-  },
-  placeholder: {
-    width: 40,
   },
   content: {
     flex: 1,
