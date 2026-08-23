@@ -612,8 +612,6 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
   <!-- Step 3: Record -->
   <div id="step-record" class="step">
     <button id="back-btn" class="btn-primary" onclick="goBackToReview()" style="display:none;font-size:17px;">← קליפ קודם</button>
-    <div class="clip-dots" id="clip-dots"></div>
-    <p class="clip-label" id="clip-label"></p>
     ${musicPanelHtml}
     <div class="camera-wrap">
       <video id="preview" autoplay muted playsinline></video>
@@ -626,6 +624,8 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
     <div class="card" style="padding:16px; margin-top:8px;">
       <button class="btn-primary" id="start-btn" onclick="handleStartBtn()"></button>
       <button class="btn-outline" id="stop-btn" style="display:none" onclick="stopRecording()"></button>
+      <div class="clip-dots" id="clip-dots" style="margin-top:14px;margin-bottom:4px;"></div>
+      <p class="clip-label" id="clip-label" style="font-size:17px;font-weight:600;margin-bottom:0;"></p>
       <div class="error-msg" id="rec-error"></div>
     </div>
   </div>
