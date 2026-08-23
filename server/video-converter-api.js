@@ -347,33 +347,50 @@ app.get('/join/:storyId', async (req, res) => {
     }
 
     /* Logo */
-    .logo-wrap { margin-bottom: 32px; }
-    .logo-wrap img { height: 36px; opacity: 0.92; }
+    .logo-wrap { margin-bottom: 28px; }
+    .logo-wrap img { height: 144px; opacity: 0.95; }
+
+    /* Grey card — fades in after 1s */
+    @keyframes cardFadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .card {
+      background: rgba(38, 40, 50, 0.92);
+      border: 1px solid rgba(200, 155, 70, 0.15);
+      border-radius: 24px;
+      padding: 36px 28px 28px;
+      width: 100%; max-width: 360px;
+      text-align: center;
+      opacity: 0;
+      animation: cardFadeIn 0.7s ease forwards;
+      animation-delay: 1s;
+    }
 
     /* Invitation text */
     .invite-label {
-      font-size: 13px; font-weight: 600; letter-spacing: 0.12em;
-      text-transform: uppercase; color: rgba(255,255,255,0.45);
+      font-size: 12px; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; color: rgba(200,155,70,0.55);
       margin-bottom: 10px;
     }
     .creator-name {
-      font-size: 28px; font-weight: 700; line-height: 1.2;
-      color: #fff; margin-bottom: 6px;
+      font-size: 26px; font-weight: 700; line-height: 1.2;
+      color: rgba(228,180,85,0.95); margin-bottom: 6px;
     }
     .story-title {
-      font-size: 16px; font-weight: 300; color: rgba(255,255,255,0.70);
-      margin-bottom: 12px; max-width: 300px;
+      font-size: 15px; font-weight: 300; color: rgba(255,255,255,0.65);
+      margin-bottom: 10px; line-height: 1.5;
     }
     .record-hint {
-      font-size: 13px; color: rgba(255,255,255,0.38);
-      margin-bottom: 36px; max-width: 260px; line-height: 1.5;
+      font-size: 13px; color: rgba(200,155,70,0.45);
+      margin-bottom: 28px; line-height: 1.5;
     }
 
     /* Primary CTA */
     .cta-btn {
       display: block;
-      width: 100%; max-width: 320px;
-      padding: 18px 24px;
+      width: 100%;
+      padding: 17px 24px;
       border-radius: 14px;
       font-size: 17px; font-weight: 700;
       text-decoration: none; color: #040c18;
@@ -387,11 +404,11 @@ app.get('/join/:storyId', async (req, res) => {
     /* Secondary (app deep link) */
     .secondary-link {
       display: block;
-      font-size: 13px; color: rgba(255,255,255,0.45);
-      text-decoration: none; margin-top: 6px;
+      font-size: 13px; color: rgba(255,255,255,0.35);
+      text-decoration: none; margin-top: 4px;
       padding: 8px 0;
     }
-    .secondary-link:hover { color: rgba(255,255,255,0.70); }
+    .secondary-link:hover { color: rgba(255,255,255,0.60); }
 
     /* Tagline at bottom */
     .tagline {
@@ -409,13 +426,15 @@ app.get('/join/:storyId', async (req, res) => {
       <img src="/assets/rilio-logo-primary.png.png" alt="RILIO">
     </div>
 
-    <p class="invite-label">הוזמנת</p>
-    <h1 class="creator-name">${escapeHtml(creatorName)}</h1>
-    <p class="story-title">מזמין אותך${storyTitle ? ` ל<strong>${escapeHtml(storyTitle)}</strong>` : ' לסיפור'}</p>
-    <p class="record-hint">תצלם קליפ קצר של עד ${maxClipDuration} שניות שיהפוך לחלק מהסרט הסופי</p>
+    <div class="card">
+      <p class="invite-label">הוזמנת</p>
+      <h1 class="creator-name">${escapeHtml(creatorName)}</h1>
+      <p class="story-title">מזמין אותך${storyTitle ? ` ל<strong>${escapeHtml(storyTitle)}</strong>` : ' לסיפור'}</p>
+      <p class="record-hint">תצלם קליפ קצר של עד ${maxClipDuration} שניות שיהפוך לחלק מהסרט הסופי</p>
 
-    <a class="cta-btn" href="${recordUrl}">הצטרף לסיפור</a>
-    <a class="secondary-link" href="reflectly://s/${storyId}">יש לי את האפליקציה ←</a>
+      <a class="cta-btn" href="${recordUrl}">הצטרף לסיפור</a>
+      <a class="secondary-link" href="reflectly://s/${storyId}">יש לי את האפליקציה ←</a>
+    </div>
   </div>
 
   <span class="tagline">RILIO &nbsp;·&nbsp; rilio.io</span>
