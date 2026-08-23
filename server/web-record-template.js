@@ -39,7 +39,7 @@ const WEB_TRANSLATIONS = {
     clipLabel: 'קליפ {current} מתוך {total}',
     recording: 'מקליט',
     startRecording: '⏺ התחל הקלטה',
-    stopRecording: '⏹ סיים הקלטה',
+    stopRecording: '■ סיים הקלטה',
     preview: 'תצוגה מקדימה',
     previewClip: 'תצוגה מקדימה — קליפ {num}',
     saveClip: 'שמור קליפ זה ✓',
@@ -623,7 +623,7 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
     </div>
     <div class="card" style="padding:16px; margin-top:8px;">
       <button class="btn-primary" id="start-btn" onclick="handleStartBtn()"></button>
-      <button class="btn-outline" id="stop-btn" style="display:none" onclick="stopRecording()"></button>
+      <button class="btn-gold" id="stop-btn" style="display:none;font-size:18px;" onclick="stopRecording()"></button>
       <div class="clip-dots" id="clip-dots" style="margin-top:14px;margin-bottom:4px;"></div>
       <p class="clip-label" id="clip-label" style="font-size:17px;font-weight:600;margin-bottom:0;"></p>
       <div class="error-msg" id="rec-error"></div>
