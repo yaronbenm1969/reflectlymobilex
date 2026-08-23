@@ -9,7 +9,6 @@ import {
   Modal,
   Image,
   Switch,
-  ImageBackground,
 } from 'react-native';
 import { NestableScrollContainer, NestableDraggableFlatList, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { Video } from 'expo-av';
@@ -19,7 +18,6 @@ import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { useAppState } from '../state/appState';
-import { Card } from '../ui/Card';
 
 import theme from '../theme/theme';
 import { reflectionsService } from '../services/reflectionsService';
@@ -437,27 +435,23 @@ export const EditRoomScreen = () => {
   };
 
   return (
-    <ImageBackground
-      source={require('../../assets/edit-room-bg.jpg.jpg')}
-      style={styles.container}
-      resizeMode="cover"
-    >
+    <View style={styles.container}>
       <ScreenHeader title={t('editRoom.title')} onBack={back} />
 
       <NestableScrollContainer style={styles.content}>
         <Text style={styles.storyHeading}>{storyName}</Text>
 
-        <Card style={styles.videosCard}>
+        <View style={styles.videosCard}>
           <Text style={styles.sectionTitle}>{t('editRoom.section_clips')}</Text>
           {orderedClips.length > 0 && (
             <Text style={styles.dragHint}>{t('editRoom.drag_hint')}</Text>
           )}
 
           {reflectionsLoading ? (
-            <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginVertical: 20 }} />
+            <ActivityIndicator size="large" color="#5ab4cc" style={{ marginVertical: 20 }} />
           ) : orderedClips.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="hourglass-outline" size={48} color="#ccc" />
+              <Ionicons name="hourglass-outline" size={48} color="rgba(122,188,210,0.5)" />
               <Text style={styles.emptyText}>{t('editRoom.empty_text')}</Text>
               <Text style={styles.emptySubtext}>{t('editRoom.empty_subtext')}</Text>
             </View>
@@ -488,11 +482,11 @@ export const EditRoomScreen = () => {
                           <Text style={styles.clipRowName} numberOfLines={1}>{item.participantName}</Text>
                           <Text style={styles.clipRowSub}>{t('editRoom.clip_n', { n: item.clipNumber })}</Text>
                         </View>
-                        <Ionicons name="reorder-three" size={22} color={theme.colors.primary + '80'} />
+                        <Ionicons name="reorder-three" size={22} color="rgba(90,180,204,0.55)" />
                       </TouchableOpacity>
                       {/* Action buttons */}
                       <TouchableOpacity style={styles.clipRowPlay} onPress={() => handlePlayVideo(item.videoUrl)}>
-                        <Ionicons name="play-circle" size={28} color={theme.colors.secondary} />
+                        <Ionicons name="play-circle" size={28} color="#5ab4cc" />
                       </TouchableOpacity>
                       {confirmingDeleteClipId === item.id ? (
                         <View style={styles.clipRowDeleteConfirm}>
@@ -514,11 +508,11 @@ export const EditRoomScreen = () => {
               }}
             />
           )}
-        </Card>
+        </View>
 
-        <Card style={styles.statusCard}>
+        <View style={styles.statusCard}>
           {reflectionsLoading ? (
-            <ActivityIndicator size="small" color={theme.colors.primary} />
+            <ActivityIndicator size="small" color="#5ab4cc" />
           ) : (
             <View style={styles.statusProgress}>
               <Text style={styles.statusCount}>
@@ -538,10 +532,10 @@ export const EditRoomScreen = () => {
         </Card>
 
         {(applicationsLoading || pendingApplications.length > 0) && (
-          <Card style={styles.applicationsCard}>
+          <View style={styles.applicationsCard}>
             <Text style={styles.sectionTitle}>בקשות הצטרפות ממתינות</Text>
             {applicationsLoading ? (
-              <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginVertical: 12 }} />
+              <ActivityIndicator size="small" color="#5ab4cc" style={{ marginVertical: 12 }} />
             ) : (
               pendingApplications.map(app => {
                 const isExpanded = expandedAppId === app.id;
@@ -558,7 +552,7 @@ export const EditRoomScreen = () => {
                         <Image source={{ uri: p.photoUrl }} style={styles.appAvatar} />
                       ) : (
                         <View style={[styles.appAvatar, styles.appAvatarPlaceholder]}>
-                          <Ionicons name="person" size={18} color="#bbb" />
+                          <Ionicons name="person" size={18} color="rgba(122,188,210,0.5)" />
                         </View>
                       )}
                       <View style={styles.appInfo}>
@@ -576,7 +570,7 @@ export const EditRoomScreen = () => {
                         <Ionicons
                           name={isExpanded ? 'chevron-up' : 'chevron-down'}
                           size={14}
-                          color={theme.colors.accent}
+                          color="#7ecfe0"
                         />
                       </View>
                     </TouchableOpacity>
@@ -599,7 +593,7 @@ export const EditRoomScreen = () => {
                         {!!p.demoReelUrl && (
                           <View style={styles.appProfileRow}>
                             <Text style={styles.appProfileLabel}>דמו רייל</Text>
-                            <Text style={[styles.appProfileValue, { color: theme.colors.accent }]} numberOfLines={1}>
+                            <Text style={[styles.appProfileValue, { color: '#7ecfe0' }]} numberOfLines={1}>
                               {p.demoReelUrl}
                             </Text>
                           </View>
@@ -610,7 +604,7 @@ export const EditRoomScreen = () => {
                     {/* Action buttons */}
                     <View style={styles.appActions}>
                       {processingAppId === app.id ? (
-                        <ActivityIndicator size="small" color={theme.colors.primary} />
+                        <ActivityIndicator size="small" color="#5ab4cc" />
                       ) : (
                         <>
                           <TouchableOpacity
@@ -634,15 +628,15 @@ export const EditRoomScreen = () => {
                 );
               })
             )}
-          </Card>
+          </View>
         )}
 
-        <Card style={styles.settingsCard}>
+        <View style={styles.settingsCard}>
           <Text style={styles.sectionTitle}>{t('editRoom.section_settings')}</Text>
 
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Ionicons name="musical-notes" size={20} color={theme.colors.accent} />
+              <Ionicons name="musical-notes" size={20} color="#7ecfe0" />
               <Text style={styles.settingLabel}>{t('editRoom.setting_music')}</Text>
             </View>
             <View style={styles.settingRight}>
@@ -655,12 +649,12 @@ export const EditRoomScreen = () => {
 
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Ionicons name="cube" size={20} color={theme.colors.secondary} />
+              <Ionicons name="cube" size={20} color="#7ecfe0" />
               <Text style={styles.settingLabel}>{t('editRoom.setting_format')}</Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <TouchableOpacity style={styles.inlineChangeButton} onPress={() => go('EditStudio', { returnTo: 'EditRoom' })}>
-                <Ionicons name="color-palette-outline" size={13} color={theme.colors.secondary} />
+                <Ionicons name="color-palette-outline" size={13} color="#5ab4cc" />
                 <Text style={styles.inlineChangeText}>{t('editRoom.setting_format')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.inlineChangeButton, { backgroundColor: 'rgba(192,98,42,0.12)', borderColor: 'rgba(192,98,42,0.3)' }]} onPress={() => go('Casting', { returnTo: 'EditRoom' })}>
@@ -672,7 +666,7 @@ export const EditRoomScreen = () => {
 
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <Ionicons name="lock-closed" size={20} color={theme.colors.secondary} />
+              <Ionicons name="lock-closed" size={20} color="#7ecfe0" />
               <Text style={styles.settingLabel}>{t('editRoom.setting_privacy')}</Text>
             </View>
             <Text style={styles.settingValue}>
@@ -680,7 +674,7 @@ export const EditRoomScreen = () => {
             </Text>
           </View>
 
-        </Card>
+        </View>
 
         <View style={styles.exportActions}>
           <TouchableOpacity
@@ -816,13 +810,14 @@ export const EditRoomScreen = () => {
           </View>
         </View>
       </Modal>
-    </ImageBackground>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0d0e14',
   },
   content: {
     flex: 1,
@@ -858,6 +853,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   statusCard: {
+    backgroundColor: 'rgba(38,40,50,0.96)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.15)',
     padding: theme.spacing[4],
     marginBottom: theme.spacing[4],
   },
@@ -874,29 +873,33 @@ const styles = StyleSheet.create({
   statusProgress: {},
   statusCount: {
     ...theme.typography.body,
-    color: theme.colors.text,
+    color: 'rgba(255,255,255,0.85)',
     marginBottom: theme.spacing[1],
     textAlign: 'center',
     fontWeight: 'bold',
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: 'rgba(90,180,204,0.15)',
     borderRadius: 4,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: theme.colors.primary,
+    backgroundColor: '#5ab4cc',
     borderRadius: 4,
   },
   settingsCard: {
+    backgroundColor: 'rgba(38,40,50,0.96)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.15)',
     padding: theme.spacing[4],
     marginBottom: theme.spacing[4],
   },
   sectionTitle: {
     ...theme.typography.h3,
-    color: theme.colors.text,
+    color: 'rgba(200,155,70,0.85)',
     textAlign: 'right',
   },
   settingRow: {
@@ -906,7 +909,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingVertical: theme.spacing[2],
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: 'rgba(200,155,70,0.12)',
   },
   settingInfo: {
     flexDirection: 'row',
@@ -915,7 +918,7 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     ...theme.typography.body,
-    color: theme.colors.text,
+    color: 'rgba(255,255,255,0.85)',
   },
   settingSubLabel: {
     ...theme.typography.caption,
@@ -929,29 +932,33 @@ const styles = StyleSheet.create({
     gap: theme.spacing[2],
   },
   inlineChangeButton: {
-    backgroundColor: theme.colors.accent + '18',
+    backgroundColor: 'rgba(90,180,204,0.15)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
   },
   inlineChangeText: {
     fontSize: 12,
-    color: theme.colors.accent,
+    color: '#5ab4cc',
     fontWeight: '600',
   },
   settingValue: {
     ...theme.typography.body,
-    color: theme.colors.secondary,
+    color: 'rgba(200,155,70,0.75)',
     fontWeight: 'bold',
   },
   storyHeading: {
     ...theme.typography.h1,
-    color: theme.colors.text,
+    color: 'rgba(200,155,70,0.90)',
     textAlign: 'center',
     marginBottom: theme.spacing[4],
     marginTop: theme.spacing[2],
   },
   videosCard: {
+    backgroundColor: 'rgba(38,40,50,0.96)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.15)',
     padding: theme.spacing[4],
     marginBottom: theme.spacing[4],
   },
@@ -961,13 +968,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     ...theme.typography.body,
-    color: theme.colors.subtext,
+    color: 'rgba(200,155,70,0.65)',
     marginTop: theme.spacing[3],
     textAlign: 'center',
   },
   emptySubtext: {
     ...theme.typography.caption,
-    color: '#999',
+    color: 'rgba(200,155,70,0.45)',
     marginTop: theme.spacing[1],
     textAlign: 'center',
   },
@@ -1009,18 +1016,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: theme.spacing[2],
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: 'rgba(200,155,70,0.10)',
     gap: theme.spacing[2],
   },
   clipRowActive: {
-    backgroundColor: '#f5f0ff',
+    backgroundColor: 'rgba(50,52,68,0.95)',
     borderRadius: 8,
   },
   clipRowPos: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: '#5ab4cc',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1042,11 +1049,11 @@ const styles = StyleSheet.create({
   clipRowName: {
     fontSize: 13,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: 'rgba(255,255,255,0.90)',
   },
   clipRowSub: {
     fontSize: 11,
-    color: theme.colors.subtext,
+    color: 'rgba(200,155,70,0.60)',
     marginTop: 2,
   },
   sectionTitleRow: {
@@ -1057,7 +1064,7 @@ const styles = StyleSheet.create({
   },
   dragHint: {
     fontSize: 11,
-    color: theme.colors.subtext,
+    color: 'rgba(200,155,70,0.55)',
     fontStyle: 'italic',
   },
   clipRowDragZone: {
@@ -1089,13 +1096,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   clipConfirmNo: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: 'rgba(60,62,75,0.90)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
   clipConfirmNoText: {
-    color: theme.colors.text,
+    color: 'rgba(255,255,255,0.80)',
     fontSize: 11,
     fontWeight: '500',
   },
@@ -1103,7 +1110,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing[4],
   },
   editNowButton: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: '#5ab4cc',
     borderRadius: theme.radii.lg,
     padding: theme.spacing[4],
     alignItems: 'center',
@@ -1232,12 +1239,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   applicationsCard: {
+    backgroundColor: 'rgba(38,40,50,0.96)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.15)',
     padding: theme.spacing[4],
     marginBottom: theme.spacing[3],
   },
   appCard: {
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: 'rgba(200,155,70,0.15)',
     borderRadius: 10,
     marginBottom: theme.spacing[2],
     overflow: 'hidden',
@@ -1248,7 +1259,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing[2],
     paddingHorizontal: theme.spacing[3],
     gap: 10,
-    backgroundColor: '#fafafa',
+    backgroundColor: 'rgba(48,50,63,0.90)',
   },
   appAvatar: {
     width: 40,
@@ -1256,7 +1267,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   appAvatarPlaceholder: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: 'rgba(50,52,68,0.90)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1270,39 +1281,39 @@ const styles = StyleSheet.create({
   },
   appViewProfileText: {
     fontSize: 12,
-    color: theme.colors.accent,
+    color: '#7ecfe0',
     fontWeight: '500',
   },
   appProfile: {
     padding: theme.spacing[3],
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
-    backgroundColor: '#fff',
+    borderTopColor: 'rgba(200,155,70,0.12)',
+    backgroundColor: 'rgba(42,44,56,0.90)',
   },
   appProfileRow: {
     gap: 2,
   },
   appProfileLabel: {
     fontSize: 11,
-    color: theme.colors.subtext,
+    color: 'rgba(200,155,70,0.60)',
     fontWeight: '600',
     textAlign: 'right',
   },
   appProfileValue: {
     fontSize: 13,
-    color: theme.colors.text,
+    color: 'rgba(255,255,255,0.85)',
     textAlign: 'right',
   },
   appName: {
     fontSize: 15,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: 'rgba(255,255,255,0.90)',
     textAlign: 'right',
   },
   appDate: {
     fontSize: 12,
-    color: theme.colors.subtext,
+    color: 'rgba(200,155,70,0.60)',
     marginTop: 2,
     textAlign: 'right',
   },
@@ -1313,7 +1324,7 @@ const styles = StyleSheet.create({
     padding: theme.spacing[2],
     paddingHorizontal: theme.spacing[3],
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: 'rgba(200,155,70,0.12)',
   },
   appApproveBtn: {
     flexDirection: 'row',
