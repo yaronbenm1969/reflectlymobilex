@@ -410,6 +410,7 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
     /* Camera */
     .camera-wrap { position: relative; width: 100%; background: #000; border-radius: var(--radius); overflow: hidden; aspect-ratio: 9/16; margin-bottom: 16px; max-height: 55vh; }
     #preview, #review-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    #preview { transform: scaleX(-1); } /* mirror front camera like selfie */
     .rec-badge { position: absolute; top: 12px; right: 12px; background: #ef4444; color: white; border-radius: 20px; padding: 4px 12px; font-size: 13px; font-weight: bold; display: none; align-items: center; gap: 6px; }
     .rec-dot { width: 8px; height: 8px; border-radius: 50%; background: white; animation: blink 1s infinite; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
