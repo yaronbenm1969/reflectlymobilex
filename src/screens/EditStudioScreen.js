@@ -467,6 +467,14 @@ export const EditStudioScreen = () => {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Saving indicator — shown during auto-save in normal flow */}
+      {isSaving && returnTo !== 'EditRoom' && (
+        <View style={styles.savingToast}>
+          <ActivityIndicator size="small" color="rgba(228,180,85,0.95)" />
+          <Text style={styles.savingToastText}>{isHe ? 'שומר ומעביר...' : 'Saving...'}</Text>
+        </View>
+      )}
       </Animated.View>
 
       {/* Background preview modals */}
@@ -1158,6 +1166,31 @@ const styles = StyleSheet.create({
   },
   fmtEyeBtn: {
     padding: 5,
+  },
+
+  savingToast: {
+    position: 'absolute',
+    bottom: 36,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(38,40,50,0.96)',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.30)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.30,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  savingToastText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(228,180,85,0.90)',
   },
 
   // Floating save bar
