@@ -345,36 +345,54 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --pink: #FF6B9D;
-      --purple: #8B5CF6;
-      --bg: #F5F0FA;
-      --card: #ffffff;
-      --text: #1a1a2e;
-      --sub: #6b7280;
+      --accent: #5ab4cc;
+      --pink: #5ab4cc;
+      --purple: #3d8fa8;
+      --bg: #040c18;
+      --card: rgba(38, 40, 50, 0.96);
+      --text: #fff;
+      --sub: rgba(200,155,70,0.75);
       --radius: 16px;
     }
-    html, body { height: 100%; background: var(--bg); font-family: Arial, sans-serif; color: var(--text); }
+    html, body {
+      height: 100%;
+      font-family: Arial, sans-serif;
+      color: var(--text);
+      background: #040c18 url('/assets/Home-%20beckground.jpg.jpg') center/cover no-repeat fixed;
+    }
     body { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100%; padding: 0; }
 
     /* Header */
-    .header { width: 100%; background: linear-gradient(135deg, var(--pink), var(--purple)); padding: 20px 24px 16px; text-align: center; color: white; }
-    .header h1 { font-size: 20px; font-weight: bold; }
-    .header p { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+    .header {
+      width: 100%;
+      background: rgba(38, 40, 50, 0.97);
+      border-bottom: 1px solid rgba(200,155,70,0.15);
+      padding: 18px 24px 14px;
+      text-align: center;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .header-logo { height: 40px; opacity: 0.95; margin-bottom: 8px; }
+    .header h1 { font-size: 20px; font-weight: 700; color: rgba(228,180,85,0.90); line-height: 1.3; }
+    .header p { font-size: 14px; color: rgba(200,155,70,0.60); margin-top: 4px; }
 
     /* Steps */
+    @keyframes stepIn {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
     .step { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 420px; padding: 24px 20px; }
-    .step.active { display: flex; }
+    .step.active { display: flex; animation: stepIn 0.7s ease forwards; animation-delay: 1s; opacity: 0; }
 
-    .card { background: var(--card); border-radius: var(--radius); padding: 24px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 16px; }
-    .card h2 { font-size: 19px; color: var(--text); margin-bottom: 8px; }
-    .card p { font-size: 14px; color: var(--sub); line-height: 1.6; margin-bottom: 16px; }
+    .card { background: var(--card); border: 1px solid rgba(200,155,70,0.12); border-radius: var(--radius); padding: 24px; width: 100%; margin-bottom: 16px; }
+    .card h2 { font-size: 19px; color: rgba(228,180,85,0.90); margin-bottom: 8px; }
+    .card p { font-size: 14px; color: rgba(255,255,255,0.75); line-height: 1.6; margin-bottom: 16px; }
 
     input[type="text"] {
-      width: 100%; border: 2px solid #e5e7eb; border-radius: 10px;
-      padding: 14px 16px; font-size: 16px; outline: none; background: #fafafa;
+      width: 100%; border: 2px solid rgba(200,155,70,0.25); border-radius: 10px;
+      padding: 14px 16px; font-size: 16px; outline: none; background: rgba(255,255,255,0.07); color: #fff;
       transition: border-color 0.2s; margin-bottom: 16px; text-align: ${dir === 'rtl' ? 'right' : 'left'};
     }
-    input[type="text"]:focus { border-color: var(--pink); }
+    input[type="text"]:focus { border-color: var(--accent); }
 
     button, a.btn {
       display: block; width: 100%; padding: 15px; border-radius: 12px;
@@ -382,9 +400,9 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
       text-align: center; text-decoration: none; margin-bottom: 10px; transition: opacity 0.2s;
     }
     button:active, a.btn:active { opacity: 0.8; }
-    .btn-primary { background: var(--pink); color: white; }
-    .btn-secondary { background: #f0e6ff; color: var(--purple); }
-    .btn-outline { background: white; color: var(--sub); border: 2px solid #e5e7eb; }
+    .btn-primary { background: linear-gradient(135deg, #7ecfe0 0%, #5ab4cc 100%); color: #040c18; box-shadow: 0 4px 20px rgba(94,190,218,0.35); }
+    .btn-secondary { background: rgba(90,180,204,0.15); color: #7ecfe0; }
+    .btn-outline { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.60); border: 1.5px solid rgba(200,155,70,0.20); }
     .btn-ios { background: #000; color: white; }
     .btn-android { background: #3DDC84; color: #000; }
     button:disabled { opacity: 0.4; cursor: default; }
@@ -444,7 +462,7 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
     }
     .dark-bg {
       position: fixed; inset: 0;
-      background: url('/assets/home-bg-poster.jpg') center/cover no-repeat;
+      background: url('/assets/Home-%20beckground.jpg.jpg') center/cover no-repeat;
       z-index: 0;
     }
     .dark-bg::after {
@@ -500,8 +518,9 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
 </head>
 <body>
   <div class="header">
-    <h1>🎬 ${escHtml(storyName)}</h1>
-    <p>${creatorName ? ti('invitedBy', { creatorName: escHtml(creatorName) }) : T.recordYourReflection}</p>
+    <img class="header-logo" src="/assets/rilio-logo-primary.png.png" alt="RILIO">
+    <h1>${escHtml(storyName)}</h1>
+    ${creatorName ? `<p>הוזמנת על ידי ${escHtml(creatorName)}</p>` : ''}
   </div>
 
   <!-- Step consent: shown only for invitation-based web access -->
