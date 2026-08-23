@@ -2040,31 +2040,39 @@ export const FinalVideoScreen = () => {
       {/* End Screen Overlay */}
       {showEndScreen && (
         <View style={styles.endScreenOverlay}>
-          <LinearGradient
-            colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
-            style={styles.endScreenGradient}
-          >
-            {isDownloading && (
-              <View style={styles.downloadProgressOverlay}>
-                <View style={styles.downloadProgressCard}>
-                  <ActivityIndicator size="large" color="#8446b0" />
-                  <Text style={styles.downloadProgressTitle}>{t('finalVideo.processing_overlay')}</Text>
-                  {downloadProgress ? (
-                    <Text style={styles.downloadProgressText}>{downloadProgress}</Text>
-                  ) : null}
-                  <TouchableOpacity
-                    onPress={() => { setIsDownloading(false); setDownloadProgress(''); }}
-                    style={{ marginTop: 18, paddingVertical: 8, paddingHorizontal: 24, borderRadius: 20, borderWidth: 1, borderColor: '#8446b0' }}
-                  >
-                    <Text style={{ color: '#8446b0', fontSize: 14 }}>ביטול</Text>
-                  </TouchableOpacity>
-                </View>
+          <Image
+            source={require('../../assets/Home- beckground.jpg.jpg')}
+            style={StyleSheet.absoluteFillObject}
+            resizeMode="cover"
+          />
+          <View style={styles.endScreenBgOverlay} />
+          {isDownloading && (
+            <View style={styles.downloadProgressOverlay}>
+              <View style={styles.downloadProgressCard}>
+                <ActivityIndicator size="large" color="#5ab4cc" />
+                <Text style={styles.downloadProgressTitle}>{t('finalVideo.processing_overlay')}</Text>
+                {downloadProgress ? (
+                  <Text style={styles.downloadProgressText}>{downloadProgress}</Text>
+                ) : null}
+                <TouchableOpacity
+                  onPress={() => { setIsDownloading(false); setDownloadProgress(''); }}
+                  style={{ marginTop: 18, paddingVertical: 8, paddingHorizontal: 24, borderRadius: 20, borderWidth: 1, borderColor: '#5ab4cc' }}
+                >
+                  <Text style={{ color: '#5ab4cc', fontSize: 14 }}>ביטול</Text>
+                </TouchableOpacity>
               </View>
-            )}
-            <ScrollView 
+            </View>
+          )}
+          <ScrollView
+              style={{ flex: 1 }}
               contentContainerStyle={styles.endScreenScroll}
               showsVerticalScrollIndicator={false}
             >
+              <Image
+                source={require('../../assets/rilio-logo-primary.png.png')}
+                style={styles.endScreenLogo}
+                resizeMode="contain"
+              />
               <Text style={styles.endScreenText}>{t('finalVideo.end_text')}</Text>
               <Text style={styles.endScreenSubtext}>{storyName}</Text>
 
@@ -2093,15 +2101,15 @@ export const FinalVideoScreen = () => {
                   </Text>
                   <TouchableOpacity
                     onPress={startServerCubeRender}
-                    style={{ backgroundColor: '#8446b0', borderRadius: 20, paddingVertical: 8, paddingHorizontal: 22, marginBottom: 8 }}
+                    style={{ backgroundColor: '#5ab4cc', borderRadius: 20, paddingVertical: 8, paddingHorizontal: 22, marginBottom: 8 }}
                   >
-                    <Text style={{ color: 'white', fontSize: 14, fontWeight: '600' }}>נסה שוב</Text>
+                    <Text style={{ color: '#040c18', fontSize: 14, fontWeight: '600' }}>נסה שוב</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={handleServerRenderFallback}
-                    style={{ borderRadius: 20, paddingVertical: 8, paddingHorizontal: 22, borderWidth: 1, borderColor: '#8446b0' }}
+                    style={{ borderRadius: 20, paddingVertical: 8, paddingHorizontal: 22, borderWidth: 1, borderColor: '#5ab4cc' }}
                   >
-                    <Text style={{ color: '#8446b0', fontSize: 14 }}>הקלט מהמכשיר</Text>
+                    <Text style={{ color: '#5ab4cc', fontSize: 14 }}>הקלט מהמכשיר</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -2118,9 +2126,9 @@ export const FinalVideoScreen = () => {
                 >
                   <View style={styles.endScreenIconCircle}>
                     {isDownloading ? (
-                      <ActivityIndicator size="small" color="#8446b0" />
+                      <ActivityIndicator size="small" color="white" />
                     ) : (
-                      <Ionicons name="download-outline" size={28} color="#8446b0" />
+                      <Ionicons name="download-outline" size={28} color="white" />
                     )}
                   </View>
                   <Text style={styles.endScreenActionLabel}>{t('finalVideo.btn_download_video')}</Text>
@@ -2134,8 +2142,8 @@ export const FinalVideoScreen = () => {
                 >
                   <View style={styles.endScreenIconCircle}>
                     {videoReadyForShare
-                      ? <Ionicons name="share-outline" size={28} color="#8446b0" />
-                      : <Ionicons name="time-outline" size={28} color="#888" />
+                      ? <Ionicons name="share-outline" size={28} color="white" />
+                      : <Ionicons name="time-outline" size={28} color="rgba(255,255,255,0.5)" />
                     }
                   </View>
                   <Text style={styles.endScreenActionLabel}>
@@ -2203,7 +2211,7 @@ export const FinalVideoScreen = () => {
               {conversionSucceeded && (
                 <View style={styles.remixMusicSection}>
                   <View style={styles.remixMusicHeader}>
-                    <Ionicons name="musical-notes-outline" size={18} color="#8446b0" />
+                    <Ionicons name="musical-notes-outline" size={18} color="#5ab4cc" />
                     <Text style={styles.remixMusicTitle}>לא מרוצה מהמוזיקה?</Text>
                   </View>
                   <TextInput
@@ -2252,7 +2260,7 @@ export const FinalVideoScreen = () => {
                   style={styles.endScreenPrimaryBtn}
                   onPress={() => { resetStory(); go('Home'); }}
                 >
-                  <Ionicons name="home-outline" size={20} color="white" />
+                  <Ionicons name="home-outline" size={20} color="#040c18" />
                   <Text style={styles.endScreenPrimaryBtnText}>{t('finalVideo.btn_go_home')}</Text>
                 </TouchableOpacity>
 
@@ -2273,7 +2281,6 @@ export const FinalVideoScreen = () => {
                 </TouchableOpacity>
               </View>
             </ScrollView>
-          </LinearGradient>
         </View>
       )}
 
@@ -3088,10 +3095,22 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 200,
+    backgroundColor: '#000',
+  },
+  endScreenBgOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(8,10,20,0.80)',
   },
   endScreenGradient: {
     width: '100%',
     height: '100%',
+  },
+  endScreenLogo: {
+    width: 220,
+    height: 55,
+    alignSelf: 'center',
+    marginBottom: 16,
+    marginTop: -8,
   },
   endScreenScroll: {
     flexGrow: 1,
@@ -3103,14 +3122,14 @@ const styles = StyleSheet.create({
   endScreenText: {
     fontSize: 56,
     fontWeight: 'bold',
-    color: 'white',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    color: 'rgba(200,155,70,0.92)',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 10,
   },
   endScreenSubtext: {
     fontSize: 22,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(200,155,70,0.75)',
     marginTop: 12,
     fontWeight: '500',
   },
@@ -3122,23 +3141,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(90,180,204,0.15)',
   },
   recordingReadyText: {
-    color: 'white',
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 13,
     fontWeight: '500',
   },
   endScreenDivider: {
     width: 60,
     height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: 'rgba(200,155,70,0.35)',
     marginVertical: 24,
     borderRadius: 1,
   },
   endScreenSectionTitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(200,155,70,0.85)',
     fontWeight: '600',
     marginBottom: 16,
     letterSpacing: 1,
@@ -3157,17 +3176,17 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: '#5ab4cc',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
+    shadowColor: '#5ab4cc',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.35,
     shadowRadius: 8,
     elevation: 5,
   },
   endScreenActionLabel: {
-    color: 'white',
+    color: 'rgba(200,155,70,0.85)',
     fontSize: 13,
     fontWeight: '600',
   },
@@ -3194,18 +3213,20 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   socialLabel: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(200,155,70,0.80)',
     fontSize: 12,
     fontWeight: '500',
   },
   remixMusicSection: {
     width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(28,30,44,0.90)',
     borderRadius: 16,
     padding: 16,
     marginTop: 8,
     marginBottom: 8,
     gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.15)',
   },
   remixMusicHeader: {
     flexDirection: 'row',
@@ -3213,34 +3234,34 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   remixMusicTitle: {
-    color: 'white',
+    color: 'rgba(200,155,70,0.85)',
     fontSize: 14,
     fontWeight: '600',
   },
   remixMusicInput: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(15,17,28,0.80)',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
     color: 'white',
     fontSize: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: 'rgba(200,155,70,0.25)',
   },
   remixMusicBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#8446b0',
+    backgroundColor: '#5ab4cc',
     borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 20,
   },
   remixMusicBtnText: {
-    color: 'white',
+    color: '#040c18',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   engineToggleRow: {
     flexDirection: 'row',
@@ -3252,15 +3273,15 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(90,180,204,0.25)',
+    backgroundColor: 'rgba(90,180,204,0.06)',
   },
   engineToggleBtnActive: {
-    backgroundColor: 'rgba(132,70,176,0.5)',
-    borderColor: '#8446b0',
+    backgroundColor: 'rgba(90,180,204,0.25)',
+    borderColor: '#5ab4cc',
   },
   engineToggleBtnText: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.65)',
     fontSize: 13,
     fontWeight: '500',
   },
@@ -3277,15 +3298,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: '#5ab4cc',
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 25,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
   },
   endScreenPrimaryBtnText: {
-    color: 'white',
+    color: '#040c18',
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -3293,15 +3312,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(90,180,204,0.15)',
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 25,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(90,180,204,0.50)',
   },
   endScreenSecondaryBtnText: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255,255,255,0.90)',
     fontSize: 15,
     fontWeight: '600',
   },
