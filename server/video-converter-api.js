@@ -322,7 +322,7 @@ app.get('/join/:storyId', async (req, res) => {
     /* Fullscreen background */
     .bg {
       position: fixed; inset: 0;
-      background: url('/assets/home-bg-poster.jpg') center/cover no-repeat;
+      background: url('/assets/Home-%20beckground.jpg.jpg') center/cover no-repeat;
       z-index: 0;
     }
     .bg::after {
