@@ -505,15 +505,26 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
     .dark-pct { font-size: 12px; color: rgba(255,255,255,0.35); }
 
     /* Done screen */
-    .done-logo { height: 28px; opacity: 0.70; margin-bottom: 48px; }
-    .done-check { font-size: 52px; margin-bottom: 20px; }
-    .done-title { font-size: 26px; font-weight: 700; margin-bottom: 10px; color: #fff; }
-    .done-desc  { font-size: 15px; color: rgba(255,255,255,0.65); line-height: 1.7; margin-bottom: 44px; max-width: 280px; }
-    .done-cta-label { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.35); margin-bottom: 14px; }
+    .done-logo { height: 28px; opacity: 0.70; margin-bottom: 32px; }
+    @keyframes done-card-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .done-card {
+      background: rgba(38,40,50,0.93);
+      border-radius: 24px;
+      padding: 36px 24px 40px;
+      width: 100%; max-width: 400px;
+      display: flex; flex-direction: column; align-items: center;
+      border: 1px solid rgba(200,155,70,0.18);
+      opacity: 0;
+      animation: done-card-in 0.8s ease 1s forwards;
+    }
+    .done-check { font-size: 156px; margin-bottom: 16px; line-height: 1; }
+    .done-title { font-size: 78px; font-weight: 700; margin-bottom: 12px; color: #fff; text-align: center; }
+    .done-desc  { font-size: 45px; color: rgba(255,255,255,0.75); line-height: 1.5; margin-bottom: 36px; width: 100%; text-align: center; }
+    .done-cta-label { font-size: 33px; font-weight: 600; color: rgba(255,255,255,0.45); margin-bottom: 16px; text-align: center; }
     .done-btn {
-      display: block; width: 100%; max-width: 280px; padding: 14px 20px;
-      border-radius: 12px; font-size: 15px; font-weight: 700; text-decoration: none;
-      text-align: center; margin: 0 auto 10px;
+      display: block; width: 100%; max-width: 400px; padding: 20px 24px;
+      border-radius: 16px; font-size: 45px; font-weight: 700; text-decoration: none;
+      text-align: center; margin: 0 auto 12px;
     }
     .done-btn-ios { background: #fff; color: #000; }
     .done-btn-android { background: #3ddc84; color: #000; }
@@ -662,13 +673,15 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
     <div class="dark-bg"></div>
     <div class="dark-content">
       <img class="done-logo" src="/assets/rilio-logo-primary.png.png" alt="RILIO">
-      <div class="done-check">✨</div>
-      <h2 class="done-title" id="done-title"></h2>
-      <p class="done-desc" id="done-desc"></p>
-      <p class="done-cta-label" id="done-cta-title"></p>
-      <p class="done-desc" id="done-cta-desc" style="margin-bottom:20px;font-size:13px"></p>
-      <a class="done-btn done-btn-ios" href="${APP_STORE_URL}" target="_blank">${T.iphone}</a>
-      <a class="done-btn done-btn-android" href="${PLAY_STORE_URL}" target="_blank">${T.android}</a>
+      <div class="done-card">
+        <div class="done-check">✨</div>
+        <h2 class="done-title" id="done-title"></h2>
+        <p class="done-desc" id="done-desc"></p>
+        <p class="done-cta-label" id="done-cta-title"></p>
+        <p class="done-desc" id="done-cta-desc"></p>
+        <a class="done-btn done-btn-ios" href="${APP_STORE_URL}" target="_blank">${T.iphone}</a>
+        <a class="done-btn done-btn-android" href="${PLAY_STORE_URL}" target="_blank">${T.android}</a>
+      </div>
     </div>
   </div>
 
