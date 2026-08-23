@@ -325,7 +325,7 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
         <button class="music-preview-btn" id="preview-btn" onclick="toggleMusicPreview()">&#9654;</button>
       </div>
       <div class="music-mode-btns">
-        <button class="music-mode-btn" id="btn-performance" onclick="setMusicMode('performance')">${T.musicWithSong}</button>
+        <button class="music-mode-btn" id="btn-performance" onclick="setMusicMode('performance')">${T.musicWithSong}<span class="music-mode-note">(דורש אוזניה בהקלטה)</span></button>
         <button class="music-mode-btn active" id="btn-none" onclick="setMusicMode('none')">${T.noMusic}</button>
       </div>
     </div>` : '';
@@ -438,14 +438,15 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
     .error-msg { color: #ef4444; font-size: 13px; text-align: center; margin: 8px 0; min-height: 20px; }
 
     /* Music mode panel */
-    .music-panel { background: #f9f3ff; border-radius: 14px; border: 1.5px solid #c8a8f0; margin-bottom: 12px; width: 100%; overflow: hidden; padding: 10px 14px; }
+    .music-panel { background: rgba(38,40,50,0.96); border-radius: 14px; border: 1px solid rgba(200,155,70,0.15); margin-bottom: 12px; width: 100%; overflow: hidden; padding: 10px 14px; }
     .music-panel-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-    .music-panel-name { flex: 1; font-size: 13px; font-weight: 700; color: #6a1b9a; }
-    .music-preview-btn { width: 30px; height: 30px; border-radius: 50%; border: none; background: #8446b010; color: #8446b0; font-size: 14px; cursor: pointer; flex-shrink: 0; }
-    .music-preview-btn.playing { background: #8446b0; color: #fff; }
+    .music-panel-name { flex: 1; font-size: 13px; font-weight: 700; color: rgba(200,155,70,0.85); }
+    .music-preview-btn { width: 30px; height: 30px; border-radius: 50%; border: none; background: rgba(90,180,204,0.15); color: #7ecfe0; font-size: 14px; cursor: pointer; flex-shrink: 0; }
+    .music-preview-btn.playing { background: #5ab4cc; color: #040c18; }
     .music-mode-btns { display: flex; gap: 8px; }
-    .music-mode-btn { flex: 1; padding: 9px 6px; border-radius: 10px; border: 1.5px solid #c8a8f0; background: #fff; font-size: 13px; font-weight: 600; color: #6a1b9a; cursor: pointer; text-align: center; }
-    .music-mode-btn.active { background: #8446b0; color: #fff; border-color: #8446b0; }
+    .music-mode-btn { flex: 1; padding: 9px 6px; border-radius: 10px; border: 1.5px solid rgba(200,155,70,0.20); background: rgba(255,255,255,0.05); font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.70); cursor: pointer; text-align: center; line-height: 1.4; }
+    .music-mode-btn.active { background: linear-gradient(135deg,#7ecfe0,#5ab4cc); color: #040c18; border-color: #5ab4cc; }
+    .music-mode-note { display: block; font-size: 10px; font-weight: 400; opacity: 0.75; margin-top: 3px; }
 
     /* Consent step */
     .consent-check { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; cursor: pointer; }
@@ -617,9 +618,11 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
         <div class="countdown-num" id="countdown-num">3</div>
       </div>
     </div>
-    <button class="btn-primary" id="start-btn" onclick="handleStartBtn()"></button>
-    <button class="btn-outline" id="stop-btn" style="display:none" onclick="stopRecording()"></button>
-    <div class="error-msg" id="rec-error"></div>
+    <div class="card" style="padding:16px; margin-top:8px;">
+      <button class="btn-primary" id="start-btn" onclick="handleStartBtn()"></button>
+      <button class="btn-outline" id="stop-btn" style="display:none" onclick="stopRecording()"></button>
+      <div class="error-msg" id="rec-error"></div>
+    </div>
   </div>
 
   <!-- Step 4: Review clip -->
