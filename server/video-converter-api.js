@@ -368,22 +368,16 @@ app.get('/join/:storyId', async (req, res) => {
     }
 
     /* Invitation text */
-    .invite-label {
-      font-size: 12px; font-weight: 600; letter-spacing: 0.12em;
-      text-transform: uppercase; color: rgba(200,155,70,0.55);
-      margin-bottom: 10px;
-    }
     .creator-name {
-      font-size: 26px; font-weight: 700; line-height: 1.2;
-      color: rgba(228,180,85,0.95); margin-bottom: 6px;
-    }
-    .story-title {
-      font-size: 15px; font-weight: 300; color: rgba(255,255,255,0.65);
-      margin-bottom: 10px; line-height: 1.5;
+      font-size: 26px; font-weight: 700; line-height: 1.3;
+      color: rgba(228,180,85,0.95); margin-bottom: 16px;
     }
     .record-hint {
-      font-size: 13px; color: rgba(200,155,70,0.45);
-      margin-bottom: 28px; line-height: 1.5;
+      font-size: 18px; font-weight: 400; color: rgba(255,255,255,0.80);
+      margin-bottom: 28px; line-height: 1.7;
+    }
+    .record-hint strong {
+      color: rgba(228,180,85,0.90); font-weight: 700;
     }
 
     /* Primary CTA */
@@ -429,8 +423,7 @@ app.get('/join/:storyId', async (req, res) => {
     <div class="card">
       <p class="invite-label">הוזמנת</p>
       <h1 class="creator-name">${escapeHtml(creatorName)}</h1>
-      <p class="story-title">מזמין אותך${storyTitle ? ` ל<strong>${escapeHtml(storyTitle)}</strong>` : ' לסיפור'}</p>
-      <p class="record-hint">תצלם קליפ קצר של עד ${maxClipDuration} שניות שיהפוך לחלק מהסרט הסופי</p>
+      <p class="record-hint">מזמין אותך להשתתף בסרט${storyTitle ? ` <strong>${escapeHtml(storyTitle)}</strong>` : ''}<br>צלם קליפ קצר עד ${maxClipDuration} שניות שיהפוך לחלק מהסרט</p>
 
       <a class="cta-btn" href="${recordUrl}">הצטרף לסיפור</a>
       <a class="secondary-link" href="reflectly://s/${storyId}">יש לי את האפליקציה ←</a>
