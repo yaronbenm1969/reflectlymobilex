@@ -11,6 +11,7 @@ import {
   Platform,
   Share,
   Image,
+  Animated,
   Dimensions,
 } from 'react-native';
 import Constants from 'expo-constants';
@@ -145,6 +146,179 @@ const modalStyles = StyleSheet.create({
     fontSize: 12,
   },
 });
+
+// ── Story Card ────────────────────────────────────────────────────────────────
+const StoryCard = ({ story, onOpenStory, onWatch, onWatchCreator, onInvite, onDelete, confirmingDeleteId, setConfirmingDeleteId, t }) => {
+  const bgOpacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.timing(bgOpacity, { toValue: 0, duration: 900, useNativeDriver: true }).start();
+    }, 900);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const videoUrl = story.finalVideoUrl || story.videoUrl || null;
+  const creatorVideoUrl = story.videoUri || null;
+  const isCompleted = !!videoUrl || story.status === 'completed';
+
+  return (
+    <View style={styles.storyCard}>
+      {/* Background image — fades out after ~1s leaving grey card */}
+      <Animated.Image
+        source={require('../../assets/Home- beckground.jpg.jpg')}
+        style={[StyleSheet.absoluteFillObject, { opacity: bgOpacity, borderRadius: 18 }]}
+        resizeMode="cover"
+      />
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(10,12,22,0.60)', borderRadius: 18 }]} />
+
+      {/* Wave decoration */}
+      <View style={styles.cardWaveContainer} pointerEvents="none">
+        <View style={styles.cardWave1} />
+        <View style={styles.cardWave2} />
+      </View>
+
+      {/* New videos banner — gold */}
+      {(story.pendingReflectionsCount || 0) > 0 && (
+        <TouchableOpacity style={styles.newVideosBanner} onPress={() => onOpenStory(story)} activeOpacity={0.8}>
+          <Ionicons name="videocam" size={14} color="#0a0a0a" />
+          <Text style={styles.newVideosBannerText}>
+            {story.lastPlayerName
+              ? (story.pendingReflectionsCount > 1
+                ? t('myStories.new_videos_one_more', { playerName: story.lastPlayerName, count: story.pendingReflectionsCount - 1 })
+                : t('myStories.new_videos_one', { playerName: story.lastPlayerName }))
+              : t('myStories.new_videos_count', { count: story.pendingReflectionsCount })}
+          </Text>
+          <Ionicons name="chevron-forward" size={13} color="rgba(0,0,0,0.55)" />
+        </TouchableOpacity>
+      )}
+
+      {/* Declined consent banner */}
+      {!!story.declinedConsentName && (
+        <TouchableOpacity style={styles.declinedBanner} onPress={() => onInvite(story)} activeOpacity={0.8}>
+          <Ionicons name="close-circle-outline" size={14} color="#fff" />
+          <Text style={styles.declinedBannerText}>
+            {t('myStories.declined_banner', { playerName: story.declinedConsentName })}
+          </Text>
+          <Ionicons name="person-add-outline" size={14} color="rgba(90,170,255,0.85)" />
+        </TouchableOpacity>
+      )}
+
+      {/* Main row */}
+      <TouchableOpacity style={styles.storyMain} onPress={() => isCompleted ? onWatch() : onOpenStory(story)}>
+        <View style={[styles.storyThumbnail, isCompleted && styles.storyThumbnailDone]}>
+          <Ionicons
+            name={isCompleted ? 'play-circle' : 'videocam'}
+            size={28}
+            color={isCompleted ? 'rgba(255,255,255,0.85)' : 'rgba(90,170,255,0.85)'}
+          />
+        </View>
+        <View style={styles.storyInfo}>
+          <Text style={styles.storyTitle}>{story.name || story.storyName || ''}</Text>
+          <Text style={styles.storyStatusDesc}>{t(`myStories.status_desc_${story.status || 'draft'}`)}</Text>
+          {story.communitySettings?.communityMode && story.currentPlayers > 0 && (
+            <Text style={styles.storyParticipants}>
+              {t('myStories.participants_joined', { count: story.currentPlayers })}
+            </Text>
+          )}
+          <Text style={styles.storyMeta}>{story.completedAt || story.createdAt || story.updatedAt
+            ? (() => { const d = (story.completedAt || story.createdAt || story.updatedAt); return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('he-IL'); })()
+            : ''}</Text>
+          <View style={styles.statusBadge}>
+            <Text style={[styles.statusText, { color: story.status === 'processing' ? '#FF9800' : 'rgba(90,170,255,0.85)' }]}>
+              {t(`myStories.status_${story.status || 'draft'}`)}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.playButton}>
+          <Ionicons name={isCompleted ? 'play' : 'chevron-forward'} size={isCompleted ? 14 : 18} color="rgba(255,255,255,0.6)" />
+        </View>
+      </TouchableOpacity>
+
+      {/* Stats strip — always shown */}
+      <View style={styles.statsStrip}>
+        <View style={styles.statItem}>
+          <Ionicons name="videocam-outline" size={12} color="#7ecfe0" />
+          <Text style={styles.statText}>{story.currentPlayers || 0} שיקופים</Text>
+        </View>
+        <View style={styles.statDot} />
+        <View style={styles.statItem}>
+          <Ionicons name="people-outline" size={12} color="#7ecfe0" />
+          <Text style={styles.statText}>{story.maxParticipants || story.currentPlayers || 1} משתתפים</Text>
+        </View>
+        <View style={styles.statDot} />
+        <View style={styles.statItem}>
+          <Ionicons
+            name={story.communitySettings?.communityMode ? 'lock-open-outline' : 'lock-closed-outline'}
+            size={12}
+            color="#7ecfe0"
+          />
+          <Text style={styles.statText}>{story.communitySettings?.communityMode ? 'ציבורי' : 'פרטי'}</Text>
+        </View>
+      </View>
+
+      {/* Completed actions */}
+      {isCompleted && (
+        <View style={styles.completedActions}>
+          <TouchableOpacity style={styles.completedAction} onPress={onWatch}>
+            <Ionicons name="play-circle-outline" size={15} color="rgba(255,255,255,0.75)" />
+            <Text style={styles.completedActionText}>{t('myStories.watch')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.completedAction} onPress={onWatchCreator}>
+            <Ionicons name={creatorVideoUrl ? 'play-circle-outline' : 'videocam-off-outline'} size={15}
+              color={creatorVideoUrl ? 'rgba(200,155,70,0.75)' : 'rgba(255,255,255,0.25)'} />
+            <Text style={[styles.completedActionText, !creatorVideoUrl && styles.completedActionTextDim]}>
+              {creatorVideoUrl ? 'צפה בסרטון מוביל' : 'ללא סרטון מוביל'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.completedAction} onPress={() => onOpenStory(story)}>
+            <Ionicons name="create-outline" size={15} color="rgba(255,255,255,0.4)" />
+            <Text style={[styles.completedActionText, styles.completedActionTextDim]}>{t('finalVideo.btn_edit')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Creator video button — not completed */}
+      {!isCompleted && (
+        <TouchableOpacity
+          style={[styles.creatorVideoBtn, !creatorVideoUrl && styles.creatorVideoBtnDim]}
+          onPress={onWatchCreator}
+        >
+          <Ionicons name={creatorVideoUrl ? 'play-circle-outline' : 'videocam-off-outline'} size={17}
+            color={creatorVideoUrl ? 'rgba(228,180,85,0.95)' : 'rgba(200,155,70,0.35)'} />
+          <Text style={[styles.creatorVideoBtnText, !creatorVideoUrl && styles.creatorVideoBtnTextDim]}>
+            {creatorVideoUrl ? 'צפה בסרטון המוביל' : 'סרטון מוביל לא נשמר'}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Invite button — not completed */}
+      {!isCompleted && (
+        <TouchableOpacity style={styles.inviteButton} onPress={() => onInvite(story)}>
+          <Ionicons name="person-add-outline" size={14} color="rgba(90,170,255,0.85)" />
+          <Text style={styles.inviteButtonText}>{t('myStories.invite_btn')}</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Delete */}
+      {confirmingDeleteId === story.id ? (
+        <View style={styles.deleteConfirm}>
+          <Text style={styles.deleteConfirmText}>{t('myStories.delete_confirm')}</Text>
+          <TouchableOpacity style={styles.confirmYes} onPress={() => onDelete(story.id)}>
+            <Text style={styles.confirmYesText}>{t('myStories.delete_confirm_yes')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.confirmNo} onPress={() => setConfirmingDeleteId(null)}>
+            <Text style={styles.confirmNoText}>{t('myStories.delete_confirm_no')}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <TouchableOpacity style={styles.deleteButton} onPress={() => setConfirmingDeleteId(story.id)}>
+          <Ionicons name="trash-outline" size={17} color="rgba(231,76,60,0.55)" />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
 
 export const MyStoriesScreen = () => {
   const { t } = useTranslation();
@@ -295,167 +469,34 @@ export const MyStoriesScreen = () => {
             {stories.map((story) => {
               const videoUrl = story.finalVideoUrl || story.videoUrl || null;
               const creatorVideoUrl = story.videoUri || null;
-              const isCubeFormat = story.format === 'cube-3d';
-              const isCompleted = !!videoUrl || story.status === 'completed';
               return (
-                <View key={story.id} style={styles.storyCard}>
-                  {/* Wave decoration */}
-                  <View style={styles.cardWaveContainer} pointerEvents="none">
-                    <View style={styles.cardWave1} />
-                    <View style={styles.cardWave2} />
-                  </View>
-                  {/* New videos banner — tappable, navigates to EditRoom */}
-                  {(story.pendingReflectionsCount || 0) > 0 && (
-                    <TouchableOpacity
-                      style={styles.newVideosBanner}
-                      onPress={() => openStory(story)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="videocam" size={14} color="#fff" />
-                      <Text style={styles.newVideosBannerText}>
-                        {story.lastPlayerName
-                          ? (story.pendingReflectionsCount > 1
-                            ? t('myStories.new_videos_one_more', { playerName: story.lastPlayerName, count: story.pendingReflectionsCount - 1 })
-                            : t('myStories.new_videos_one', { playerName: story.lastPlayerName }))
-                          : t('myStories.new_videos_count', { count: story.pendingReflectionsCount })}
-                      </Text>
-                      <Ionicons name="chevron-forward" size={13} color="rgba(255,255,255,0.7)" />
-                    </TouchableOpacity>
-                  )}
-                  {/* Declined consent banner — tappable, opens invite sheet */}
-                  {!!story.declinedConsentName && (
-                    <TouchableOpacity
-                      style={styles.declinedBanner}
-                      onPress={() => handleInvite(story)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="close-circle-outline" size={14} color="#fff" />
-                      <Text style={styles.declinedBannerText}>
-                        {t('myStories.declined_banner', { playerName: story.declinedConsentName })}
-                      </Text>
-                      <Ionicons name="person-add-outline" size={14} color="rgba(90,170,255,0.85)" />
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity style={styles.storyMain} onPress={() => handleStoryPress(story)}>
-                    <View style={[styles.storyThumbnail, isCompleted && styles.storyThumbnailDone]}>
-                      <Ionicons
-                        name={isCompleted ? 'play-circle' : 'videocam'}
-                        size={28}
-                        color={isCompleted ? 'rgba(255,255,255,0.85)' : 'rgba(90,170,255,0.85)'}
-                      />
-                    </View>
-                    <View style={styles.storyInfo}>
-                      <Text style={styles.storyTitle}>{story.name || story.storyName || ''}</Text>
-                      <Text style={styles.storyStatusDesc}>
-                        {getStatusDescription(story.status)}
-                      </Text>
-                      {story.communitySettings?.communityMode && story.currentPlayers > 0 && (
-                        <Text style={styles.storyParticipants}>
-                          {t('myStories.participants_joined', { count: story.currentPlayers })}
-                        </Text>
-                      )}
-                      <Text style={styles.storyMeta}>{formatDate(story.completedAt || story.createdAt || story.updatedAt)}</Text>
-                      <View style={styles.statusBadge}>
-                        <Text style={[styles.statusText, { color: getStatusColor(story.status) }]}>
-                          {getStatusText(story.status)}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.playButton}>
-                      <Ionicons
-                        name={isCompleted ? 'play' : 'chevron-forward'}
-                        size={isCompleted ? 14 : 18}
-                        color="rgba(255,255,255,0.6)"
-                      />
-                    </View>
-                  </TouchableOpacity>
-
-                  {isCompleted && (
-                    <View style={styles.completedActions}>
-                      <TouchableOpacity
-                        style={styles.completedAction}
-                        onPress={() => {
-                          if (videoUrl) {
-                            setWatchData({ url: videoUrl, name: story.name, story });
-                          } else {
-                            setStoryName(story.name);
-                            setCurrentStoryId(story.id);
-                            setVideoFormat(story.format);
-                            go('FinalVideo', { fromProjects: true });
-                          }
-                        }}
-                      >
-                        <Ionicons name="play-circle-outline" size={15} color="rgba(255,255,255,0.75)" />
-                        <Text style={styles.completedActionText}>{t('myStories.watch')}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.completedAction}
-                        onPress={() => {
-                          if (creatorVideoUrl) {
-                            setWatchData({ url: creatorVideoUrl, name: story.name, story });
-                          } else {
-                            Alert.alert('סרטון מוביל', 'הסרטון לא נשמר עדיין. כנס לעריכת הפרויקט ושמור שוב כדי להוסיף אותו לפלואו.');
-                          }
-                        }}
-                      >
-                        <Ionicons name={creatorVideoUrl ? "play-circle-outline" : "videocam-off-outline"} size={15} color={creatorVideoUrl ? "rgba(200,155,70,0.75)" : "rgba(255,255,255,0.25)"} />
-                        <Text style={[styles.completedActionText, !creatorVideoUrl && styles.completedActionTextDim]}>
-                          {creatorVideoUrl ? 'צפה בסרטון מוביל' : 'ללא סרטון מוביל'}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.completedAction}
-                        onPress={() => openStory(story)}
-                      >
-                        <Ionicons name="create-outline" size={15} color="rgba(255,255,255,0.4)" />
-                        <Text style={[styles.completedActionText, styles.completedActionTextDim]}>
-                          {t('finalVideo.btn_edit')}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-
-                  {!isCompleted && (
-                    <TouchableOpacity
-                      style={[styles.creatorVideoBtn, !creatorVideoUrl && styles.creatorVideoBtnDim]}
-                      onPress={() => {
-                        if (creatorVideoUrl) {
-                          setWatchData({ url: creatorVideoUrl, name: story.name, story });
-                        } else {
-                          Alert.alert('סרטון מוביל', 'הסרטון לא נשמר עדיין. כנס לעריכת הפרויקט ושמור שוב כדי להוסיף אותו לפלואו.');
-                        }
-                      }}
-                    >
-                      <Ionicons name={creatorVideoUrl ? "play-circle-outline" : "videocam-off-outline"} size={17} color={creatorVideoUrl ? "rgba(228,180,85,0.95)" : "rgba(200,155,70,0.35)"} />
-                      <Text style={[styles.creatorVideoBtnText, !creatorVideoUrl && styles.creatorVideoBtnTextDim]}>
-                        {creatorVideoUrl ? 'צפה בסרטון המוביל' : 'סרטון מוביל לא נשמר'}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {!isCompleted && (
-                    <TouchableOpacity style={styles.inviteButton} onPress={() => handleInvite(story)}>
-                      <Ionicons name="person-add-outline" size={14} color="rgba(90,170,255,0.85)" />
-                      <Text style={styles.inviteButtonText}>{t('myStories.invite_btn')}</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {confirmingDeleteId === story.id ? (
-                    <View style={styles.deleteConfirm}>
-                      <Text style={styles.deleteConfirmText}>{t('myStories.delete_confirm')}</Text>
-                      <TouchableOpacity style={styles.confirmYes} onPress={() => deleteStory(story.id)}>
-                        <Text style={styles.confirmYesText}>{t('myStories.delete_confirm_yes')}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.confirmNo} onPress={() => setConfirmingDeleteId(null)}>
-                        <Text style={styles.confirmNoText}>{t('myStories.delete_confirm_no')}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <TouchableOpacity style={styles.deleteButton} onPress={() => setConfirmingDeleteId(story.id)}>
-                      <Ionicons name="trash-outline" size={17} color="rgba(231,76,60,0.55)" />
-                    </TouchableOpacity>
-                  )}
-                </View>
+                <StoryCard
+                  key={story.id}
+                  story={story}
+                  t={t}
+                  confirmingDeleteId={confirmingDeleteId}
+                  setConfirmingDeleteId={setConfirmingDeleteId}
+                  onOpenStory={openStory}
+                  onWatch={() => {
+                    if (videoUrl) {
+                      setWatchData({ url: videoUrl, name: story.name, story });
+                    } else {
+                      setStoryName(story.name);
+                      setCurrentStoryId(story.id);
+                      setVideoFormat(story.format);
+                      go('FinalVideo', { fromProjects: true });
+                    }
+                  }}
+                  onWatchCreator={() => {
+                    if (creatorVideoUrl) {
+                      setWatchData({ url: creatorVideoUrl, name: story.name, story });
+                    } else {
+                      Alert.alert('סרטון מוביל', 'הסרטון לא נשמר עדיין. כנס לעריכת הפרויקט ושמור שוב כדי להוסיף אותו לפלואו.');
+                    }
+                  }}
+                  onInvite={handleInvite}
+                  onDelete={deleteStory}
+                />
               );
             })}
           </View>
@@ -620,15 +661,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(52,120,210,0.85)',
+    backgroundColor: 'rgba(200,155,70,0.92)',
     paddingHorizontal: 14,
     paddingVertical: 9,
   },
   newVideosBannerText: {
     flex: 1,
-    color: '#fff',
+    color: '#0a0a0a',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'right',
   },
   declinedBanner: {
@@ -702,6 +743,35 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 11,
     fontWeight: '500',
+  },
+
+  // Stats strip
+  statsStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(28,30,44,0.88)',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(200,155,70,0.12)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statText: {
+    color: 'rgba(200,155,70,0.80)',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  statDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(200,155,70,0.30)',
   },
   playButton: {
     width: 30,
