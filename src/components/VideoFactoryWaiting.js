@@ -285,14 +285,6 @@ export function VideoFactoryWaiting({ estimatedSeconds = 180, storyName, title, 
         </View>
       </View>
 
-      {/* Progress bar */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: fillColor }]} />
-        </View>
-        <Text style={styles.progressPct}>{pct}%</Text>
-      </View>
-      <Text style={styles.timeLabel}>{timeLabel}</Text>
       <Text style={styles.hint}>אפשר לסגור את האפליקציה ולקבל התראה כשמוכן</Text>
     </View>
   );

@@ -529,7 +529,7 @@ export const EditRoomScreen = () => {
               </View>
             </View>
           )}
-        </Card>
+        </View>
 
         {(applicationsLoading || pendingApplications.length > 0) && (
           <View style={styles.applicationsCard}>

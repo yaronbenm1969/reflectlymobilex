@@ -87,6 +87,7 @@ export const FinalVideoScreen = () => {
   const [isConverting, setIsConverting] = useState(false);
   const [conversionProgress, setConversionProgress] = useState('');
   const [videoHasPlayed, setVideoHasPlayed] = useState(false);
+  const videoPlaybackEndedRef = useRef(false);
   const [isCubeFullscreen, setIsCubeFullscreen] = useState(false);
   const [showEndScreen, setShowEndScreen] = useState(false);
   const [animationPlayerKey, setAnimationPlayerKey] = useState(0);
@@ -296,7 +297,7 @@ export const FinalVideoScreen = () => {
           videoReadyForShareRef.current = true;
           autoRecordTriggeredRef.current = true; // story already complete — skip auto-record
           setVideoReadyForShare(true);
-          setShowEndScreen(true); // story already rendered — show end screen (not first view)
+          // Do NOT show end screen here — let the video play first; onEnd will show it
           console.log('📹 videoPublishReady=true — WhatsApp button enabled, auto-record skipped');
         }
       }
@@ -331,7 +332,10 @@ export const FinalVideoScreen = () => {
             firestoreVideoUrlRef.current = res.story.finalVideoUrl;
             videoReadyForShareRef.current = true;
             setVideoReadyForShare(true);
-            setShowEndScreen(true); // render complete — now show end screen
+            // Show end screen only if animation already ended; otherwise onEnd will handle it
+            if (videoPlaybackEndedRef.current) {
+              setShowEndScreen(true);
+            }
             break;
           }
         } catch (e) {}
@@ -1958,6 +1962,7 @@ export const FinalVideoScreen = () => {
             onPlaybackComplete={() => {
               console.log('✅ All videos finished - showing end screen');
               setIsCubeFullscreen(false);
+              videoPlaybackEndedRef.current = true;
               setVideoHasPlayed(true);
               analyticsService.movieWatched(currentStoryId);
               stopAmbientMusic();
@@ -2256,6 +2261,7 @@ export const FinalVideoScreen = () => {
                   onPress={() => {
                     setShowEndScreen(false);
                     setPlaybackComplete(false);
+                    videoPlaybackEndedRef.current = false;
                     setVideoHasPlayed(false);
                     setCubeStarted(false);
                     setIsCubeFullscreen(false);
