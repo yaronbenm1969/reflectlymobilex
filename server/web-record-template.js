@@ -610,6 +610,9 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
 
   <!-- Step 3: Record -->
   <div id="step-record" class="step">
+    <div style="width:100%;display:flex;align-items:center;justify-content:flex-start;min-height:28px;margin-bottom:2px;">
+      <button id="back-btn" onclick="goBackToReview()" style="display:none;background:none;border:none;color:rgba(200,155,70,0.70);font-size:14px;cursor:pointer;padding:4px 0;width:auto;margin:0;">← קליפ קודם</button>
+    </div>
     <div class="clip-dots" id="clip-dots"></div>
     <p class="clip-label" id="clip-label"></p>
     ${musicPanelHtml}
@@ -929,6 +932,8 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
         const d = document.getElementById('dot-' + i);
         d.className = 'clip-dot' + (i < currentClipIdx ? ' done' : i === currentClipIdx ? ' current' : '');
       }
+      const backBtn = document.getElementById('back-btn');
+      if (backBtn) backBtn.style.display = (currentClipIdx > 0 && recordedBlobs[currentClipIdx - 1]) ? 'block' : 'none';
       stopMusic();
     }
 
@@ -994,26 +999,36 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
       const blob = new Blob(chunks, { type: mimeType });
       recordedBlobs[currentClipIdx] = blob;
 
-      const url = URL.createObjectURL(blob);
-      const vid  = document.getElementById('review-video');
-      vid.src    = url;
-      document.getElementById('review-label').textContent =
-        t('previewClip', { num: currentClipIdx + 1 });
-      showStep('review');
-    }
-
-    window.confirmClip = function() {
       currentClipIdx++;
-      if (currentClipIdx < CLIP_COUNT) {
+      if (currentClipIdx >= CLIP_COUNT) {
+        uploadAllClips();
+      } else {
         updateClipUI();
         showStep('record');
         document.getElementById('start-btn').style.display = 'block';
-      } else {
-        uploadAllClips();
       }
+    }
+
+    // Called when user wants to review/redo the previous clip
+    window.goBackToReview = function() {
+      const idx = currentClipIdx - 1;
+      const url = URL.createObjectURL(recordedBlobs[idx]);
+      document.getElementById('review-video').src = url;
+      document.getElementById('review-label').textContent = t('previewClip', { num: idx + 1 });
+      showStep('review');
     };
 
+    // "Keep this clip" — return to current record screen
+    window.confirmClip = function() {
+      updateClipUI();
+      showStep('record');
+      document.getElementById('start-btn').style.display = 'block';
+    };
+
+    // "Record again" — go back one clip index and re-record
     window.reRecord = function() {
+      currentClipIdx--;
+      updateClipUI();
       showStep('record');
       document.getElementById('start-btn').style.display = 'block';
     };
