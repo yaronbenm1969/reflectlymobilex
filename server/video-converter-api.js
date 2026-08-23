@@ -404,6 +404,12 @@ app.get('/join/:storyId', async (req, res) => {
     }
     .secondary-link:hover { color: rgba(255,255,255,0.60); }
 
+    .thank-you {
+      margin-top: 20px;
+      font-size: 13px; color: rgba(200,155,70,0.50);
+      letter-spacing: 0.03em;
+    }
+
     /* Tagline at bottom */
     .tagline {
       position: fixed; bottom: 24px;
@@ -427,6 +433,7 @@ app.get('/join/:storyId', async (req, res) => {
 
       <a class="cta-btn" href="${recordUrl}">הצטרף לסיפור</a>
       <a class="secondary-link" href="reflectly://s/${storyId}">יש לי את האפליקציה ←</a>
+      <p class="thank-you">תודה שאתה חלק מהסיפור 🎬</p>
     </div>
   </div>
 
