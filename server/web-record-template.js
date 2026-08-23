@@ -403,6 +403,7 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
     .btn-primary { background: linear-gradient(135deg, #7ecfe0 0%, #5ab4cc 100%); color: #040c18; box-shadow: 0 4px 20px rgba(94,190,218,0.35); }
     .btn-secondary { background: rgba(90,180,204,0.15); color: #7ecfe0; }
     .btn-outline { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.60); border: 1.5px solid rgba(200,155,70,0.20); }
+    .btn-gold { background: linear-gradient(135deg, rgba(228,180,85,0.95) 0%, rgba(200,155,70,0.90) 100%); color: #0a0a0a; font-weight: 700; }
     .btn-ios { background: #000; color: white; }
     .btn-android { background: #3DDC84; color: #000; }
     button:disabled { opacity: 0.4; cursor: default; }
@@ -610,9 +611,7 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
 
   <!-- Step 3: Record -->
   <div id="step-record" class="step">
-    <div style="width:100%;display:flex;align-items:center;justify-content:flex-start;min-height:28px;margin-bottom:2px;">
-      <button id="back-btn" onclick="goBackToReview()" style="display:none;background:none;border:none;color:rgba(200,155,70,0.70);font-size:14px;cursor:pointer;padding:4px 0;width:auto;margin:0;">← קליפ קודם</button>
-    </div>
+    <button id="back-btn" class="btn-primary" onclick="goBackToReview()" style="display:none;font-size:17px;">← קליפ קודם</button>
     <div class="clip-dots" id="clip-dots"></div>
     <p class="clip-label" id="clip-label"></p>
     ${musicPanelHtml}
@@ -638,7 +637,7 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
       <video id="review-video" controls playsinline></video>
     </div>
     <button class="btn-primary" onclick="confirmClip()"></button>
-    <button class="btn-outline" onclick="reRecord()"></button>
+    <button id="rerecord-btn" class="btn-gold" onclick="reRecord()"></button>
   </div>
 
   <!-- Step 5: Uploading (dark water) -->
@@ -760,7 +759,7 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
     document.getElementById('start-btn').textContent     = _T.startRecording;
     document.getElementById('stop-btn').textContent      = _T.stopRecording;
     document.querySelector('#step-review button.btn-primary').textContent = _T.saveClip;
-    document.querySelector('#step-review button.btn-outline').textContent = _T.reRecord;
+    document.getElementById('rerecord-btn').textContent = _T.reRecord;
     document.getElementById('upload-title').textContent  = _T.uploading;
     document.getElementById('done-title').textContent    = _T.thanks;
     document.getElementById('done-desc').innerHTML       = ${JSON.stringify(thanksDesc)};
