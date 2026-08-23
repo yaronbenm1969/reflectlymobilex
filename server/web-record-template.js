@@ -556,9 +556,9 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
   <!-- Step 0: Creator Instructions -->
   <div id="step-watch" class="step${!invitationContext && (videoUri || instructionAudioUrl || instructions) ? ' active' : ''}">
     <div style="width:100%; max-width:420px; padding:16px;">
-      <div style="background:linear-gradient(135deg,#f3e5ff,#e8eaff); border-radius:14px; padding:14px 16px; margin-bottom:14px; border:1.5px solid #c8a8f0;">
-        <p style="font-size:13px; font-weight:700; color:#6a1b9a; margin:0 0 6px;">${T.instructionsFromCreator}</p>
-        <p style="font-size:14px; color:#444; line-height:1.6; margin:0;">${escHtml(instructions || (videoUri ? T.watchVideoFirst : T.readInstructionsFirst))}</p>
+      <div style="background:rgba(38,40,50,0.96); border-radius:14px; padding:14px 16px; margin-bottom:14px; border:1px solid rgba(200,155,70,0.15);">
+        <p style="font-size:13px; font-weight:700; color:rgba(200,155,70,0.85); margin:0 0 6px;">${T.instructionsFromCreator}</p>
+        <p style="font-size:14px; color:rgba(255,255,255,0.80); line-height:1.6; margin:0;">${escHtml(instructions || (videoUri ? T.watchVideoFirst : T.readInstructionsFirst))}</p>
       </div>
       ${videoUri ? `
       <div style="position:relative; width:100%; background:#000; border-radius:14px; overflow:hidden; margin-bottom:14px;">
@@ -566,18 +566,18 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
       </div>
       ` : ''}
       ${instructionAudioUrl ? `
-      <div style="background:#fff; border-radius:14px; padding:16px; margin-bottom:14px; border:1.5px solid #c8a8f0; display:flex; align-items:center; gap:12px;">
-        <button id="audio-play-btn" onclick="toggleInstructionAudio()" style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#8446b0,#464fb0);color:#fff;border:none;font-size:22px;cursor:pointer;flex-shrink:0;">▶</button>
+      <div style="background:rgba(38,40,50,0.96); border-radius:14px; padding:16px; margin-bottom:14px; border:1px solid rgba(200,155,70,0.15); display:flex; align-items:center; gap:12px;">
+        <button id="audio-play-btn" onclick="toggleInstructionAudio()" style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#7ecfe0,#5ab4cc);color:#040c18;border:none;font-size:22px;cursor:pointer;flex-shrink:0;">▶</button>
         <div style="flex:1;">
-          <p style="font-size:13px;font-weight:700;color:#6a1b9a;margin:0 0 2px;">${T.voiceInstructions}</p>
-          <p style="font-size:12px;color:#888;margin:0;">${T.tapToPlay}</p>
+          <p style="font-size:13px;font-weight:700;color:rgba(200,155,70,0.85);margin:0 0 2px;">${T.voiceInstructions}</p>
+          <p style="font-size:12px;color:rgba(200,155,70,0.50);margin:0;">${T.tapToPlay}</p>
         </div>
       </div>
       ` : ''}
       <button id="watch-continue-btn" class="btn-primary" onclick="watchContinue()"${(videoUri || instructionAudioUrl) ? ' disabled' : ''}>
         ${videoUri ? T.watchToContinue : instructionAudioUrl ? T.listenToContinue : T.understood}
       </button>
-      ${(videoUri || instructionAudioUrl) ? `<p id="watch-hint" style="font-size:13px;color:#888;text-align:center;margin-top:8px;">${videoUri ? T.watchHint : T.listenHint}</p>` : ''}
+      ${(videoUri || instructionAudioUrl) ? `<p id="watch-hint" style="font-size:13px;color:rgba(200,155,70,0.50);text-align:center;margin-top:8px;">${videoUri ? T.watchHint : T.listenHint}</p>` : ''}
     </div>
   </div>
 
