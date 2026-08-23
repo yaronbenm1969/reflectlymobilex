@@ -39,7 +39,7 @@ const POC_PRESET     = 'veryfast';
 const POC_SCREENSHOT = 'jpeg'; // jpeg reduces Chrome memory pressure vs png
 
 // ─── Safety limits ────────────────────────────────────────────────────────────
-const MAX_STORY_DURATION_SECS = 120; // max story length for server render
+const MAX_STORY_DURATION_SECS = 300; // max story length for server render (5 min)
 const MIN_DISK_BYTES          = 700 * 1024 * 1024; // 700 MB
 const STALE_JOB_MINUTES       = 30;
 
