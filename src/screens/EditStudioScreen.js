@@ -51,8 +51,8 @@ const FALLBACK_SETS = [
 
 // ── Participant → clip duration mapping (same as HomeScreen) ──────────────────
 const PARTICIPANT_OPTIONS = [
-  { label: '1-9',   clipCount: 3, maxClipDuration: 45 },
-  { label: '10-20', clipCount: 1, maxClipDuration: 30 },
+  { label: '1-9',   clipCount: 3, maxClipDuration: 30 },
+  { label: '10-20', clipCount: 1, maxClipDuration: 15 },
   { label: '21-40', clipCount: 1, maxClipDuration: 5  },
   { label: '40+',   clipCount: 1, maxClipDuration: 3  },
 ];

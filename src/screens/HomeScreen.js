@@ -33,11 +33,10 @@ const HOME_BG_VIDEO_CACHE = `${FileSystem.cacheDirectory}home-background.mp4`;
 // TODO: replace with Firebase Storage URL after uploading the tutorial video
 const TUTORIAL_VIDEO_URL = '';
 
-// Clip count → per-clip duration:
-// 1-9 clips  → 60s | 10-20 → 30s | 21-40 → 5s | 40+ → 3s
+// 1-9 → 30s | 10-20 → 15s | 21-40 → 5s | 40+ → 3s
 const PARTICIPANT_OPTIONS = [
-  { label: '1-9',   clipCount: 3, maxClipDuration: 45 },
-  { label: '10-20', clipCount: 1, maxClipDuration: 30 },
+  { label: '1-9',   clipCount: 3, maxClipDuration: 30 },
+  { label: '10-20', clipCount: 1, maxClipDuration: 15 },
   { label: '21-40', clipCount: 1, maxClipDuration: 5  },
   { label: '40+',   clipCount: 1, maxClipDuration: 3  },
 ];
