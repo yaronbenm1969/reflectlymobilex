@@ -288,7 +288,10 @@ app.get('/join/:storyId', async (req, res) => {
   const ogImage = `${BASE_URL}/assets/og-invite.jpg`;
   const ogTitle = `${creatorName} מזמין אותך לסרט 🎬`;
   const ogDesc  = 'הוזמנת להקליט קליפ קצר שיהפוך לחלק מהסרט הסופי 🎬';
-  const recordUrl = `${BASE_URL}/record/${storyId}`;
+  const inviteToken = req.query.token || null;
+  const recordUrl = inviteToken
+    ? `${BASE_URL}/record-invite?token=${encodeURIComponent(inviteToken)}`
+    : `${BASE_URL}/record/${storyId}`;
 
   res.set('Content-Type', 'text/html');
   res.send(`<!DOCTYPE html>
@@ -676,7 +679,7 @@ app.get('/api/player-upload-url', async (req, res) => {
 
 // Called after direct GCS upload — makes file public and saves reflection to Firestore
 app.post('/api/player-clip-done', async (req, res) => {
-  const { storyId, storagePath, playerName, clipNumber, webUid } = req.body;
+  const { storyId, storagePath, playerName, clipNumber, webUid, invitationId } = req.body;
   if (!storyId || !storagePath) return res.status(400).json({ error: 'storyId and storagePath required' });
 
   // Validate storagePath to prevent making arbitrary GCS objects public
@@ -711,6 +714,13 @@ app.post('/api/player-clip-done', async (req, res) => {
         pendingReflectionsCount: FieldValue.increment(1),
         lastPlayerName: playerName || 'משתתף',
       }).catch(() => {});
+    }
+
+    // Mark invitation as used (single-use token)
+    if (invitationId && firestoreDb) {
+      firestoreDb.collection('invitations').doc(invitationId)
+        .update({ status: 'used', usedAt: new Date(), recordingCompletedAt: new Date() })
+        .catch(() => {});
     }
 
     // Notify story creator (fire-and-forget)
@@ -3567,8 +3577,8 @@ async function sendConsentDeclinedNotification(storyId, participantName, reason)
 app.post('/api/invitations/create', async (req, res) => {
   if (!firestoreDb) return res.status(503).json({ error: 'DB not ready' });
   const { storyId, participantName, participantPhone } = req.body || {};
-  if (!storyId || !participantName) {
-    return res.status(400).json({ error: 'storyId and participantName are required' });
+  if (!storyId) {
+    return res.status(400).json({ error: 'storyId is required' });
   }
   try {
     const token = crypto.randomUUID();
@@ -3751,6 +3761,24 @@ app.get('/record-invite', async (req, res) => {
   }
   if (!invitation || invitation.status === 'declined') {
     return res.status(404).send('Invitation not found or already declined');
+  }
+  if (invitation.status === 'used') {
+    return res.status(410).set('Content-Type', 'text/html').send(`<!DOCTYPE html>
+<html lang="he" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>הלינק כבר שומש</title>
+<style>
+  body{margin:0;background:#0d0e14;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,sans-serif;color:#fff;text-align:center;padding:24px}
+  .card{background:rgba(38,40,50,0.95);border:1px solid rgba(200,155,70,0.20);border-radius:20px;padding:40px 28px;max-width:340px}
+  .icon{font-size:52px;margin-bottom:16px}
+  h1{font-size:22px;color:rgba(200,155,70,0.90);margin:0 0 12px}
+  p{font-size:15px;color:rgba(200,155,70,0.60);line-height:1.6;margin:0}
+</style></head>
+<body><div class="card">
+  <div class="icon">🔒</div>
+  <h1>הלינק כבר שומש</h1>
+  <p>הקישור הזה חד-פעמי ולא ניתן לשימוש חוזר.<br>בקש מהיוצר לשלוח לינק חדש.</p>
+</div></body></html>`);
   }
 
   const { storyId, participantName } = invitation;

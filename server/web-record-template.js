@@ -1105,7 +1105,7 @@ function buildWebRecordHtml(story, firebaseConfig, invitationContext = null) {
       const doneRes = await fetch('/api/player-clip-done', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storyId: STORY_ID, storagePath, playerName: participantName, clipNumber, webUid }),
+        body: JSON.stringify({ storyId: STORY_ID, storagePath, playerName: participantName, clipNumber, webUid, invitationId: INVITATION_ID }),
       });
       if (!doneRes.ok) {
         let errMsg = t('saveClipError', { status: doneRes.status });

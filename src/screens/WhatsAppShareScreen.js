@@ -8,6 +8,7 @@ import {
   Linking,
   Alert,
   Share,
+  ActivityIndicator,
 } from 'react-native';
 import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +18,7 @@ import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { Card } from '../ui/Card';
 import { AppButton } from '../ui/AppButton';
+import { invitationsService } from '../services/invitationsService';
 import theme from '../theme/theme';
 
 export const WhatsAppShareScreen = () => {
@@ -24,6 +26,7 @@ export const WhatsAppShareScreen = () => {
   const { go, back } = useNav();
   const storyName = useAppState((state) => state.storyName);
   const [sharedCount, setSharedCount] = useState(0);
+  const [isGeneratingToken, setIsGeneratingToken] = useState(false);
 
   const currentStoryId = useAppState((state) => state.currentStoryId);
   const currentInviteCode = useAppState((state) => state.currentInviteCode);
@@ -59,31 +62,48 @@ export const WhatsAppShareScreen = () => {
     return t('whatsapp.message_with_link', { storyName, participantLink });
   }, [storyName, participantLink, t]);
 
+  const buildTokenMessage = async () => {
+    if (!currentStoryId) return messageTemplate;
+    const result = await invitationsService.createInvitation(currentStoryId);
+    if (!result.success || !result.token) return messageTemplate;
+    const serverUrl = Constants.expoConfig?.extra?.videoConverterUrl ||
+                      process.env.EXPO_PUBLIC_API_URL ||
+                      'https://reflectlymobilex.onrender.com';
+    const tokenLink = `${serverUrl}/join/${currentStoryId}?token=${result.token}`;
+    return t('whatsapp.message_with_link', { storyName, participantLink: tokenLink });
+  };
+
   const handleShareWhatsApp = async () => {
+    setIsGeneratingToken(true);
     try {
-      const encodedMessage = encodeURIComponent(messageTemplate);
+      const message = await buildTokenMessage();
+      const encodedMessage = encodeURIComponent(message);
       const whatsappUrl = `whatsapp://send?text=${encodedMessage}`;
-      
       await Linking.openURL(whatsappUrl);
       setSharedCount(prev => prev + 1);
     } catch (error) {
       console.error('Error sharing to WhatsApp:', error);
       handleNativeShare();
+    } finally {
+      setIsGeneratingToken(false);
     }
   };
 
   const handleNativeShare = async () => {
+    setIsGeneratingToken(true);
     try {
+      const message = await buildTokenMessage();
       const result = await Share.share({
-        message: messageTemplate,
+        message,
         title: t('whatsapp.native_share_title', { storyName }),
       });
-      
       if (result.action === Share.sharedAction) {
         setSharedCount(prev => prev + 1);
       }
     } catch (error) {
       console.error('Error sharing:', error);
+    } finally {
+      setIsGeneratingToken(false);
     }
   };
 
@@ -138,16 +158,20 @@ export const WhatsAppShareScreen = () => {
           </Text>
 
           <TouchableOpacity
-            style={styles.whatsappButton}
+            style={[styles.whatsappButton, isGeneratingToken && { opacity: 0.7 }]}
             onPress={handleShareWhatsApp}
+            disabled={isGeneratingToken}
           >
-            <Ionicons name="logo-whatsapp" size={28} color="white" />
+            {isGeneratingToken
+              ? <ActivityIndicator color="white" size="small" />
+              : <Ionicons name="logo-whatsapp" size={28} color="white" />}
             <Text style={styles.whatsappButtonText}>{t('whatsapp.btn_whatsapp')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.otherShareButton}
+            style={[styles.otherShareButton, isGeneratingToken && { opacity: 0.7 }]}
             onPress={handleNativeShare}
+            disabled={isGeneratingToken}
           >
             <Ionicons name="share-outline" size={24} color={theme.colors.primary} />
             <Text style={styles.otherShareButtonText}>{t('whatsapp.btn_other_share')}</Text>
