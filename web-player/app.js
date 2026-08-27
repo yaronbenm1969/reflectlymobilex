@@ -119,7 +119,7 @@ const ACCESS_CODE_KEY = 'reflectly_access_code';
 // ── Download App Banner ──
 const appBanner = document.getElementById('app-download-banner');
 const bannerCloseBtn = document.getElementById('banner-close-btn');
-const BANNER_SCREENS = new Set(['watch', 'success']); // screens where banner is visible
+const BANNER_SCREENS = new Set(['watch', 'success', 'result']); // screens where banner is visible
 let bannerDismissed = false;
 
 function updateBanner(screenName) {
@@ -644,11 +644,11 @@ function showConfirmBanner() {
     if (!banner) {
         banner = document.createElement('div');
         banner.id = 'confirm-instructions-banner';
-        banner.style.cssText = 'background:linear-gradient(135deg,#f3e5ff,#e8eaff);border:1.5px solid #c8a8f0;border-radius:14px;padding:14px 16px;margin:10px 0;text-align:center;';
+        banner.style.cssText = 'background:rgba(38,40,50,0.97);border:1px solid rgba(200,155,70,0.20);border-radius:14px;padding:14px 16px;margin:10px 0;text-align:center;';
         banner.innerHTML = `
-            <p style="margin:0 0 10px;font-size:14px;color:#6a1b9a;font-weight:600;">📋 קראת את ההוראות?</p>
+            <p style="margin:0 0 10px;font-size:14px;color:rgba(228,180,85,1.0);font-weight:600;">📋 קראת את ההוראות?</p>
             <button onclick="confirmReadInstructions()" style="
-                background:linear-gradient(135deg,#8446b0,#464fb0);color:white;border:none;
+                background:#5ab4cc;color:#0d0e14;border:none;
                 border-radius:25px;padding:12px 28px;font-size:15px;font-weight:700;cursor:pointer;width:100%;
             ">✅ הבנתי — ממשיכים להקלטה</button>
         `;
@@ -728,7 +728,7 @@ async function setupStoryVideo(videoUrl, storyId, recordBtn, watchHint) {
             <p>לחץ להפעלת הסרטון</p>
             <button onclick="window.open('${safeHref(finalVideoUrl)}', '_blank')" style="
                 display: inline-block; margin-top: 15px; padding: 12px 24px;
-                background: linear-gradient(135deg, #8446b0, #464fb0); color: white;
+                background: #5ab4cc; color: #0d0e14;
                 border: none; border-radius: 25px; font-size: 16px; cursor: pointer;
             ">▶️ הפעל סרטון</button>
         `;
@@ -1339,14 +1339,14 @@ function setupEventListeners() {
             webPlayerMusicMode = btn.dataset.mode;
             // Reset all buttons to inactive
             document.querySelectorAll('.music-mode-btn').forEach(b => {
-                b.style.border = '2px solid #ddd';
-                b.style.background = '#fff';
-                b.style.color = '#6a1b9a';
+                b.style.border = '2px solid rgba(200,155,70,0.30)';
+                b.style.background = 'rgba(55,58,72,0.91)';
+                b.style.color = 'rgba(200,155,70,0.70)';
             });
             // Highlight selected button
-            btn.style.border = '2px solid #8446b0';
-            btn.style.background = '#8446b0';
-            btn.style.color = '#fff';
+            btn.style.border = '2px solid #5ab4cc';
+            btn.style.background = '#5ab4cc';
+            btn.style.color = '#0d0e14';
         });
     });
 }
@@ -1417,7 +1417,7 @@ function showWelcomeMessage() {
                 <div style="font-size: 80px; margin-bottom: 20px;">🎬</div>
                 <h2 style="margin-bottom: 15px;">ברוכים הבאים ל-Reflectly</h2>
                 <p style="opacity: 0.8; margin-bottom: 20px;">כדי לצפות בסיפור, קבל קישור מחבר</p>
-                <a href="/cube-demo.html" style="background: white; color: #464fb0; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: bold;">🎲 צפה בדמו הקוביה</a>
+                <a href="/cube-demo.html" style="background: #5ab4cc; color: #0d0e14; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: bold;">🎲 צפה בדמו הקוביה</a>
             </div>
         `;
     }
@@ -1437,10 +1437,10 @@ function addInAppBrowserBanner() {
     
     const banner = document.createElement('div');
     banner.id = 'inapp-browser-banner';
-    banner.style.cssText = 'background: linear-gradient(135deg, #8446b0, #464fb0); color: white; padding: 12px 16px; text-align: center; font-size: 14px; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.2);';
+    banner.style.cssText = 'background: rgba(38,40,50,0.97); color: rgba(228,180,85,1.0); padding: 12px 16px; text-align: center; font-size: 14px; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; border-bottom: 1px solid rgba(200,155,70,0.20); box-shadow: 0 2px 8px rgba(0,0,0,0.4);';
     banner.innerHTML = `
         <div style="margin-bottom: 8px;">📱 להקלטת הפידבק, פתח בדפדפן:</div>
-        <button onclick="window.open(window.location.href, '_system')" style="background: white; color: #464fb0; border: none; padding: 8px 20px; border-radius: 20px; font-weight: bold; cursor: pointer;">
+        <button onclick="window.open(window.location.href, '_system')" style="background: #5ab4cc; color: #0d0e14; border: none; padding: 8px 20px; border-radius: 20px; font-weight: bold; cursor: pointer;">
             🔗 פתח ב-Safari/Chrome
         </button>
     `;
@@ -1489,17 +1489,17 @@ function addOpenInAppBanner() {
 
     const banner = document.createElement('div');
     banner.id = 'open-in-app-banner';
-    banner.style.cssText = 'background: linear-gradient(135deg, #469bb015, #469bb025); border: 1px solid #469bb040; border-radius: 12px; padding: 12px 16px; margin: 8px 16px; display: flex; align-items: center; gap: 12px; direction: rtl;';
+    banner.style.cssText = 'background: rgba(38,40,50,0.97); border: 1px solid rgba(200,155,70,0.20); border-radius: 12px; padding: 12px 16px; margin: 8px 16px; display: flex; align-items: center; gap: 12px; direction: rtl;';
     banner.innerHTML = `
         <div style="font-size: 32px; flex-shrink: 0;">📱</div>
         <div style="flex: 1; text-align: right;">
-            <div style="font-weight: 600; color: #1e1e1e; font-size: 14px;">יש לך את Reflectly?</div>
-            <div style="color: #666; font-size: 12px; margin-top: 2px;">פתח באפליקציה לחוויה טובה יותר</div>
+            <div style="font-weight: 600; color: rgba(228,180,85,1.0); font-size: 14px;">יש לך את Reflectly?</div>
+            <div style="color: rgba(200,155,70,0.60); font-size: 12px; margin-top: 2px;">פתח באפליקציה לחוויה טובה יותר</div>
         </div>
-        <button id="open-app-btn" style="background: linear-gradient(135deg, #8446b0, #464fb0); color: white; border: none; padding: 10px 18px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 13px; white-space: nowrap; flex-shrink: 0;">
+        <button id="open-app-btn" style="background: #5ab4cc; color: #0d0e14; border: none; padding: 10px 18px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 13px; white-space: nowrap; flex-shrink: 0;">
             פתח באפליקציה
         </button>
-        <button id="dismiss-app-banner" style="background: none; border: none; color: #999; font-size: 18px; cursor: pointer; padding: 4px; line-height: 1; flex-shrink: 0;">✕</button>
+        <button id="dismiss-app-banner" style="background: none; border: none; color: rgba(200,155,70,0.50); font-size: 18px; cursor: pointer; padding: 4px; line-height: 1; flex-shrink: 0;">✕</button>
     `;
 
     const header = watchScreen.querySelector('.header');
