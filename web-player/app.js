@@ -571,6 +571,19 @@ async function loadStory(code) {
             }
         }
 
+        // Open in app button (result viewer)
+        const openAppBtn = document.getElementById('rv-open-app-btn');
+        if (openAppBtn && !isInAppBrowser()) {
+            const deepLink = `reflectly://s/${encodeURIComponent(story.id)}`;
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            const isAndroid = /Android/i.test(navigator.userAgent);
+            let storeUrl = '#';
+            if (isIOS) storeUrl = 'https://apps.apple.com/app/reflectly';
+            else if (isAndroid) storeUrl = 'https://play.google.com/store/apps/details?id=com.reflectly.app';
+            openAppBtn.style.display = 'block';
+            openAppBtn.onclick = (e) => { e.stopPropagation(); tryOpenApp(deepLink, storeUrl); };
+        }
+
         showScreen('result');
         return true;
     }
