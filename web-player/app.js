@@ -548,20 +548,28 @@ async function loadStory(code) {
             rvTap.click();
         };
 
-        // Share
+        // Share — only if story allows public publishing
+        const canShare = story.publicPublishingConsent === true ||
+                         story.storyCreationMode === 'community';
         const shareBtn = document.getElementById('rv-share-btn');
-        if (shareBtn) shareBtn.onclick = async (e) => {
-            e.stopPropagation();
-            try {
-                if (navigator.share) {
-                    await navigator.share({ title: 'צפה בסרטון שלי ב-RILIO', url: window.location.href });
-                } else {
-                    await navigator.clipboard.writeText(window.location.href);
-                    shareBtn.textContent = '✓ הועתק!';
-                    setTimeout(() => { shareBtn.textContent = 'שתף ↗'; }, 2000);
-                }
-            } catch (_) {}
-        };
+        if (shareBtn) {
+            if (!canShare) {
+                shareBtn.style.display = 'none';
+            } else {
+                shareBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    try {
+                        if (navigator.share) {
+                            await navigator.share({ title: 'צפה בסרטון שלי ב-RILIO', url: window.location.href });
+                        } else {
+                            await navigator.clipboard.writeText(window.location.href);
+                            shareBtn.textContent = '✓ הועתק!';
+                            setTimeout(() => { shareBtn.textContent = 'שתף ↗'; }, 2000);
+                        }
+                    } catch (_) {}
+                };
+            }
+        }
 
         showScreen('result');
         return true;
