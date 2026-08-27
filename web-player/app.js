@@ -110,7 +110,8 @@ const screens = {
     recordSingle: document.getElementById('record-single-screen'),
     reviewSingle: document.getElementById('review-single-screen'),
     success: document.getElementById('success-screen'),
-    webviewRedirect: document.getElementById('webview-redirect-screen')
+    webviewRedirect: document.getElementById('webview-redirect-screen'),
+    result: document.getElementById('result-viewer-screen'),
 };
 
 const ACCESS_CODE_KEY = 'reflectly_access_code';
@@ -489,62 +490,80 @@ async function loadStory(code) {
         return true;
     }
 
-    // If story has a final video — show it as result viewer (/s/ link = creator sharing result)
+    // If story has a final video — show result viewer (/s/ link = creator sharing result)
     if (story.finalVideoUrl) {
         console.log('🎬 finalVideoUrl found — showing result viewer');
-        const instructionsCard = document.querySelector('#watch-screen .card');
-        if (instructionsCard) instructionsCard.style.display = 'none';
-        if (watchHint) watchHint.style.display = 'none';
-        if (recordBtn) recordBtn.style.display = 'none';
+        const rvVideo    = document.getElementById('rv-video');
+        const rvTap      = document.getElementById('rv-tap');
+        const rvTapLabel = document.getElementById('rv-tap-label');
+        const rvBar      = document.getElementById('rv-bar');
+        if (!rvVideo) { showScreen('watch'); return true; } // fallback
 
+        rvVideo.src = story.finalVideoUrl;
 
-        showScreen('watch');
-        setupStoryVideo(story.finalVideoUrl, story.id, null, null);
+        // Tap overlay → play + request fullscreen
+        rvTap.onclick = () => {
+            rvTap.style.display = 'none';
+            rvVideo.load();
+            const p = rvVideo.play();
+            if (p) p.then(() => {
+                if (rvVideo.webkitEnterFullscreen) rvVideo.webkitEnterFullscreen();
+                else if (rvVideo.requestFullscreen) rvVideo.requestFullscreen().catch(() => {});
+            }).catch(() => { rvTap.style.display = 'flex'; });
+        };
 
-        // Result viewer: show tap-to-play immediately — iOS WKWebView won't autoload without gesture
-        const vidEl = document.getElementById('story-video');
-        const phEl = document.getElementById('video-placeholder');
-        const finalUrl = story.finalVideoUrl;
-        console.log('🎬 Result viewer URL:', finalUrl);
-        if (vidEl && phEl) {
-            // Override oncanplay from setupStoryVideo — only hide overlay when actually playing
-            vidEl.oncanplay = null;
+        // iOS fullscreen exit
+        rvVideo.addEventListener('webkitendfullscreen', () => {
+            if (rvBar) rvBar.style.display = 'flex';
+            if (rvVideo.ended) { rvTapLabel.textContent = 'צפה שוב'; rvTap.style.display = 'flex'; }
+        });
 
-            // Show tap-to-play immediately (iOS WKWebView stalls without user gesture)
-            phEl.innerHTML = '<div style="font-size:70px;cursor:pointer;line-height:1">▶️</div><p style="color:#fff;font-size:15px;margin-top:10px;margin-bottom:0">לחץ לצפייה</p>';
-            phEl.style.background = 'rgba(0,0,0,0.55)';
-            phEl.style.cursor = 'pointer';
-            phEl.onclick = () => {
-                phEl.innerHTML = '<div style="width:32px;height:32px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;margin:12px auto;"></div><p style="color:#fff;margin:8px 0;font-size:14px">טוען...</p>';
-                phEl.style.cursor = 'default';
-                phEl.onclick = null;
-                vidEl.load();
-                vidEl.play().catch(() => {});
-            };
+        // Standard fullscreen exit
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement && rvBar) rvBar.style.display = 'flex';
+        });
 
-            // Hide overlay when video actually starts playing (covers both autoplay and tap cases)
-            vidEl.addEventListener('playing', () => { phEl.classList.add('hidden'); }, { once: true });
+        // Video ended (outside fullscreen)
+        rvVideo.addEventListener('ended', () => {
+            if (!document.fullscreenElement && !rvVideo.webkitDisplayingFullscreen) {
+                rvTapLabel.textContent = 'צפה שוב';
+                rvTap.style.display = 'flex';
+            }
+        });
 
-            // On error: show direct link so user can open in Safari
-            vidEl.onerror = () => {
-                const code = vidEl.error ? vidEl.error.code : '?';
-                console.error('❌ Video error code:', code, vidEl.error?.message);
-                phEl.innerHTML = `
-                    <div style="font-size:36px">⚠️</div>
-                    <p style="color:#fff;font-size:14px;margin:8px 0">הסרטון לא נטען (שגיאה ${code})</p>
-                    <a href="${safeHref(finalUrl)}" target="_blank" style="
-                        display:inline-block;margin-top:8px;padding:10px 20px;
-                        background:linear-gradient(135deg,#8446b0,#464fb0);color:#fff;
-                        border-radius:20px;font-size:14px;text-decoration:none;font-weight:700;
-                    ">פתח בסאפרי ▶️</a>`;
-                phEl.style.background = 'rgba(0,0,0,0.8)';
-                phEl.style.cursor = 'default';
-                phEl.onclick = null;
-            };
+        // Error
+        rvVideo.addEventListener('error', () => {
+            rvTap.innerHTML = `<div style="font-size:36px">⚠️</div><p style="color:rgba(200,155,70,0.70);font-size:14px;margin:8px 16px;">שגיאה בטעינת הסרטון</p><a href="${safeHref(story.finalVideoUrl)}" target="_blank" style="color:#5ab4cc;font-size:14px;text-decoration:underline;">פתח ישירות ▶</a>`;
+            rvTap.style.display = 'flex';
+            rvTap.onclick = null;
+        });
 
-            // Try autoplay (desktop/Android) — if playing fires, overlay hides automatically
-            vidEl.play().catch(() => {});
-        }
+        // Replay
+        const replayBtn = document.getElementById('rv-replay-btn');
+        if (replayBtn) replayBtn.onclick = (e) => {
+            e.stopPropagation();
+            rvVideo.currentTime = 0;
+            rvTapLabel.textContent = 'לחץ לצפייה';
+            rvTap.style.display = 'flex';
+            rvTap.click();
+        };
+
+        // Share
+        const shareBtn = document.getElementById('rv-share-btn');
+        if (shareBtn) shareBtn.onclick = async (e) => {
+            e.stopPropagation();
+            try {
+                if (navigator.share) {
+                    await navigator.share({ title: 'צפה בסרטון שלי ב-RILIO', url: window.location.href });
+                } else {
+                    await navigator.clipboard.writeText(window.location.href);
+                    shareBtn.textContent = '✓ הועתק!';
+                    setTimeout(() => { shareBtn.textContent = 'שתף ↗'; }, 2000);
+                }
+            } catch (_) {}
+        };
+
+        showScreen('result');
         return true;
     }
 
