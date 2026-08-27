@@ -3,25 +3,31 @@ import {
   View,
   Text,
   StyleSheet,
+  ScrollView,
   TouchableOpacity,
   Linking,
   Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { AppButton } from '../ui/AppButton';
-import theme from '../theme/theme';
+
+const GOLD   = 'rgba(200,155,70,0.90)';
+const GOLD2  = 'rgba(200,155,70,0.65)';
+const TEAL   = '#5ab4cc';
+const BG     = '#0d0e14';
+const CARD   = 'rgba(38,40,50,0.95)';
 
 export const ThankYouScreen = () => {
   const { t } = useTranslation();
   const { go } = useNav();
+  const insets = useSafeAreaInsets();
   const navigationParams = useAppState((state) => state.navigationParams);
 
   const creatorName = navigationParams?.creatorName || t('thankYou.default_creator');
-  const storyName = navigationParams?.storyName || t('thankYou.default_story');
 
   const handleDownloadApp = () => {
     const storeUrl = Platform.select({
@@ -29,10 +35,7 @@ export const ThankYouScreen = () => {
       android: 'https://play.google.com/store/apps/details?id=com.reflectly',
       default: 'https://reflectlymobilex.onrender.com',
     });
-    
-    Linking.openURL(storeUrl).catch(() => {
-      console.log('Could not open store URL');
-    });
+    Linking.openURL(storeUrl).catch(() => {});
   };
 
   const handleClose = () => {
@@ -40,81 +43,66 @@ export const ThankYouScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
-        style={styles.gradient}
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.content}>
-          <View style={styles.iconContainer}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="heart" size={60} color={theme.colors.primary} />
-            </View>
-          </View>
+        {/* Icon */}
+        <View style={styles.iconCircle}>
+          <Ionicons name="heart" size={40} color={TEAL} />
+        </View>
 
-          <Text style={styles.title}>{t('thankYou.title')}</Text>
+        <Text style={styles.title}>{t('thankYou.title')}</Text>
+        <Text style={styles.subtitle}>{t('thankYou.subtitle')}</Text>
 
-          <Text style={styles.subtitle}>
-            {t('thankYou.subtitle')}
+        {/* Message card */}
+        <View style={styles.card}>
+          <Ionicons name="videocam" size={22} color={TEAL} />
+          <Text style={styles.cardTitle}>
+            {t('thankYou.message_title', { creatorName })}
           </Text>
+          <Text style={styles.cardText}>
+            {t('thankYou.message_text', { creatorName })}
+          </Text>
+        </View>
 
-          <View style={styles.messageCard}>
-            <Ionicons name="videocam" size={28} color={theme.colors.primary} />
-            <Text style={styles.messageTitle}>
-              {t('thankYou.message_title', { creatorName })}
-            </Text>
-            <Text style={styles.messageText}>
-              {t('thankYou.message_text', { creatorName })}
-            </Text>
-          </View>
+        {/* Download section */}
+        <View style={styles.downloadSection}>
+          <Text style={styles.downloadTitle}>{t('thankYou.download_title')}</Text>
+          <Text style={styles.downloadText}>{t('thankYou.download_text')}</Text>
 
-          <View style={styles.divider} />
+          <View style={styles.storeButtons}>
+            <TouchableOpacity style={styles.storeButton} onPress={handleDownloadApp}>
+              <Ionicons name="logo-apple" size={20} color="white" />
+              <View>
+                <Text style={styles.storeLabel}>{t('thankYou.download_label')}</Text>
+                <Text style={styles.storeName}>App Store</Text>
+              </View>
+            </TouchableOpacity>
 
-          <View style={styles.downloadSection}>
-            <Text style={styles.downloadTitle}>
-              {t('thankYou.download_title')}
-            </Text>
-            <Text style={styles.downloadText}>
-              {t('thankYou.download_text')}
-            </Text>
-
-            <View style={styles.storeButtons}>
-              <TouchableOpacity 
-                style={styles.storeButton}
-                onPress={handleDownloadApp}
-              >
-                <Ionicons name="logo-apple" size={24} color="white" />
-                <View style={styles.storeButtonText}>
-                  <Text style={styles.storeLabel}>{t('thankYou.download_label')}</Text>
-                  <Text style={styles.storeName}>App Store</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.storeButton}
-                onPress={handleDownloadApp}
-              >
-                <Ionicons name="logo-google-playstore" size={24} color="white" />
-                <View style={styles.storeButtonText}>
-                  <Text style={styles.storeLabel}>{t('thankYou.download_label')}</Text>
-                  <Text style={styles.storeName}>Google Play</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.footer}>
-            <AppButton
-              title={t('thankYou.button_close')}
-              onPress={handleClose}
-              variant="outline"
-              size="lg"
-              fullWidth
-              style={styles.closeButton}
-            />
+            <TouchableOpacity style={styles.storeButton} onPress={handleDownloadApp}>
+              <Ionicons name="logo-google-playstore" size={20} color="white" />
+              <View>
+                <Text style={styles.storeLabel}>{t('thankYou.download_label')}</Text>
+                <Text style={styles.storeName}>Google Play</Text>
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
-      </LinearGradient>
+
+        {/* Close button */}
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+          <AppButton
+            title={t('thankYou.button_close')}
+            onPress={handleClose}
+            variant="outline"
+            size="lg"
+            fullWidth
+            style={styles.closeButton}
+          />
+        </View>
+      </ScrollView>
     </View>
   );
 };
@@ -122,117 +110,107 @@ export const ThankYouScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: BG,
   },
-  gradient: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    padding: theme.spacing[5],
-    paddingTop: 80,
+  scroll: {
+    paddingHorizontal: 24,
+    paddingTop: 32,
     alignItems: 'center',
-  },
-  iconContainer: {
-    marginBottom: theme.spacing[4],
   },
   iconCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'white',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(90,180,204,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(90,180,204,0.30)',
     alignItems: 'center',
     justifyContent: 'center',
-    ...theme.shadows.lg,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: 'white',
+    fontSize: 26,
+    fontWeight: '700',
+    color: GOLD,
     textAlign: 'center',
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 15,
+    color: GOLD2,
     textAlign: 'center',
-    marginTop: theme.spacing[2],
+    marginBottom: 20,
   },
-  messageCard: {
-    backgroundColor: 'white',
-    borderRadius: theme.radii.lg,
-    padding: theme.spacing[5],
-    marginTop: theme.spacing[6],
+  card: {
+    backgroundColor: CARD,
+    borderRadius: 16,
+    padding: 20,
     width: '100%',
     alignItems: 'center',
-    ...theme.shadows.md,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.15)',
+    marginBottom: 20,
+    gap: 8,
   },
-  messageTitle: {
-    ...theme.typography.h3,
-    color: theme.colors.text,
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: GOLD,
     textAlign: 'center',
-    marginTop: theme.spacing[2],
   },
-  messageText: {
-    ...theme.typography.body,
-    color: theme.colors.subtext,
+  cardText: {
+    fontSize: 14,
+    color: GOLD2,
     textAlign: 'center',
-    marginTop: theme.spacing[2],
-    lineHeight: 24,
-  },
-  divider: {
-    width: 60,
-    height: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    borderRadius: 2,
-    marginVertical: theme.spacing[6],
+    lineHeight: 20,
   },
   downloadSection: {
     width: '100%',
     alignItems: 'center',
+    marginBottom: 24,
   },
   downloadTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
+    color: GOLD,
     textAlign: 'center',
+    marginBottom: 6,
   },
   downloadText: {
-    fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 13,
+    color: GOLD2,
     textAlign: 'center',
-    marginTop: theme.spacing[2],
+    marginBottom: 14,
   },
   storeButtons: {
     flexDirection: 'row',
-    gap: theme.spacing[3],
-    marginTop: theme.spacing[4],
+    gap: 12,
   },
   storeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: theme.radii.md,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[4],
-    gap: theme.spacing[2],
-  },
-  storeButtonText: {
-    alignItems: 'flex-start',
+    backgroundColor: 'rgba(38,40,50,0.95)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.20)',
   },
   storeLabel: {
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 9,
+    color: GOLD2,
   },
   storeName: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: 'white',
+    fontSize: 13,
+    fontWeight: '700',
+    color: GOLD,
   },
   footer: {
-    marginTop: 'auto',
     width: '100%',
-    paddingTop: theme.spacing[4],
+    paddingTop: 8,
   },
   closeButton: {
-    borderColor: 'white',
+    borderColor: TEAL,
   },
 });
