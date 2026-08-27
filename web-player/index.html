@@ -15,13 +15,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/pink-theme-fresh.css">
     <style>
-        /* INLINE CRITICAL CSS - PINK THEME - v2026-01-08 */
-        :root { --primary: #8446b0 !important; --primary-dark: #464fb0 !important; --bg: #F5F0FA !important; }
-        body { background: #F5F0FA !important; font-family: 'Heebo', sans-serif !important; }
-        #loading-screen { background: linear-gradient(135deg, #8446b0, #464fb0) !important; }
-        .header.dark { background: linear-gradient(135deg, #8446b0, #464fb0) !important; }
-        .btn-primary { background: linear-gradient(135deg, #8446b0, #464fb0) !important; }
-        .btn-record { background: linear-gradient(135deg, #8446b0, #464fb0) !important; }
+        /* INLINE CRITICAL CSS - RILIO DARK THEME */
+        :root { --primary: #5ab4cc !important; --primary-dark: #3d9ab0 !important; --bg: #0d0e14 !important; --text: rgba(228,180,85,1.0) !important; --subtext: rgba(200,155,70,0.60) !important; --shadow: 0 4px 20px rgba(200,155,70,0.08) !important; }
+        body { background: #0d0e14 !important; font-family: 'Heebo', sans-serif !important; color: rgba(228,180,85,1.0) !important; }
+        #loading-screen { background: #0d0e14 !important; }
+        .header.dark { background: rgba(38,40,50,0.97) !important; border-bottom: 1px solid rgba(200,155,70,0.15) !important; }
+        .btn-primary { background: #5ab4cc !important; color: #0d0e14 !important; }
+        .btn-record { background: transparent !important; }
 
         /* ── Download App Banner ── */
         #app-download-banner {
@@ -30,10 +30,11 @@
             left: 0;
             right: 0;
             z-index: 9999;
-            background: linear-gradient(135deg, #8446b0, #464fb0);
-            color: #fff;
+            background: rgba(38,40,50,0.97);
+            border-top: 1px solid rgba(200,155,70,0.20);
+            color: rgba(228,180,85,1.0);
             padding: 10px 14px 14px;
-            box-shadow: 0 -4px 20px rgba(132,70,176,0.35);
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.40);
             font-family: 'Heebo', sans-serif;
             transform: translateY(100%);
             transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
@@ -48,9 +49,9 @@
             position: absolute;
             top: 8px;
             left: 10px;
-            background: rgba(255,255,255,0.2);
+            background: rgba(200,155,70,0.12);
             border: none;
-            color: #fff;
+            color: rgba(200,155,70,0.70);
             width: 24px;
             height: 24px;
             border-radius: 50%;
@@ -108,11 +109,11 @@
             display: flex;
             align-items: center;
             gap: 5px;
-            background: rgba(255,255,255,0.18);
-            border: 1px solid rgba(255,255,255,0.35);
+            background: rgba(90,180,204,0.12);
+            border: 1px solid rgba(90,180,204,0.35);
             border-radius: 8px;
             padding: 5px 10px;
-            color: #fff;
+            color: #5ab4cc;
             text-decoration: none;
             font-size: 12px;
             font-weight: 600;
@@ -120,7 +121,7 @@
             transition: background 0.2s;
         }
         .banner-store-btn:hover {
-            background: rgba(255,255,255,0.28);
+            background: rgba(90,180,204,0.22);
         }
         .banner-store-btn .store-icon {
             font-size: 14px;
@@ -526,7 +527,7 @@
         </div>
     </div>
 
-    <div id="version-footer" style="position: fixed; bottom: 5px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #999; z-index: 9999; background: rgba(255,255,255,0.8); padding: 2px 8px; border-radius: 8px;">
+    <div id="version-footer" style="position: fixed; bottom: 5px; left: 50%; transform: translateX(-50%); font-size: 11px; color: rgba(200,155,70,0.35); z-index: 9999; background: rgba(13,14,20,0.70); padding: 2px 8px; border-radius: 8px;">
         v20260516b
     </div>
     <script type="module" src="/app.js?v=20260819a"></script>
