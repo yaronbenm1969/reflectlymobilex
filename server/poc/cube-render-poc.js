@@ -258,7 +258,7 @@ function getVideoAtTimeNode(globalTime, videoDurations, cumulativeTimes) {
  * This sidesteps Chrome's null-origin → localhost blocking even with --disable-web-security.
  */
 function generateCubeHtmlFromFrames(videoDurations, fps, bgUrl, logoB64, storyTitle) {
-  const CS = 528; // cube size px (528/720 = 73% of frame width — cube is main subject)
+  const CS = 634; // cube size px (634/720 = 88% of frame width — +20% from 528)
   const W  = POC_WIDTH;
   const H  = POC_HEIGHT;
   const bgHtml = bgUrl
