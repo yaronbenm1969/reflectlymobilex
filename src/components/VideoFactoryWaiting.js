@@ -4,6 +4,82 @@ import { useWaitingMusic } from '../hooks/useWaitingMusic';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+// ── Render stage ring ─────────────────────────────────────────────────────────
+const RENDER_STAGES = ['downloading', 'normalizing', 'rendering', 'encoding', 'uploading'];
+const STAGE_LABELS  = {
+  downloading: '⬇️ מוריד קטעים',
+  normalizing: '🎞 מעבד קטעים',
+  rendering:   '🎲 מצלם קוביה',
+  encoding:    '🎬 מקודד סרטון',
+  uploading:   '☁️ מעלה...',
+};
+
+function ThinkingDots() {
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setActive(a => (a + 1) % 3), 400);
+    return () => clearInterval(iv);
+  }, []);
+  return (
+    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+      {[0, 1, 2].map(i => (
+        <View key={i} style={{
+          width: 8, height: 8, borderRadius: 4,
+          backgroundColor: active === i ? '#5ab4cc' : 'rgba(90,180,204,0.25)',
+        }} />
+      ))}
+    </View>
+  );
+}
+
+function StageRing({ currentStage }) {
+  const completedIdx = currentStage ? RENDER_STAGES.indexOf(currentStage) : -1;
+  const SIZE = 120;
+  const RADIUS = 44;
+  const DOT = 16;
+  const cx = SIZE / 2;
+  const cy = SIZE / 2;
+  return (
+    <View style={{ width: SIZE, height: SIZE }}>
+      {/* Background ring */}
+      <View style={{
+        position: 'absolute',
+        left: cx - RADIUS, top: cy - RADIUS,
+        width: RADIUS * 2, height: RADIUS * 2,
+        borderRadius: RADIUS,
+        borderWidth: 2,
+        borderColor: 'rgba(200,155,70,0.15)',
+      }} />
+      {/* Stage dots */}
+      {RENDER_STAGES.map((stage, i) => {
+        const angle = (i / RENDER_STAGES.length) * 2 * Math.PI - Math.PI / 2;
+        const x = cx + RADIUS * Math.cos(angle) - DOT / 2;
+        const y = cy + RADIUS * Math.sin(angle) - DOT / 2;
+        const done    = i <= completedIdx;
+        const current = i === completedIdx;
+        return (
+          <View key={stage} style={{
+            position: 'absolute', left: x, top: y,
+            width: DOT, height: DOT, borderRadius: DOT / 2,
+            backgroundColor: done ? '#5ab4cc' : 'rgba(38,40,50,0.97)',
+            borderWidth: current ? 2 : 1,
+            borderColor: done ? '#5ab4cc' : 'rgba(200,155,70,0.20)',
+            alignItems: 'center', justifyContent: 'center',
+          }}>
+            {done && <Text style={{ color: '#0d0e14', fontSize: 8, fontWeight: '700' }}>✓</Text>}
+          </View>
+        );
+      })}
+      {/* Center: count */}
+      <View style={{ position: 'absolute', left: 0, top: 0, width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: 'rgba(228,180,85,1.0)', fontSize: 18, fontWeight: '700' }}>
+          {completedIdx + 1}/{RENDER_STAGES.length}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 const MACHINE_BOTTOM_ESTIMATE = SCREEN_HEIGHT * 0.75;
 
 const FUNNEL_MOUTH_W = SCREEN_WIDTH;
@@ -175,7 +251,7 @@ function LiquidDrop({ color, delay = 0 }) {
 
 // ── Main exported component ───────────────────────────────────────────────────
 
-export function VideoFactoryWaiting({ estimatedSeconds = 180, storyName, title, message, disableMusic = false }) {
+export function VideoFactoryWaiting({ estimatedSeconds = 180, storyName, title, message, disableMusic = false, renderStage = null }) {
   const [elapsed, setElapsed] = useState(0);
   const [machineBottom, setMachineBottom] = useState(MACHINE_BOTTOM_ESTIMATE);
   const machineBodyRef = useRef(null);
@@ -225,6 +301,17 @@ export function VideoFactoryWaiting({ estimatedSeconds = 180, storyName, title, 
       <Text style={styles.title}>{title || 'מכין את הסרטון שלך'}</Text>
       {storyName ? <Text style={styles.subtitle}>{storyName}</Text> : null}
       {message   ? <Text style={styles.message}>{message}</Text>   : null}
+
+      {/* Stage progress ring — shown only when server reports renderStage */}
+      {renderStage ? (
+        <View style={{ alignItems: 'center', marginTop: 16, marginBottom: 4 }}>
+          <StageRing currentStage={renderStage} />
+          <Text style={{ color: 'rgba(228,180,85,0.85)', fontSize: 14, fontWeight: '600', marginTop: 8 }}>
+            {STAGE_LABELS[renderStage] || renderStage}
+          </Text>
+          <ThinkingDots />
+        </View>
+      ) : null}
 
       {/* Machine section */}
       <View style={styles.machineSection}>

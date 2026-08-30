@@ -105,6 +105,7 @@ export const FinalVideoScreen = () => {
   const [isUploadingRecording, setIsUploadingRecording] = useState(false);
   const [conversionSucceeded, setConversionSucceeded] = useState(false);
   const [videoReadyForShare, setVideoReadyForShare] = useState(false);
+  const [renderStage, setRenderStage] = useState(null);
   const [localVideoUri, setLocalVideoUri] = useState(null);
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
   const [musicTimedOut, setMusicTimedOut] = useState(false);
@@ -328,15 +329,19 @@ export const FinalVideoScreen = () => {
         if (cancelled) break;
         try {
           const res = await storiesService.getStory(currentStoryId);
-          if (res.success && res.story?.videoPublishReady && res.story?.finalVideoUrl) {
-            firestoreVideoUrlRef.current = res.story.finalVideoUrl;
-            videoReadyForShareRef.current = true;
-            setVideoReadyForShare(true);
-            // Show end screen only if animation already ended; otherwise onEnd will handle it
-            if (videoPlaybackEndedRef.current) {
-              setShowEndScreen(true);
+          if (res.success) {
+            if (res.story?.renderStage) setRenderStage(res.story.renderStage);
+            if (res.story?.videoPublishReady && res.story?.finalVideoUrl) {
+              firestoreVideoUrlRef.current = res.story.finalVideoUrl;
+              videoReadyForShareRef.current = true;
+              setVideoReadyForShare(true);
+              setRenderStage(null);
+              // Show end screen only if animation already ended; otherwise onEnd will handle it
+              if (videoPlaybackEndedRef.current) {
+                setShowEndScreen(true);
+              }
+              break;
             }
-            break;
           }
         } catch (e) {}
       }
@@ -2023,6 +2028,7 @@ export const FinalVideoScreen = () => {
           storyName={storyName}
           title="הסרטון שלך בעריכה 🎬"
           message="נשלח לך התראה כשמוכן לשליחה"
+          renderStage={renderStage}
         />
       )}
 

@@ -562,11 +562,19 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
   let browser       = null;
   let frameCount    = 0;
 
+  // Write current render stage to the story doc so the client can show real progress
+  const updateStoryStage = (stage) => {
+    if (firestoreDb && storyId) {
+      firestoreDb.collection('stories').doc(storyId).update({ renderStage: stage }).catch(() => {});
+    }
+  };
+
   try {
     fs.mkdirSync(videosDir,  { recursive: true });
     fs.mkdirSync(normDir,    { recursive: true });
     fs.mkdirSync(framesDir,  { recursive: true });
 
+    updateStoryStage('downloading');
     await updateJob(firestoreDb, jobId, { status: 'downloading', startedAt: new Date() });
 
     // ── Disk check ────────────────────────────────────────────────────────
@@ -592,6 +600,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     const inputDownloadDurationMs = Date.now() - dlStart;
     console.log(`[POC] All ${videoUrls.length} clips downloaded in parallel: ${(inputDownloadDurationMs/1000).toFixed(1)}s`);
 
+    updateStoryStage('normalizing');
     await updateJob(firestoreDb, jobId, {
       status: 'normalizing',
       inputDownloadDurationMs,
@@ -652,6 +661,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
       throw e;
     }
 
+    updateStoryStage('rendering');
     await updateJob(firestoreDb, jobId, { status: 'rendering', normalizationDurationMs });
 
     // ── Extract frame sequences from normalized clips ──────────────────────
@@ -820,6 +830,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
       throw e;
     }
 
+    updateStoryStage('encoding');
     await updateJob(firestoreDb, jobId, { status: 'encoding', frameCount });
 
     // ── Audio assembly ────────────────────────────────────────────────────
@@ -879,6 +890,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     const renderAndEncodeDurationMs = Date.now() - renderStart;
 
     // ── Output validation ─────────────────────────────────────────────────
+    updateStoryStage('uploading');
     await updateJob(firestoreDb, jobId, { status: 'uploading', renderAndEncodeDurationMs });
     const validation = validateOutput(outputPath, animDuration);
     console.log('[POC] Validation result:', validation.ok ? '✅ PASS' : `❌ FAIL: ${validation.reason}`);
