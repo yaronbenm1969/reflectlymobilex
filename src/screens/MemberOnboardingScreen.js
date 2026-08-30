@@ -4,6 +4,7 @@ import {
   TextInput, Alert, ActivityIndicator, Image, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ScreenHeader } from '../components/ScreenHeader';
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../services/firebase';
@@ -147,14 +148,7 @@ export const MemberOnboardingScreen = () => {
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={back} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('memberOnboarding.title')}</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <ScreenHeader title={t('memberOnboarding.title')} onBack={back} />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 

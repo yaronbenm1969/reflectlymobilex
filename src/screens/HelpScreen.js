@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { useNav } from '../hooks/useNav';
 import { Card } from '../ui/Card';
 import theme from '../theme/theme';
@@ -48,13 +49,7 @@ export const HelpScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={back}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Help & FAQ</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <ScreenHeader title="Help & FAQ" onBack={back} />
 
       <ScrollView style={styles.content}>
         <Card style={styles.welcomeCard}>

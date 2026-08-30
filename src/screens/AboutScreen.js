@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { useNav } from '../hooks/useNav';
 import { Card } from '../ui/Card';
 import theme from '../theme/theme';
@@ -11,13 +12,7 @@ export const AboutScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={back}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>About</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <ScreenHeader title="About" onBack={back} />
 
       <ScrollView style={styles.content}>
         <Card style={styles.heroCard}>
@@ -123,28 +118,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.bg,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing[4],
-    paddingVertical: theme.spacing[3],
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    ...theme.typography.h3,
-    color: theme.colors.text,
-  },
-  placeholder: {
-    width: 40,
   },
   content: {
     flex: 1,

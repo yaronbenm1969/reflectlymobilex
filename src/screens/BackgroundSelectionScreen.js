@@ -10,8 +10,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { ScreenHeader } from '../components/ScreenHeader';
 import * as ImagePicker from 'expo-image-picker';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -146,20 +146,7 @@ export const BackgroundSelectionScreen = () => {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={[styles.header, { paddingTop: insets.top }]}
-      >
-        <View style={styles.headerInner}>
-          <TouchableOpacity style={styles.backButton} onPress={back}>
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.title}>{t('playerRecord.bg_modal_title')}</Text>
-          <View style={styles.placeholder} />
-        </View>
-      </LinearGradient>
+      <ScreenHeader title={t('playerRecord.bg_modal_title')} onBack={back} />
 
       {/* Filter tabs */}
       <View style={styles.filterRow}>
@@ -291,29 +278,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.bg,
-  },
-  header: {
-    paddingBottom: theme.spacing[4],
-  },
-  headerInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing[4],
-    paddingTop: theme.spacing[2],
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    ...theme.typography.h3,
-    color: 'white',
-  },
-  placeholder: {
-    width: 40,
   },
   filterRow: {
     flexDirection: 'row',

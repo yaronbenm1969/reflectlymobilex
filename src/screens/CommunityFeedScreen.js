@@ -11,6 +11,7 @@ import {
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ScreenHeader } from '../components/ScreenHeader';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useTranslation } from 'react-i18next';
@@ -288,15 +289,15 @@ export const CommunityFeedScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={back}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>{t('community.title')}</Text>
-        <TouchableOpacity style={styles.refreshButton} onPress={loadCommunityStories}>
-          <Ionicons name="refresh" size={24} color={theme.colors.accent} />
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title={t('community.title')}
+        onBack={back}
+        rightElement={
+          <TouchableOpacity style={styles.refreshButton} onPress={loadCommunityStories}>
+            <Ionicons name="refresh" size={24} color="rgba(200,155,70,0.70)" />
+          </TouchableOpacity>
+        }
+      />
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {loading ? (
