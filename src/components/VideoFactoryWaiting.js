@@ -251,7 +251,7 @@ function LiquidDrop({ color, delay = 0 }) {
 
 // ── Main exported component ───────────────────────────────────────────────────
 
-export function VideoFactoryWaiting({ estimatedSeconds = 180, storyName, title, message, disableMusic = false, renderStage = null }) {
+export function VideoFactoryWaiting({ estimatedSeconds = 180, storyName, title, message, warningMessage = null, disableMusic = false, renderStage = null }) {
   const [elapsed, setElapsed] = useState(0);
   const [machineBottom, setMachineBottom] = useState(MACHINE_BOTTOM_ESTIMATE);
   const machineBodyRef = useRef(null);
@@ -301,6 +301,11 @@ export function VideoFactoryWaiting({ estimatedSeconds = 180, storyName, title, 
       <Text style={styles.title}>{title || 'מכין את הסרטון שלך'}</Text>
       {storyName ? <Text style={styles.subtitle}>{storyName}</Text> : null}
       {message   ? <Text style={styles.message}>{message}</Text>   : null}
+      {warningMessage ? (
+        <View style={styles.warningBanner}>
+          <Text style={styles.warningText}>⚠️ {warningMessage}</Text>
+        </View>
+      ) : null}
 
       {/* Stage progress ring — shown only when server reports renderStage */}
       {renderStage ? (
@@ -387,6 +392,18 @@ const styles = StyleSheet.create({
   title:    { color: '#fff', fontSize: 21, fontWeight: '700', textAlign: 'center', marginBottom: 3 },
   subtitle: { color: '#aaa', fontSize: 13, textAlign: 'center', marginBottom: 4 },
   message:  { color: '#40c4ff', fontSize: 14, textAlign: 'center', marginBottom: 4 },
+  warningBanner: {
+    backgroundColor: 'rgba(200,100,40,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(200,120,40,0.40)',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    marginTop: 6,
+    marginBottom: 4,
+    marginHorizontal: 24,
+  },
+  warningText: { color: 'rgba(240,180,80,0.95)', fontSize: 13, textAlign: 'center', lineHeight: 18 },
   shapesLayer: {
     position: 'absolute', top: 0, left: 0, right: 0,
     overflow: 'hidden', zIndex: 1,

@@ -169,7 +169,7 @@ export const PlayerRecordScreen = () => {
   const participantIdRef = useRef(`participant_${Date.now()}`);
 
   useEffect(() => {
-    if (!permission) {
+    if (!permission || (!permission.granted && permission.canAskAgain !== false)) {
       requestPermission();
     }
   }, [permission]);
@@ -674,7 +674,8 @@ export const PlayerRecordScreen = () => {
     );
   }
 
-  if (!permission) {
+  if (!permission || (!permission.granted && permission.canAskAgain !== false)) {
+    // Still loading or OS dialog is about to appear — show spinner
     return (
       <View style={styles.permissionContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -684,13 +685,14 @@ export const PlayerRecordScreen = () => {
   }
 
   if (!permission.granted) {
+    // Permanently denied — user must open Settings manually
     return (
       <View style={styles.permissionContainer}>
-        <Ionicons name="camera" size={64} color={theme.colors.primary} />
-        <Text style={styles.permissionText}>{t('playerRecord.permission_text')}</Text>
+        <Ionicons name="camera-outline" size={64} color="rgba(200,155,70,0.70)" />
+        <Text style={styles.permissionText}>{t('playerRecord.permission_denied_text')}</Text>
         <AppButton
-          title={t('playerRecord.btn_grant')}
-          onPress={requestPermission}
+          title={t('playerRecord.btn_open_settings')}
+          onPress={() => Linking.openSettings()}
           variant="primary"
           size="lg"
         />
@@ -705,6 +707,7 @@ export const PlayerRecordScreen = () => {
         storyName={playerStoryData?.name || navigationParams?.storyName}
         title={t('playerRecord.uploading_title')}
         message={uploadProgress}
+        warningMessage={t('playerRecord.uploading_warning')}
         disableMusic
       />
     );
