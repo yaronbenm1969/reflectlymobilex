@@ -7,21 +7,18 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   ScrollView,
-  SafeAreaView,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { useAppState } from '../state/appState';
 import { useNav } from '../hooks/useNav';
-import theme from '../theme/theme';
 
 // Haptics fallback
 let Haptics;
 try {
   Haptics = require('expo-haptics');
 } catch (error) {
-  console.warn('Expo Haptics not available, using fallback');
   Haptics = {
     selectionAsync: async () => {},
     notificationAsync: async () => {},
@@ -29,36 +26,61 @@ try {
   };
 }
 
+const GOLD       = 'rgba(200,155,70,0.90)';
+const GOLD_DIM   = 'rgba(200,155,70,0.40)';
+const GOLD_BG    = 'rgba(200,155,70,0.10)';
+const TEAL       = '#5ab4cc';
+const DARK_BG    = '#0d0e14';
+const HEADER_BG  = 'rgba(22,24,34,1.0)';
+const ITEM_BG    = 'rgba(255,255,255,0.05)';
+const TEXT_WHITE = 'rgba(255,255,255,0.92)';
+const TEXT_DIM   = 'rgba(255,255,255,0.38)';
+const DIVIDER    = 'rgba(255,255,255,0.07)';
+
 export const SideMenu = ({ isOpen, onClose }) => {
   const { go } = useNav();
   const { t } = useTranslation();
   const setSideMenuOpen = useAppState((state) => state.setSideMenuOpen);
 
   const handleClose = async () => {
-    try {
-      await Haptics.selectionAsync();
-    } catch (e) {}
+    try { await Haptics.selectionAsync(); } catch (e) {}
     setSideMenuOpen(false);
     onClose();
   };
 
-  const menuItems = [
-    { id: 'new-story',  icon: 'videocam',           title: t('sideMenu.new_story'),       action: () => go('Record') },
-    { id: 'my-stories', icon: 'library',             title: t('sideMenu.my_stories'),      action: () => go('MyStories') },
-    { id: 'community',  icon: 'people',              title: t('sideMenu.community'),       action: () => go('CommunityFeed') },
-    { id: 'music',      icon: 'musical-notes',       title: t('sideMenu.music'),           action: () => go('MusicSelection') },
-    { id: 'camera',     icon: 'camera',              title: t('sideMenu.camera_settings'), action: () => go('CameraSettings') },
-    { id: 'about',      icon: 'information-circle',  title: t('sideMenu.about'),           action: () => go('About') },
-    { id: 'help',       icon: 'help-circle',         title: t('sideMenu.help'),            action: () => go('Help') },
-  ];
-
   const handleMenuItemPress = async (item) => {
-    try {
-      await Haptics.selectionAsync();
-    } catch (e) {}
+    try { await Haptics.selectionAsync(); } catch (e) {}
     handleClose();
     setTimeout(() => item.action(), 100);
   };
+
+  const sections = [
+    {
+      key: 'main',
+      label: t('sideMenu.section_main'),
+      items: [
+        { id: 'new-story',  icon: 'videocam-outline',          color: TEAL,  title: t('sideMenu.new_story'),       action: () => go('Record') },
+        { id: 'my-stories', icon: 'library-outline',           color: TEAL,  title: t('sideMenu.my_stories'),      action: () => go('MyStories') },
+        { id: 'community',  icon: 'people-outline',            color: TEAL,  title: t('sideMenu.community'),       action: () => go('CommunityFeed') },
+      ],
+    },
+    {
+      key: 'settings',
+      label: t('sideMenu.section_settings'),
+      items: [
+        { id: 'music',  icon: 'musical-notes-outline', color: GOLD, title: t('sideMenu.music'),           action: () => go('MusicSelection') },
+        { id: 'camera', icon: 'camera-outline',        color: GOLD, title: t('sideMenu.camera_settings'), action: () => go('CameraSettings') },
+      ],
+    },
+    {
+      key: 'support',
+      label: t('sideMenu.section_support'),
+      items: [
+        { id: 'about', icon: 'information-circle-outline', color: TEXT_DIM, title: t('sideMenu.about'), action: () => go('About') },
+        { id: 'help',  icon: 'help-circle-outline',        color: TEXT_DIM, title: t('sideMenu.help'),  action: () => go('Help') },
+      ],
+    },
+  ];
 
   return (
     <Modal
@@ -71,78 +93,49 @@ export const SideMenu = ({ isOpen, onClose }) => {
         <TouchableWithoutFeedback onPress={handleClose}>
           <View style={styles.backdrop} />
         </TouchableWithoutFeedback>
-        
+
         <View style={styles.menuContainer}>
-          <LinearGradient
-            colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.header}
+          {/* ── Header ── */}
+          <View style={styles.header}>
+            <Image
+              source={require('../../assets/rilio-logo-primary.png.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <TouchableOpacity style={styles.closeBtn} onPress={handleClose} hitSlop={{ top:10, bottom:10, left:10, right:10 }}>
+              <Ionicons name="close" size={22} color={GOLD} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.headerDivider} />
+
+          {/* ── Sections ── */}
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
           >
-            <View>
-              <View style={styles.headerContent}>
-                <Text style={styles.headerTitle}>{t('sideMenu.title')}</Text>
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={handleClose}
-                >
-                  <Ionicons name="close" size={24} color="white" />
-                </TouchableOpacity>
+            {sections.map((section, si) => (
+              <View key={section.key} style={si > 0 ? styles.sectionMargin : undefined}>
+                <Text style={styles.sectionLabel}>{section.label}</Text>
+                {section.items.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.menuItem}
+                    onPress={() => handleMenuItemPress(item)}
+                    activeOpacity={0.65}
+                  >
+                    <View style={[styles.iconCircle, { borderColor: item.color + '55' }]}>
+                      <Ionicons name={item.icon} size={18} color={item.color} />
+                    </View>
+                    <Text style={styles.itemText}>{item.title}</Text>
+                    <Ionicons name="chevron-forward" size={14} color={TEXT_DIM} />
+                  </TouchableOpacity>
+                ))}
               </View>
-            </View>
-          </LinearGradient>
+            ))}
 
-          <ScrollView style={styles.menuContent}>
-            <View style={styles.menuSection}>
-              <Text style={styles.sectionTitle}>{t('sideMenu.section_main')}</Text>
-              {menuItems.slice(0, 3).map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.menuItem}
-                  onPress={() => handleMenuItemPress(item)}
-                >
-                  <View style={[styles.menuItemIcon, { backgroundColor: `${theme.colors.primary}15` }]}>
-                    <Ionicons name={item.icon} size={20} color={theme.colors.primary} />
-                  </View>
-                  <Text style={styles.menuItemText}>{item.title}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.menuSection}>
-              <Text style={styles.sectionTitle}>{t('sideMenu.section_settings')}</Text>
-              {menuItems.slice(3, 5).map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.menuItem}
-                  onPress={() => handleMenuItemPress(item)}
-                >
-                  <View style={[styles.menuItemIcon, { backgroundColor: `${theme.colors.secondary}15` }]}>
-                    <Ionicons name={item.icon} size={20} color={theme.colors.secondary} />
-                  </View>
-                  <Text style={styles.menuItemText}>{item.title}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.menuSection}>
-              <Text style={styles.sectionTitle}>{t('sideMenu.section_support')}</Text>
-              {menuItems.slice(5).map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.menuItem}
-                  onPress={() => handleMenuItemPress(item)}
-                >
-                  <View style={[styles.menuItemIcon, { backgroundColor: `${theme.colors.accent}15` }]}>
-                    <Ionicons name={item.icon} size={20} color={theme.colors.accent} />
-                  </View>
-                  <Text style={styles.menuItemText}>{item.title}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={theme.colors.subtext} />
-                </TouchableOpacity>
-              ))}
-            </View>
+            <View style={styles.bottomSpacer} />
           </ScrollView>
         </View>
       </View>
@@ -157,75 +150,86 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.68)',
   },
   menuContainer: {
-    width: '80%',
-    maxWidth: 320,
-    backgroundColor: theme.colors.white,
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 10,
+    width: '78%',
+    maxWidth: 310,
+    backgroundColor: DARK_BG,
+    borderLeftWidth: 1,
+    borderLeftColor: DIVIDER,
   },
+
+  /* ── Header ── */
   header: {
-    paddingBottom: theme.spacing[4],
-  },
-  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing[4],
-    paddingVertical: theme.spacing[3],
+    backgroundColor: HEADER_BG,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    paddingTop: 52,
   },
-  headerTitle: {
-    ...theme.typography.h2,
-    color: theme.colors.white,
+  logo: {
+    width: 88,
+    height: 22,
   },
-  closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  closeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: GOLD_BG,
+    borderWidth: 1,
+    borderColor: GOLD_DIM,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  menuContent: {
-    flex: 1,
-    paddingHorizontal: theme.spacing[4],
+  headerDivider: {
+    height: 1,
+    backgroundColor: DIVIDER,
   },
-  menuSection: {
-    marginVertical: theme.spacing[4],
-  },
-  sectionTitle: {
-    ...theme.typography.caption,
-    color: theme.colors.subtext,
+
+  /* ── Scroll ── */
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 22 },
+
+  /* ── Section ── */
+  sectionMargin: { marginTop: 22 },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    color: GOLD_DIM,
     textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: theme.spacing[3],
-    marginLeft: theme.spacing[2],
+    marginBottom: 8,
+    marginLeft: 4,
   },
+
+  /* ── Item ── */
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[2],
-    borderRadius: theme.radii.md,
-    marginBottom: theme.spacing[1],
+    backgroundColor: ITEM_BG,
+    borderRadius: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    marginBottom: 6,
   },
-  menuItemIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: `${theme.colors.primary}15`,
+  iconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: theme.spacing[3],
+    marginRight: 13,
   },
-  menuItemText: {
-    ...theme.typography.body,
-    color: theme.colors.text,
+  itemText: {
     flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    color: TEXT_WHITE,
   },
+
+  bottomSpacer: { height: 40 },
 });

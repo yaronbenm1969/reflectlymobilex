@@ -569,16 +569,27 @@ function doLogin() {
   document.getElementById('login-btn').textContent = 'מתחבר...';
   document.getElementById('login-btn').disabled = true;
 
-  fetch(`${SERVER}/health`)
-    .then(r => r.ok ? (
-      document.getElementById('gate').style.display = 'none',
-      document.getElementById('main').style.display = 'block',
-      document.getElementById('server-url-label').textContent = SERVER,
-      document.getElementById('logout-btn').style.display = 'block',
-      localStorage.setItem('adminServer', SERVER),
-      localStorage.setItem('adminCode', ACCESS_CODE),
-      loadBackgrounds()
-    ) : Promise.reject('שגיאה'))
+  fetch(`${SERVER}/api/verify-access`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: ACCESS_CODE }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.valid) {
+        showGateError('קוד כניסה שגוי');
+        document.getElementById('login-btn').textContent = 'כניסה';
+        document.getElementById('login-btn').disabled = false;
+        return;
+      }
+      document.getElementById('gate').style.display = 'none';
+      document.getElementById('main').style.display = 'block';
+      document.getElementById('server-url-label').textContent = SERVER;
+      document.getElementById('logout-btn').style.display = 'block';
+      localStorage.setItem('adminServer', SERVER);
+      localStorage.setItem('adminCode', ACCESS_CODE);
+      loadBackgrounds();
+    })
     .catch(() => {
       showGateError('לא ניתן להתחבר לשרת');
       document.getElementById('login-btn').textContent = 'כניסה';
