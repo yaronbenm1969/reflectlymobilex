@@ -1703,22 +1703,37 @@ export const FinalVideoScreen = () => {
   };
 
   const handleShareToFacebook = async () => {
+    if (!videoReadyForShare) {
+      Alert.alert('בעיבוד', 'הסרטון עדיין בעיבוד — נסה שוב בעוד כמה דקות');
+      return;
+    }
     try {
-      const shareMessage = `צפו בסיפור שלי: "${storyName}" 🎬✨`;
-      const fbUrl = `https://www.facebook.com/sharer/sharer.php?quote=${encodeURIComponent(shareMessage)}`;
-      const canOpen = await Linking.canOpenURL(fbUrl);
-      if (canOpen) {
-        await Linking.openURL(fbUrl);
-      } else {
-        await Share.share({ message: shareMessage, title: storyName });
+      setIsDownloading(true);
+      const videoUri = await getVideoForSharing('Facebook');
+      if (videoUri && await Sharing.isAvailableAsync()) {
+        setDownloadProgress(t('finalVideo.downloading'));
+        const isLocalFile = videoUri.startsWith('file://') || videoUri.startsWith('/');
+        const localUri = isLocalFile ? videoUri : await downloadVideoToLocal(videoUri, 'facebook');
+        setIsDownloading(false);
+        setDownloadProgress('');
+        await Sharing.shareAsync(localUri, { mimeType: 'video/mp4' });
+        return;
       }
+      await Share.share({ message: `צפו בסיפור שלי: "${storyName}" 🎬✨`, title: storyName });
     } catch (error) {
       console.error('Facebook share error:', error);
       Alert.alert(t('common.error'), t('finalVideo.error_facebook_share'));
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress('');
     }
   };
 
   const handleShareToInstagram = async () => {
+    if (!videoReadyForShare) {
+      Alert.alert('בעיבוד', 'הסרטון עדיין בעיבוד — נסה שוב בעוד כמה דקות');
+      return;
+    }
     try {
       setIsDownloading(true);
       const videoUri = await getVideoForSharing(t('finalVideo.instagram_label'));
@@ -1751,6 +1766,10 @@ export const FinalVideoScreen = () => {
   };
 
   const handleShareToTikTok = async () => {
+    if (!videoReadyForShare) {
+      Alert.alert('בעיבוד', 'הסרטון עדיין בעיבוד — נסה שוב בעוד כמה דקות');
+      return;
+    }
     try {
       setIsDownloading(true);
       const videoUri = await getVideoForSharing(t('finalVideo.preparing_label'));
@@ -2044,13 +2063,13 @@ export const FinalVideoScreen = () => {
       )}
 
       {/* End Screen Overlay */}
-      {showEndScreen && (
+      <Modal
+        visible={showEndScreen}
+        transparent={false}
+        animationType="none"
+        statusBarTranslucent
+      >
         <View style={styles.endScreenOverlay}>
-          <Image
-            source={require('../../assets/Home- beckground.jpg.jpg')}
-            style={StyleSheet.absoluteFillObject}
-            resizeMode="cover"
-          />
           <View style={styles.endScreenBgOverlay} />
           {isDownloading && (
             <View style={styles.downloadProgressOverlay}>
@@ -2081,6 +2100,13 @@ export const FinalVideoScreen = () => {
               />
               <Text style={styles.endScreenText}>{t('finalVideo.end_text')}</Text>
               <Text style={styles.endScreenSubtext}>{storyName}</Text>
+
+              {!privacySettings?.allowSocialMedia && (
+                <View style={styles.privateWatermark}>
+                  <Ionicons name="lock-closed" size={11} color="rgba(255,255,255,0.45)" />
+                  <Text style={styles.privateWatermarkText}>לצפייה פרטית בלבד — לא לפרסום</Text>
+                </View>
+              )}
 
               {isUploadingRecording ? (
                 <View style={styles.recordingReadyBadge}>
@@ -2122,6 +2148,7 @@ export const FinalVideoScreen = () => {
 
               <View style={styles.endScreenDivider} />
 
+              <View style={styles.endScreenActionsCard}>
               <Text style={styles.endScreenSectionTitle}>{t('finalVideo.section_save_share')}</Text>
 
               <View style={styles.endScreenActions}>
@@ -2134,7 +2161,7 @@ export const FinalVideoScreen = () => {
                     {isDownloading ? (
                       <ActivityIndicator size="small" color="white" />
                     ) : (
-                      <Ionicons name="download-outline" size={28} color="white" />
+                      <Ionicons name="download-outline" size={22} color="white" />
                     )}
                   </View>
                   <Text style={styles.endScreenActionLabel}>{t('finalVideo.btn_download_video')}</Text>
@@ -2148,8 +2175,8 @@ export const FinalVideoScreen = () => {
                 >
                   <View style={styles.endScreenIconCircle}>
                     {videoReadyForShare
-                      ? <Ionicons name="share-outline" size={28} color="white" />
-                      : <Ionicons name="time-outline" size={28} color="rgba(255,255,255,0.5)" />
+                      ? <Ionicons name="share-outline" size={22} color="white" />
+                      : <Ionicons name="time-outline" size={22} color="rgba(255,255,255,0.5)" />
                     }
                   </View>
                   <Text style={styles.endScreenActionLabel}>
@@ -2161,14 +2188,15 @@ export const FinalVideoScreen = () => {
               <Text style={styles.endScreenSectionTitle}>{t('finalVideo.section_social')}</Text>
 
               <View style={styles.endScreenSocials}>
+                {/* WhatsApp — always visible */}
                 <TouchableOpacity
                   style={[styles.socialBtn, !videoReadyForShare && { opacity: 0.55 }]}
                   onPress={handleShareToWhatsApp}
                 >
                   <View style={[styles.socialIconCircle, { backgroundColor: videoReadyForShare ? '#25D366' : '#888' }]}>
                     {videoReadyForShare
-                      ? <Ionicons name="logo-whatsapp" size={30} color="white" />
-                      : <Ionicons name="time-outline" size={26} color="white" />
+                      ? <Ionicons name="logo-whatsapp" size={24} color="white" />
+                      : <Ionicons name="time-outline" size={20} color="white" />
                     }
                   </View>
                   <Text style={styles.socialLabel}>
@@ -2176,42 +2204,64 @@ export const FinalVideoScreen = () => {
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.socialBtn, isDownloading && styles.disabledBtn]}
-                  onPress={handleShareToFacebook}
-                  disabled={isDownloading}
-                >
-                  <View style={[styles.socialIconCircle, { backgroundColor: '#1877F2' }]}>  
-                    <Ionicons name="logo-facebook" size={30} color="white" />
-                  </View>
-                  <Text style={styles.socialLabel}>{t('finalVideo.social_facebook')}</Text>
-                </TouchableOpacity>
+                {/* Facebook / Instagram / TikTok — only when public consent given */}
+                {privacySettings?.allowSocialMedia && (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.socialBtn, (!videoReadyForShare || isDownloading) && { opacity: 0.50 }]}
+                      onPress={handleShareToFacebook}
+                      disabled={isDownloading}
+                    >
+                      <View style={[styles.socialIconCircle, { backgroundColor: videoReadyForShare ? '#1877F2' : '#888' }]}>
+                        {videoReadyForShare
+                          ? <Ionicons name="logo-facebook" size={24} color="white" />
+                          : <Ionicons name="time-outline" size={20} color="white" />
+                        }
+                      </View>
+                      <Text style={styles.socialLabel}>{t('finalVideo.social_facebook')}</Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity 
-                  style={[styles.socialBtn, isDownloading && styles.disabledBtn]}
-                  onPress={handleShareToInstagram}
-                  disabled={isDownloading}
-                >
-                  <LinearGradient
-                    colors={['#F58529', '#DD2A7B', '#8134AF', '#515BD4']}
-                    style={styles.socialIconCircle}
-                  >
-                    <Ionicons name="logo-instagram" size={30} color="white" />
-                  </LinearGradient>
-                  <Text style={styles.socialLabel}>{t('finalVideo.social_instagram')}</Text>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.socialBtn, (!videoReadyForShare || isDownloading) && { opacity: 0.50 }]}
+                      onPress={handleShareToInstagram}
+                      disabled={isDownloading}
+                    >
+                      <LinearGradient
+                        colors={videoReadyForShare ? ['#F58529', '#DD2A7B', '#8134AF', '#515BD4'] : ['#888', '#888']}
+                        style={styles.socialIconCircle}
+                      >
+                        {videoReadyForShare
+                          ? <Ionicons name="logo-instagram" size={24} color="white" />
+                          : <Ionicons name="time-outline" size={20} color="white" />
+                        }
+                      </LinearGradient>
+                      <Text style={styles.socialLabel}>{t('finalVideo.social_instagram')}</Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity 
-                  style={[styles.socialBtn, isDownloading && styles.disabledBtn]}
-                  onPress={handleShareToTikTok}
-                  disabled={isDownloading}
-                >
-                  <View style={[styles.socialIconCircle, { backgroundColor: '#000' }]}>  
-                    <Ionicons name="logo-tiktok" size={28} color="white" />
-                  </View>
-                  <Text style={styles.socialLabel}>{t('finalVideo.social_tiktok')}</Text>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.socialBtn, (!videoReadyForShare || isDownloading) && { opacity: 0.50 }]}
+                      onPress={handleShareToTikTok}
+                      disabled={isDownloading}
+                    >
+                      <View style={[styles.socialIconCircle, { backgroundColor: videoReadyForShare ? '#000' : '#888' }]}>
+                        {videoReadyForShare
+                          ? <Ionicons name="logo-tiktok" size={22} color="white" />
+                          : <Ionicons name="time-outline" size={20} color="white" />
+                        }
+                      </View>
+                      <Text style={styles.socialLabel}>{t('finalVideo.social_tiktok')}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
+
+              {/* No social consent — lock message */}
+              {!privacySettings?.allowSocialMedia && (
+                <View style={styles.socialNoConsentBanner}>
+                  <Ionicons name="lock-closed-outline" size={13} color="rgba(200,155,70,0.70)" />
+                  <Text style={styles.socialNoConsentText}>לשיתוף ברשתות חברתיות — יש לאפשר פרסום ציבורי בהגדרות הסיפור</Text>
+                </View>
+              )}
 
               {/* Replace music section — only shown once recording is done */}
               {conversionSucceeded && (
@@ -2282,13 +2332,14 @@ export const FinalVideoScreen = () => {
                     setAnimationPlayerKey(k => k + 1);
                   }}
                 >
-                  <Ionicons name="play-circle-outline" size={20} color="white" />
+                  <Ionicons name="play-circle-outline" size={18} color="#5ab4cc" />
                   <Text style={styles.endScreenSecondaryBtnText}>{t('finalVideo.btn_watch_again')}</Text>
                 </TouchableOpacity>
               </View>
+              </View>
             </ScrollView>
         </View>
-      )}
+      </Modal>
 
       {/* Screen Recording Guide Modal */}
       {showRecordGuide && (
@@ -2353,21 +2404,21 @@ export const FinalVideoScreen = () => {
 
       {!isCubeFullscreen && !showEndScreen && !showRecordGuide && (
         <>
-          <LinearGradient
-            colors={[theme.colors.gradient.start, theme.colors.gradient.end]}
-            style={styles.header}
-          >
+          <View style={styles.header}>
             <View style={styles.headerContent}>
+              <View style={styles.headerIconCircle}>
+                <Ionicons name="sparkles" size={22} color="#5ab4cc" />
+              </View>
               <Text style={styles.title}>{t('finalVideo.header_title')}</Text>
               <Text style={styles.storyName}>{storyName}</Text>
               {is3DFormat && (
                 <View style={styles.formatBadge}>
-                  <Ionicons name="cube" size={16} color="white" />
+                  <Ionicons name="cube" size={16} color="#5ab4cc" />
                   <Text style={styles.formatText}>{videoFormat}</Text>
                 </View>
               )}
             </View>
-          </LinearGradient>
+          </View>
 
           <View style={styles.content}>
         <View style={styles.videoContainer}>
@@ -2495,9 +2546,9 @@ export const FinalVideoScreen = () => {
             >
               <View style={styles.actionIcon}>
                 {isDownloading ? (
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                  <ActivityIndicator size="small" color="#5ab4cc" />
                 ) : (
-                  <Ionicons name="download-outline" size={28} color={theme.colors.primary} />
+                  <Ionicons name="download-outline" size={28} color="#5ab4cc" />
                 )}
               </View>
               <Text style={styles.actionLabel}>{t('finalVideo.btn_download')}</Text>
@@ -2505,14 +2556,14 @@ export const FinalVideoScreen = () => {
 
             <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
               <View style={styles.actionIcon}>
-                <Ionicons name="share-social-outline" size={28} color={theme.colors.primary} />
+                <Ionicons name="share-social-outline" size={28} color="#5ab4cc" />
               </View>
               <Text style={styles.actionLabel}>{t('finalVideo.btn_share')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.actionButton} onPress={() => go('EditRoom')}>
               <View style={styles.actionIcon}>
-                <Ionicons name="create-outline" size={28} color={theme.colors.primary} />
+                <Ionicons name="create-outline" size={28} color="#5ab4cc" />
               </View>
               <Text style={styles.actionLabel}>{t('finalVideo.btn_edit')}</Text>
             </TouchableOpacity>
@@ -2520,29 +2571,13 @@ export const FinalVideoScreen = () => {
             {isAnimatedFormat && (
               <TouchableOpacity style={styles.actionButton} onPress={openBgPicker}>
                 <View style={styles.actionIcon}>
-                  <Ionicons name="image-outline" size={28} color={backgroundVideoUrl ? theme.colors.primary : theme.colors.subtext} />
+                  <Ionicons name="image-outline" size={28} color={backgroundVideoUrl ? '#5ab4cc' : 'rgba(255,255,255,0.35)'} />
                 </View>
                 <Text style={styles.actionLabel}>{t('finalVideo.btn_bg')}</Text>
               </TouchableOpacity>
             )}
           </View>
 
-          <View style={styles.bottomActions}>
-            <AppButton
-              title={t('finalVideo.btn_new_story')}
-              onPress={handleNewStory}
-              variant="primary"
-              size="lg"
-              fullWidth
-            />
-            
-            <TouchableOpacity 
-              style={styles.homeButton}
-              onPress={() => go('Home')}
-            >
-              <Text style={styles.homeButtonText}>{t('finalVideo.btn_home')}</Text>
-            </TouchableOpacity>
-          </View>
         </View>
         </>
       )}
@@ -2619,7 +2654,7 @@ export const FinalVideoScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.bg,
+    backgroundColor: '#0d0e14',
   },
   fullscreenMode: {
     backgroundColor: '#000',
@@ -2635,34 +2670,57 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    paddingBottom: theme.spacing[6],
-    paddingHorizontal: theme.spacing[4],
+    paddingBottom: 18,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(38,40,50,0.97)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(200,155,70,0.18)',
   },
   headerContent: {
     alignItems: 'center',
   },
+  headerIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(90,180,204,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(90,180,204,0.30)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: 'white',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#5ab4cc',
+    letterSpacing: 0.5,
   },
   storyName: {
-    fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: theme.spacing[2],
+    fontSize: 24,
+    fontWeight: '800',
+    color: 'rgba(240,195,90,1.0)',
+    marginTop: 4,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(220,170,60,0.40)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 5,
   },
   formatBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: theme.spacing[2],
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginTop: 8,
+    backgroundColor: 'rgba(90,180,204,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(90,180,204,0.25)',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
   },
   formatText: {
-    color: 'white',
+    color: '#5ab4cc',
     fontSize: 12,
   },
   content: {
@@ -2670,10 +2728,11 @@ const styles = StyleSheet.create({
     padding: theme.spacing[4],
   },
   videoContainer: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: 'rgba(15,17,26,1)',
     borderRadius: theme.radii.lg,
     overflow: 'hidden',
-    ...theme.shadows.md,
+    borderWidth: 1,
+    borderColor: 'rgba(90,180,204,0.15)',
   },
   cubeContainer: {
     alignItems: 'center',
@@ -2991,7 +3050,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     ...theme.typography.caption,
-    color: theme.colors.subtext,
+    color: 'rgba(255,255,255,0.55)',
   },
   completeBadge: {
     flexDirection: 'row',
@@ -3000,8 +3059,10 @@ const styles = StyleSheet.create({
     gap: theme.spacing[2],
     marginTop: theme.spacing[3],
     padding: theme.spacing[2],
-    backgroundColor: '#E8F5E9',
+    backgroundColor: 'rgba(30,80,40,0.35)',
     borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: 'rgba(76,175,80,0.25)',
   },
   completeText: {
     color: theme.colors.success,
@@ -3014,12 +3075,14 @@ const styles = StyleSheet.create({
     gap: theme.spacing[2],
     marginTop: theme.spacing[3],
     padding: theme.spacing[3],
-    backgroundColor: theme.colors.white,
+    backgroundColor: 'rgba(38,40,50,0.90)',
     borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.15)',
   },
   privacyText: {
     ...theme.typography.body,
-    color: theme.colors.text,
+    color: 'rgba(255,255,255,0.75)',
   },
   actions: {
     flexDirection: 'row',
@@ -3035,14 +3098,15 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: theme.colors.white,
+    backgroundColor: 'rgba(38,40,50,0.95)',
     alignItems: 'center',
     justifyContent: 'center',
-    ...theme.shadows.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(90,180,204,0.30)',
   },
   actionLabel: {
     ...theme.typography.caption,
-    color: theme.colors.text,
+    color: 'rgba(255,255,255,0.80)',
   },
   bottomActions: {
     marginTop: 'auto',
@@ -3095,49 +3159,54 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   endScreenOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 200,
-    backgroundColor: '#000',
+    flex: 1,
+    backgroundColor: 'rgba(22,24,36,1)',
   },
   endScreenBgOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(8,10,20,0.80)',
+    backgroundColor: 'rgba(22,24,36,1)',
   },
   endScreenGradient: {
     width: '100%',
     height: '100%',
   },
   endScreenLogo: {
-    width: 220,
-    height: 55,
+    width: SCREEN_WIDTH - 40,
+    height: 90,
     alignSelf: 'center',
-    marginBottom: 16,
-    marginTop: -8,
+    marginBottom: 12,
+    marginTop: 0,
   },
   endScreenScroll: {
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
   },
   endScreenText: {
-    fontSize: 56,
+    fontSize: 40,
     fontWeight: 'bold',
     color: 'rgba(200,155,70,0.92)',
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 10,
+    textShadowRadius: 8,
   },
   endScreenSubtext: {
-    fontSize: 22,
+    fontSize: 17,
     color: 'rgba(200,155,70,0.75)',
-    marginTop: 12,
+    marginTop: 6,
     fontWeight: '500',
+  },
+  endScreenActionsCard: {
+    width: '100%',
+    backgroundColor: 'rgba(34,37,52,0.95)',
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.18)',
+    alignItems: 'center',
   },
   recordingReadyBadge: {
     flexDirection: 'row',
@@ -3155,73 +3224,109 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   endScreenDivider: {
-    width: 60,
+    width: 50,
     height: 2,
     backgroundColor: 'rgba(200,155,70,0.35)',
-    marginVertical: 24,
+    marginVertical: 14,
     borderRadius: 1,
   },
   endScreenSectionTitle: {
-    fontSize: 16,
+    fontSize: 13,
     color: 'rgba(200,155,70,0.85)',
     fontWeight: '600',
-    marginBottom: 16,
-    letterSpacing: 1,
+    marginBottom: 10,
+    letterSpacing: 0.8,
   },
   endScreenActions: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 32,
-    marginBottom: 28,
+    gap: 28,
+    marginBottom: 12,
   },
   endScreenActionBtn: {
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   endScreenIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#5ab4cc',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#5ab4cc',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.30,
+    shadowRadius: 6,
+    elevation: 4,
   },
   endScreenActionLabel: {
     color: 'rgba(200,155,70,0.85)',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
   },
   endScreenSocials: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 24,
-    marginBottom: 32,
+    gap: 18,
+    marginBottom: 12,
   },
   socialBtn: {
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   socialIconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 4,
+    elevation: 3,
   },
   socialLabel: {
     color: 'rgba(200,155,70,0.80)',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '500',
+  },
+  privateWatermark: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  privateWatermarkText: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  socialNoConsentBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(200,155,70,0.08)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.18)',
+  },
+  socialNoConsentText: {
+    color: 'rgba(200,155,70,0.70)',
+    fontSize: 11,
+    flex: 1,
+    textAlign: 'right',
   },
   remixMusicSection: {
     width: '100%',
@@ -3297,36 +3402,36 @@ const styles = StyleSheet.create({
   },
   endScreenBottomBtns: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
+    gap: 10,
+    marginTop: 6,
   },
   endScreenPrimaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: '#5ab4cc',
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 25,
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+    borderRadius: 22,
   },
   endScreenPrimaryBtnText: {
     color: '#040c18',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   endScreenSecondaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(90,180,204,0.15)',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 25,
-    borderWidth: 1,
-    borderColor: 'rgba(90,180,204,0.50)',
+    backgroundColor: 'rgba(200,155,70,0.18)',
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: 'rgba(228,180,85,0.55)',
   },
   endScreenSecondaryBtnText: {
-    color: 'rgba(255,255,255,0.90)',
+    color: '#5ab4cc',
     fontSize: 15,
     fontWeight: '600',
   },

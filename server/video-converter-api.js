@@ -629,7 +629,10 @@ app.post('/api/upload-player-clip', upload.single('video'), async (req, res) => 
           status:          'pending',
           createdAt:       new Date(),
         });
-        const storyUpdate = { pendingReflectionsCount: FieldValue.increment(1) };
+        const storyUpdate = {
+          pendingReflectionsCount: FieldValue.increment(1),
+          ...(parseInt(clipNumber, 10) === 1 && { currentPlayers: FieldValue.increment(1) }),
+        };
         // Performance mode: store backing track URL + clip offset so reencode-for-whatsapp can sync
         if (performanceMusicTrackUrl) {
           const clipIdx = parseInt(clipNumber, 10) - 1;
@@ -712,6 +715,7 @@ app.post('/api/player-clip-done', async (req, res) => {
       });
       firestoreDb.collection('stories').doc(storyId).update({
         pendingReflectionsCount: FieldValue.increment(1),
+        currentPlayers: FieldValue.increment(1),
         lastPlayerName: playerName || 'משתתף',
       }).catch(() => {});
     }

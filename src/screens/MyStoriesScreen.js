@@ -210,7 +210,7 @@ const StoryCard = ({ story, onOpenStory, onWatch, onWatchCreator, onInvite, onDe
           <Ionicons
             name={isCompleted ? 'play-circle' : 'videocam'}
             size={28}
-            color={isCompleted ? 'rgba(255,255,255,0.85)' : 'rgba(90,170,255,0.85)'}
+            color="rgba(255,255,255,0.85)"
           />
         </View>
         <View style={styles.storyInfo}>
@@ -224,11 +224,6 @@ const StoryCard = ({ story, onOpenStory, onWatch, onWatchCreator, onInvite, onDe
           <Text style={styles.storyMeta}>{story.completedAt || story.createdAt || story.updatedAt
             ? (() => { const d = (story.completedAt || story.createdAt || story.updatedAt); return (d?.toDate ? d.toDate() : new Date(d)).toLocaleDateString('he-IL'); })()
             : ''}</Text>
-          <View style={styles.statusBadge}>
-            <Text style={[styles.statusText, { color: story.status === 'processing' ? '#FF9800' : 'rgba(90,170,255,0.85)' }]}>
-              {t(`myStories.status_${story.status || 'draft'}`)}
-            </Text>
-          </View>
         </View>
         <View style={styles.playButton}>
           <Ionicons name={isCompleted ? 'play' : 'chevron-forward'} size={isCompleted ? 14 : 18} color="rgba(255,255,255,0.6)" />
@@ -257,6 +252,13 @@ const StoryCard = ({ story, onOpenStory, onWatch, onWatchCreator, onInvite, onDe
         </View>
       </View>
 
+      {/* Edit Room button — always visible */}
+      <TouchableOpacity style={styles.editRoomBtn} onPress={() => onOpenStory(story)}>
+        <Ionicons name="create-outline" size={17} color="rgba(228,180,85,0.95)" />
+        <Text style={styles.editRoomBtnText}>מעבר לחדר עריכה</Text>
+        <Ionicons name="chevron-forward" size={15} color="rgba(228,180,85,0.55)" />
+      </TouchableOpacity>
+
       {/* Completed actions */}
       {isCompleted && (
         <View style={styles.completedActions}>
@@ -278,6 +280,14 @@ const StoryCard = ({ story, onOpenStory, onWatch, onWatchCreator, onInvite, onDe
         </View>
       )}
 
+      {/* Invite button — not completed */}
+      {!isCompleted && (
+        <TouchableOpacity style={styles.inviteButton} onPress={() => onInvite(story)}>
+          <Ionicons name="person-add-outline" size={14} color="rgba(90,170,255,0.85)" />
+          <Text style={styles.inviteButtonText}>{t('myStories.invite_btn')}</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Creator video button — not completed */}
       {!isCompleted && (
         <TouchableOpacity
@@ -289,14 +299,6 @@ const StoryCard = ({ story, onOpenStory, onWatch, onWatchCreator, onInvite, onDe
           <Text style={[styles.creatorVideoBtnText, !creatorVideoUrl && styles.creatorVideoBtnTextDim]}>
             {creatorVideoUrl ? 'צפה בסרטון המוביל' : 'סרטון מוביל לא נשמר'}
           </Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Invite button — not completed */}
-      {!isCompleted && (
-        <TouchableOpacity style={styles.inviteButton} onPress={() => onInvite(story)}>
-          <Ionicons name="person-add-outline" size={14} color="rgba(90,170,255,0.85)" />
-          <Text style={styles.inviteButtonText}>{t('myStories.invite_btn')}</Text>
         </TouchableOpacity>
       )}
 
@@ -708,27 +710,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   storyTitle: {
-    color: 'rgba(228,180,85,1.0)',
-    fontSize: 18,
-    fontWeight: '300',
+    color: 'rgba(240,195,90,1.0)',
+    fontSize: 20,
+    fontWeight: '800',
     textAlign: 'right',
-    letterSpacing: 0.3,
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(220,170,60,0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   storyStatusDesc: {
-    color: 'rgba(208,163,72,0.85)',
+    color: 'rgba(255,255,255,0.70)',
     fontSize: 13,
     fontWeight: '300',
     marginTop: 4,
     textAlign: 'right',
   },
   storyParticipants: {
-    color: 'rgba(200,155,70,0.60)',
+    color: 'rgba(255,255,255,0.55)',
     fontSize: 12,
     marginTop: 2,
     textAlign: 'right',
   },
   storyMeta: {
-    color: 'rgba(200,155,70,0.35)',
+    color: 'rgba(255,255,255,0.40)',
     fontSize: 11,
     marginTop: 5,
     textAlign: 'right',
@@ -763,7 +769,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statText: {
-    color: 'rgba(200,155,70,0.80)',
+    color: 'rgba(255,255,255,0.65)',
     fontSize: 11,
     fontWeight: '500',
   },
@@ -873,6 +879,37 @@ const styles = StyleSheet.create({
   },
   creatorVideoBtnTextDim: {
     color: 'rgba(200,155,70,0.30)',
+  },
+
+  // Edit Room button — always visible
+  editRoomBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 14,
+    marginBottom: 8,
+    marginTop: 6,
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+    backgroundColor: 'rgba(180,140,60,0.20)',
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderColor: 'rgba(228,180,85,0.55)',
+    borderBottomWidth: 3,
+    borderBottomColor: 'rgba(160,120,40,0.70)',
+    shadowColor: 'rgba(200,155,70,1)',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  editRoomBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'rgba(228,180,85,0.95)',
+    flex: 1,
+    textAlign: 'center',
   },
 
   // Delete
