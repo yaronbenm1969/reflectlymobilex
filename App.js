@@ -35,6 +35,7 @@ import {
   CommunityFeedScreen,
   MemberOnboardingScreen,
   InvitationLandingScreen,
+  AdminScreen,
 } from './src/screens';
 import { CastingScreen } from './src/screens/CastingScreen';
 import { SideMenu } from './src/components/SideMenu';
@@ -292,6 +293,8 @@ export default function App() {
         return <MemberOnboardingScreen />;
       case 'InvitationLanding':
         return <InvitationLandingScreen />;
+      case 'Admin':
+        return <AdminScreen />;
       default:
         return <HomeScreen />;
     }

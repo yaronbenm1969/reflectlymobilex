@@ -35,6 +35,9 @@
     "tagline2": "Rilio rassemble les clips de chacun",
     "community_tagline": "Créer Ensemble",
     "community_subtitle": "Partagez votre histoire avec la communauté",
+    "tutorial_open": "Comment ça marche ?",
+    "tutorial_close": "Fermer",
+    "tutorial_coming_soon": "Vidéo bientôt disponible",
     "info_title": "Comment ça marche",
     "info_step_1": "Enregistrez votre histoire",
     "info_step_2": "Choisissez le format et la musique",
@@ -128,7 +131,8 @@
     "my_recording": "Mon enregistrement",
     "delete_confirm": "Supprimer ?",
     "delete_confirm_yes": "Supprimer",
-    "delete_confirm_no": "Annuler"
+    "delete_confirm_no": "Annuler",
+    "go_to_edit_room": "Salle d'édition"
   },
   "bottomTab": {
     "community": "Communauté",

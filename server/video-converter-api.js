@@ -3398,6 +3398,51 @@ app.delete('/admin/music/:id', async (req, res) => {
   }
 });
 
+// ── Tutorial video ────────────────────────────────────────────────────────────
+const tutorialUpload = multer({ dest: tempDir, limits: { fileSize: 500 * 1024 * 1024 } });
+
+// GET /admin/tutorial — return current tutorialVideoUrl from Firestore config/app
+app.get('/admin/tutorial', async (req, res) => {
+  try {
+    if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+    const snap = await firestoreDb.collection('config').doc('app').get();
+    res.json({ success: true, url: snap.data()?.tutorialVideoUrl || '' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/tutorial/upload — upload video to Storage + update Firestore config/app
+app.post('/admin/tutorial/upload', tutorialUpload.single('video'), async (req, res) => {
+  const tmpPath = req.file?.path;
+  try {
+    if (!bucket)      return res.status(503).json({ error: 'Firebase Storage not available' });
+    if (!firestoreDb) return res.status(503).json({ error: 'Firestore not available' });
+    if (!req.file)    return res.status(400).json({ error: 'No file uploaded' });
+
+    const destPath = 'assets/tutorial.mp4';
+    await bucket.upload(tmpPath, {
+      destination: destPath,
+      metadata: { contentType: 'video/mp4' },
+      public: true,
+    });
+
+    const url = `https://storage.googleapis.com/${bucket.name}/${destPath}`;
+    await firestoreDb.collection('config').doc('app').set(
+      { tutorialVideoUrl: url },
+      { merge: true }
+    );
+
+    console.log('✅ Tutorial video uploaded:', url);
+    res.json({ success: true, url });
+  } catch (err) {
+    console.error('❌ Tutorial upload failed:', err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (tmpPath) fs.unlink(tmpPath, () => {});
+  }
+});
+
 // GET /admin/analytics — aggregate usage stats from _analytics collection
 app.get('/admin/analytics', async (req, res) => {
   try {

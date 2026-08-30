@@ -368,9 +368,9 @@ export const EditStudioScreen = () => {
 
   // ── Card definitions ──
   const CARDS = [
-    { id: 'music',      icon: 'musical-notes', label: isHe ? 'מוזיקה'     : 'Music',       summary: getMusicSummary(),   done: musicSelection !== null },
-    { id: 'background', icon: 'image',         label: isHe ? 'רקע לסרטון' : 'Background',  summary: getBgSummary(),      done: bgDone },
-    { id: 'format',     icon: 'cube',          label: isHe ? 'סגנון הצגה' : 'Video Style', summary: getFormatSummary(),  done: localFormat !== null },
+    { id: 'music',      icon: 'musical-notes', label: isHe ? 'בחר מוזיקה'     : 'Music',            summary: getMusicSummary(),   done: musicSelection !== null },
+    { id: 'background', icon: 'image',         label: isHe ? 'בחר רקע לסרטון' : 'Background',       summary: getBgSummary(),      done: bgDone },
+    { id: 'format',     icon: 'cube',          label: isHe ? 'בחר סגנון הצגה' : 'Video Style',      summary: getFormatSummary(),  done: localFormat !== null },
   ];
 
   const bgListData = [

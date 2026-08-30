@@ -24,3 +24,4 @@ export { ThankYouScreen } from './ThankYouScreen';
 export { CommunityFeedScreen } from './CommunityFeedScreen';
 export { MemberOnboardingScreen } from './MemberOnboardingScreen';
 export { InvitationLandingScreen } from './InvitationLandingScreen';
+export { AdminScreen } from './AdminScreen';

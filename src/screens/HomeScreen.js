@@ -23,15 +23,13 @@ import { useNav } from '../hooks/useNav';
 import { useAppState } from '../state/appState';
 import { storiesService } from '../services/storiesService';
 import { analyticsService } from '../services/analyticsService';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import theme from '../theme/theme';
 
 const HOME_BG_VIDEO_URL = 'https://storage.googleapis.com/reflectly-playback.firebasestorage.app/assets/home-background.mp4';
 const HOME_BG_VIDEO_CACHE = `${FileSystem.cacheDirectory}home-background.mp4`;
 
-// TODO: replace with Firebase Storage URL after uploading the tutorial video
-const TUTORIAL_VIDEO_URL = '';
 
 // 1-9 → 30s | 10-20 → 15s | 21-40 → 5s | 40+ → 3s
 const PARTICIPANT_OPTIONS = [
@@ -57,6 +55,7 @@ export const HomeScreen = () => {
   const [bgVideoUri, setBgVideoUri] = useState(HOME_BG_VIDEO_URL);
   const [isNewUser, setIsNewUser] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialVideoUrl, setTutorialVideoUrl] = useState('');
   const tutorialVideoRef = useRef(null);
   const cardOpacity = useRef(new Animated.Value(0)).current;
 
@@ -76,6 +75,13 @@ export const HomeScreen = () => {
       }
     })();
   }, []);
+  // Fetch tutorial video URL from Firestore config
+  useEffect(() => {
+    getDoc(doc(db, 'config', 'app'))
+      .then((snap) => { if (snap.exists()) setTutorialVideoUrl(snap.data()?.tutorialVideoUrl || ''); })
+      .catch(() => {});
+  }, []);
+
   const [participantRange, setParticipantRange] = useState('1-9');
   const [pendingCreatorApps, setPendingCreatorApps] = useState([]); // biz: apps awaiting creator approval
   const [myPlayerApps, setMyPlayerApps] = useState([]);             // player: my pending/approved apps
@@ -292,17 +298,17 @@ export const HomeScreen = () => {
               color="rgba(200,155,70,0.90)"
             />
             <Text style={styles.tutorialBtnText}>
-              {showTutorial ? 'סגור' : 'איך זה עובד?'}
+              {showTutorial ? t('home.tutorial_close') : t('home.tutorial_open')}
             </Text>
           </TouchableOpacity>
 
           {showTutorial && (
             <View style={styles.tutorialVideoContainer}>
-              {TUTORIAL_VIDEO_URL ? (
+              {tutorialVideoUrl ? (
                 <>
                   <Video
                     ref={tutorialVideoRef}
-                    source={{ uri: TUTORIAL_VIDEO_URL }}
+                    source={{ uri: tutorialVideoUrl }}
                     style={styles.tutorialVideo}
                     resizeMode={ResizeMode.CONTAIN}
                     shouldPlay
@@ -318,7 +324,7 @@ export const HomeScreen = () => {
               ) : (
                 <View style={styles.tutorialPlaceholder}>
                   <Ionicons name="videocam-outline" size={34} color="rgba(200,155,70,0.40)" />
-                  <Text style={styles.tutorialPlaceholderText}>הסרטון יהיה זמין בקרוב</Text>
+                  <Text style={styles.tutorialPlaceholderText}>{t('home.tutorial_coming_soon')}</Text>
                 </View>
               )}
             </View>

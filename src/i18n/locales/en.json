@@ -35,6 +35,9 @@
     "tagline2": "Rilio takes care of the rest.",
     "community_tagline": "Create Together",
     "community_subtitle": "Share your story with the community",
+    "tutorial_open": "How does it work?",
+    "tutorial_close": "Close",
+    "tutorial_coming_soon": "Video coming soon",
     "info_title": "How it works",
     "info_step_1": "Record your story",
     "info_step_2": "Choose format and music",
@@ -128,7 +131,8 @@
     "my_recording": "My recording",
     "delete_confirm": "Delete?",
     "delete_confirm_yes": "Delete",
-    "delete_confirm_no": "Cancel"
+    "delete_confirm_no": "Cancel",
+    "go_to_edit_room": "Edit Room"
   },
   "bottomTab": {
     "community": "Community",

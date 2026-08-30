@@ -256,6 +256,7 @@ header small { opacity: .8; font-size: 12px; }
     <div class="page-tabs">
       <button class="page-tab active" onclick="showPage('backgrounds', this)">🎬 רקעים</button>
       <button class="page-tab"        onclick="showPage('music', this)">🎵 ספריית מוזיקה</button>
+      <button class="page-tab"        onclick="showPage('tutorial', this)">📹 סרטון הדרכה</button>
       <button class="page-tab"        onclick="showPage('analytics', this)">📊 Analytics</button>
     </div>
 
@@ -395,6 +396,46 @@ header small { opacity: .8; font-size: 12px; }
 
     </div><!-- /page-music -->
 
+    <!-- ══════════════════════════════════════ TUTORIAL PAGE ══ -->
+    <div class="page" id="page-tutorial">
+
+      <div class="card">
+        <div class="card-header">📹 סרטון הדרכה למשתמש חדש</div>
+        <div class="card-body">
+
+          <!-- Current URL -->
+          <div id="tut-current" style="margin-bottom:16px;padding:10px 14px;background:#f9f9f9;border-radius:8px;font-size:13px;color:#666;word-break:break-all">
+            טוען מצב נוכחי...
+          </div>
+
+          <!-- Current video preview -->
+          <div id="tut-preview-wrap" style="display:none;margin-bottom:16px;border-radius:10px;overflow:hidden;max-height:220px">
+            <video id="tut-preview" controls style="width:100%;max-height:220px;object-fit:contain;background:#000"></video>
+          </div>
+
+          <!-- Drop zone -->
+          <div class="drop-zone" id="tut-drop"
+            onclick="document.getElementById('tut-file-input').click()"
+            ondragover="e=>{e.preventDefault();document.getElementById('tut-drop').classList.add('dragover')}"
+            ondragleave="document.getElementById('tut-drop').classList.remove('dragover')"
+            ondrop="onTutDrop(event)">
+            <div class="drop-icon">📹</div>
+            <div class="drop-main" id="tut-drop-label">לחץ או גרור קובץ MP4 לכאן</div>
+            <div class="drop-hint">MP4 עד 500MB · מוחלף אוטומטית בכל העלאה</div>
+            <input id="tut-file-input" type="file" accept="video/mp4,video/*" onchange="onTutFileChosen(event)" />
+          </div>
+
+          <div class="progress-wrap" id="tut-prog-wrap">
+            <div class="progress-bar"><div class="progress-fill" id="tut-prog-fill"></div></div>
+          </div>
+          <div class="upload-status" id="tut-upload-status"></div>
+          <button class="btn-primary" id="tut-upload-btn" onclick="doTutorialUpload()">העלה סרטון הדרכה</button>
+
+        </div>
+      </div>
+
+    </div><!-- /page-tutorial -->
+
     <!-- ══════════════════════════════════════ ANALYTICS PAGE ══ -->
     <div class="page" id="page-analytics">
 
@@ -445,6 +486,7 @@ function showPage(page, el) {
   el.classList.add('active');
   if (page === 'music' && allTracks.length === 0) loadMusic();
   if (page === 'analytics') loadAnalytics();
+  if (page === 'tutorial') loadTutorialStatus();
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
@@ -880,6 +922,77 @@ async function deleteTrack(id, num) {
     await fetch(`${SERVER}/admin/music/${id}`, { method: 'DELETE', headers: hdrs() });
     loadMusic();
   } catch (e) { alert('שגיאה: ' + e.message); }
+}
+
+// ── TUTORIAL VIDEO ────────────────────────────────────────────────────────────
+let chosenTutFile = null;
+
+async function loadTutorialStatus() {
+  try {
+    const res  = await fetch(`${SERVER}/admin/tutorial`, { headers: hdrs() });
+    const data = await res.json();
+    const url  = data.url || '';
+    const el   = document.getElementById('tut-current');
+    if (url) {
+      el.innerHTML = `✅ סרטון קיים: <a href="${url}" target="_blank" style="color:#c06fbb">${url.split('/').pop().split('?')[0]}</a>`;
+      document.getElementById('tut-preview').src = url;
+      document.getElementById('tut-preview-wrap').style.display = 'block';
+    } else {
+      el.textContent = '⚠️ אין סרטון הדרכה מוגדר עדיין';
+      document.getElementById('tut-preview-wrap').style.display = 'none';
+    }
+  } catch (e) {
+    document.getElementById('tut-current').textContent = 'שגיאה בטעינת מצב: ' + e.message;
+  }
+}
+
+function onTutFileChosen(e) { handleTutFile(e.target.files[0]); }
+function onTutDrop(e) {
+  e.preventDefault();
+  document.getElementById('tut-drop').classList.remove('dragover');
+  if (e.dataTransfer.files[0]) handleTutFile(e.dataTransfer.files[0]);
+}
+function handleTutFile(file) {
+  if (!file) return;
+  chosenTutFile = file;
+  document.getElementById('tut-drop-label').textContent = '✅ ' + file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + ' MB)';
+}
+
+async function doTutorialUpload() {
+  if (!chosenTutFile) { alert('יש לבחור קובץ MP4 תחילה'); return; }
+  const btn    = document.getElementById('tut-upload-btn');
+  const status = document.getElementById('tut-upload-status');
+  const fill   = document.getElementById('tut-prog-fill');
+  btn.disabled = true;
+  document.getElementById('tut-prog-wrap').style.display = 'block';
+  fill.style.width = '5%'; status.textContent = 'מעלה...';
+
+  const form = new FormData();
+  form.append('video', chosenTutFile);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', `${SERVER}/admin/tutorial/upload`);
+  xhr.setRequestHeader('x-app-access-code', ACCESS_CODE);
+  xhr.upload.onprogress = e => {
+    if (e.lengthComputable) fill.style.width = Math.round(e.loaded / e.total * 90) + '%';
+  };
+  xhr.onload = () => {
+    fill.style.width = '100%';
+    try {
+      const data = JSON.parse(xhr.responseText);
+      if (data.success) {
+        status.textContent = '✅ הועלה בהצלחה! הסרטון יופיע למשתמשים חדשים.';
+        chosenTutFile = null;
+        document.getElementById('tut-file-input').value = '';
+        document.getElementById('tut-drop-label').textContent = 'לחץ או גרור קובץ MP4 לכאן';
+        setTimeout(() => { document.getElementById('tut-prog-wrap').style.display='none'; fill.style.width='0%'; }, 3000);
+        loadTutorialStatus();
+      } else { status.textContent = '❌ ' + (data.error || 'שגיאה'); }
+    } catch { status.textContent = '❌ תגובה לא תקינה'; }
+    btn.disabled = false;
+  };
+  xhr.onerror = () => { status.textContent = '❌ שגיאת רשת'; btn.disabled = false; };
+  xhr.send(form);
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────

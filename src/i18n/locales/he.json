@@ -35,6 +35,9 @@
     "tagline2": "ריליו דואג לשאר.",
     "community_tagline": "יוצרים יחד",
     "community_subtitle": "ספר את הסיפור שלך לקהילה",
+    "tutorial_open": "איך זה עובד?",
+    "tutorial_close": "סגור",
+    "tutorial_coming_soon": "הסרטון יהיה זמין בקרוב",
     "info_title": "איך זה עובד",
     "info_step_1": "הקלט את הסיפור שלך",
     "info_step_2": "בחר פורמט ומוזיקה",
@@ -128,7 +131,8 @@
     "my_recording": "ההקלטה שלי",
     "delete_confirm": "למחוק?",
     "delete_confirm_yes": "מחק",
-    "delete_confirm_no": "ביטול"
+    "delete_confirm_no": "ביטול",
+    "go_to_edit_room": "מעבר לחדר עריכה"
   },
   "bottomTab": {
     "community": "קהילה",

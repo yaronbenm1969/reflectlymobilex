@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, I18nManager } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, I18nManager, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -10,11 +10,14 @@ import { authService } from '../services/authService';
 import { Card } from '../ui/Card';
 import theme from '../theme/theme';
 
+const ADMIN_URL = 'https://reflectlymobilex.onrender.com/admin';
+
 export const SettingsScreen = () => {
   const { go, back } = useNav();
   const { t, i18n } = useTranslation();
   const currentLang = i18n.language || 'he';
   const [deleting, setDeleting] = useState(false);
+  const user = useAppState((state) => state.user);
 
   const handleDeleteAccount = () => {
     Alert.alert(
@@ -147,6 +150,13 @@ export const SettingsScreen = () => {
           </View>
         </Card>
 
+        {/* Admin panel link */}
+        <TouchableOpacity style={styles.adminBtn} onPress={() => Linking.openURL(ADMIN_URL)}>
+          <Ionicons name="construct-outline" size={18} color="rgba(200,155,70,0.85)" />
+          <Text style={styles.adminBtnText}>ניהול</Text>
+          <Ionicons name="open-outline" size={14} color="rgba(200,155,70,0.40)" />
+        </TouchableOpacity>
+
         {/* Danger Zone */}
         <Card style={[styles.section, styles.dangerCard]}>
           <Text style={styles.dangerTitle}>מחיקת חשבון</Text>
@@ -260,6 +270,24 @@ const styles = StyleSheet.create({
   aboutValue: {
     ...theme.typography.body,
     color: theme.colors.subtext,
+  },
+  adminBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(38,40,50,0.97)',
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.25)',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    marginBottom: 16,
+  },
+  adminBtnText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'rgba(200,155,70,0.85)',
   },
   dangerCard: {
     borderWidth: 1,

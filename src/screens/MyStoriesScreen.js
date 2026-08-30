@@ -255,7 +255,7 @@ const StoryCard = ({ story, onOpenStory, onWatch, onWatchCreator, onInvite, onDe
       {/* Edit Room button — always visible */}
       <TouchableOpacity style={styles.editRoomBtn} onPress={() => onOpenStory(story)}>
         <Ionicons name="create-outline" size={17} color="rgba(228,180,85,0.95)" />
-        <Text style={styles.editRoomBtnText}>מעבר לחדר עריכה</Text>
+        <Text style={styles.editRoomBtnText}>{t('myStories.go_to_edit_room')}</Text>
         <Ionicons name="chevron-forward" size={15} color="rgba(228,180,85,0.55)" />
       </TouchableOpacity>
 
