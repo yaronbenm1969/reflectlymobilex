@@ -12,8 +12,8 @@ import {
   Modal,
   Linking,
 } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Audio } from 'expo-av';
-import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -80,6 +80,8 @@ export const PlayerRecordScreen = () => {
   const storyClipCount = useAppState((state) => state.storyClipCount);
   const storyMaxClipDuration = useAppState((state) => state.storyMaxClipDuration);
 
+  const [permission, requestPermission] = useCameraPermissions();
+  const [facing, setFacing] = useState('front');
 
   // Clip count: from playerStoryData (deep link), Zustand (creator flow), or default 3
   const clipCount = playerStoryData?.clipCount || storyClipCount || 3;
@@ -135,6 +137,7 @@ export const PlayerRecordScreen = () => {
   const [waitingTrackId, setWaitingTrackId] = useState(null);
   const waitingAmbient = useAmbientPlayback(waitingTrackId);
 
+  const cameraRef = useRef(null);
   const recordingTimerRef = useRef(null);
 
   const [clipRecordings, setClipRecordings] = useState(() => Array(clipCount).fill(null));
@@ -164,6 +167,12 @@ export const PlayerRecordScreen = () => {
   const [consentCommitted, setConsentCommitted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const participantIdRef = useRef(`participant_${Date.now()}`);
+
+  useEffect(() => {
+    if (!permission || (!permission.granted && permission.canAskAgain !== false)) {
+      requestPermission();
+    }
+  }, [permission]);
 
   useEffect(() => {
     return () => {
@@ -239,68 +248,111 @@ export const PlayerRecordScreen = () => {
 
   const startRecordingClip = async (clipIndex) => {
     if (clipIndex === 0) analyticsService.recordingStarted(storyIdForMusic || playerStoryId);
-
     if (isWeb) {
-      // Web demo mode — simulate recording
       if (musicMode === 'none') { ambient.stop(); }
+      else { ambient.setVolume(0.5); } // earpiece mode on web is N/A but keep volume consistent
       setActiveClip(clipIndex);
+      setIsRecording(true);
       setRecordingTimer(0);
       clipDurationRef.current = 0;
       recordingTimerRef.current = setInterval(() => {
         clipDurationRef.current += 1;
         setRecordingTimer(clipDurationRef.current);
         if (clipDurationRef.current >= clipTimes[clipIndex]) {
-          clearInterval(recordingTimerRef.current);
-          recordingTimerRef.current = null;
-          setClipRecordings(prev => {
-            const updated = [...prev];
-            updated[clipIndex] = { uri: 'web-demo', duration: clipDurationRef.current };
-            return updated;
-          });
-          setActiveClip(null);
+          stopRecordingClip(clipIndex);
         }
       }, 1000);
       return;
     }
 
+    if (!cameraRef.current || isRecording) return;
+
     try {
-      setActiveClip(clipIndex); // show loading indicator on the clip card
+      setActiveClip(clipIndex);
+      setIsRecording(true);
+      setRecordingTimer(0);
+      clipDurationRef.current = 0;
 
-      // Capture music position before native camera opens
+      recordingTimerRef.current = setInterval(() => {
+        clipDurationRef.current += 1;
+        setRecordingTimer(clipDurationRef.current);
+      }, 1000);
+
+      let volInterval = null;
       let perfMusicOffsetMs = 0;
-      if (musicMode !== 'none') {
+      if (musicMode === 'none') { ambient.stop(); }
+      else {
+        // Capture position BEFORE switching to earpiece mode (position is preserved)
         perfMusicOffsetMs = await ambient.getCurrentPositionMs();
+        // Route to earpiece — on iOS with allowsRecordingIOS:true, audio goes to earpiece/headphones.
+        // Mic won't pick up music. Play at normal volume so player can hear clearly while singing.
+        await ambient.setVolumeAndMode(0.5, true);
         setClipMusicOffsets(prev => ({ ...prev, [clipIndex]: perfMusicOffsetMs }));
+        // iOS resets audio volume when camera session starts — re-apply every 500ms during recording
+        volInterval = setInterval(() => { ambient.setVolume(0.5); }, 500);
       }
-      ambient.stop(); // pause music while native camera is open
 
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['videos'],
-        videoMaxDuration: clipTimes[clipIndex],
-        allowsEditing: false,
-        quality: 0.8,
+      const video = await cameraRef.current.recordAsync({
+        maxDuration: clipTimes[clipIndex],
+        codec: 'avc1',
       });
 
-      if (!result.canceled && result.assets?.[0]) {
-        const { uri, duration } = result.assets[0];
-        const durationSecs = duration ? Math.round(duration / 1000) : clipTimes[clipIndex];
-        console.log(`✅ Clip ${clipIndex + 1} recorded: ${uri} (${durationSecs}s)`);
+      if (volInterval) { clearInterval(volInterval); volInterval = null; }
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      ambient.fadeOut(1500);
+
+      if (video && video.uri) {
+        console.log(`✅ Clip ${clipIndex + 1} recorded: ${video.uri} (${clipDurationRef.current}s)`);
         setClipRecordings(prev => {
           const updated = [...prev];
-          updated[clipIndex] = { uri, duration: durationSecs };
+          updated[clipIndex] = { uri: video.uri, duration: clipDurationRef.current };
           return updated;
         });
-        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
-        // Resume ambient if music mode is on
-        if (musicMode !== 'none') { ambient.playPhase(1, 0.3); }
+        try {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (e) {}
       }
 
+      setIsRecording(false);
       setActiveClip(null);
     } catch (error) {
       console.error('Recording error:', error);
+      setIsRecording(false);
       setActiveClip(null);
       Alert.alert(t('common.error'), t('playerRecord.error_recording'));
     }
+  };
+
+  const stopRecordingClip = async (clipIndex) => {
+    if (isWeb) {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      ambient.fadeOut(1000);
+      setClipRecordings(prev => {
+        const updated = [...prev];
+        updated[clipIndex] = { uri: 'web-demo', duration: clipDurationRef.current };
+        return updated;
+      });
+      setIsRecording(false);
+      setActiveClip(null);
+      return;
+    }
+
+    if (cameraRef.current) {
+      try {
+        await cameraRef.current.stopRecording();
+      } catch (e) {}
+    }
+  };
+
+  const toggleCameraType = async () => {
+    try { await Haptics.selectionAsync(); } catch (e) {}
+    setFacing(current => (current === 'back' ? 'front' : 'back'));
   };
 
   const handleSubmit = async () => {
@@ -622,6 +674,32 @@ export const PlayerRecordScreen = () => {
     );
   }
 
+  if (!permission || (!permission.granted && permission.canAskAgain !== false)) {
+    // Still loading or OS dialog is about to appear — show spinner
+    return (
+      <View style={styles.permissionContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.permissionText}>{t('playerRecord.checking_permissions')}</Text>
+      </View>
+    );
+  }
+
+  if (!permission.granted) {
+    // Permanently denied — user must open Settings manually
+    return (
+      <View style={styles.permissionContainer}>
+        <Ionicons name="camera-outline" size={64} color="rgba(200,155,70,0.70)" />
+        <Text style={styles.permissionText}>{t('playerRecord.permission_denied_text')}</Text>
+        <AppButton
+          title={t('playerRecord.btn_open_settings')}
+          onPress={() => Linking.openSettings()}
+          variant="primary"
+          size="lg"
+        />
+      </View>
+    );
+  }
+
   if (isUploading) {
     return (
       <VideoFactoryWaiting
@@ -636,13 +714,93 @@ export const PlayerRecordScreen = () => {
   }
 
   if (activeClip !== null) {
-    // Native camera is open — show a brief loading overlay
+    const maxTime = clipTimes[activeClip];
     return (
-      <View style={styles.permissionContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.permissionText}>
-          {t('playerRecord.camera_clip_badge', { n: activeClip + 1, total: clipCount })}
-        </Text>
+      <View style={styles.cameraContainer}>
+        <CameraView
+          style={styles.camera}
+          facing={facing}
+          ref={cameraRef}
+          mode="video"
+        >
+          <View style={styles.cameraHeader}>
+            <View style={styles.clipBadge}>
+              <Text style={styles.clipBadgeText}>{t('playerRecord.camera_clip_badge', { n: activeClip + 1, total: clipCount })}</Text>
+            </View>
+
+            <TouchableOpacity style={styles.cameraHeaderButton} onPress={toggleCameraType}>
+              <Ionicons name="camera-reverse" size={24} color="white" />
+            </TouchableOpacity>
+          </View>
+
+          {isRecording && (
+            <View style={styles.recordingIndicator}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingText}>REC</Text>
+              <Text style={styles.timerText}>{formatTime(recordingTimer)}</Text>
+            </View>
+          )}
+
+          {isRecording && (
+            <View style={styles.progressContainer}>
+              <View
+                style={[
+                  styles.progressBar,
+                  { width: `${(recordingTimer / maxTime) * 100}%` },
+                ]}
+              />
+            </View>
+          )}
+
+          {ambient.hasTrack && ambient.isPlaying && (
+            <View style={styles.musicBadge}>
+              <Ionicons name="musical-notes" size={14} color="white" />
+              <Text style={styles.musicBadgeText}>{t('playerRecord.camera_music_badge')}</Text>
+            </View>
+          )}
+
+          <View style={styles.cameraControls}>
+            <Text style={styles.maxTimeHint}>
+              {isRecording
+                ? t('playerRecord.camera_timer', { current: formatTime(recordingTimer), max: formatTime(maxTime) })
+                : t('playerRecord.camera_until', { time: formatTime(maxTime) })}
+            </Text>
+            <View style={styles.recordRow}>
+              <TouchableOpacity
+                style={[
+                  styles.recordBtn,
+                  isRecording && styles.recordBtnActive,
+                ]}
+                onPress={() => {
+                  if (isRecording) {
+                    stopRecordingClip(activeClip);
+                  } else {
+                    startRecordingClip(activeClip);
+                  }
+                }}
+              >
+                <View
+                  style={[
+                    styles.recordBtnInner,
+                    isRecording && styles.recordBtnInnerActive,
+                  ]}
+                />
+              </TouchableOpacity>
+              {activeClip > 0 && !isRecording && (
+                <TouchableOpacity
+                  style={styles.skipBtn}
+                  onPress={() => setActiveClip(null)}
+                >
+                  <Ionicons name="play-skip-forward" size={20} color="rgba(255,255,255,0.8)" />
+                  <Text style={styles.skipBtnText}>{t('playerRecord.camera_skip')}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={styles.recordHint}>
+              {isRecording ? t('playerRecord.camera_stop') : t('playerRecord.camera_record')}
+            </Text>
+          </View>
+        </CameraView>
       </View>
     );
   }
@@ -740,7 +898,7 @@ export const PlayerRecordScreen = () => {
                     styles.clipCard,
                     isRecorded && styles.clipCardRecorded,
                   ]}
-                  onPress={() => { startRecordingClip(i); }}
+                  onPress={() => { setActiveClip(i); }}
                 >
                   <View style={[
                     styles.clipIcon,
