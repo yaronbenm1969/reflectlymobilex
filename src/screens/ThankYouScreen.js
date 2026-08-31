@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  ScrollView,
   Linking,
   Platform,
 } from 'react-native';
@@ -37,53 +38,57 @@ export const ThankYouScreen = () => {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
-
-      {/* Icon */}
-      <View style={styles.iconCircle}>
-        <Ionicons name="heart" size={28} color={TEAL} />
-      </View>
-
-      <Text style={styles.title}>{t('thankYou.title')}</Text>
-      <Text style={styles.subtitle}>{t('thankYou.subtitle')}</Text>
-
-      {/* Message card */}
-      <View style={styles.card}>
-        <Ionicons name="videocam" size={18} color={TEAL} />
-        <Text style={styles.cardTitle}>
-          {t('thankYou.message_title', { creatorName })}
-        </Text>
-        <Text style={styles.cardText}>
-          {t('thankYou.message_text', { creatorName })}
-        </Text>
-      </View>
-
-      {/* Download section */}
-      <View style={styles.downloadSection}>
-        <Text style={styles.downloadTitle}>{t('thankYou.download_title')}</Text>
-        <View style={styles.storeButtons}>
-          <TouchableOpacity style={styles.storeButton} onPress={handleDownloadApp}>
-            <Ionicons name="logo-apple" size={18} color="white" />
-            <View>
-              <Text style={styles.storeLabel}>{t('thankYou.download_label')}</Text>
-              <Text style={styles.storeName}>App Store</Text>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.storeButton} onPress={handleDownloadApp}>
-            <Ionicons name="logo-google-playstore" size={18} color="white" />
-            <View>
-              <Text style={styles.storeLabel}>{t('thankYou.download_label')}</Text>
-              <Text style={styles.storeName}>Google Play</Text>
-            </View>
-          </TouchableOpacity>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 20 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Icon */}
+        <View style={styles.iconCircle}>
+          <Ionicons name="heart" size={28} color={TEAL} />
         </View>
-      </View>
 
-      {/* Close */}
-      <TouchableOpacity style={styles.closeBtn} onPress={() => go('Home')}>
-        <Text style={styles.closeBtnText}>{t('thankYou.button_close')}</Text>
-      </TouchableOpacity>
+        <Text style={styles.title}>{t('thankYou.title')}</Text>
+        <Text style={styles.subtitle}>{t('thankYou.subtitle')}</Text>
 
+        {/* Message card */}
+        <View style={styles.card}>
+          <Ionicons name="videocam" size={18} color={TEAL} />
+          <Text style={styles.cardTitle}>
+            {t('thankYou.message_title', { creatorName })}
+          </Text>
+          <Text style={styles.cardText}>
+            {t('thankYou.message_text', { creatorName })}
+          </Text>
+        </View>
+
+        {/* Download section */}
+        <View style={styles.downloadSection}>
+          <Text style={styles.downloadTitle}>{t('thankYou.download_title')}</Text>
+          <View style={styles.storeButtons}>
+            <TouchableOpacity style={styles.storeButton} onPress={handleDownloadApp}>
+              <Ionicons name="logo-apple" size={18} color="white" />
+              <View>
+                <Text style={styles.storeLabel}>{t('thankYou.download_label')}</Text>
+                <Text style={styles.storeName}>App Store</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.storeButton} onPress={handleDownloadApp}>
+              <Ionicons name="logo-google-playstore" size={18} color="white" />
+              <View>
+                <Text style={styles.storeLabel}>{t('thankYou.download_label')}</Text>
+                <Text style={styles.storeName}>Google Play</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Close */}
+        <TouchableOpacity style={styles.closeBtn} onPress={() => go('Home')}>
+          <Text style={styles.closeBtnText}>{t('thankYou.button_close')}</Text>
+        </TouchableOpacity>
+
+      </ScrollView>
     </View>
   );
 };
@@ -92,7 +97,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: BG,
+  },
+  scroll: {
+    flexGrow: 1,
     paddingHorizontal: 24,
+    paddingTop: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },

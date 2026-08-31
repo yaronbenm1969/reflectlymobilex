@@ -52,7 +52,32 @@
       "Bash(npm install react-native-worklets@0.5.1 react-native-worklets-core@0.5.1 --legacy-peer-deps)",
       "Bash(npm install react-native-worklets@0.5.1 --legacy-peer-deps)",
       "Bash(npm uninstall react-native-worklets-core --legacy-peer-deps)",
-      "Bash(node -e \"const p = require\\(''c:/projects/reflectlymobilex/node_modules/react-native-worklets/package.json''\\); console.log\\(''worklets:'', p.version\\)\")"
+      "Bash(node -e \"const p = require\\(''c:/projects/reflectlymobilex/node_modules/react-native-worklets/package.json''\\); console.log\\(''worklets:'', p.version\\)\")",
+      "Bash(xargs grep -n \"go\\\\b\\\\|upload\\\\|Processing\\\\|EditRoom\")",
+      "Bash(git add src/screens/ src/components/ src/state/ src/i18n/ app.json server/web-record-template.js web-player/landing.html)",
+      "Bash(xargs grep -l \"playerStoryData\\\\.lockedSet\\\\|story\\\\.lockedSet\")",
+      "Bash(npx kill-port 8081)",
+      "Bash(node -e \"require\\(''./server/web-record-template.js''\\)\")",
+      "Bash(git add src/services/notificationsService.js)",
+      "Bash(git add app.json)",
+      "Bash(npx expo install --check)",
+      "Bash(npx expo install --fix)",
+      "Bash(npm install babel-preset-expo@~54.0.10)",
+      "Bash(git add eas.json)",
+      "Bash(git add src/components/animations/CarouselWebView.js)",
+      "Bash(git add src/components/animations/FilmStripWebView.js src/screens/FinalVideoScreen.js)",
+      "Bash(git add src/components/animations/FlipPagesWebView.js)",
+      "Bash(git add src/hooks/useAmbientPlayback.js src/screens/PlayerRecordScreen.js)",
+      "Bash(node scripts/upload-home-bg.js \"C:/Users/Administrator/Downloads/ריליו תמונות רקע/davinci_animate_this_image_while_preserving_the_exact_orig.mp4\")",
+      "Bash(printenv)",
+      "Bash(curl -s -m 15 https://reflectlymobilex.onrender.com/health)",
+      "Bash(node -e \"const fs=require\\(''fs''\\); const buf=fs.readFileSync\\(''c:/projects/reflectlymobilex/assets/rilio-logo-primary.png.jpg''\\); console.log\\(''First 8 bytes \\(hex\\):'', buf.slice\\(0,8\\).toString\\(''hex''\\)\\); console.log\\(''Size:'', buf.length, ''bytes''\\); const isPNG = buf[0]===0x89 && buf[1]===0x50 && buf[2]===0x4E && buf[3]===0x47; const isJPG = buf[0]===0xFF && buf[1]===0xD8; console.log\\(''Is PNG:'', isPNG\\); console.log\\(''Is JPG:'', isJPG\\);\")",
+      "Bash(node --check video-converter-api.js)",
+      "Bash(node --check web-record-template.js)",
+      "Bash(node -e \"const {execSync}=require\\(''child_process''\\); const out=execSync\\(''magick identify c:/projects/reflectlymobilex/assets/rilio-logo-primary.png.jpg 2>&1 || python3 -c \"\"from PIL import Image; i=Image.open\\(chr\\(39\\)+''c:/projects/reflectlymobilex/assets/rilio-logo-primary.png.jpg''+chr\\(39\\)\\); print\\(i.size, i.mode\\)\"\" 2>&1''\\).toString\\(\\); console.log\\(out\\);\")",
+      "Bash(node -e:*)",
+      "Bash(git add src/screens/FinalVideoScreen.js src/screens/HomeScreen.js web-player/app.js)",
+      "Bash(git checkout 1609f74 -- server/video-converter-api.js)"
     ]
   }
 }
