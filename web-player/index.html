@@ -7,7 +7,7 @@
     <!-- VERSION: REPLIT-PINK-2026-01-08-v3 -->
     
     <meta property="og:title" content="Reflectly - צפה והקלט שיקוף">
-    <meta property="og:description" content="חבר שלך מזמין אותך לצפות ולשתף שיקוף בסיפור שלו">
+    <meta property="og:description" content="לצפייה מלאה חינם פעם אחת · לצפייה חוזרת הורד את אפליקציית RILIO 🎬">
     <meta property="og:type" content="website">
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -499,6 +499,31 @@
                     </div>
                     <button id="rv-open-app-btn" style="display:none;width:100%;margin-top:10px;padding:11px;background:rgba(55,58,72,0.91);border:1px solid rgba(200,155,70,0.20);border-radius:14px;color:rgba(228,180,85,1.0);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">📱 פתח באפליקציה RILIO</button>
                 </div>
+
+                <!-- ── Rewatch Gate Overlay (shown on 2nd+ view, after 3s preview) ── -->
+                <div id="rv-rewatch-overlay" style="display:none;position:absolute;inset:0;z-index:50;background:rgba(13,14,20,0.97);flex-direction:column;align-items:center;justify-content:center;padding:36px 28px;text-align:center;font-family:'Heebo',sans-serif;overflow-y:auto;">
+
+                    <div style="font-size:50px;margin-bottom:14px;">🎬</div>
+
+                    <div style="font-size:24px;font-weight:800;color:rgba(228,180,85,1.0);margin-bottom:6px;letter-spacing:0.02em;">איזה כיף!</div>
+                    <div style="font-size:15px;color:rgba(200,155,70,0.70);margin-bottom:4px;">תודה שצפית בסרט</div>
+                    <div id="rv-rewatch-story-name" style="font-size:19px;font-weight:800;color:#5ab4cc;margin-bottom:22px;letter-spacing:0.03em;">הסרטון</div>
+
+                    <div style="width:100%;max-width:300px;height:1px;background:rgba(200,155,70,0.12);margin-bottom:22px;"></div>
+
+                    <div style="font-size:15px;color:rgba(228,180,85,0.82);margin-bottom:4px;">מוזמן לצפות בו שוב מתוך</div>
+                    <div style="font-size:20px;font-weight:900;color:rgba(228,180,85,1.0);letter-spacing:0.12em;margin-bottom:26px;">אפליקציית RILIO</div>
+
+                    <div style="color:rgba(200,155,70,0.40);font-size:22px;margin-bottom:18px;">↓</div>
+
+                    <div style="display:flex;flex-direction:column;gap:12px;width:100%;max-width:280px;">
+                        <a href="https://apps.apple.com/app/rilio" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:15px 20px;background:#5ab4cc;border-radius:14px;color:#0d0e14;font-size:16px;font-weight:800;text-decoration:none;letter-spacing:0.02em;">🍎 &nbsp;App Store</a>
+                        <a href="https://play.google.com/store/apps/details?id=com.rilio.app" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:15px 20px;background:rgba(90,180,204,0.10);border:1.5px solid rgba(90,180,204,0.38);border-radius:14px;color:#5ab4cc;font-size:16px;font-weight:800;text-decoration:none;letter-spacing:0.02em;">▶ &nbsp;Google Play</a>
+                    </div>
+
+                    <button onclick="(function(){var o=document.getElementById('rv-rewatch-overlay');if(o)o.style.display='none';})()" style="margin-top:24px;background:none;border:none;color:rgba(200,155,70,0.28);font-size:12px;cursor:pointer;font-family:'Heebo',sans-serif;">סגור ✕</button>
+                </div>
+
             </div>
         </div>
 

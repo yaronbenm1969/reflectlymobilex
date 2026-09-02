@@ -548,6 +548,44 @@ async function loadStory(code) {
             rvTap.click();
         };
 
+        // ── Second-view gate: first view = full; second+ view = 3s preview then download overlay ──
+        const watchedKey    = 'rv_watched_' + story.id;
+        const isSecondView  = !!localStorage.getItem(watchedKey);
+        let   rewatchTimer  = null;
+
+        const showRewatchOverlay = () => {
+            if (rewatchTimer) { clearTimeout(rewatchTimer); rewatchTimer = null; }
+            rvVideo.pause();
+            const overlay = document.getElementById('rv-rewatch-overlay');
+            const nameEl  = document.getElementById('rv-rewatch-story-name');
+            if (nameEl)  nameEl.textContent  = story.name || 'הסרטון';
+            if (overlay) overlay.style.display = 'flex';
+        };
+
+        const play3sPreview = (needsLoad) => {
+            if (rewatchTimer) { clearTimeout(rewatchTimer); rewatchTimer = null; }
+            const overlay = document.getElementById('rv-rewatch-overlay');
+            if (overlay) overlay.style.display = 'none';
+            rvTap.style.display = 'none';
+            if (needsLoad) rvVideo.load();
+            rvVideo.currentTime = 0;
+            const p = rvVideo.play();
+            if (p) p.then(() => { rewatchTimer = setTimeout(showRewatchOverlay, 3000); })
+                    .catch(() => { rvTap.style.display = 'flex'; });
+        };
+
+        if (!isSecondView) {
+            // First view: mark as watched as soon as video starts playing
+            rvVideo.addEventListener('playing', () => {
+                localStorage.setItem(watchedKey, '1');
+            }, { once: true });
+        } else {
+            // Second view: override tap + replay to 3-second preview only
+            rvTap.onclick = () => play3sPreview(true);
+            if (replayBtn) replayBtn.onclick = (e) => { e.stopPropagation(); play3sPreview(false); };
+            rvTapLabel.textContent = 'לחץ לצפייה';
+        }
+
         // Share — only if story allows public publishing
         const canShare = story.publicPublishingConsent === true ||
                          story.storyCreationMode === 'community';
