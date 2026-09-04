@@ -4122,6 +4122,50 @@ app.get('/api/poc/render-cube/:jobId', async (req, res) => {
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── HD on-demand render ──────────────────────────────────────────────────────
+app.post('/api/render-hd', async (req, res) => {
+  const { storyId } = req.body;
+  if (!storyId) return res.status(400).json({ error: 'storyId required' });
+
+  if (!firestoreDb) return res.status(503).json({ error: 'db unavailable' });
+
+  const storyDoc = await firestoreDb.collection('stories').doc(storyId).get().catch(() => null);
+  if (!storyDoc?.exists) return res.status(404).json({ error: 'story not found' });
+  const storyData = storyDoc.data();
+
+  // Already rendered — return cached URL immediately
+  if (storyData?.hdVideoUrl) return res.json({ status: 'ready', hdVideoUrl: storyData.hdVideoUrl });
+
+  // Clips deleted — cannot re-render
+  if (storyData?.clipsDeleted) return res.status(410).json({ error: 'clips_expired' });
+
+  // Already rendering
+  if (storyData?.hdRenderStatus === 'rendering') return res.json({ status: 'rendering' });
+
+  // Start background render, respond immediately
+  res.json({ status: 'rendering' });
+
+  setImmediate(async () => {
+    try {
+      await firestoreDb.collection('stories').doc(storyId).update({ hdRenderStatus: 'rendering' });
+      const { outputUrl } = await renderCubePoc(storyId, {
+        firestoreDb, bucket, uploadToFirebase, isAllowedVideoUrl,
+        width: 1080, height: 1920,
+        storagePathFn: (sid) => `edited/${sid}/hd_final.mp4`,
+      });
+      await firestoreDb.collection('stories').doc(storyId).update({
+        hdVideoUrl: outputUrl,
+        hdRenderStatus: 'ready',
+      });
+      console.log(`[HD] ✅ HD render complete for story ${storyId}`);
+    } catch (e) {
+      console.error('[HD] ❌ HD render failed:', e.message);
+      await firestoreDb.collection('stories').doc(storyId).update({ hdRenderStatus: 'error' }).catch(() => {});
+    }
+  });
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─── Daily cleanup: delete expired player clips from Firebase Storage ─────────
 async function cleanupExpiredClips() {
   if (!firestoreDb) return;

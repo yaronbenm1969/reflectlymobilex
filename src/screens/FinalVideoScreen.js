@@ -118,6 +118,10 @@ export const FinalVideoScreen = () => {
   const [serverRenderError, setServerRenderError] = useState(null);
   const [clipsExpireAt, setClipsExpireAt] = useState(null);
   const [clipsDeleted, setClipsDeleted] = useState(false);
+  const [hdVideoUrl, setHdVideoUrl] = useState(null);
+  const [hdRenderStatus, setHdRenderStatus] = useState('idle');
+  const [showHdModal, setShowHdModal] = useState(false);
+  const [isDownloadingHd, setIsDownloadingHd] = useState(false);
   const clientRecordingResolveRef = useRef(null);
   const autoRecordTriggeredRef = useRef(false);
   const videoReadyForShareRef = useRef(false); // mirrors videoReadyForShare — readable inside closures
@@ -269,6 +273,8 @@ export const FinalVideoScreen = () => {
           }
           if (res.story?.clipsExpireAt) setClipsExpireAt(res.story.clipsExpireAt.toDate ? res.story.clipsExpireAt.toDate() : new Date(res.story.clipsExpireAt));
           if (res.story?.clipsDeleted) setClipsDeleted(true);
+          if (res.story?.hdVideoUrl) { setHdVideoUrl(res.story.hdVideoUrl); setHdRenderStatus('ready'); }
+          else if (res.story?.hdRenderStatus) setHdRenderStatus(res.story.hdRenderStatus);
           if (res.story?.generatedMusicUrl) return;
         }
       } catch (e) {}
@@ -798,6 +804,43 @@ export const FinalVideoScreen = () => {
   //     setDownloadProgress('');
   //   }
   // };
+
+  const handleHdRender = async () => {
+    if (!storyId) return;
+    setHdRenderStatus('rendering');
+    try {
+      await fetch(`${VIDEO_CONVERTER_URL}/api/render-hd`, {
+        method: 'POST',
+        headers: { ...SERVER_HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storyId }),
+      });
+      // Firestore listener will update hdRenderStatus + hdVideoUrl when done
+    } catch (e) {
+      setHdRenderStatus('error');
+    }
+  };
+
+  const handleHdDownload = async () => {
+    if (!hdVideoUrl) return;
+    setIsDownloadingHd(true);
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('הרשאה נדרשת', 'יש לאפשר גישה לגלריה כדי לשמור את הסרטון');
+        setIsDownloadingHd(false);
+        return;
+      }
+      const localUri = FileSystem.cacheDirectory + `hd_${storyId}_${Date.now()}.mp4`;
+      const { uri } = await FileSystem.downloadAsync(hdVideoUrl, localUri);
+      await MediaLibrary.saveToLibraryAsync(uri);
+      setShowHdModal(false);
+      Alert.alert('✅ הסרטון נשמר', 'גרסת HD נשמרה לגלריה בהצלחה');
+    } catch (e) {
+      Alert.alert('שגיאה', 'לא הצלחנו להוריד את הסרטון, נסה שנית');
+    } finally {
+      setIsDownloadingHd(false);
+    }
+  };
 
   const handleDownload = async () => {
     if (!finalVideoUri) {
@@ -2318,10 +2361,11 @@ export const FinalVideoScreen = () => {
               {clipsExpireAt && !clipsDeleted && (() => {
                 const daysLeft = Math.ceil((clipsExpireAt - new Date()) / (1000 * 60 * 60 * 24));
                 return daysLeft > 0 ? (
-                  <View style={styles.hdBanner}>
-                    <Ionicons name="time-outline" size={14} color="rgba(200,155,70,0.80)" />
-                    <Text style={styles.hdBannerText}>גרסת HD זמינה עוד {daysLeft} ימים</Text>
-                  </View>
+                  <TouchableOpacity style={styles.hdBanner} onPress={() => setShowHdModal(true)} activeOpacity={0.75}>
+                    <Ionicons name="download-outline" size={14} color="rgba(200,155,70,0.90)" />
+                    <Text style={styles.hdBannerText}>הורד בHD — זמין עוד {daysLeft} ימים</Text>
+                    <Ionicons name="chevron-forward" size={12} color="rgba(200,155,70,0.50)" />
+                  </TouchableOpacity>
                 ) : null;
               })()}
 
@@ -2353,6 +2397,55 @@ export const FinalVideoScreen = () => {
               </View>
             </ScrollView>
         </View>
+      </Modal>
+
+      {/* HD Download Modal */}
+      <Modal visible={showHdModal} transparent animationType="slide" onRequestClose={() => setShowHdModal(false)}>
+        <TouchableOpacity style={styles.hdModalOverlay} activeOpacity={1} onPress={() => setShowHdModal(false)}>
+          <TouchableOpacity style={styles.hdModalCard} activeOpacity={1} onPress={() => {}}>
+            <View style={styles.hdModalIconCircle}>
+              <Ionicons name="film-outline" size={28} color="rgba(200,155,70,0.90)" />
+            </View>
+            <Text style={styles.hdModalTitle}>הורד בHD</Text>
+            <Text style={styles.hdModalSub}>גרסת 1080p באיכות הקרנה</Text>
+
+            <View style={styles.hdModalBullets}>
+              {['איכות 1080p מלאה', 'שמירה ישירה לגלריה', 'ניסיון חינם'].map((b, i) => (
+                <View key={i} style={styles.hdModalBulletRow}>
+                  <Ionicons name="checkmark-circle" size={16} color="#5ab4cc" />
+                  <Text style={styles.hdModalBulletText}>{b}</Text>
+                </View>
+              ))}
+            </View>
+
+            {hdRenderStatus === 'rendering' ? (
+              <View style={styles.hdModalRenderingBox}>
+                <ActivityIndicator color="rgba(200,155,70,0.90)" />
+                <Text style={styles.hdModalRenderingText}>מרנדר בHD, עוד כמה דקות...</Text>
+                <Text style={styles.hdModalRenderingHint}>ניתן לסגור — נשלח עדכון כשמוכן</Text>
+              </View>
+            ) : hdRenderStatus === 'ready' && hdVideoUrl ? (
+              <TouchableOpacity style={styles.hdModalBtn} onPress={handleHdDownload} disabled={isDownloadingHd}>
+                {isDownloadingHd ? <ActivityIndicator color="#040c18" /> : <Ionicons name="download-outline" size={18} color="#040c18" />}
+                <Text style={styles.hdModalBtnText}>{isDownloadingHd ? 'מוריד...' : 'הורד לגלריה'}</Text>
+              </TouchableOpacity>
+            ) : hdRenderStatus === 'error' ? (
+              <TouchableOpacity style={styles.hdModalBtn} onPress={handleHdRender}>
+                <Ionicons name="refresh-outline" size={18} color="#040c18" />
+                <Text style={styles.hdModalBtnText}>נסה שנית</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.hdModalBtn} onPress={handleHdRender}>
+                <Ionicons name="sparkles-outline" size={18} color="#040c18" />
+                <Text style={styles.hdModalBtnText}>צור גרסת HD</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity onPress={() => setShowHdModal(false)} style={styles.hdModalDismiss}>
+              <Text style={styles.hdModalDismissText}>אולי מאוחר יותר</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Screen Recording Guide Modal */}
@@ -3691,5 +3784,99 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+
+  /* ── HD Modal ── */
+  hdModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'flex-end',
+  },
+  hdModalCard: {
+    backgroundColor: '#0d0e14',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.20)',
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  hdModalIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(200,155,70,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.30)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  hdModalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: 'rgba(200,155,70,0.95)',
+    marginBottom: 4,
+  },
+  hdModalSub: {
+    fontSize: 13,
+    color: 'rgba(200,155,70,0.55)',
+    marginBottom: 20,
+  },
+  hdModalBullets: {
+    width: '100%',
+    gap: 10,
+    marginBottom: 24,
+  },
+  hdModalBulletRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  hdModalBulletText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.85)',
+  },
+  hdModalBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(200,155,70,0.90)',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 14,
+    width: '100%',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  hdModalBtnText: {
+    color: '#040c18',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  hdModalRenderingBox: {
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 16,
+    width: '100%',
+    marginBottom: 12,
+  },
+  hdModalRenderingText: {
+    color: 'rgba(200,155,70,0.90)',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  hdModalRenderingHint: {
+    color: 'rgba(255,255,255,0.40)',
+    fontSize: 12,
+  },
+  hdModalDismiss: {
+    paddingVertical: 8,
+  },
+  hdModalDismissText: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 13,
   },
 });

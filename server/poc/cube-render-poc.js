@@ -135,7 +135,7 @@ async function normalizeClip(srcPath, destPath) {
  * Validates the produced MP4 with ffprobe.
  * Returns { ok, reason?, sizeMb, duration, fps, hasAudio, audioCodec, probeJson }
  */
-function validateOutput(outputPath, expectedDurationSecs) {
+function validateOutput(outputPath, expectedDurationSecs, width = POC_WIDTH, height = POC_HEIGHT) {
   if (!fs.existsSync(outputPath)) return { ok: false, reason: 'output file missing' };
 
   const sizeMb = fs.statSync(outputPath).size / (1024 * 1024);
@@ -155,8 +155,8 @@ function validateOutput(outputPath, expectedDurationSecs) {
 
   if (!vs) return { ok: false, reason: 'no video stream' };
   if (vs.codec_name !== 'h264')    return { ok: false, reason: `codec=${vs.codec_name} (expected h264)` };
-  if (vs.width  !== POC_WIDTH)     return { ok: false, reason: `width=${vs.width} (expected ${POC_WIDTH})` };
-  if (vs.height !== POC_HEIGHT)    return { ok: false, reason: `height=${vs.height} (expected ${POC_HEIGHT})` };
+  if (vs.width  !== width)  return { ok: false, reason: `width=${vs.width} (expected ${width})` };
+  if (vs.height !== height) return { ok: false, reason: `height=${vs.height} (expected ${height})` };
   if (vs.pix_fmt !== 'yuv420p')   return { ok: false, reason: `pix_fmt=${vs.pix_fmt}` };
 
   const [fn, fd] = (vs.r_frame_rate || '0/1').split('/').map(Number);
@@ -257,10 +257,10 @@ function getVideoAtTimeNode(globalTime, videoDurations, cumulativeTimes) {
  * (passed via page.evaluate), avoiding any HTTP requests from the browser.
  * This sidesteps Chrome's null-origin → localhost blocking even with --disable-web-security.
  */
-function generateCubeHtmlFromFrames(videoDurations, fps, bgUrl, logoB64, storyTitle) {
-  const CS = 634; // cube size px (634/720 = 88% of frame width — +20% from 528)
-  const W  = POC_WIDTH;
-  const H  = POC_HEIGHT;
+function generateCubeHtmlFromFrames(videoDurations, fps, bgUrl, logoB64, storyTitle, width = POC_WIDTH, height = POC_HEIGHT) {
+  const CS = Math.round(width * 0.881); // 88% of frame width (634/720)
+  const W  = width;
+  const H  = height;
   const bgHtml = bgUrl
     ? `<video id="custom-bg" src="${bgUrl.replace(/'/g,'')}" autoplay loop muted playsinline
          style="position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;"></video>`
@@ -298,7 +298,7 @@ body{display:flex;align-items:center;justify-content:center;font-family:sans-ser
   background-size:50px 50px;
   transform:perspective(500px) rotateX(60deg);transform-origin:center 120%;z-index:1;opacity:.5;}
 @keyframes twinkle{0%,100%{opacity:1;}50%{opacity:.5;}}
-.scene{width:${CS}px;height:${CS}px;perspective:1512px;perspective-origin:50% 50%;z-index:10;position:relative;}
+.scene{width:${CS}px;height:${CS}px;perspective:${Math.round(width*2.1)}px;perspective-origin:50% 50%;z-index:10;position:relative;}
 .cube{width:100%;height:100%;position:relative;transform-style:preserve-3d;}
 .cube-face{position:absolute;width:${CS}px;height:${CS}px;
   border:4px solid rgba(255,255,255,.7);border-radius:16px;overflow:hidden;
@@ -320,9 +320,9 @@ ${bgHtml}
 <div id="title-card" style="opacity:0;transition:opacity 0.6s ease-in;position:fixed;top:0;left:0;width:100%;height:100%;
   background:linear-gradient(180deg,#0d0020 0%,#1a0535 100%);
   z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:36px;">
-  ${logoB64 ? `<img src="data:image/png;base64,${logoB64}" style="width:288px;height:auto;object-fit:contain;">` : ''}
-  ${storyTitle ? `<div style="color:#fff;font-size:112px;font-weight:800;text-align:center;padding:0 32px;line-height:1.2;font-family:sans-serif;word-break:break-word;">${storyTitle.replace(/</g,'&lt;')}</div>` : ''}
-  <div style="position:absolute;bottom:90px;color:rgba(255,255,255,0.6);font-size:64px;font-weight:300;font-family:sans-serif;letter-spacing:12px;">סוף</div>
+  ${logoB64 ? `<img src="data:image/png;base64,${logoB64}" style="width:${Math.round(width*0.4)}px;height:auto;object-fit:contain;">` : ''}
+  ${storyTitle ? `<div style="color:#fff;font-size:${Math.round(width*0.156)}px;font-weight:800;text-align:center;padding:0 32px;line-height:1.2;font-family:sans-serif;word-break:break-word;">${storyTitle.replace(/</g,'&lt;')}</div>` : ''}
+  <div style="position:absolute;bottom:90px;color:rgba(255,255,255,0.6);font-size:${Math.round(width*0.089)}px;font-weight:300;font-family:sans-serif;letter-spacing:12px;">סוף</div>
 </div>
 <div class="scene">
   <div class="float-wrapper" id="float-wrapper">
@@ -456,7 +456,7 @@ console.log('READY: image-frames cube, totalDuration='+totalDuration);
  * Returns { jobId, outputUrl } on success.
  * Throws on any failure (job is marked 'failed' in Firestore before throw).
  */
-async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, uploadToFirebase, isAllowedVideoUrl }) {
+async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, uploadToFirebase, isAllowedVideoUrl, width = POC_WIDTH, height = POC_HEIGHT, storagePathFn = null }) {
   // ── Gate: feature flag ────────────────────────────────────────────────────
   if (process.env.SERVER_CUBE_RENDER_POC !== 'true') {
     const e = new Error('POC feature flag is disabled');
@@ -544,7 +544,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     outputFps: POC_FPS,
     ffprobeResult: null,
     cleanupStatus: 'pending',
-    renderProfile: { width: POC_WIDTH, height: POC_HEIGHT, fps: POC_FPS, crf: POC_CRF, preset: POC_PRESET, screenshot: POC_SCREENSHOT },
+    renderProfile: { width, height, fps: POC_FPS, crf: POC_CRF, preset: POC_PRESET, screenshot: POC_SCREENSHOT },
   });
 
   // ── Claim render slot ─────────────────────────────────────────────────────
@@ -730,12 +730,12 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
         // Playback
         '--autoplay-policy=no-user-gesture-required',
         '--disable-web-security',
-        `--window-size=${POC_WIDTH},${POC_HEIGHT}`,
+        `--window-size=${width},${height}`,
       ],
     });
 
     const page = await browser.newPage();
-    await page.setViewport({ width: POC_WIDTH, height: POC_HEIGHT });
+    await page.setViewport({ width, height });
     page.on('console', msg => console.log(`[Browser] ${msg.text()}`));
     page.on('pageerror', err => console.error(`[Browser Error] ${err.message}`));
 
@@ -746,7 +746,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     const logoPath = path.join(__dirname, '../../assets/rilio-logo-primary.png.png');
     const logoB64 = fs.existsSync(logoPath) ? fs.readFileSync(logoPath).toString('base64') : '';
     if (logoB64) console.log('[POC] Logo loaded for title card');
-    const html = generateCubeHtmlFromFrames(videoDurations, POC_FPS, bgUrl, logoB64, storyTitle);
+    const html = generateCubeHtmlFromFrames(videoDurations, POC_FPS, bgUrl, logoB64, storyTitle, width, height);
 
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60000 });
 
@@ -859,7 +859,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
       '-crf', String(POC_CRF),
       '-pix_fmt', 'yuv420p',
       '-movflags', '+faststart',
-      '-vf', `scale=${POC_WIDTH}:${POC_HEIGHT}`,
+      '-vf', `scale=${width}:${height}`,
     ];
     let ffmpegCmd;
     if (hasAudio) {
@@ -892,7 +892,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
     // ── Output validation ─────────────────────────────────────────────────
     updateStoryStage('uploading');
     await updateJob(firestoreDb, jobId, { status: 'uploading', renderAndEncodeDurationMs });
-    const validation = validateOutput(outputPath, animDuration);
+    const validation = validateOutput(outputPath, animDuration, width, height);
     console.log('[POC] Validation result:', validation.ok ? '✅ PASS' : `❌ FAIL: ${validation.reason}`);
     if (!validation.ok) {
       const e = new Error(`Output validation failed: ${validation.reason}`);
@@ -902,7 +902,7 @@ async function renderCubePoc(storyId, { jobId: preJobId, firestoreDb, bucket, up
 
     // ── Upload to separate POC storage path ───────────────────────────────
     // NEVER writes to edited/ or touches stories/{storyId}.finalVideoUrl
-    const storagePath = `poc-renders/${storyId}/${jobId}/cube-poc.mp4`;
+    const storagePath = storagePathFn ? storagePathFn(storyId, jobId) : `poc-renders/${storyId}/${jobId}/cube-poc.mp4`;
     let outputUrl;
     if (bucket) {
       outputUrl = await uploadToFirebase(outputPath, storagePath);
