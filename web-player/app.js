@@ -553,12 +553,28 @@ async function loadStory(code) {
         const isSecondView  = !!localStorage.getItem(watchedKey);
         let   rewatchTimer  = null;
 
+        const REWATCH_I18N = {
+            he: { title: 'איזה כיף!',     thanks: 'תודה שצפית בסרט',        cta1: 'הורד את אפליקציית RILIO חינם',          cta2: 'וצפה בסרטון כמה פעמים שתרצה' },
+            en: { title: 'How wonderful!', thanks: 'Thanks for watching',      cta1: 'Download the RILIO app for free',        cta2: 'and watch the video as many times as you like' },
+            fr: { title: 'Quelle joie !',  thanks: "Merci d'avoir regardé",   cta1: "Téléchargez l'appli RILIO gratuitement", cta2: 'et regardez la vidéo autant de fois que vous voulez' },
+            es: { title: '¡Qué alegría!',  thanks: 'Gracias por ver el video', cta1: 'Descarga la app RILIO gratis',           cta2: 'y mira el video todas las veces que quieras' },
+        };
+
         const showRewatchOverlay = () => {
             if (rewatchTimer) { clearTimeout(rewatchTimer); rewatchTimer = null; }
             rvVideo.pause();
             const overlay = document.getElementById('rv-rewatch-overlay');
             const nameEl  = document.getElementById('rv-rewatch-story-name');
-            if (nameEl)  nameEl.textContent  = story.name || 'הסרטון';
+            if (nameEl) nameEl.textContent = story.name || '';
+
+            const lang = (navigator.language || 'he').split('-')[0];
+            const s    = REWATCH_I18N[lang] || REWATCH_I18N.he;
+            const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+            setText('rv-rewatch-title',  s.title);
+            setText('rv-rewatch-thanks', s.thanks);
+            setText('rv-rewatch-cta1',   s.cta1);
+            setText('rv-rewatch-cta2',   s.cta2);
+
             if (overlay) overlay.style.display = 'flex';
         };
 
