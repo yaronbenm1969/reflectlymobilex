@@ -116,6 +116,8 @@ export const FinalVideoScreen = () => {
   const [musicEngine, setMusicEngine] = useState('suno'); // 'suno' | 'musicgen'
   const [serverRenderJobId, setServerRenderJobId] = useState(null);
   const [serverRenderError, setServerRenderError] = useState(null);
+  const [clipsExpireAt, setClipsExpireAt] = useState(null);
+  const [clipsDeleted, setClipsDeleted] = useState(false);
   const clientRecordingResolveRef = useRef(null);
   const autoRecordTriggeredRef = useRef(false);
   const videoReadyForShareRef = useRef(false); // mirrors videoReadyForShare — readable inside closures
@@ -265,6 +267,8 @@ export const FinalVideoScreen = () => {
             firestoreVideoUrlRef.current = res.story.finalVideoUrl;
             console.log('📹 Loaded finalVideoUrl from Firestore (tryLoad)');
           }
+          if (res.story?.clipsExpireAt) setClipsExpireAt(res.story.clipsExpireAt.toDate ? res.story.clipsExpireAt.toDate() : new Date(res.story.clipsExpireAt));
+          if (res.story?.clipsDeleted) setClipsDeleted(true);
           if (res.story?.generatedMusicUrl) return;
         }
       } catch (e) {}
@@ -2311,6 +2315,16 @@ export const FinalVideoScreen = () => {
                 </View>
               )}
 
+              {clipsExpireAt && !clipsDeleted && (() => {
+                const daysLeft = Math.ceil((clipsExpireAt - new Date()) / (1000 * 60 * 60 * 24));
+                return daysLeft > 0 ? (
+                  <View style={styles.hdBanner}>
+                    <Ionicons name="time-outline" size={14} color="rgba(200,155,70,0.80)" />
+                    <Text style={styles.hdBannerText}>גרסת HD זמינה עוד {daysLeft} ימים</Text>
+                  </View>
+                ) : null;
+              })()}
+
               <View style={styles.endScreenBottomBtns}>
                 <TouchableOpacity
                   style={styles.endScreenPrimaryBtn}
@@ -3399,6 +3413,22 @@ const styles = StyleSheet.create({
   engineToggleBtnTextActive: {
     color: 'white',
     fontWeight: '700',
+  },
+  hdBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(200,155,70,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(200,155,70,0.20)',
+  },
+  hdBannerText: {
+    fontSize: 12,
+    color: 'rgba(200,155,70,0.80)',
   },
   endScreenBottomBtns: {
     flexDirection: 'row',

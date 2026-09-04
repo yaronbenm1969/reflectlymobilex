@@ -1823,7 +1823,7 @@ app.post('/api/stories/:storyId/render', async (req, res) => {
 
       // Save finalVideoUrl to Firestore — videoPublishReady signals client WhatsApp button is ready
       if (firestoreDb && storyId && finalUrl) {
-        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl, status: 'completed', videoPublishReady: true, completedAt: new Date() }).catch(() => {});
+        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl, status: 'completed', videoPublishReady: true, completedAt: new Date(), clipsExpireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) }).catch(() => {});
       }
       sendVideoReadyNotification(storyId, finalUrl).catch(() => {});
 
@@ -1923,7 +1923,7 @@ app.post('/api/stories/:storyId/render-format', async (req, res) => {
 
       // Save finalVideoUrl to Firestore — videoPublishReady signals client WhatsApp button is ready
       if (firestoreDb && storyId && finalUrl) {
-        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl, status: 'completed', videoPublishReady: true, completedAt: new Date() }).catch(() => {});
+        firestoreDb.collection('stories').doc(storyId).update({ finalVideoUrl: finalUrl, status: 'completed', videoPublishReady: true, completedAt: new Date(), clipsExpireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) }).catch(() => {});
       }
       sendVideoReadyNotification(storyId, finalUrl).catch(() => {});
 
@@ -2657,6 +2657,7 @@ app.post('/api/reencode-for-whatsapp', express.json(), async (req, res) => {
         status: 'completed',
         videoPublishReady: true,
         completedAt: new Date(),
+        clipsExpireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       }).catch(e => console.warn('reencode: Firestore save failed:', e.message));
     }
     res.json({ success: true, finalUrl, videoUrl: finalUrl });
@@ -2907,6 +2908,7 @@ app.post('/api/mix-music-with-video', async (req, res) => {
         status: 'completed',
         videoPublishReady: true,
         completedAt: new Date(),
+        clipsExpireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       }).catch(e => console.warn('mix-music: Firestore save failed:', e.message));
       sendVideoReadyNotification(storyId, finalUrl).catch(() => {});
     }
@@ -4000,6 +4002,7 @@ async function _runPocRender(storyId, jobId) {
       status: 'completed',
       videoPublishReady: true,
       completedAt: new Date(),
+      clipsExpireAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
     console.log(`[POC] ✅ stories/${storyId} updated — videoPublishReady=true`);
   } catch (fsErr) {
@@ -4117,6 +4120,37 @@ app.get('/api/poc/render-cube/:jobId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Daily cleanup: delete expired player clips from Firebase Storage ─────────
+async function cleanupExpiredClips() {
+  if (!firestoreDb) return;
+  try {
+    const now = new Date();
+    const snap = await firestoreDb.collection('stories')
+      .where('clipsExpireAt', '<=', now)
+      .where('clipsDeleted', '!=', true)
+      .get();
+    if (snap.empty) { console.log('[cleanup] No expired clips to delete.'); return; }
+    const bucket = getStorage().bucket();
+    for (const doc of snap.docs) {
+      const storyId = doc.id;
+      try {
+        const [files] = await bucket.getFiles({ prefix: `stories/${storyId}/players/` });
+        await Promise.all(files.map(f => f.delete().catch(() => {})));
+        await firestoreDb.collection('stories').doc(storyId).update({ clipsDeleted: true });
+        console.log(`[cleanup] ✅ Deleted ${files.length} clips for story ${storyId}`);
+      } catch (e) {
+        console.warn(`[cleanup] ⚠️ Failed for story ${storyId}:`, e.message);
+      }
+    }
+  } catch (e) {
+    console.warn('[cleanup] Query failed:', e.message);
+  }
+}
+// Run once at startup (catches any missed deletions), then every 24 hours
+setTimeout(cleanupExpiredClips, 60 * 1000);
+setInterval(cleanupExpiredClips, 24 * 60 * 60 * 1000);
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.listen(PORT, '0.0.0.0', () => {
