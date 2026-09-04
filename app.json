@@ -93,6 +93,8 @@
       "expo-asset",
       "expo-font",
       "expo-localization",
+      "expo-sharing",
+      "expo-video",
       "./plugins/withPrivacyManifest"
     ],
     "extra": {
