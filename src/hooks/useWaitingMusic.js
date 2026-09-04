@@ -4,7 +4,7 @@
  * Volume: soft (0.22) — background only, not distracting.
  */
 import { useRef, useEffect, useCallback } from 'react';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 const STORAGE_BUCKET = 'reflectly-playback.firebasestorage.app';
 const TRACK_IDS = [
@@ -47,8 +47,8 @@ export function useWaitingMusic() {
     }
     if (soundRef.current) {
       try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
+        soundRef.current.pause(); // stop audio output immediately before releasing
+        soundRef.current.remove();
       } catch (_) {}
       soundRef.current = null;
     }
@@ -65,24 +65,25 @@ export function useWaitingMusic() {
     const url = `https://storage.googleapis.com/${STORAGE_BUCKET}/music/library/${trackId}/phase1.mp3`;
 
     try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        allowsRecordingIOS: false,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: false,
+        shouldPlayInBackground: false,
+        interruptionMode: 'duckOthers',
       }).catch((e) => console.warn('⚠️ setAudioMode error:', e.message));
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: url },
-        { shouldPlay: true, volume: 0.22, isLooping: true }
-      );
+      const player = createAudioPlayer({ uri: url });
+      player.loop = true;
+      player.volume = 0.22;
+      player.play();
 
       if (!activeRef.current || soundIdRef.current !== myId) {
-        await sound.unloadAsync();
+        try { player.pause(); } catch (_) {}
+        player.remove();
         return;
       }
 
-      soundRef.current = sound;
+      soundRef.current = player;
       console.log(`🎵 Waiting music: ${trackId}`);
 
       // Schedule switch to next track
@@ -110,6 +111,13 @@ export function useWaitingMusic() {
   const stop = useCallback(async () => {
     activeRef.current = false;
     await stopCurrent();
+    // Reset audio session so the AI/ambient music can start cleanly
+    setAudioModeAsync({
+      allowsRecording: false,
+      playsInSilentMode: true,
+      shouldPlayInBackground: false,
+      interruptionMode: 'mixWithOthers',
+    }).catch(() => {});
     console.log('🔇 Waiting music stopped');
   }, []);
 

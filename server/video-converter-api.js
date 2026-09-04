@@ -3966,11 +3966,22 @@ async function _runPocRender(storyId, jobId) {
 
   let musicUrl = pocResult.generatedMusicUrl;
   if (!musicUrl) {
-    try {
-      const freshSnap = await firestoreDb.collection('stories').doc(storyId).get();
-      musicUrl = freshSnap.data()?.generatedMusicUrl || null;
-      if (musicUrl) console.log('[POC] generatedMusicUrl arrived during render — will mix now');
-    } catch { }
+    // Poll Firestore for generatedMusicUrl — Suno may still be generating while the render ran.
+    // Wait up to 3 minutes in 15-second intervals before giving up on music mixing.
+    const musicDeadline = Date.now() + 3 * 60 * 1000;
+    while (!musicUrl && Date.now() < musicDeadline) {
+      try {
+        const freshSnap = await firestoreDb.collection('stories').doc(storyId).get();
+        musicUrl = freshSnap.data()?.generatedMusicUrl || null;
+      } catch { }
+      if (!musicUrl) {
+        const waitMs = Math.min(15000, musicDeadline - Date.now());
+        if (waitMs > 500) await new Promise(r => setTimeout(r, waitMs));
+        else break;
+      }
+    }
+    if (musicUrl) console.log('[POC] generatedMusicUrl found — will mix now');
+    else console.log('[POC] generatedMusicUrl not available after 3min wait — mixing without music');
   }
 
   if (musicUrl) {

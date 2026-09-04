@@ -43,6 +43,9 @@ const CubeWebView = ({
   const recordingChunksRef = useRef([]);
   const recordingMetaRef = useRef(null);
   const [logoDataUri, setLogoDataUri] = useState('');
+  // Tracks if auto-play was requested before the WebView was ready (isReady=false in JS).
+  // When readyToPlay arrives from the WebView, we fire auto-play if this is still true.
+  const pendingAutoPlayRef = useRef(false);
 
 
 
@@ -101,6 +104,7 @@ const CubeWebView = ({
   useEffect(() => {
     if (triggerAutoPlay && webViewRef.current) {
       console.log('🎲 Auto-play triggered via prop');
+      pendingAutoPlayRef.current = true;
       webViewRef.current.injectJavaScript(`
         if (typeof handlePlayClick === 'function') {
           hasUserStarted = false;
@@ -2028,8 +2032,20 @@ const CubeWebView = ({
         case 'readyToPlay':
           console.log('🎬 Cube ready to play');
           onReadyToPlay?.();
+          // If auto-play was requested before the WebView was ready, fire it now.
+          if (pendingAutoPlayRef.current) {
+            pendingAutoPlayRef.current = false;
+            console.log('🎲 Auto-play deferred — firing now that WebView is ready');
+            webViewRef.current?.injectJavaScript(`
+              if (typeof handlePlayClick === 'function' && !isPlaying && !hasUserStarted) {
+                handlePlayClick();
+              }
+              true;
+            `);
+          }
           break;
         case 'animationStarted':
+          pendingAutoPlayRef.current = false; // clear if animation actually started
           console.log('▶️ Cube playback started');
           onPlaybackStart?.();
           break;
