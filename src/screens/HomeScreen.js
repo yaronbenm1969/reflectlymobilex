@@ -13,7 +13,7 @@ import {
   Dimensions,
   Modal,
 } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('screen');
 import * as FileSystem from 'expo-file-system';
@@ -42,7 +42,6 @@ const PARTICIPANT_OPTIONS = [
 export const HomeScreen = () => {
   const { t, i18n } = useTranslation();
   const { go } = useNav();
-  const bgVideoRef = useRef(null);
   const storyName = useAppState((state) => state.storyName);
   const setStoryName = useAppState((state) => state.setStoryName);
   const setCurrentStoryId = useAppState((state) => state.setCurrentStoryId);
@@ -56,8 +55,12 @@ export const HomeScreen = () => {
   const [isNewUser, setIsNewUser] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialVideoUrl, setTutorialVideoUrl] = useState('');
-  const tutorialVideoRef = useRef(null);
   const cardOpacity = useRef(new Animated.Value(0)).current;
+
+  const tutorialPlayer = useVideoPlayer(tutorialVideoUrl ? { uri: tutorialVideoUrl } : null, p => {
+    p.loop = false;
+    if (tutorialVideoUrl) p.play();
+  });
 
   // Cache background video locally after first download
   useEffect(() => {
@@ -306,20 +309,13 @@ export const HomeScreen = () => {
             <View style={styles.tutorialVideoContainer}>
               {tutorialVideoUrl ? (
                 <>
-                  <Video
-                    ref={tutorialVideoRef}
-                    source={{ uri: tutorialVideoUrl }}
+                  <VideoView
+                    player={tutorialPlayer}
                     style={styles.tutorialVideo}
-                    resizeMode={ResizeMode.CONTAIN}
-                    shouldPlay
-                    useNativeControls
+                    contentFit="contain"
+                    nativeControls
+                    allowsFullscreen
                   />
-                  <TouchableOpacity
-                    style={styles.tutorialFullscreenBtn}
-                    onPress={() => tutorialVideoRef.current?.presentFullscreenPlayerAsync()}
-                  >
-                    <Ionicons name="expand" size={15} color="rgba(255,255,255,0.85)" />
-                  </TouchableOpacity>
                 </>
               ) : (
                 <View style={styles.tutorialPlaceholder}>

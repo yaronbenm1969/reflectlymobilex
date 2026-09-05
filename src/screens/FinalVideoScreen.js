@@ -15,7 +15,7 @@ import {
   Modal,
 } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Sharing from 'expo-sharing';
@@ -132,6 +132,7 @@ export const FinalVideoScreen = () => {
   const clientRecordingSupportedRef = useRef(false);
   const cubeRef = useRef(null);
   const ambientSoundRef = useRef(null);
+  const ambientSubscriptionRef = useRef(null);
   const ambientPhaseIndexRef = useRef(0);
   const aiMusicSoundRef = useRef(null);
   const generatedMusicUrlRef = useRef(generatedMusicUrl);
@@ -416,69 +417,72 @@ export const FinalVideoScreen = () => {
     const trackId = rawTrackId.startsWith('suno-set-') ? 'reflective-space' : rawTrackId;
 
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionMode: 'duckOthers',
       }).catch(() => {});
 
       const phaseNum = ambientPhaseIndexRef.current + 1;
       const url = `${MUSIC_BASE_URL}/${trackId}/phase${phaseNum > 3 ? 1 : phaseNum}.mp3`;
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: url },
-        { shouldPlay: true, volume: 0.3, isLooping: false }
-      );
+      const player = createAudioPlayer({ uri: url });
+      player.loop = false;
+      player.volume = 0.3;
+      player.play();
 
-      sound.setOnPlaybackStatusUpdate((status) => {
+      if (ambientSubscriptionRef.current) {
+        ambientSubscriptionRef.current.remove();
+      }
+      ambientSubscriptionRef.current = player.addListener('playbackStatusUpdate', (status) => {
         if (status.didJustFinish) {
           ambientPhaseIndexRef.current = (ambientPhaseIndexRef.current + 1) % 3;
-          sound.unloadAsync().then(() => {
-            startAmbientMusic();
-          });
+          ambientSubscriptionRef.current = null;
+          player.remove();
+          startAmbientMusic();
         }
       });
 
-      ambientSoundRef.current = sound;
+      ambientSoundRef.current = player;
     } catch (err) {
       console.error('Ambient music error:', err.message);
     }
   };
 
   const stopAmbientMusic = async () => {
-    if (ambientSoundRef.current) {
+    if (ambientSubscriptionRef.current) {
+      ambientSubscriptionRef.current.remove();
+      ambientSubscriptionRef.current = null;
+    }
+    const fadeSound = ambientSoundRef.current;
+    ambientSoundRef.current = null;
+    if (fadeSound) {
       try {
-        const status = await ambientSoundRef.current.getStatusAsync();
-        if (status.isLoaded) {
-          const startVol = status.volume || 0.3;
-          const steps = 10;
-          for (let i = steps; i >= 0; i--) {
-            if (!ambientSoundRef.current) break;
-            await ambientSoundRef.current.setVolumeAsync((startVol * i) / steps);
-            await new Promise(r => setTimeout(r, 100));
-          }
+        const startVol = fadeSound.volume || 0.3;
+        const steps = 10;
+        for (let i = steps; i >= 0; i--) {
+          fadeSound.volume = (startVol * i) / steps;
+          await new Promise(r => setTimeout(r, 100));
         }
-        await ambientSoundRef.current.stopAsync();
-        await ambientSoundRef.current.unloadAsync();
+        fadeSound.remove();
       } catch (e) {}
-      ambientSoundRef.current = null;
     }
     ambientPhaseIndexRef.current = 0;
   };
 
-  // Preload music into memory (shouldPlay:false) so startAiMusic can begin instantly.
+  // Preload music into memory (not yet playing) so startAiMusic can begin instantly.
   // Called when generatedMusicUrl arrives before the animation starts.
   const preloadAiMusic = async () => {
     if (aiMusicSoundRef.current) return;
     const musicUrl = generatedMusicUrlRef.current;
     if (!musicUrl) return;
     try {
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: musicUrl },
-        { shouldPlay: false, volume: 0, isLooping: true }
-      );
-      aiMusicSoundRef.current = sound;
+      const player = createAudioPlayer({ uri: musicUrl });
+      player.loop = true;
+      player.volume = 0;
+      // Don't call play() — just preload
+      aiMusicSoundRef.current = player;
       console.log('🎵 AI music preloaded (ready to play instantly)');
     } catch (err) {
       console.warn('AI music preload failed:', err.message);
@@ -492,31 +496,26 @@ export const FinalVideoScreen = () => {
     try {
       let sound = aiMusicSoundRef.current;
       if (sound) {
-        const status = await sound.getStatusAsync().catch(() => ({ isLoaded: false }));
-        if (!status.isLoaded) {
+        if (sound.playing) return; // already playing
+        if (!sound.isLoaded) {
           // Bad state — discard and reload
-          await sound.unloadAsync().catch(() => {});
+          sound.remove();
           aiMusicSoundRef.current = null;
           sound = null;
-        } else if (status.isPlaying) {
-          return; // already playing
         }
         // else: preloaded + paused — just play below
       }
       if (!sound) {
-        const res = await Audio.Sound.createAsync(
-          { uri: musicUrl },
-          { shouldPlay: true, volume: 0, isLooping: true }
-        );
-        sound = res.sound;
+        sound = createAudioPlayer({ uri: musicUrl });
+        sound.loop = true;
+        sound.volume = 0;
         aiMusicSoundRef.current = sound;
-      } else {
-        await sound.playAsync();
       }
+      sound.play();
       console.log('🎵 AI music playing (fading in)...');
       for (let i = 1; i <= 12; i++) {
         if (!aiMusicSoundRef.current) break;
-        try { await sound.setVolumeAsync(0.01 * i); } catch (e) { break; }
+        try { sound.volume = 0.01 * i; } catch (e) { break; }
         await new Promise(r => setTimeout(r, 125));
       }
     } catch (err) {
@@ -527,31 +526,32 @@ export const FinalVideoScreen = () => {
   const stopAiMusic = async () => {
     if (!aiMusicSoundRef.current) return;
     try {
-      await aiMusicSoundRef.current.stopAsync();
-      await aiMusicSoundRef.current.unloadAsync();
+      aiMusicSoundRef.current.remove();
     } catch (e) {}
     aiMusicSoundRef.current = null;
   };
 
   useEffect(() => {
-    // allowsRecordingIOS: false is critical — PlayerRecordScreen may have left it true,
+    // allowsRecording: false is critical — PlayerRecordScreen may have left it true,
     // which routes audio to the earpiece (inaudible) instead of the speaker.
-    Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      allowsRecordingIOS: false,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
+    setAudioModeAsync({
+      playsInSilentMode: true,
+      allowsRecording: false,
+      shouldPlayInBackground: false,
+      interruptionMode: 'duckOthers',
     }).catch(() => {});
 
     return () => {
+      if (ambientSubscriptionRef.current) {
+        ambientSubscriptionRef.current.remove();
+        ambientSubscriptionRef.current = null;
+      }
       if (ambientSoundRef.current) {
-        ambientSoundRef.current.stopAsync().catch(() => {});
-        ambientSoundRef.current.unloadAsync().catch(() => {});
+        ambientSoundRef.current.remove();
         ambientSoundRef.current = null;
       }
       if (aiMusicSoundRef.current) {
-        aiMusicSoundRef.current.stopAsync().catch(() => {});
-        aiMusicSoundRef.current.unloadAsync().catch(() => {});
+        aiMusicSoundRef.current.remove();
         aiMusicSoundRef.current = null;
       }
     };

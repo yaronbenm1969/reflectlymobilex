@@ -11,7 +11,7 @@ import {
   Switch,
 } from 'react-native';
 import { NestableScrollContainer, NestableDraggableFlatList, ScaleDecorator } from 'react-native-draggable-flatlist';
-import { Video } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -78,6 +78,7 @@ export const EditRoomScreen = () => {
   const privacySettings = useAppState((state) => state.privacySettings);
   const currentStoryId = useAppState((state) => state.currentStoryId);
   const keyStoryUri = useAppState((state) => state.keyStoryUri);
+  const user = useAppState((state) => state.user);
   
   const setReflections = useAppState((state) => state.setReflections);
   const setReflectionsLoading = useAppState((state) => state.setReflectionsLoading);
@@ -96,6 +97,21 @@ export const EditRoomScreen = () => {
   const [previewVideo, setPreviewVideo] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isVideoLoading, setIsVideoLoading] = useState(false);
+
+  const previewPlayer = useVideoPlayer(previewVideo ? { uri: previewVideo } : null, p => {
+    p.loop = false;
+    if (previewVideo) p.play();
+  });
+
+  // Track loading state via player status events
+  React.useEffect(() => {
+    if (!previewPlayer) return;
+    const sub = previewPlayer.addListener('statusChange', ({ status }) => {
+      if (status === 'loading') setIsVideoLoading(true);
+      else if (status === 'readyToPlay') setIsVideoLoading(false);
+    });
+    return () => sub.remove();
+  }, [previewPlayer]);
 
   const [storyVideoUrl, setStoryVideoUrl] = useState(null);
   const [isConverting, setIsConverting] = useState(false);
@@ -227,7 +243,7 @@ export const EditRoomScreen = () => {
         storyUnsubscribeRef.current();
       }
     };
-  }, [currentStoryId]);
+  }, [currentStoryId, user?.uid]);
 
   // Build/update ordered flat clip list when reflections change
   useEffect(() => {
@@ -732,14 +748,11 @@ export const EditRoomScreen = () => {
             </TouchableOpacity>
             {previewVideo && (
               <View style={{ flex: 1 }}>
-                <Video
-                  source={{ uri: previewVideo }}
+                <VideoView
+                  player={previewPlayer}
                   style={styles.modalVideo}
-                  useNativeControls
-                  resizeMode="contain"
-                  shouldPlay
-                  onLoadStart={() => setIsVideoLoading(true)}
-                  onReadyForDisplay={() => setIsVideoLoading(false)}
+                  nativeControls
+                  contentFit="contain"
                 />
                 {isVideoLoading && (
                   <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' }}>

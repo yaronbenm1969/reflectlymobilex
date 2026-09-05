@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 const STORAGE_BUCKET = 'reflectly-playback.firebasestorage.app';
 const BASE_URL = `https://storage.googleapis.com/${STORAGE_BUCKET}/music/library`;
@@ -16,11 +16,11 @@ export const useAmbientPlayback = (trackId, directUrl = null) => {
   useEffect(() => {
     isUnmountedRef.current = false;
 
-    Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
+    setAudioModeAsync({
+      allowsRecording: false,
+      playsInSilentMode: true,
+      shouldPlayInBackground: false,
+      interruptionMode: 'duckOthers',
     }).catch(console.warn);
 
     return () => {
@@ -32,8 +32,7 @@ export const useAmbientPlayback = (trackId, directUrl = null) => {
   const unloadSound = async () => {
     if (soundRef.current) {
       try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
+        soundRef.current.remove();
       } catch (e) {}
       soundRef.current = null;
     }
@@ -51,44 +50,42 @@ export const useAmbientPlayback = (trackId, directUrl = null) => {
     const url = getPhaseUrl(phaseNumber);
     if (!url) return;
 
-    const loadUrl = async (uri) => {
-      const { sound } = await Audio.Sound.createAsync(
-        { uri },
-        { shouldPlay: true, isLooping: true, volume }
-      );
-      // Set volume again immediately after createAsync — more reliable than initialStatus on iOS
-      try { await sound.setVolumeAsync(volume); } catch (e) {}
-      return sound;
+    const loadUrl = (uri) => {
+      const player = createAudioPlayer({ uri });
+      player.loop = true;
+      player.volume = volume;
+      player.play();
+      return player;
     };
 
     try {
       await unloadSound();
       soundIdRef.current += 1;
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: duringRecording,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
+      await setAudioModeAsync({
+        allowsRecording: duringRecording,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionMode: 'duckOthers',
       }).catch(() => {});
 
       console.log(`🎵 Loading ambient phase ${phaseNumber}: ${trackId} vol=${volume}`);
 
       let sound;
       try {
-        sound = await loadUrl(url);
+        sound = loadUrl(url);
       } catch (loadErr) {
         if (phaseNumber !== 1) {
           console.warn(`⚠️ phase${phaseNumber} failed, falling back to phase1`);
           const fallbackUrl = getPhaseUrl(1);
-          sound = await loadUrl(fallbackUrl);
+          sound = loadUrl(fallbackUrl);
         } else {
           throw loadErr;
         }
       }
 
       if (isUnmountedRef.current) {
-        await sound.unloadAsync();
+        sound.remove();
         return;
       }
 
@@ -109,11 +106,11 @@ export const useAmbientPlayback = (trackId, directUrl = null) => {
   const stop = useCallback(async () => {
     await unloadSound();
     // Reset audio session so WebView video 'onended' events fire correctly on iOS
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: false,
+    await setAudioModeAsync({
+      allowsRecording: false,
+      playsInSilentMode: true,
+      shouldPlayInBackground: false,
+      interruptionMode: 'mixWithOthers',
     }).catch(() => {});
     setIsPlaying(false);
     setCurrentPhase(null);
@@ -131,41 +128,38 @@ export const useAmbientPlayback = (trackId, directUrl = null) => {
     try {
       const steps = 15;
       const stepTime = durationMs / steps;
-      const status = await fadingSound.getStatusAsync();
-      const startVolume = status.isLoaded ? status.volume : 0.3;
+      const startVolume = fadingSound.volume || 0.3;
 
       for (let i = steps; i >= 0; i--) {
         if (isUnmountedRef.current || fadeId !== soundIdRef.current) break;
         try {
-          await fadingSound.setVolumeAsync((startVolume * i) / steps);
+          fadingSound.volume = (startVolume * i) / steps;
         } catch (e) { break; }
         await new Promise(r => setTimeout(r, stepTime));
       }
 
       try {
-        await fadingSound.stopAsync();
-        await fadingSound.unloadAsync();
+        fadingSound.remove();
       } catch (e) {}
     } catch (e) {
       try {
-        await fadingSound.stopAsync();
-        await fadingSound.unloadAsync();
+        fadingSound.remove();
       } catch (e2) {}
     }
     // Only reset audio session if no new sound was started after this fade began
     if (fadeId === soundIdRef.current) {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: false,
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionMode: 'mixWithOthers',
       }).catch(() => {});
     }
   }, []);
 
   const setVolume = useCallback(async (volume) => {
     if (soundRef.current) {
-      try { await soundRef.current.setVolumeAsync(volume); } catch (e) {}
+      try { soundRef.current.volume = volume; } catch (e) {}
     }
   }, []);
 
@@ -173,8 +167,7 @@ export const useAmbientPlayback = (trackId, directUrl = null) => {
   const getCurrentPositionMs = useCallback(async () => {
     if (!soundRef.current) return 0;
     try {
-      const status = await soundRef.current.getStatusAsync();
-      return status.isLoaded ? (status.positionMillis || 0) : 0;
+      return (soundRef.current.currentTime || 0) * 1000;
     } catch (e) {
       return 0;
     }
@@ -183,14 +176,14 @@ export const useAmbientPlayback = (trackId, directUrl = null) => {
   // Switch audio routing mode + volume without restarting playback.
   // duringRecording=true routes output to earpiece on iOS (mic won't pick it up).
   const setVolumeAndMode = useCallback(async (volume, duringRecording = false) => {
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: duringRecording,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
+    await setAudioModeAsync({
+      allowsRecording: duringRecording,
+      playsInSilentMode: true,
+      shouldPlayInBackground: false,
+      interruptionMode: 'duckOthers',
     }).catch(() => {});
     if (soundRef.current) {
-      try { await soundRef.current.setVolumeAsync(volume); } catch (e) {}
+      try { soundRef.current.volume = volume; } catch (e) {}
     }
   }, []);
 

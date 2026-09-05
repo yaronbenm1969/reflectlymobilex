@@ -331,12 +331,15 @@ export const RecordScreen = () => {
         )}
       </View>
 
-      <CameraView
-        style={styles.camera}
-        facing={facing}
-        ref={cameraRef}
-        mode="video"
-      >
+      {/* Camera wrapper — CameraView fills absolutely, overlays are siblings on top */}
+      <View style={styles.cameraWrapper}>
+        <CameraView
+          style={styles.camera}
+          facing={facing}
+          ref={cameraRef}
+          mode="video"
+        />
+
         {/* Countdown overlay */}
         {isCountingDown && countdown > 0 && (
           <View style={styles.countdownOverlay}>
@@ -355,11 +358,11 @@ export const RecordScreen = () => {
         {/* Progress bar */}
         {isRecording && (
           <View style={styles.progressContainer}>
-            <View 
+            <View
               style={[
                 styles.progressBar,
                 { width: `${(recordingTimer / MAX_RECORDING_TIME) * 100}%` }
-              ]} 
+              ]}
             />
           </View>
         )}
@@ -380,7 +383,7 @@ export const RecordScreen = () => {
             ]} />
           </TouchableOpacity>
         </View>
-      </CameraView>
+      </View>
     </View>
   );
 };
@@ -391,6 +394,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'black',
   },
   camera: {
+    flex: 1,
+  },
+  cameraWrapper: {
     flex: 1,
   },
   permissionContainer: {

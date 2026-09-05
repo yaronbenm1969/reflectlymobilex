@@ -13,7 +13,7 @@ import {
   Linking,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { Ionicons } from '@expo/vector-icons';
 import { useNav } from '../hooks/useNav';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -101,15 +101,16 @@ export const PlayerRecordScreen = () => {
     if (!audioUrl) return;
     try {
       if (instructionSoundRef.current) {
-        await instructionSoundRef.current.unloadAsync();
+        instructionSoundRef.current.remove();
         instructionSoundRef.current = null;
       }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-      const { sound } = await Audio.Sound.createAsync({ uri: audioUrl }, { volume: 1.0 });
-      instructionSoundRef.current = sound;
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      const player = createAudioPlayer({ uri: audioUrl });
+      player.volume = 1.0;
+      instructionSoundRef.current = player;
       setIsPlayingInstruction(true);
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate((s) => {
+      player.play();
+      player.addListener('playbackStatusUpdate', (s) => {
         if (s.didJustFinish) setIsPlayingInstruction(false);
       });
     } catch (e) {
@@ -181,7 +182,7 @@ export const PlayerRecordScreen = () => {
       waitingAmbient.stop();
       // Reset audio session so FinalVideoScreen hears cube video audio on speakers (not earpiece).
       // expo-camera's recordAsync() leaves allowsRecordingIOS:true which routes audio to earpiece.
-      Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }).catch(() => {});
+      setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
     };
   }, []);
 

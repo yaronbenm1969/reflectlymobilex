@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import * as ImagePicker from 'expo-image-picker';
 import * as VideoThumbnails from 'expo-video-thumbnails';
@@ -214,7 +214,7 @@ export const EditStudioScreen = () => {
 
   const stopMusicPreview = async () => {
     if (musicSoundRef.current) {
-      try { await musicSoundRef.current.stopAsync(); await musicSoundRef.current.unloadAsync(); } catch (e) {}
+      try { musicSoundRef.current.remove(); } catch (e) {}
       musicSoundRef.current = null;
     }
     setPlayingPreview(null);
@@ -227,12 +227,12 @@ export const EditStudioScreen = () => {
     setIsLoadingPreview(true);
     setPlayingPreview(setNum);
     try {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: previewUrl },
-        { shouldPlay: true, volume: 0.4, isLooping: true }
-      );
-      musicSoundRef.current = sound;
+      await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false });
+      const player = createAudioPlayer({ uri: previewUrl });
+      player.loop = true;
+      player.volume = 0.4;
+      player.play();
+      musicSoundRef.current = player;
     } catch (err) {
       console.error('Music preview error:', err.message);
       setPlayingPreview(null);

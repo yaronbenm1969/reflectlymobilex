@@ -4,6 +4,10 @@
 
 module.exports = ({ config }) => ({
   ...config,
+  plugins: [
+    ...(config.plugins || []),
+    'expo-audio',
+  ],
   extra: {
     // Server URL injected into Constants.expoConfig.extra for files that
     // use that channel (storageService.js, ProcessingScreen.js).

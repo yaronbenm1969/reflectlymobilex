@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, Dimensions, StyleSheet, Image, Text, TouchableOpacity } from 'react-native';
-import { Video } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import Carousel from 'react-native-reanimated-carousel';
 import Animated, { interpolate, Extrapolation } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,9 +11,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://reflectlymobilex.onrender.com';
 
 const VideoSlide = ({ item, index, isActive, onVideoEnd, width, height }) => {
-  const videoRef = useRef(null);
   const [showThumbnail, setShowThumbnail] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [convertedUrl, setConvertedUrl] = useState(null);
   const [isConverting, setIsConverting] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -23,12 +21,39 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd, width, height }) => {
   const playerName = item.playerName || item.participantName || `משתתף ${index + 1}`;
   const thumbnail = item.thumbnail || item.thumbnailUrl;
 
+  const player = useVideoPlayer(convertedUrl ? { uri: convertedUrl } : null, p => {
+    p.loop = false;
+  });
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
   }, []);
+
+  // Reset loaded state when url changes
+  useEffect(() => {
+    setIsLoaded(false);
+  }, [convertedUrl]);
+
+  // Subscribe to player events
+  useEffect(() => {
+    if (!player) return;
+    const sub1 = player.addListener('statusChange', ({ status }) => {
+      if (status === 'readyToPlay' && isMountedRef.current) {
+        setIsLoaded(true);
+      }
+    });
+    const sub2 = player.addListener('playToEnd', () => {
+      setTimeout(() => {
+        if (isMountedRef.current && onVideoEnd) {
+          onVideoEnd(index);
+        }
+      }, 500);
+    });
+    return () => { sub1.remove(); sub2.remove(); };
+  }, [player, onVideoEnd, index]);
 
   useEffect(() => {
     const convertIfNeeded = async () => {
@@ -62,50 +87,20 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd, width, height }) => {
   }, [rawVideoUrl, index]);
 
   useEffect(() => {
-    const controlPlayback = async () => {
-      if (!videoRef.current || !isMountedRef.current) return;
-      
-      try {
-        if (isActive && convertedUrl && isLoaded) {
-          setShowThumbnail(false);
-          await videoRef.current.playAsync();
-          if (isMountedRef.current) setIsPlaying(true);
-        } else if (!isActive && isLoaded) {
-          await videoRef.current.pauseAsync();
-          await videoRef.current.setPositionAsync(0);
-          if (isMountedRef.current) {
-            setShowThumbnail(true);
-            setIsPlaying(false);
-          }
-        }
-      } catch (error) {
-        console.log('Playback control error:', error.message);
+    if (!player || !convertedUrl) return;
+    try {
+      if (isActive && isLoaded) {
+        setShowThumbnail(false);
+        player.play();
+      } else if (!isActive && isLoaded) {
+        player.pause();
+        player.currentTime = 0;
+        setShowThumbnail(true);
       }
-    };
-    controlPlayback();
+    } catch (error) {
+      console.log('Playback control error:', error.message);
+    }
   }, [isActive, convertedUrl, isLoaded]);
-
-  const handlePlaybackStatusUpdate = useCallback((status) => {
-    if (!isMountedRef.current) return;
-    
-    if (status.isLoaded && !isLoaded) {
-      setIsLoaded(true);
-    }
-    
-    if (status.didJustFinish && onVideoEnd) {
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          onVideoEnd(index);
-        }
-      }, 500);
-    }
-  }, [onVideoEnd, index, isLoaded]);
-
-  const handleLoad = useCallback(() => {
-    if (isMountedRef.current) {
-      setIsLoaded(true);
-    }
-  }, []);
 
   return (
     <View style={[styles.slideContainer, { width, height }]}>
@@ -129,15 +124,11 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd, width, height }) => {
           </View>
         </View>
       ) : convertedUrl ? (
-        <Video
-          ref={videoRef}
-          source={{ uri: convertedUrl }}
+        <VideoView
+          player={player}
           style={styles.video}
-          resizeMode="cover"
-          shouldPlay={false}
-          isLooping={false}
-          onLoad={handleLoad}
-          onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+          contentFit="cover"
+          nativeControls={false}
         />
       ) : (
         <View style={styles.loadingContainer}>
@@ -145,7 +136,7 @@ const VideoSlide = ({ item, index, isActive, onVideoEnd, width, height }) => {
           <Text style={styles.playerName}>{playerName}</Text>
         </View>
       )}
-      
+
       <View style={styles.slideInfo}>
         <Text style={styles.slidePlayerName}>{playerName}</Text>
         {isActive && <View style={styles.activeDot} />}

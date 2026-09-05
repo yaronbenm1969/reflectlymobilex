@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { Audio } from 'expo-av';
+import { AudioModule, requestRecordingPermissionsAsync, setAudioModeAsync, createAudioPlayer, RecordingPresets } from 'expo-audio';
 import Constants from 'expo-constants';
 import { useTranslation } from 'react-i18next';
 import { useNav } from '../hooks/useNav';
@@ -62,13 +62,13 @@ export const InstructionsScreen = () => {
   // Instructions input mode
   const [inputMode, setInputMode] = useState('text'); // 'text' | 'audio'
   const [isRecording, setIsRecording] = useState(false);
-  const [audioRecording, setAudioRecording] = useState(null);
   const [instructionAudioUri, setInstructionAudioUri] = useState(playerInstructions.audioUri || null);
   const [recordingSecs, setRecordingSecs] = useState(0);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isDictating, setIsDictating] = useState(false);
   const [dictationSecs, setDictationSecs] = useState(0);
+  const audioRecorderRef = useRef(null);
   const dictationRecording = useRef(null);
   const dictationTimerRef = useRef(null);
   const audioSound = useRef(null);
@@ -162,11 +162,13 @@ export const InstructionsScreen = () => {
 
   const startAudioRec = async () => {
     try {
-      const { granted } = await Audio.requestPermissionsAsync();
+      const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) { Alert.alert(t('common.error'), 'נדרשת הרשאת מיקרופון'); return; }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      setAudioRecording(recording);
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      const recorder = new AudioModule.AudioRecorder(RecordingPresets.HIGH_QUALITY);
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      audioRecorderRef.current = recorder;
       setIsRecording(true);
       setRecordingSecs(0);
       recordingTimerRef.current = setInterval(() => setRecordingSecs((s) => s + 1), 1000);
@@ -177,22 +179,25 @@ export const InstructionsScreen = () => {
     clearInterval(recordingTimerRef.current);
     setIsRecording(false);
     try {
-      await audioRecording.stopAndUnloadAsync();
-      const uri = audioRecording.getURI();
+      const recorder = audioRecorderRef.current;
+      if (!recorder) return;
+      await recorder.stop();
+      const uri = recorder.uri;
       setInstructionAudioUri(uri);
-      setAudioRecording(null);
+      audioRecorderRef.current = null;
     } catch (e) { console.error('Audio record stop failed', e); }
   };
 
   const playAudioRec = async () => {
     if (!instructionAudioUri) return;
-    if (audioSound.current) { await audioSound.current.unloadAsync(); }
-    const { sound } = await Audio.Sound.createAsync({ uri: instructionAudioUri }, { volume: 1.0 });
-    audioSound.current = sound;
-    await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+    if (audioSound.current) { audioSound.current.remove(); }
+    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+    const player = createAudioPlayer({ uri: instructionAudioUri });
+    player.volume = 1.0;
+    audioSound.current = player;
     setIsPlayingAudio(true);
-    await sound.playAsync();
-    sound.setOnPlaybackStatusUpdate((s) => { if (s.didJustFinish) setIsPlayingAudio(false); });
+    player.play();
+    player.addListener('playbackStatusUpdate', (s) => { if (s.didJustFinish) setIsPlayingAudio(false); });
   };
 
   const formatSecs = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -225,11 +230,13 @@ export const InstructionsScreen = () => {
 
   const startDictation = async () => {
     try {
-      const { granted } = await Audio.requestPermissionsAsync();
+      const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) { Alert.alert(t('common.error'), 'נדרשת הרשאת מיקרופון'); return; }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      dictationRecording.current = recording;
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      const recorder = new AudioModule.AudioRecorder(RecordingPresets.HIGH_QUALITY);
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      dictationRecording.current = recorder;
       setIsDictating(true);
       setDictationSecs(0);
       dictationTimerRef.current = setInterval(() => setDictationSecs((s) => s + 1), 1000);
@@ -241,12 +248,12 @@ export const InstructionsScreen = () => {
     setIsDictating(false);
     if (!dictationRecording.current) return;
     try {
-      await dictationRecording.current.stopAndUnloadAsync();
-      const uri = dictationRecording.current.getURI();
+      await dictationRecording.current.stop();
+      const uri = dictationRecording.current.uri;
       dictationRecording.current = null;
       setInstructionAudioUri(uri); // save audio so player can hear it
       setIsTranscribing(true);
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
       const formData = new FormData();
       formData.append('video', { uri, name: 'dictation.m4a', type: 'audio/m4a' });
       const res = await fetch(`${API_BASE_URL}/api/transcribe`, {

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import {
   StatusBar,
   ScrollView,
 } from 'react-native';
-import { Video, ResizeMode, Audio } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -32,8 +33,6 @@ export const PlayerViewScreen = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const videoRef = useRef(null);
-  const fullscreenVideoRef = useRef(null);
   const audioSoundRef = useRef(null);
 
   // Use only playerStoryData (not stale navigationParams) for the player gate
@@ -45,35 +44,40 @@ export const PlayerViewScreen = () => {
   const videoUri = storyData.videoUri || storyData.videoUrl || storyData.keyStoryUrl || null;
   const instructionAudioUrl = storyData.instructionAudioUrl || null;
 
+  // expo-video player — shared between inline and fullscreen VideoView
+  const mainPlayer = useVideoPlayer(videoUri ? { uri: videoUri } : null, p => {
+    p.loop = false;
+  });
+
+  // Subscribe to player events
+  useEffect(() => {
+    if (!mainPlayer) return;
+    const sub1 = mainPlayer.addListener('playingChange', ({ isPlaying: playing }) => {
+      setIsPlaying(playing);
+    });
+    const sub2 = mainPlayer.addListener('statusChange', ({ status }) => {
+      setIsBuffering(status === 'loading');
+      if (status === 'readyToPlay') setIsBuffering(false);
+    });
+    const sub3 = mainPlayer.addListener('playToEnd', () => {
+      setHasWatched(true);
+      setIsPlaying(false);
+    });
+    return () => { sub1.remove(); sub2.remove(); sub3.remove(); };
+  }, [mainPlayer]);
+
   // Only allow skipping if data loaded AND confirmed no video exists
-  React.useEffect(() => {
+  useEffect(() => {
     if (isDataLoaded && !videoUri) setHasWatched(true);
   }, [isDataLoaded, videoUri]);
 
-  const handlePlayPause = async () => {
-    if (!videoRef.current) return;
-    const status = await videoRef.current.getStatusAsync();
-    if (status.isPlaying) {
-      await videoRef.current.pauseAsync();
-      setIsPlaying(false);
+  const handlePlayPause = () => {
+    if (mainPlayer.playing) {
+      mainPlayer.pause();
     } else {
-      if (status.didJustFinish || status.positionMillis >= status.durationMillis) {
-        await videoRef.current.replayAsync();
-      } else {
-        await videoRef.current.playAsync();
-      }
-      setIsPlaying(true);
-    }
-  };
-
-  const handlePlaybackStatusUpdate = (status) => {
-    if (status.isLoaded) {
-      setIsBuffering(status.isBuffering);
-      setIsPlaying(status.isPlaying);
-      if (status.didJustFinish) {
-        setHasWatched(true);
-        setIsPlaying(false);
-      }
+      const atEnd = mainPlayer.duration > 0 && mainPlayer.currentTime >= mainPlayer.duration - 0.1;
+      if (atEnd) mainPlayer.currentTime = 0;
+      mainPlayer.play();
     }
   };
 
@@ -85,18 +89,20 @@ export const PlayerViewScreen = () => {
     if (!instructionAudioUrl) return;
     try {
       if (audioSoundRef.current) {
-        await audioSoundRef.current.unloadAsync();
+        audioSoundRef.current.remove();
         audioSoundRef.current = null;
         setIsPlayingAudio(false);
         return;
       }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-      const { sound } = await Audio.Sound.createAsync({ uri: instructionAudioUrl }, { shouldPlay: true });
-      audioSoundRef.current = sound;
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      const player = createAudioPlayer({ uri: instructionAudioUrl });
+      player.volume = 1.0;
+      audioSoundRef.current = player;
       setIsPlayingAudio(true);
-      sound.setOnPlaybackStatusUpdate((status) => {
+      player.play();
+      player.addListener('playbackStatusUpdate', (status) => {
         if (status.didJustFinish) {
-          sound.unloadAsync();
+          player.remove();
           audioSoundRef.current = null;
           setIsPlayingAudio(false);
         }
@@ -106,34 +112,22 @@ export const PlayerViewScreen = () => {
     }
   };
 
-  const handleOpenFullscreen = async () => {
-    if (videoRef.current) {
-      const status = await videoRef.current.getStatusAsync();
-      if (status.isPlaying) await videoRef.current.pauseAsync();
-    }
+  const handleOpenFullscreen = () => {
     setIsFullscreen(true);
   };
 
-  const handleCloseFullscreen = async () => {
-    if (fullscreenVideoRef.current) {
-      await fullscreenVideoRef.current.pauseAsync();
-    }
+  const handleCloseFullscreen = () => {
+    mainPlayer.pause();
     setIsFullscreen(false);
   };
 
-  const handleFullscreenPlayPause = async () => {
-    if (!fullscreenVideoRef.current) return;
-    const status = await fullscreenVideoRef.current.getStatusAsync();
-    if (status.isPlaying) {
-      await fullscreenVideoRef.current.pauseAsync();
-      setIsPlaying(false);
+  const handleFullscreenPlayPause = () => {
+    if (mainPlayer.playing) {
+      mainPlayer.pause();
     } else {
-      if (status.didJustFinish || status.positionMillis >= status.durationMillis) {
-        await fullscreenVideoRef.current.replayAsync();
-      } else {
-        await fullscreenVideoRef.current.playAsync();
-      }
-      setIsPlaying(true);
+      const atEnd = mainPlayer.duration > 0 && mainPlayer.currentTime >= mainPlayer.duration - 0.1;
+      if (atEnd) mainPlayer.currentTime = 0;
+      mainPlayer.play();
     }
   };
 
@@ -156,14 +150,11 @@ export const PlayerViewScreen = () => {
                 activeOpacity={0.9}
                 onPress={handlePlayPause}
               >
-                <Video
-                  ref={videoRef}
-                  source={{ uri: videoUri }}
+                <VideoView
+                  player={mainPlayer}
                   style={styles.video}
-                  resizeMode={ResizeMode.COVER}
-                  shouldPlay={false}
-                  onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-                  onLoad={() => setIsBuffering(false)}
+                  contentFit="cover"
+                  nativeControls={false}
                 />
                 {isBuffering && (
                   <View style={styles.bufferingOverlay}>
@@ -199,18 +190,11 @@ export const PlayerViewScreen = () => {
                     activeOpacity={0.9}
                     onPress={handleFullscreenPlayPause}
                   >
-                    <Video
-                      ref={fullscreenVideoRef}
-                      source={{ uri: videoUri }}
+                    <VideoView
+                      player={mainPlayer}
                       style={StyleSheet.absoluteFill}
-                      resizeMode={ResizeMode.CONTAIN}
-                      shouldPlay
-                      onPlaybackStatusUpdate={(s) => {
-                        if (s.isLoaded) {
-                          setIsPlaying(s.isPlaying);
-                          if (s.didJustFinish) { setHasWatched(true); setIsPlaying(false); }
-                        }
-                      }}
+                      contentFit="contain"
+                      nativeControls={false}
                     />
                     {!isPlaying && (
                       <View style={styles.playOverlay}>

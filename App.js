@@ -211,9 +211,11 @@ export default function App() {
     if (!data?.type || !data?.storyId) return;
     if (data.type === 'story_reflection_update') {
       useAppState.getState().setCurrentStoryId(data.storyId);
+      if (data.storyName) useAppState.getState().setStoryName(data.storyName);
       navigateTo('EditRoom');
     } else if (data.type === 'video_ready') {
       useAppState.getState().setCurrentStoryId(data.storyId);
+      if (data.storyName) useAppState.getState().setStoryName(data.storyName);
       navigateTo('FinalVideo');
     }
   };

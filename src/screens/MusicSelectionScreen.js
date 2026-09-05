@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -73,8 +74,7 @@ export const MusicSelectionScreen = () => {
   const stopPreview = async () => {
     if (soundRef.current) {
       try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
+        soundRef.current.remove();
       } catch (e) {}
       soundRef.current = null;
     }
@@ -97,13 +97,12 @@ export const MusicSelectionScreen = () => {
     setPlayingPreview(setNum);
 
     try {
-      const { Audio } = require('expo-av');
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: previewUrl },
-        { shouldPlay: true, volume: 0.4, isLooping: true }
-      );
-      soundRef.current = sound;
+      await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false });
+      const player = createAudioPlayer({ uri: previewUrl });
+      player.loop = true;
+      player.volume = 0.4;
+      player.play();
+      soundRef.current = player;
     } catch (err) {
       console.error('Preview error:', err.message);
       setPlayingPreview(null);
